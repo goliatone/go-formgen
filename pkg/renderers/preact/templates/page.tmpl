@@ -1,0 +1,22 @@
+{{ define "templates/page.tmpl" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {{- if .Form.Summary }}
+  <title>{{ .Form.Summary }}</title>
+  {{- else }}
+  <title>{{ .Form.OperationID }}</title>
+  {{- end }}
+  <link rel="stylesheet" href="{{ .Assets.Stylesheet }}">
+</head>
+<body>
+  <div id="formgen-preact-root" data-operation="{{ .Form.OperationID }}"></div>
+  <script id="formgen-preact-data" type="application/json">{{ .FormJSON }}</script>
+  <script src="{{ .Assets.VendorScript }}" defer></script>
+  <script src="{{ .Assets.AppScript }}" defer></script>
+</body>
+</html>
+{{- end }}

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create a pet</title>
+  <link rel="stylesheet" href="assets/formgen-preact.min.css">
+</head>
+<body>
+  <div id="formgen-preact-root" data-operation="createPet"></div>
+  <script id="formgen-preact-data" type="application/json">{"operationId":"createPet","endpoint":"/pets","method":"POST","summary":"Create a pet","description":"Capture core info about a pet.","fields":[{"name":"name","type":"string","required":true,"label":"Name","description":"Pet name"},{"name":"tag","type":"string","required":false,"label":"Tag","description":"Optional tag"},{"name":"favorite","type":"string","required":false,"label":"Favorite food","enum":["kibble","treats","vegetables"]}]}</script>
+  <script src="assets/vendor/preact.production.min.js" defer></script>
+  <script src="assets/formgen-preact.min.js" defer></script>
+</body>
+</html>

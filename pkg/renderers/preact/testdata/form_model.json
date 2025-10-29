@@ -1,0 +1,34 @@
+{
+  "operationId": "createPet",
+  "endpoint": "/pets",
+  "method": "POST",
+  "summary": "Create a pet",
+  "description": "Capture core info about a pet.",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "label": "Name",
+      "required": true,
+      "description": "Pet name"
+    },
+    {
+      "name": "tag",
+      "type": "string",
+      "label": "Tag",
+      "required": false,
+      "description": "Optional tag"
+    },
+    {
+      "name": "favorite",
+      "type": "string",
+      "label": "Favorite food",
+      "required": false,
+      "enum": [
+        "kibble",
+        "treats",
+        "vegetables"
+      ]
+    }
+  ]
+}
