@@ -6,18 +6,67 @@
   "description": "",
   "fields": [
     {
+      "name": "age",
+      "type": "integer",
+      "required": false,
+      "label": "Age",
+      "description": "Age in years",
+      "validations": [
+        {
+          "kind": "min",
+          "params": {
+            "value": "0"
+          }
+        },
+        {
+          "kind": "max",
+          "params": {
+            "value": "25"
+          }
+        }
+      ]
+    },
+    {
       "name": "name",
       "type": "string",
       "required": true,
       "label": "Name",
-      "description": ""
+      "description": "Pet name",
+      "validations": [
+        {
+          "kind": "minLength",
+          "params": {
+            "value": "3"
+          }
+        },
+        {
+          "kind": "maxLength",
+          "params": {
+            "value": "64"
+          }
+        },
+        {
+          "kind": "pattern",
+          "params": {
+            "expr": "^[A-Za-z ]+$"
+          }
+        }
+      ]
     },
     {
       "name": "tag",
       "type": "string",
       "required": false,
       "label": "Tag",
-      "description": ""
+      "description": "Optional tag",
+      "validations": [
+        {
+          "kind": "maxLength",
+          "params": {
+            "value": "32"
+          }
+        }
+      ]
     }
   ],
   "metadata": {

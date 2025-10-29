@@ -1,0 +1,122 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sample Petstore",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List pets",
+        "responses": {
+          "200": {
+            "description": "A paged array of pets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Pet"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPet",
+        "summary": "Create a pet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Pet name",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z ]+$"
+                  },
+                  "tag": {
+                    "type": "string",
+                    "description": "Optional tag",
+                    "maxLength": 32
+                  },
+                  "age": {
+                    "type": "integer",
+                    "description": "Age in years",
+                    "minimum": 0,
+                    "maximum": 25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Pet": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "description": "Pet name",
+            "minLength": 3,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z ]+$"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional tag",
+            "maxLength": 32
+          },
+          "age": {
+            "type": "integer",
+            "description": "Age in years",
+            "minimum": 0,
+            "maximum": 25
+          }
+        }
+      }
+    }
+  }
+}

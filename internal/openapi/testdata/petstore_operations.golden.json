@@ -13,6 +13,24 @@
         "name"
       ],
       "Properties": {
+        "age": {
+          "Ref": "",
+          "Type": "integer",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "Age in years",
+          "Default": null,
+          "Minimum": 0,
+          "Maximum": 25,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": ""
+        },
         "name": {
           "Ref": "",
           "Type": "string",
@@ -21,8 +39,15 @@
           "Properties": null,
           "Items": null,
           "Enum": null,
-          "Description": "",
-          "Default": null
+          "Description": "Pet name",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": 3,
+          "MaxLength": 64,
+          "Pattern": "^[A-Za-z ]+$"
         },
         "tag": {
           "Ref": "",
@@ -32,14 +57,28 @@
           "Properties": null,
           "Items": null,
           "Enum": null,
-          "Description": "",
-          "Default": null
+          "Description": "Optional tag",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": 32,
+          "Pattern": ""
         }
       },
       "Items": null,
       "Enum": null,
       "Description": "",
-      "Default": null
+      "Default": null,
+      "Minimum": null,
+      "Maximum": null,
+      "ExclusiveMinimum": false,
+      "ExclusiveMaximum": false,
+      "MinLength": null,
+      "MaxLength": null,
+      "Pattern": ""
     },
     "Responses": {
       "201": {
@@ -51,7 +90,14 @@
         "Items": null,
         "Enum": null,
         "Description": "",
-        "Default": null
+        "Default": null,
+        "Minimum": null,
+        "Maximum": null,
+        "ExclusiveMinimum": false,
+        "ExclusiveMaximum": false,
+        "MinLength": null,
+        "MaxLength": null,
+        "Pattern": ""
       }
     }
   },
@@ -70,7 +116,14 @@
       "Items": null,
       "Enum": null,
       "Description": "",
-      "Default": null
+      "Default": null,
+      "Minimum": null,
+      "Maximum": null,
+      "ExclusiveMinimum": false,
+      "ExclusiveMaximum": false,
+      "MinLength": null,
+      "MaxLength": null,
+      "Pattern": ""
     },
     "Responses": {
       "200": {
@@ -96,17 +149,38 @@
               "Items": null,
               "Enum": null,
               "Description": "",
-              "Default": null
+              "Default": null,
+              "Minimum": null,
+              "Maximum": null,
+              "ExclusiveMinimum": false,
+              "ExclusiveMaximum": false,
+              "MinLength": null,
+              "MaxLength": null,
+              "Pattern": ""
             },
             "Enum": null,
             "Description": "",
-            "Default": null
+            "Default": null,
+            "Minimum": null,
+            "Maximum": null,
+            "ExclusiveMinimum": false,
+            "ExclusiveMaximum": false,
+            "MinLength": null,
+            "MaxLength": null,
+            "Pattern": ""
           }
         },
         "Items": null,
         "Enum": null,
         "Description": "A paged array of pets",
-        "Default": null
+        "Default": null,
+        "Minimum": null,
+        "Maximum": null,
+        "ExclusiveMinimum": false,
+        "ExclusiveMaximum": false,
+        "MinLength": null,
+        "MaxLength": null,
+        "Pattern": ""
       }
     }
   }
