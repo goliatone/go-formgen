@@ -88,7 +88,9 @@ func LoadFormModel(path string) (pkgmodel.FormModel, error) {
 	return out, nil
 }
 
-// WriteFormModel writes a form model golden when UPDATE_GOLDENS is enabled.
+// WriteFormModel writes a form model golden when UPDATE_GOLDENS is enabled. The
+// JSON mirrors the builder output (including validation metadata) to keep
+// snapshot diffs focused on behavioural changes.
 func WriteFormModel(t *testing.T, path string, value pkgmodel.FormModel) {
 	t.Helper()
 

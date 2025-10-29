@@ -35,8 +35,20 @@ paths:
               properties:
                 name:
                   type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[A-Za-z ]+$'
                 tag:
                   type: string
+                  maxLength: 12
+                age:
+                  type: integer
+                  minimum: 1
+                  maximum: 25
+                weight:
+                  type: number
+                  minimum: 0.5
+                  maximum: 60
       responses:
         '201':
           description: Created
@@ -55,8 +67,20 @@ components:
         id:
           type: integer
           format: int64
+          minimum: 1
         name:
           type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[A-Za-z ]+$'
         tag:
           type: string
-
+          maxLength: 12
+        age:
+          type: integer
+          minimum: 1
+          maximum: 25
+        weight:
+          type: number
+          minimum: 0.5
+          maximum: 60
