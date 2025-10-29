@@ -1,0 +1,113 @@
+{
+  "createPet": {
+    "ID": "createPet",
+    "Method": "POST",
+    "Path": "/pets",
+    "Summary": "Create a pet",
+    "Description": "",
+    "RequestBody": {
+      "Ref": "",
+      "Type": "object",
+      "Format": "",
+      "Required": [
+        "name"
+      ],
+      "Properties": {
+        "name": {
+          "Ref": "",
+          "Type": "string",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null
+        },
+        "tag": {
+          "Ref": "",
+          "Type": "string",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null
+        }
+      },
+      "Items": null,
+      "Enum": null,
+      "Description": "",
+      "Default": null
+    },
+    "Responses": {
+      "201": {
+        "Ref": "#/components/schemas/Pet",
+        "Type": "",
+        "Format": "",
+        "Required": null,
+        "Properties": null,
+        "Items": null,
+        "Enum": null,
+        "Description": "",
+        "Default": null
+      }
+    }
+  },
+  "listPets": {
+    "ID": "listPets",
+    "Method": "GET",
+    "Path": "/pets",
+    "Summary": "List pets",
+    "Description": "",
+    "RequestBody": {
+      "Ref": "",
+      "Type": "",
+      "Format": "",
+      "Required": null,
+      "Properties": null,
+      "Items": null,
+      "Enum": null,
+      "Description": "",
+      "Default": null
+    },
+    "Responses": {
+      "200": {
+        "Ref": "",
+        "Type": "object",
+        "Format": "",
+        "Required": [
+          "items"
+        ],
+        "Properties": {
+          "items": {
+            "Ref": "",
+            "Type": "array",
+            "Format": "",
+            "Required": null,
+            "Properties": null,
+            "Items": {
+              "Ref": "#/components/schemas/Pet",
+              "Type": "",
+              "Format": "",
+              "Required": null,
+              "Properties": null,
+              "Items": null,
+              "Enum": null,
+              "Description": "",
+              "Default": null
+            },
+            "Enum": null,
+            "Description": "",
+            "Default": null
+          }
+        },
+        "Items": null,
+        "Enum": null,
+        "Description": "A paged array of pets",
+        "Default": null
+      }
+    }
+  }
+}

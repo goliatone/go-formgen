@@ -1,0 +1,26 @@
+{
+  "operationId": "createPet",
+  "endpoint": "/pets",
+  "method": "POST",
+  "summary": "Create a pet",
+  "description": "",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "required": true,
+      "label": "Name",
+      "description": ""
+    },
+    {
+      "name": "tag",
+      "type": "string",
+      "required": false,
+      "label": "Tag",
+      "description": ""
+    }
+  ],
+  "metadata": {
+    "summary": "Create a pet"
+  }
+}
