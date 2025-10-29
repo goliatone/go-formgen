@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
@@ -98,7 +100,14 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		requiredSet[item] = struct{}{}
 	}
 
-	for propName, propSchema := range schema.Properties {
+	propNames := make([]string, 0, len(schema.Properties))
+	for propName := range schema.Properties {
+		propNames = append(propNames, propName)
+	}
+	sort.Strings(propNames)
+
+	for _, propName := range propNames {
+		propSchema := schema.Properties[propName]
 		_, isRequired := requiredSet[propName]
 		converted, err := b.fieldsFromSchema(propName, propSchema, isRequired)
 		if err != nil {
@@ -123,6 +132,7 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		if len(schema.Enum) > 0 {
 			parent.Enum = append([]any(nil), schema.Enum...)
 		}
+		applyValidations(&parent, schema)
 		return []Field{parent}, nil
 	}
 
@@ -157,6 +167,7 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 	if len(schema.Enum) > 0 {
 		field.Enum = append([]any(nil), schema.Enum...)
 	}
+	applyValidations(&field, schema)
 	return field, nil
 }
 
@@ -176,6 +187,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 	if schema.Default != nil {
 		field.Default = schema.Default
 	}
+	applyValidations(&field, schema)
 	return field
 }
 
@@ -194,4 +206,71 @@ func mapType(schemaType string) FieldType {
 	default:
 		return FieldTypeString
 	}
+}
+
+func applyValidations(field *Field, schema pkgopenapi.Schema) {
+	if field == nil {
+		return
+	}
+
+	if schema.Minimum != nil {
+		params := map[string]string{
+			"value": formatFloat(*schema.Minimum),
+		}
+		if schema.ExclusiveMinimum {
+			params["exclusive"] = "true"
+		}
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind:   ValidationRuleMin,
+			Params: params,
+		})
+	}
+
+	if schema.Maximum != nil {
+		params := map[string]string{
+			"value": formatFloat(*schema.Maximum),
+		}
+		if schema.ExclusiveMaximum {
+			params["exclusive"] = "true"
+		}
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind:   ValidationRuleMax,
+			Params: params,
+		})
+	}
+
+	if schema.MinLength != nil {
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind: ValidationRuleMinLength,
+			Params: map[string]string{
+				"value": strconv.Itoa(*schema.MinLength),
+			},
+		})
+	}
+
+	if schema.MaxLength != nil {
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind: ValidationRuleMaxLength,
+			Params: map[string]string{
+				"value": strconv.Itoa(*schema.MaxLength),
+			},
+		})
+	}
+
+	if schema.Pattern != "" {
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind: ValidationRulePattern,
+			Params: map[string]string{
+				"expr": schema.Pattern,
+			},
+		})
+	}
+
+	if len(field.Validations) == 0 {
+		field.Validations = nil
+	}
+}
+
+func formatFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
