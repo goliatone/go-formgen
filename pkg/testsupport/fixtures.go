@@ -3,6 +3,8 @@ package testsupport
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,15 +20,29 @@ import (
 func LoadDocument(t *testing.T, path string) pkgopenapi.Document {
 	t.Helper()
 
+	doc, err := LoadDocumentFromPath(path)
+	if err != nil {
+		t.Fatalf("load document: %v", err)
+	}
+	return doc
+}
+
+// LoadDocumentFromPath returns a Document without requiring testing.T, allowing
+// callers to wire fixtures in setup functions while honouring go-form-gen.md:268-301.
+func LoadDocumentFromPath(path string) (pkgopenapi.Document, error) {
+	if path == "" {
+		return pkgopenapi.Document{}, errors.New("testsupport: document path is required")
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("load fixture: %v", err)
+		return pkgopenapi.Document{}, fmt.Errorf("testsupport: read document: %w", err)
 	}
 	doc, err := pkgopenapi.NewDocument(pkgopenapi.SourceFromFile(path), data)
 	if err != nil {
-		t.Fatalf("new document: %v", err)
+		return pkgopenapi.Document{}, fmt.Errorf("testsupport: new document: %w", err)
 	}
-	return doc
+	return doc, nil
 }
 
 // MustLoadOperations loads a JSON golden file into the provided map pointer.
@@ -48,15 +64,28 @@ func MustLoadOperations(t *testing.T, path string) map[string]pkgopenapi.Operati
 func MustLoadFormModel(t *testing.T, path string) pkgmodel.FormModel {
 	t.Helper()
 
+	form, err := LoadFormModel(path)
+	if err != nil {
+		t.Fatalf("load form model: %v", err)
+	}
+	return form
+}
+
+// LoadFormModel reads a JSON fixture into a FormModel, returning an error for
+// callers managing setup outside of *testing.T.
+func LoadFormModel(path string) (pkgmodel.FormModel, error) {
+	if path == "" {
+		return pkgmodel.FormModel{}, errors.New("testsupport: form model path is required")
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("load golden: %v", err)
+		return pkgmodel.FormModel{}, fmt.Errorf("testsupport: read form model: %w", err)
 	}
 	var out pkgmodel.FormModel
 	if err := json.Unmarshal(data, &out); err != nil {
-		t.Fatalf("unmarshal golden: %v", err)
+		return pkgmodel.FormModel{}, fmt.Errorf("testsupport: unmarshal form model: %w", err)
 	}
-	return out
+	return out, nil
 }
 
 // WriteFormModel writes a form model golden when UPDATE_GOLDENS is enabled.

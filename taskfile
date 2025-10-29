@@ -22,6 +22,12 @@ PATH=$(pwd)/node_modules/.bin:$PATH
 # This will make all scripts available in the ./src/bin directory
 PATH=$(pwd)/src/bin:$PATH
 
+function _go:exec {
+    local gocache=${GOCACHE:-"$(pwd)/.gocache"}
+    local gomodcache=${GOMODCACHE:-"$(pwd)/.gomodcache"}
+    GOCACHE="${gocache}" GOMODCACHE="${gomodcache}" "$@"
+}
+
 
 #################################################
 # Development dependencies
@@ -90,11 +96,28 @@ function dev:env:load {
 }
 
 function dev:test {
-    go test ./...
+    _go:exec go test ./...
 }
 
 function dev:cover {
     go test -coverprofile=coverage.out ./... && go tool cover -func coverage.out
+}
+
+function dev:test:contracts {
+    _go:exec go test ./... -run '(Contract|Integration)' -count=1
+}
+
+function dev:lint {
+    _go:exec go vet ./...
+    if command -v golangci-lint >/dev/null 2>&1; then
+        golangci-lint run ./...
+    else
+        echo "golangci-lint not installed; skipping golangci-lint run" >&2
+    fi
+}
+
+function dev:ci {
+    dev:test && dev:test:contracts && dev:lint
 }
 
 ##
