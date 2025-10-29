@@ -192,5 +192,26 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 		items := convertSchema(src.Items)
 		schema.Items = &items
 	}
+	if src.Min != nil {
+		value := *src.Min
+		schema.Minimum = &value
+	}
+	if src.Max != nil {
+		value := *src.Max
+		schema.Maximum = &value
+	}
+	schema.ExclusiveMinimum = src.ExclusiveMin
+	schema.ExclusiveMaximum = src.ExclusiveMax
+	if src.MinLength != 0 {
+		value := int(src.MinLength)
+		schema.MinLength = &value
+	}
+	if src.MaxLength != nil {
+		value := int(*src.MaxLength)
+		schema.MaxLength = &value
+	}
+	if src.Pattern != "" {
+		schema.Pattern = src.Pattern
+	}
 	return schema
 }
