@@ -9,8 +9,6 @@ import (
 )
 
 func TestBuilder_CreatePet(t *testing.T) {
-	t.Skip("pending implementation")
-
 	operations := testsupport.MustLoadOperations(t, filepath.Join("../openapi", "testdata", "petstore_operations.golden.json"))
 	op := operations["createPet"]
 
@@ -26,5 +24,34 @@ func TestBuilder_CreatePet(t *testing.T) {
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("mismatch (-want +got):\n%s", diff)
+	}
+
+	if len(form.Fields) != 3 {
+		t.Fatalf("expected 3 fields, got %d", len(form.Fields))
+	}
+
+	expectations := map[string][]pkgmodel.ValidationRule{
+		"age": {
+			{Kind: pkgmodel.ValidationRuleMin, Params: map[string]string{"value": "0"}},
+			{Kind: pkgmodel.ValidationRuleMax, Params: map[string]string{"value": "25"}},
+		},
+		"name": {
+			{Kind: pkgmodel.ValidationRuleMinLength, Params: map[string]string{"value": "3"}},
+			{Kind: pkgmodel.ValidationRuleMaxLength, Params: map[string]string{"value": "64"}},
+			{Kind: pkgmodel.ValidationRulePattern, Params: map[string]string{"expr": "^[A-Za-z ]+$"}},
+		},
+		"tag": {
+			{Kind: pkgmodel.ValidationRuleMaxLength, Params: map[string]string{"value": "32"}},
+		},
+	}
+
+	for _, field := range form.Fields {
+		wantRules, ok := expectations[field.Name]
+		if !ok {
+			continue
+		}
+		if diff := testsupport.CompareGolden(wantRules, field.Validations); diff != "" {
+			t.Fatalf("field %q validations mismatch (-want +got):\n%s", field.Name, diff)
+		}
 	}
 }
