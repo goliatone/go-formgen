@@ -12,7 +12,17 @@ const (
 	FieldTypeObject  FieldType = "object"
 )
 
+const (
+	ValidationRuleMin       = "min"
+	ValidationRuleMax       = "max"
+	ValidationRuleMinLength = "minLength"
+	ValidationRuleMaxLength = "maxLength"
+	ValidationRulePattern   = "pattern"
+)
+
 // ValidationRule represents a single validation constraint applied to a field.
+// Use the ValidationRule* constants to reference canonical OpenAPI-derived
+// constraints (min/max, minLength/maxLength, pattern).
 type ValidationRule struct {
 	Kind   string            `json:"kind"`
 	Params map[string]string `json:"params,omitempty"`
