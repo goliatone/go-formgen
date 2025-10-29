@@ -1,0 +1,7 @@
+{{ define "templates/fields/object.tmpl" }}
+<fieldset class="fg-fieldset">
+    {{ range .Nested }}
+        {{ template "templates/fields/field.tmpl" . }}
+    {{ end }}
+</fieldset>
+{{ end }}

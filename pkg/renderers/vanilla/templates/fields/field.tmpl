@@ -1,0 +1,15 @@
+{{ define "templates/fields/field.tmpl" }}
+<div class="fg-field fg-type-{{ .Type }}">
+    {{ if .Label }}<label for="fg-{{ .Name }}">{{ .Label }}{{ if .Required }} *{{ end }}</label>{{ end }}
+    {{ if eq .Type "object" }}
+        {{ template "templates/fields/object.tmpl" . }}
+    {{ else if eq .Type "array" }}
+        {{ template "templates/fields/array.tmpl" . }}
+    {{ else if eq .Type "boolean" }}
+        {{ template "templates/fields/boolean.tmpl" . }}
+    {{ else }}
+        {{ template "templates/fields/input.tmpl" . }}
+    {{ end }}
+    {{ if .Description }}<small class="fg-field__help">{{ .Description }}</small>{{ end }}
+</div>
+{{ end }}

@@ -1,0 +1,9 @@
+{{ define "templates/fields/input.tmpl" }}
+{{ if hasEnum . }}
+<select id="fg-{{ .Name }}" name="{{ .Name }}" {{ if .Required }}required{{ end }}>
+    {{ range .Enum }}<option value="{{ . }}">{{ . }}</option>{{ end }}
+</select>
+{{ else }}
+<input id="fg-{{ .Name }}" type="{{ if or (eq .Type "integer") (eq .Type "number") }}number{{ else }}text{{ end }}" name="{{ .Name }}" {{ if .Placeholder }}placeholder="{{ .Placeholder }}"{{ end }} {{ if .Required }}required{{ end }} value="{{ if .Default }}{{ .Default }}{{ end }}">
+{{ end }}
+{{ end }}

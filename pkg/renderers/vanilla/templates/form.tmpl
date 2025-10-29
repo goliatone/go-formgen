@@ -1,0 +1,10 @@
+{{ define "templates/form.tmpl" }}
+<form class="fg-form" method="{{ .Form.Method }}" action="{{ .Form.Endpoint }}">
+    {{- range .Form.Fields }}
+        {{ template "templates/fields/field.tmpl" . }}
+    {{- end }}
+    <div class="fg-actions">
+        <button type="submit">Submit</button>
+    </div>
+</form>
+{{ end }}
