@@ -126,15 +126,22 @@ func (op Operation) HasResponse(code string) bool {
 // Schema represents request/response bodies and nested fields within an
 // operation, linked to the README description in go-form-gen.md:111-158.
 type Schema struct {
-	Ref         string
-	Type        string
-	Format      string
-	Required    []string
-	Properties  map[string]Schema
-	Items       *Schema
-	Enum        []any
-	Description string
-	Default     any
+	Ref              string
+	Type             string
+	Format           string
+	Required         []string
+	Properties       map[string]Schema
+	Items            *Schema
+	Enum             []any
+	Description      string
+	Default          any
+	Minimum          *float64
+	Maximum          *float64
+	ExclusiveMinimum bool
+	ExclusiveMaximum bool
+	MinLength        *int
+	MaxLength        *int
+	Pattern          string
 }
 
 // Clone creates a deep copy of the schema tree to avoid accidental mutation.
@@ -155,6 +162,22 @@ func (s Schema) Clone() Schema {
 	if s.Items != nil {
 		items := s.Items.Clone()
 		cloned.Items = &items
+	}
+	if s.Minimum != nil {
+		value := *s.Minimum
+		cloned.Minimum = &value
+	}
+	if s.Maximum != nil {
+		value := *s.Maximum
+		cloned.Maximum = &value
+	}
+	if s.MinLength != nil {
+		value := *s.MinLength
+		cloned.MinLength = &value
+	}
+	if s.MaxLength != nil {
+		value := *s.MaxLength
+		cloned.MaxLength = &value
 	}
 	return cloned
 }
