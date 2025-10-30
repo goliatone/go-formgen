@@ -25,6 +25,7 @@ const (
 )
 
 type ValidationRule = internalmodel.ValidationRule
+
 // ValidationRule describes a single constraint with canonical identifiers and
 // string parameters (documented in go-form-gen.md) that renderers can translate
 // into attributes or runtime checks.

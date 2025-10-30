@@ -1,10 +1,12 @@
 package testsupport
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -162,4 +164,26 @@ func WriteMaybeGolden(t *testing.T, path string, data []byte) bool {
 // Context returns a background context for tests.
 func Context() context.Context {
 	return context.Background()
+}
+
+// MustReadGoldenString reads a golden file and returns its string content.
+func MustReadGoldenString(t *testing.T, path string) string {
+	t.Helper()
+	return string(MustReadGolden(t, path))
+}
+
+// CaptureTemplateOutput executes a render function that writes to an io.Writer,
+// returning both the string result and the writer contents. Tests can assert
+// the renderer returns and writes the same payload without duplicating buffer
+// setup.
+func CaptureTemplateOutput(t *testing.T, render func(io.Writer) (string, error)) (string, string) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	out, err := render(&buf)
+	if err != nil {
+		t.Fatalf("render template: %v", err)
+	}
+
+	return out, buf.String()
 }

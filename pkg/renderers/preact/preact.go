@@ -1,21 +1,20 @@
 package preact
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"os"
 	"strings"
 
 	"github.com/goliatone/formgen/pkg/model"
+	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
+	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 )
 
 const (
-	templatePattern = "templates/*.tmpl"
-	templateName    = "templates/page.tmpl"
+	templateName = "templates/page.tmpl"
 
 	defaultVendorScript = "assets/vendor/preact.production.min.js"
 	defaultAppScript    = "assets/formgen-preact.min.js"
@@ -26,10 +25,11 @@ const (
 type Option func(*config)
 
 type config struct {
-	templateFS     fs.FS
-	assetsFS       fs.FS
-	assetPaths     assetPaths
-	assetURLPrefix string
+	templateFS       fs.FS
+	templateRenderer rendertemplate.TemplateRenderer
+	assetsFS         fs.FS
+	assetPaths       assetPaths
+	assetURLPrefix   string
 }
 
 type assetPaths struct {
@@ -71,6 +71,15 @@ func WithTemplatesDir(path string) Option {
 	}
 }
 
+// WithTemplateRenderer injects a custom template renderer implementation.
+func WithTemplateRenderer(renderer rendertemplate.TemplateRenderer) Option {
+	return func(cfg *config) {
+		if renderer != nil {
+			cfg.templateRenderer = renderer
+		}
+	}
+}
+
 // WithAssetsFS overrides the embedded asset bundle (scripts, styles).
 func WithAssetsFS(files fs.FS) Option {
 	return func(cfg *config) {
@@ -106,7 +115,7 @@ func WithAssetURLPrefix(prefix string) Option {
 
 // Renderer turns a FormModel into a hydrated Preact HTML document.
 type Renderer struct {
-	tmpl           *template.Template
+	templates      rendertemplate.TemplateRenderer
 	assetsFS       fs.FS
 	assetPaths     assetPaths
 	assetURLPrefix string
@@ -130,6 +139,9 @@ func New(options ...Option) (*Renderer, error) {
 	if cfg.templateFS == nil {
 		cfg.templateFS = TemplatesFS()
 	}
+	if err := ensureTemplate(cfg.templateFS, templateName); err != nil {
+		return nil, err
+	}
 	if cfg.assetsFS == nil {
 		cfg.assetsFS = AssetsFS()
 	}
@@ -138,9 +150,16 @@ func New(options ...Option) (*Renderer, error) {
 		return nil, err
 	}
 
-	tmpl, err := parseTemplates(cfg.templateFS)
-	if err != nil {
-		return nil, err
+	templateRenderer := cfg.templateRenderer
+	if templateRenderer == nil {
+		engine, err := gotemplate.New(
+			gotemplate.WithFS(cfg.templateFS),
+			gotemplate.WithExtension(".tmpl"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("preact renderer: configure template renderer: %w", err)
+		}
+		templateRenderer = engine
 	}
 
 	if err := ensureAssets(cfg.assetsFS, cfg.assetPaths); err != nil {
@@ -148,7 +167,7 @@ func New(options ...Option) (*Renderer, error) {
 	}
 
 	return &Renderer{
-		tmpl:           tmpl,
+		templates:      templateRenderer,
 		assetsFS:       cfg.assetsFS,
 		assetPaths:     cfg.assetPaths,
 		assetURLPrefix: cfg.assetURLPrefix,
@@ -171,31 +190,27 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("preact renderer: marshal form model: %w", err)
 	}
-
-	view := viewModel{
-		Form:     form,
-		FormJSON: template.JS(string(payload)),
-		Assets:   r.assetURLs(),
+	if r.templates == nil {
+		return nil, fmt.Errorf("preact renderer: template renderer is nil")
 	}
 
-	var buf bytes.Buffer
-	if err := r.tmpl.ExecuteTemplate(&buf, templateName, view); err != nil {
-		return nil, fmt.Errorf("preact renderer: execute template: %w", err)
+	urls := r.assetURLs()
+	data := map[string]any{
+		"form":      form,
+		"form_json": string(payload),
+		"assets": map[string]string{
+			"vendorScript": urls.VendorScript,
+			"appScript":    urls.AppScript,
+			"stylesheet":   urls.Stylesheet,
+		},
 	}
 
-	return buf.Bytes(), nil
-}
-
-func parseTemplates(store fs.FS) (*template.Template, error) {
-	root := template.New("preact")
-	tmpl, err := root.ParseFS(store, templatePattern)
+	rendered, err := r.templates.RenderTemplate(templateName, data)
 	if err != nil {
-		return nil, fmt.Errorf("preact renderer: parse templates: %w", err)
+		return nil, fmt.Errorf("preact renderer: render template: %w", err)
 	}
-	if tmpl.Lookup(templateName) == nil {
-		return nil, fmt.Errorf("preact renderer: template %q missing", templateName)
-	}
-	return tmpl, nil
+
+	return []byte(rendered), nil
 }
 
 func ensureAssets(store fs.FS, paths assetPaths) error {
@@ -208,6 +223,19 @@ func ensureAssets(store fs.FS, paths assetPaths) error {
 		if _, err := fs.Stat(store, location); err != nil {
 			return fmt.Errorf("preact renderer: %s %q not found: %w", label, location, err)
 		}
+	}
+	return nil
+}
+
+func ensureTemplate(store fs.FS, name string) error {
+	if store == nil {
+		return fmt.Errorf("preact renderer: template file system is nil")
+	}
+	if name == "" {
+		return fmt.Errorf("preact renderer: template name required")
+	}
+	if _, err := fs.Stat(store, name); err != nil {
+		return fmt.Errorf("preact renderer: template %q not found: %w", name, err)
 	}
 	return nil
 }
@@ -272,10 +300,4 @@ func expandAssetURL(prefix, name string) string {
 		return n
 	}
 	return p + "/" + n
-}
-
-type viewModel struct {
-	Form     model.FormModel
-	FormJSON template.JS
-	Assets   assetURLs
 }
