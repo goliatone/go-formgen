@@ -32,7 +32,9 @@ func loadHTTP(ctx context.Context, client *http.Client, url string, timeout time
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, errors.New("openapi loader: unexpected status " + resp.Status)

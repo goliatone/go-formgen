@@ -261,7 +261,7 @@ func applyValidations(field *Field, schema pkgopenapi.Schema) {
 		field.Validations = append(field.Validations, ValidationRule{
 			Kind: ValidationRulePattern,
 			Params: map[string]string{
-				"expr": schema.Pattern,
+				"pattern": schema.Pattern,
 			},
 		})
 	}
