@@ -16,8 +16,11 @@ type Parser struct {
 	options pkgopenapi.ParserOptions
 }
 
+// Ensure the implementation satisfies the public interface.
+var _ pkgopenapi.Parser = (*Parser)(nil)
+
 // New constructs a Parser with the given options.
-func New(options pkgopenapi.ParserOptions) *Parser {
+func New(options pkgopenapi.ParserOptions) pkgopenapi.Parser {
 	return &Parser{options: options}
 }
 
