@@ -19,8 +19,11 @@ type Loader struct {
 	timeout   time.Duration
 }
 
+// Ensure the implementation satisfies the public interface.
+var _ pkgopenapi.Loader = (*Loader)(nil)
+
 // New constructs a Loader from pre-resolved options.
-func New(options pkgopenapi.LoaderOptions) *Loader {
+func New(options pkgopenapi.LoaderOptions) pkgopenapi.Loader {
 	timeout := options.RequestTimeout
 
 	var httpClient *http.Client
