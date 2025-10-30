@@ -1,20 +1,21 @@
 package vanilla
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"os"
 
 	"github.com/goliatone/formgen/pkg/model"
+	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
+	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 )
 
 type Option func(*config)
 
 type config struct {
-	templateFS fs.FS
+	templateFS       fs.FS
+	templateRenderer rendertemplate.TemplateRenderer
 }
 
 // WithTemplatesFS supplies an alternate template bundle via fs.FS.
@@ -34,8 +35,17 @@ func WithTemplatesDir(path string) Option {
 	}
 }
 
+// WithTemplateRenderer injects a custom template renderer implementation.
+func WithTemplateRenderer(renderer rendertemplate.TemplateRenderer) Option {
+	return func(cfg *config) {
+		if renderer != nil {
+			cfg.templateRenderer = renderer
+		}
+	}
+}
+
 type Renderer struct {
-	tmpl *template.Template
+	templates rendertemplate.TemplateRenderer
 }
 
 // New constructs the vanilla renderer applying any provided options.
@@ -52,28 +62,19 @@ func New(options ...Option) (*Renderer, error) {
 		cfg.templateFS = TemplatesFS()
 	}
 
-	tmpl, err := parseTemplates(cfg.templateFS)
-	if err != nil {
-		return nil, err
+	renderer := cfg.templateRenderer
+	if renderer == nil {
+		engine, err := gotemplate.New(
+			gotemplate.WithFS(cfg.templateFS),
+			gotemplate.WithExtension(".tmpl"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("vanilla renderer: configure template renderer: %w", err)
+		}
+		renderer = engine
 	}
 
-	return &Renderer{tmpl: tmpl}, nil
-}
-
-func parseTemplates(files fs.FS) (*template.Template, error) {
-	root := template.New("form").Funcs(template.FuncMap{
-		"hasEnum": func(field model.Field) bool {
-			return len(field.Enum) > 0
-		},
-	})
-	tmpl, err := root.ParseFS(files, "templates/*.tmpl", "templates/fields/*.tmpl")
-	if err != nil {
-		return nil, fmt.Errorf("vanilla renderer: parse templates: %w", err)
-	}
-	if tmpl.Lookup("templates/form.tmpl") == nil {
-		return nil, fmt.Errorf("vanilla renderer: form template missing")
-	}
-	return tmpl, nil
+	return &Renderer{templates: renderer}, nil
 }
 
 func (r *Renderer) Name() string {
@@ -85,13 +86,15 @@ func (r *Renderer) ContentType() string {
 }
 
 func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := r.tmpl.ExecuteTemplate(&buf, "templates/form.tmpl", viewModel{Form: form}); err != nil {
-		return nil, fmt.Errorf("vanilla renderer: execute: %w", err)
+	if r.templates == nil {
+		return nil, fmt.Errorf("vanilla renderer: template renderer is nil")
 	}
-	return buf.Bytes(), nil
-}
 
-type viewModel struct {
-	Form model.FormModel
+	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
+		"form": form,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("vanilla renderer: render template: %w", err)
+	}
+	return []byte(result), nil
 }

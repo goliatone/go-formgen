@@ -1,9 +1,0 @@
-{{ define "templates/fields/array.tmpl" }}
-<div class="fg-array">
-    {{ if .Items }}
-        {{ template "templates/fields/field.tmpl" .Items }}
-    {{ else }}
-        <p class="fg-array__notice">Array field {{ .Name }} requires item definition.</p>
-    {{ end }}
-</div>
-{{ end }}

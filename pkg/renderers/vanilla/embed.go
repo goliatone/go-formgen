@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed templates/*.tmpl templates/fields/*.tmpl
+//go:embed templates/*.tmpl
 var embeddedTemplates embed.FS
 
 // TemplatesFS exposes the embedded template bundle for consumers that want to

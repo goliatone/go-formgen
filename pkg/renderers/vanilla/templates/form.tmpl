@@ -1,10 +1,56 @@
-{{ define "templates/form.tmpl" }}
-<form class="fg-form" method="{{ .Form.Method }}" action="{{ .Form.Endpoint }}">
-    {{- range .Form.Fields }}
-        {{ template "templates/fields/field.tmpl" . }}
-    {{- end }}
+{% macro render_field(field) %}
+<div class="fg-field fg-type-{{ field.type }}">
+    {% if field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
+    {% if field.type == "object" %}
+        {{ render_object(field)|safe }}
+    {% elif field.type == "array" %}
+        {{ render_array(field)|safe }}
+    {% elif field.type == "boolean" %}
+        {{ render_boolean(field)|safe }}
+    {% else %}
+        {{ render_input(field)|safe }}
+    {% endif %}
+    {% if field.description %}<small class="fg-field__help">{{ field.description }}</small>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_object(field) %}
+<fieldset class="fg-fieldset">
+    {% for nested in field.nested %}
+        {{ render_field(nested)|safe }}
+    {% endfor %}
+</fieldset>
+{% endmacro %}
+
+{% macro render_array(field) %}
+<div class="fg-array">
+    {% if field.items %}
+        {{ render_field(field.items)|safe }}
+    {% else %}
+        <p class="fg-array__notice">Array field {{ field.name }} requires item definition.</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_boolean(field) %}
+<input id="fg-{{ field.name }}" type="checkbox" name="{{ field.name }}" {% if field.default %}checked{% endif %}>
+{% endmacro %}
+
+{% macro render_input(field) %}
+{% if field.enum %}
+<select id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
+    {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+</select>
+{% else %}
+<input id="fg-{{ field.name }}" type="{% if field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} value="{% if field.default %}{{ field.default }}{% endif %}">
+{% endif %}
+{% endmacro %}
+
+<form class="fg-form" method="{{ form.method }}" action="{{ form.endpoint }}">
+    {% for field in form.fields %}
+        {{ render_field(field)|safe }}
+    {% endfor %}
     <div class="fg-actions">
         <button type="submit">Submit</button>
     </div>
 </form>
-{{ end }}
