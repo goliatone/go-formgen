@@ -203,7 +203,7 @@ func mustVanilla() render.Renderer {
 }
 
 func mustPreact() render.Renderer {
-	r, err := preact.New()
+	r, err := preact.New(preact.WithAssetURLPrefix("/assets"))
 	if err != nil {
 		log.Fatalf("preact renderer: %v", err)
 	}
