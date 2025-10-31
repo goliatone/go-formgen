@@ -34,6 +34,80 @@
       }
     },
     {
+      "name": "title",
+      "type": "string",
+      "label": "Title",
+      "required": false
+    },
+    {
+      "name": "author_id",
+      "type": "string",
+      "label": "Author",
+      "required": true,
+      "metadata": {
+        "relationship.cardinality": "one",
+        "relationship.foreignKey": "author_id",
+        "relationship.target": "#/components/schemas/Author",
+        "relationship.type": "belongsTo"
+      },
+      "uiHints": {
+        "cardinality": "one",
+        "input": "select",
+        "placeholder": "Select an author"
+      }
+    },
+    {
+      "name": "manager",
+      "type": "object",
+      "label": "Manager",
+      "required": false,
+      "metadata": {
+        "relationship.cardinality": "one",
+        "relationship.foreignKey": "manager_id",
+        "relationship.sourceField": "manager_id",
+        "relationship.target": "#/components/schemas/Manager",
+        "relationship.type": "hasOne"
+      },
+      "uiHints": {
+        "cardinality": "one",
+        "input": "subform"
+      },
+      "nested": [
+        {
+          "name": "id",
+          "type": "string",
+          "format": "uuid",
+          "label": "Id",
+          "metadata": {
+            "relationship.cardinality": "one",
+            "relationship.target": "#/components/schemas/Manager",
+            "relationship.type": "hasOne"
+          },
+          "uiHints": {
+            "cardinality": "one",
+            "input": "select"
+          }
+        }
+      ]
+    },
+    {
+      "name": "manager_id",
+      "type": "string",
+      "label": "Manager Id",
+      "required": false,
+      "metadata": {
+        "relationship.cardinality": "one",
+        "relationship.foreignKey": "manager_id",
+        "relationship.target": "#/components/schemas/Manager",
+        "relationship.type": "hasOne"
+      },
+      "uiHints": {
+        "cardinality": "one",
+        "input": "select",
+        "placeholder": "Select a manager"
+      }
+    },
+    {
       "name": "settings",
       "type": "object",
       "label": "Settings",
@@ -90,26 +164,46 @@
       "metadata": {
         "cssClass": "fg-array--tags",
         "placeholder": "Add tag",
-        "repeaterLabel": "Tag"
+        "repeaterLabel": "Tag",
+        "relationship.cardinality": "many",
+        "relationship.inverse": "article",
+        "relationship.target": "#/components/schemas/Tag",
+        "relationship.type": "hasMany"
       },
       "uiHints": {
+        "cardinality": "many",
         "cssClass": "fg-array--tags",
+        "input": "collection",
         "placeholder": "Add tag",
         "repeaterLabel": "Tag"
       },
       "items": {
         "name": "tagsItem",
-        "type": "string",
+        "type": "object",
         "label": "Tags item",
         "required": false,
         "metadata": {
           "badge": "info",
-          "cssClass": "fg-array__item"
+          "cssClass": "fg-array__item",
+          "relationship.cardinality": "many",
+          "relationship.inverse": "article",
+          "relationship.target": "#/components/schemas/Tag",
+          "relationship.type": "hasMany"
         },
         "uiHints": {
           "badge": "info",
-          "cssClass": "fg-array__item"
-        }
+          "cardinality": "many",
+          "cssClass": "fg-array__item",
+          "input": "subform"
+        },
+        "nested": [
+          {
+            "name": "id",
+            "type": "string",
+            "format": "uuid",
+            "label": "Id"
+          }
+        ]
       }
     }
   ]

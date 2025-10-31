@@ -18,6 +18,13 @@
       "uiHints": {
         "cardinality": "one",
         "input": "subform"
+      },
+      "relationship": {
+        "kind": "belongsTo",
+        "target": "#/components/schemas/Author",
+        "foreignKey": "author_id",
+        "cardinality": "one",
+        "sourceField": "author_id"
       }
     },
     {
@@ -35,6 +42,12 @@
       "uiHints": {
         "cardinality": "one",
         "input": "select"
+      },
+      "relationship": {
+        "kind": "belongsTo",
+        "target": "#/components/schemas/Author",
+        "foreignKey": "author_id",
+        "cardinality": "one"
       }
     },
     {
@@ -50,6 +63,11 @@
       "uiHints": {
         "cardinality": "one",
         "input": "select"
+      },
+      "relationship": {
+        "kind": "belongsTo",
+        "target": "#/components/schemas/Category",
+        "cardinality": "one"
       }
     },
     {
@@ -67,6 +85,13 @@
       "uiHints": {
         "cardinality": "one",
         "input": "subform"
+      },
+      "relationship": {
+        "kind": "hasOne",
+        "target": "#/components/schemas/Manager",
+        "foreignKey": "manager_id",
+        "cardinality": "one",
+        "sourceField": "manager_id"
       }
     },
     {
@@ -83,6 +108,12 @@
       "uiHints": {
         "cardinality": "one",
         "input": "select"
+      },
+      "relationship": {
+        "kind": "hasOne",
+        "target": "#/components/schemas/Manager",
+        "foreignKey": "manager_id",
+        "cardinality": "one"
       }
     },
     {
@@ -113,6 +144,12 @@
         "uiHints": {
           "cardinality": "many",
           "input": "subform"
+        },
+        "relationship": {
+          "kind": "hasMany",
+          "target": "#/components/schemas/Tag",
+          "cardinality": "many",
+          "inverse": "article"
         }
       },
       "metadata": {
@@ -124,6 +161,12 @@
       "uiHints": {
         "cardinality": "many",
         "input": "collection"
+      },
+      "relationship": {
+        "kind": "hasMany",
+        "target": "#/components/schemas/Tag",
+        "cardinality": "many",
+        "inverse": "article"
       }
     },
     {

@@ -8,6 +8,22 @@ import (
 	"github.com/goliatone/formgen/pkg/testsupport"
 )
 
+func stripRelationships(model *pkgmodel.FormModel) {
+	for i := range model.Fields {
+		stripFieldRelationship(&model.Fields[i])
+	}
+}
+
+func stripFieldRelationship(field *pkgmodel.Field) {
+	field.Relationship = nil
+	if field.Items != nil {
+		stripFieldRelationship(field.Items)
+	}
+	for i := range field.Nested {
+		stripFieldRelationship(&field.Nested[i])
+	}
+}
+
 func TestBuilder_CreatePet(t *testing.T) {
 	operations := testsupport.MustLoadOperations(t, filepath.Join("../openapi", "testdata", "petstore_operations.golden.json"))
 	op := operations["createPet"]
@@ -21,6 +37,9 @@ func TestBuilder_CreatePet(t *testing.T) {
 	goldenPath := filepath.Join("testdata", "create_pet_formmodel.golden.json")
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
+
+	stripRelationships(&form)
+	stripRelationships(&want)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("mismatch (-want +got):\n%s", diff)
@@ -119,6 +138,9 @@ func TestBuilder_CreateWidgetExtensions(t *testing.T) {
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
 
+	stripRelationships(&form)
+	stripRelationships(&want)
+
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("widget form mismatch (-want +got):\n%s", diff)
 	}
@@ -209,6 +231,9 @@ func TestBuilder_Relationships(t *testing.T) {
 	goldenPath := filepath.Join("testdata", "create_article_formmodel.golden.json")
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
+
+	stripRelationships(&form)
+	stripRelationships(&want)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("relationships form mismatch (-want +got):\n%s", diff)

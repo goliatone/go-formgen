@@ -8,10 +8,19 @@
 
 
 
+
+
 <form class="fg-form" method="POST" action="/widgets">
     
         
-<div class="fg-field fg-type-string fg-field--name">
+<div class="fg-field fg-type-string fg-field--name"
+    
+        
+        
+        
+        
+        
+    >
     <label for="fg-name">Name *</label>
     
         
@@ -28,14 +37,175 @@
 
     
         
-<div class="fg-field fg-type-object fg-fieldset--settings">
+<div class="fg-field fg-type-string"
+    >
+    <label for="fg-title">Title</label>
+    
+        
+
+
+<input id="fg-title" type="text" name="title"   value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-string"
+    
+        data-relationship-type="belongsTo"
+         data-relationship-target="#/components/schemas/Author"
+         data-relationship-foreign-key="author_id"
+         data-relationship-cardinality="one"
+        
+    >
+    <label for="fg-author_id">Author *</label>
+    
+        
+<select id="fg-author_id" name="author_id" required
+    
+        data-relationship-type="belongsTo"
+         data-relationship-target="#/components/schemas/Author"
+         data-relationship-cardinality="one"
+    >
+    
+        
+            <option value="">Select an author</option>
+        
+    
+</select>
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-object"
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+         data-relationship-foreign-key="manager_id"
+         data-relationship-cardinality="one"
+        
+    >
+    <label for="fg-manager">Manager</label>
+    
+        
+<fieldset class="fg-fieldset"
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+         data-relationship-foreign-key="manager_id"
+         data-relationship-cardinality="one"
+        
+    >
+    
+        
+<div class="fg-field fg-type-string"
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+        
+         data-relationship-cardinality="one"
+        
+    >
+    <label for="fg-id">Id</label>
+    
+        
+<select id="fg-id" name="id" 
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+         data-relationship-cardinality="one"
+    >
+    
+        
+            <option value="">Select Id</option>
+        
+    
+</select>
+
+    
+    
+    
+</div>
+
+    
+</fieldset>
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-string"
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+         data-relationship-foreign-key="manager_id"
+         data-relationship-cardinality="one"
+        
+    >
+    <label for="fg-manager_id">Manager Id</label>
+    
+        
+<select id="fg-manager_id" name="manager_id" 
+    
+        data-relationship-type="hasOne"
+         data-relationship-target="#/components/schemas/Manager"
+         data-relationship-cardinality="one"
+    >
+    
+        
+            <option value="">Select a manager</option>
+        
+    
+</select>
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-object fg-fieldset--settings"
+    
+        
+        
+        
+        
+        
+    >
     <label for="fg-settings">Settings</label>
     
         
-<fieldset class="fg-fieldset fg-fieldset--accordion">
+<fieldset class="fg-fieldset fg-fieldset--accordion"
     
         
-<div class="fg-field fg-type-boolean">
+        
+        
+        
+        
+    >
+    
+        
+<div class="fg-field fg-type-boolean"
+    
+        
+        
+        
+        
+        
+    >
     
     
         
@@ -48,7 +218,14 @@
 
     
         
-<div class="fg-field fg-type-number">
+<div class="fg-field fg-type-number"
+    
+        
+        
+        
+        
+        
+    >
     <label for="fg-threshold">Threshold</label>
     
         
@@ -73,21 +250,59 @@
 
     
         
-<div class="fg-field fg-type-array fg-array--tags">
+<div class="fg-field fg-type-array fg-array--tags"
+    
+        data-relationship-type="hasMany"
+         data-relationship-target="#/components/schemas/Tag"
+        
+         data-relationship-cardinality="many"
+         data-relationship-inverse="article"
+    >
     <label for="fg-tags">Tags</label>
     
         
-<div class="fg-array fg-array--tags">
+<div class="fg-array fg-array--tags"
+    
+        data-relationship-type="hasMany"
+         data-relationship-target="#/components/schemas/Tag"
+         data-relationship-cardinality="many"
+         data-relationship-inverse="article"
+    >
     <div class="fg-array__label">Tag</div>
     
         
-<div class="fg-field fg-type-string fg-array__item">
+        <div class="fg-array__items" data-relationship-collection="many">
+        
+            
+<div class="fg-field fg-type-object fg-array__item"
+    
+        data-relationship-type="hasMany"
+         data-relationship-target="#/components/schemas/Tag"
+        
+         data-relationship-cardinality="many"
+         data-relationship-inverse="article"
+    >
     <label for="fg-tagsItem">Tags item</label>
+    
+        
+<fieldset class="fg-fieldset"
+    
+        data-relationship-type="hasMany"
+         data-relationship-target="#/components/schemas/Tag"
+        
+         data-relationship-cardinality="many"
+         data-relationship-inverse="article"
+    >
+    
+        
+<div class="fg-field fg-type-string"
+    >
+    <label for="fg-id">Id</label>
     
         
 
 
-<input id="fg-tagsItem" type="text" name="tagsItem"   value="">
+<input id="fg-id" type="text" name="id"   value="">
 
 
 
@@ -96,6 +311,20 @@
     
 </div>
 
+    
+</fieldset>
+
+    
+    
+    
+</div>
+
+            
+            <button type="button" class="fg-array__add" data-relationship-action="add">
+                Add Tag
+            </button>
+            
+        </div>
     
 </div>
 
