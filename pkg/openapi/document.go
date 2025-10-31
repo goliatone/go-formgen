@@ -82,6 +82,7 @@ type Operation struct {
 	Description string
 	RequestBody Schema
 	Responses   map[string]Schema
+	Extensions  map[string]any `json:"Extensions,omitempty"`
 }
 
 // NewOperation validates core fields and initialises response maps.
@@ -142,6 +143,7 @@ type Schema struct {
 	MinLength        *int
 	MaxLength        *int
 	Pattern          string
+	Extensions       map[string]any `json:"Extensions,omitempty"`
 }
 
 // Clone creates a deep copy of the schema tree to avoid accidental mutation.
@@ -163,6 +165,12 @@ func (s Schema) Clone() Schema {
 		items := s.Items.Clone()
 		cloned.Items = &items
 	}
+	if len(s.Extensions) > 0 {
+		cloned.Extensions = make(map[string]any, len(s.Extensions))
+		for k, v := range s.Extensions {
+			cloned.Extensions[k] = v
+		}
+	}
 	if s.Minimum != nil {
 		value := *s.Minimum
 		cloned.Minimum = &value
@@ -178,6 +186,9 @@ func (s Schema) Clone() Schema {
 	if s.MaxLength != nil {
 		value := *s.MaxLength
 		cloned.MaxLength = &value
+	}
+	if cloned.Extensions == nil && len(s.Extensions) == 0 {
+		cloned.Extensions = nil
 	}
 	return cloned
 }
