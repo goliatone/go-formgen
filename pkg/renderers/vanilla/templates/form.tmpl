@@ -1,10 +1,19 @@
-{% macro render_field(field) %}
-<div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}">
+{%- macro endpoint_attrs(field) -%}
+{%- if field.metadata and field.metadata.__data_attrs %}
+    {{ field.metadata.__data_attrs|safe }}
+{%- endif %}
+{%- endmacro %}
+
+{%- macro render_field(field) %}
+{% set rel = field.relationship -%}
+<div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
     {% if field.uiHints.hideLabel != "true" and field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
-    {% if field.type == "object" %}
-        {{ render_object(field)|safe }}
-    {% elif field.type == "array" %}
+    {% if field.type == "array" or field.uiHints.input == "collection" %}
         {{ render_array(field)|safe }}
+    {% elif field.type == "object" or field.uiHints.input == "subform" %}
+        {{ render_object(field)|safe }}
+    {% elif field.uiHints.input == "select" %}
+        {{ render_select(field)|safe }}
     {% elif field.type == "boolean" %}
         {{ render_boolean(field)|safe }}
     {% else %}
@@ -15,44 +24,76 @@
 </div>
 {% endmacro %}
 
-{% macro render_object(field) %}
-<fieldset class="fg-fieldset{% if field.uiHints.accordion == "true" %} fg-fieldset--accordion{% endif %}">
+{%- macro render_object(field) %}
+{% set rel = field.relationship -%}
+<fieldset class="fg-fieldset{% if field.uiHints.accordion == "true" %} fg-fieldset--accordion{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
     {% for nested in field.nested %}
         {{ render_field(nested)|safe }}
     {% endfor %}
 </fieldset>
 {% endmacro %}
 
-{% macro render_array(field) %}
-<div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}">
+{%- macro render_array(field) %}
+{% set rel = field.relationship -%}
+<div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
     {% if field.uiHints.repeaterLabel %}<div class="fg-array__label">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
     {% if field.items %}
-        {{ render_field(field.items)|safe }}
+        {% if field.uiHints.cardinality %}
+        <div class="fg-array__items" data-relationship-collection="{{ field.uiHints.cardinality }}">
+        {% else %}
+        <div class="fg-array__items">
+        {% endif %}
+            {{ render_field(field.items)|safe }}
+            {% if field.uiHints.cardinality == "many" %}
+            <button type="button" class="fg-array__add" data-relationship-action="add">
+                Add {% if field.uiHints.repeaterLabel %}{{ field.uiHints.repeaterLabel }}{% elif field.label %}{{ field.label }}{% else %}item{% endif %}
+            </button>
+            {% endif %}
+        </div>
     {% else %}
         <p class="fg-array__notice">Array field {{ field.name }} requires item definition.</p>
     {% endif %}
 </div>
 {% endmacro %}
 
-{% macro render_boolean(field) %}
+{%- macro render_boolean(field) %}
 <input id="fg-{{ field.name }}" type="checkbox" name="{{ field.name }}" {% if field.default %}checked{% endif %}>
 {% endmacro %}
 
-{% macro render_input(field) %}
-{% if field.enum %}
-<select id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
+{%- macro render_select(field) %}
+{% set rel = field.relationship -%}
+<select id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}{% if rel and rel.cardinality == "many" %} multiple data-relationship-collection="many"{% endif %}{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality and rel.cardinality != "many" %} data-relationship-cardinality="{{ rel.cardinality }}"{% elif rel and rel.cardinality == "many" %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
+    {% if field.enum %}
+        {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+    {% else %}
+        {% if field.uiHints.placeholder %}
+            <option value="">{{ field.uiHints.placeholder }}</option>
+        {% elif field.label %}
+            <option value="">Select {{ field.label }}</option>
+        {% else %}
+            <option value="">Select an option</option>
+        {% endif %}
+    {% endif %}
+</select>
+{% endmacro %}
+
+{%- macro render_input(field) %}
+{% if field.uiHints.input == "select" %}
+    {{ render_select(field)|safe }}
+{% elif field.enum %}
+<select id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}{{ endpoint_attrs(field)|safe }}>
     {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
 </select>
 {% else %}
 {% if field.uiHints.widget == "textarea" %}
-<textarea id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{% if field.default %}{{ field.default }}{% endif %}</textarea>
+<textarea id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}{{ endpoint_attrs(field)|safe }}>{% if field.default %}{{ field.default }}{% endif %}</textarea>
 {% else %}
-<input id="fg-{{ field.name }}" type="{% if field.uiHints.inputType %}{{ field.uiHints.inputType }}{% elif field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} value="{% if field.default %}{{ field.default }}{% endif %}">
+<input id="fg-{{ field.name }}" type="{% if field.uiHints.inputType %}{{ field.uiHints.inputType }}{% elif field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} value="{% if field.default %}{{ field.default }}{% endif %}"{{ endpoint_attrs(field)|safe }}>
 {% endif %}
 {% endif %}
 {% endmacro %}
 
-<form class="fg-form" method="{{ form.method }}" action="{{ form.endpoint }}">
+<form class="fg-form" method="{{ form.method }}" action="{{ form.endpoint }}" data-formgen-auto-init="true">
     {% for field in form.fields %}
         {{ render_field(field)|safe }}
     {% endfor %}

@@ -44,16 +44,16 @@
       "type": "string",
       "label": "Author",
       "required": true,
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "author_id",
-        "relationship.target": "#/components/schemas/Author",
-        "relationship.type": "belongsTo"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "select",
         "placeholder": "Select an author"
+      },
+      "relationship": {
+        "kind": "belongsTo",
+        "foreignKey": "author_id",
+        "cardinality": "one",
+        "target": "#/components/schemas/Author"
       }
     },
     {
@@ -61,13 +61,6 @@
       "type": "object",
       "label": "Manager",
       "required": false,
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "manager_id",
-        "relationship.sourceField": "manager_id",
-        "relationship.target": "#/components/schemas/Manager",
-        "relationship.type": "hasOne"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "subform"
@@ -78,33 +71,40 @@
           "type": "string",
           "format": "uuid",
           "label": "Id",
-          "metadata": {
-            "relationship.cardinality": "one",
-            "relationship.target": "#/components/schemas/Manager",
-            "relationship.type": "hasOne"
-          },
           "uiHints": {
             "cardinality": "one",
             "input": "select"
+          },
+          "relationship": {
+            "kind": "hasOne",
+            "cardinality": "one",
+            "target": "#/components/schemas/Manager"
           }
         }
-      ]
+      ],
+      "relationship": {
+        "kind": "hasOne",
+        "foreignKey": "manager_id",
+        "cardinality": "one",
+        "target": "#/components/schemas/Manager",
+        "sourceField": "manager_id"
+      }
     },
     {
       "name": "manager_id",
       "type": "string",
       "label": "Manager Id",
       "required": false,
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "manager_id",
-        "relationship.target": "#/components/schemas/Manager",
-        "relationship.type": "hasOne"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "select",
         "placeholder": "Select a manager"
+      },
+      "relationship": {
+        "kind": "hasOne",
+        "foreignKey": "manager_id",
+        "cardinality": "one",
+        "target": "#/components/schemas/Manager"
       }
     },
     {
@@ -164,11 +164,7 @@
       "metadata": {
         "cssClass": "fg-array--tags",
         "placeholder": "Add tag",
-        "repeaterLabel": "Tag",
-        "relationship.cardinality": "many",
-        "relationship.inverse": "article",
-        "relationship.target": "#/components/schemas/Tag",
-        "relationship.type": "hasMany"
+        "repeaterLabel": "Tag"
       },
       "uiHints": {
         "cardinality": "many",
@@ -184,11 +180,7 @@
         "required": false,
         "metadata": {
           "badge": "info",
-          "cssClass": "fg-array__item",
-          "relationship.cardinality": "many",
-          "relationship.inverse": "article",
-          "relationship.target": "#/components/schemas/Tag",
-          "relationship.type": "hasMany"
+          "cssClass": "fg-array__item"
         },
         "uiHints": {
           "badge": "info",
@@ -203,7 +195,19 @@
             "format": "uuid",
             "label": "Id"
           }
-        ]
+        ],
+        "relationship": {
+          "kind": "hasMany",
+          "cardinality": "many",
+          "target": "#/components/schemas/Tag",
+          "inverse": "article"
+        }
+      },
+      "relationship": {
+        "kind": "hasMany",
+        "cardinality": "many",
+        "target": "#/components/schemas/Tag",
+        "inverse": "article"
       }
     }
   ]
