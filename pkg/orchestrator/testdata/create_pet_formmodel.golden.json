@@ -141,7 +141,10 @@
                 "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               }
             }
-          ]
+          ],
+          "uiHints": {
+            "inputType": "email"
+          }
         },
         {
           "name": "phone",

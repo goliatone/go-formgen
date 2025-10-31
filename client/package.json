@@ -1,0 +1,41 @@
+{
+  "name": "@goliatone/formgen-runtime",
+  "private": false,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:types && npm run build:bundle",
+    "build:bundle": "tsx scripts/build.ts",
+    "build:stats": "tsx scripts/build.ts --analyze",
+    "build:types": "tsc --project tsconfig.build.json",
+    "watch": "tsx scripts/build.ts --watch",
+    "test": "vitest run"
+  },
+  "module": "./dist/esm/index.js",
+  "browser": "./dist/browser/formgen-relationships.min.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "browser": "./dist/browser/formgen-relationships.min.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./frameworks/preact": {
+      "types": "./dist/types/frameworks/preact.d.ts",
+      "import": "./dist/esm/frameworks/preact.js",
+      "browser": "./dist/browser/frameworks/preact.min.js",
+      "default": "./dist/esm/frameworks/preact.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "esbuild": "^0.20.2",
+    "preact": "^10.19.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.5",
+    "vitest": "^0.34.0"
+  }
+}

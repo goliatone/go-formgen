@@ -31,6 +31,7 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
+            "x-formgen-label-field": "full_name",
             "x-relationships": {
               "cardinality": "one",
               "foreignKey": "author_id",
@@ -58,6 +59,7 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
+            "x-formgen-label-field": "full_name",
             "x-relationships": {
               "cardinality": "one",
               "foreignKey": "author_id",
@@ -173,6 +175,24 @@
                 "MinLength": null,
                 "MaxLength": null,
                 "Pattern": ""
+              },
+              "label": {
+                "Ref": "",
+                "Type": "string",
+                "Format": "",
+                "Required": null,
+                "Properties": null,
+                "Items": null,
+                "Enum": null,
+                "Description": "",
+                "Default": null,
+                "Minimum": null,
+                "Maximum": null,
+                "ExclusiveMinimum": false,
+                "ExclusiveMaximum": false,
+                "MinLength": null,
+                "MaxLength": null,
+                "Pattern": ""
               }
             },
             "Items": null,
@@ -185,7 +205,10 @@
             "ExclusiveMaximum": false,
             "MinLength": null,
             "MaxLength": null,
-            "Pattern": ""
+            "Pattern": "",
+            "Extensions": {
+              "x-formgen-label-field": "label"
+            }
           },
           "Enum": null,
           "Description": "",
@@ -235,7 +258,52 @@
       "ExclusiveMaximum": false,
       "MinLength": null,
       "MaxLength": null,
-      "Pattern": ""
+      "Pattern": "",
+      "Extensions": {
+        "x-formgen-relations": {
+          "includes": [
+            "author",
+            "author.manager",
+            "tags"
+          ],
+          "relations": [
+            {
+              "filters": [
+                {
+                  "field": "full_name",
+                  "operator": "ilike"
+                }
+              ],
+              "name": "author"
+            },
+            {
+              "filters": [
+                {
+                  "field": "label",
+                  "operator": "ilike"
+                }
+              ],
+              "name": "tags"
+            }
+          ],
+          "tree": {
+            "children": {
+              "author": {
+                "children": {
+                  "manager": {
+                    "name": "manager"
+                  }
+                },
+                "name": "author"
+              },
+              "tags": {
+                "name": "tags"
+              }
+            },
+            "name": "article"
+          }
+        }
+      }
     },
     "Responses": {}
   }

@@ -1,7 +1,9 @@
 package model_test
 
 import (
+	"encoding/json"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -285,6 +287,10 @@ func TestBuilder_Relationships(t *testing.T) {
 
 	relationshipsByPath := collectRelationships(form.Fields)
 
+	if form.Metadata == nil {
+		t.Fatalf("form metadata not initialised")
+	}
+
 	assertNoRelationshipMetadata(t, form.Fields)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
@@ -309,6 +315,85 @@ func TestBuilder_Relationships(t *testing.T) {
 	}
 	for _, field := range form.Fields {
 		visit("", field)
+	}
+
+	authorIDField, ok := fields["author_id"]
+	if !ok {
+		t.Fatalf("expected author_id field in relationships form")
+	}
+	if authorIDField.Metadata == nil {
+		t.Fatalf("author_id metadata not initialised")
+	}
+	if got := authorIDField.Metadata["relationship.endpoint.labelField"]; got != "full_name" {
+		t.Fatalf("author_id relationship.endpoint.labelField = %q, want %q", got, "full_name")
+	}
+	if got := authorIDField.Metadata["label-field"]; got != "full_name" {
+		t.Fatalf("author_id label-field metadata = %q, want %q", got, "full_name")
+	}
+
+	if relationsRaw, ok := form.Metadata["relations"]; ok {
+		var relMeta struct {
+			Includes  []string `json:"includes"`
+			Relations []struct {
+				Name    string `json:"name"`
+				Filters []struct {
+					Field    string `json:"field"`
+					Operator string `json:"operator"`
+					Value    string `json:"value"`
+				} `json:"filters"`
+			} `json:"relations"`
+			Tree map[string]any `json:"tree"`
+		}
+		if err := json.Unmarshal([]byte(relationsRaw), &relMeta); err != nil {
+			t.Fatalf("unmarshal relations metadata: %v", err)
+		}
+		includes := append([]string(nil), relMeta.Includes...)
+		sort.Strings(includes)
+		expectedIncludes := []string{"author", "author.manager", "tags"}
+		if diff := testsupport.CompareGolden(expectedIncludes, includes); diff != "" {
+			t.Fatalf("relations.includes mismatch (-want +got):\n%s", diff)
+		}
+
+		var relationNames []string
+		for _, rel := range relMeta.Relations {
+			relationNames = append(relationNames, rel.Name)
+			if rel.Name == "author" && len(rel.Filters) > 0 {
+				if rel.Filters[0].Field != "full_name" {
+					t.Fatalf("author relation filter field = %q, want %q", rel.Filters[0].Field, "full_name")
+				}
+			}
+		}
+		sort.Strings(relationNames)
+		expectedRelationNames := []string{"author", "tags"}
+		if diff := testsupport.CompareGolden(expectedRelationNames, relationNames); diff != "" {
+			t.Fatalf("relations list mismatch (-want +got):\n%s", diff)
+		}
+
+		if relMeta.Tree == nil {
+			t.Fatalf("relations tree metadata missing")
+		}
+		if name, _ := relMeta.Tree["name"].(string); name != "article" {
+			t.Fatalf("relations tree root name = %q, want %q", name, "article")
+		}
+		children, ok := relMeta.Tree["children"].(map[string]any)
+		if !ok {
+			t.Fatalf("relations tree children missing")
+		}
+		if _, ok := children["author"]; !ok {
+			t.Fatalf("relations tree missing author child")
+		}
+		if _, ok := children["tags"]; !ok {
+			t.Fatalf("relations tree missing tags child")
+		}
+		if authorNode, ok := children["author"].(map[string]any); ok {
+			if grandchildren, ok := authorNode["children"].(map[string]any); ok {
+				if _, ok := grandchildren["manager"]; !ok {
+					t.Fatalf("relations tree author child missing manager grandchild")
+				}
+			}
+		}
+	} else {
+		t.Fatalf("form metadata missing relations descriptor")
 	}
 
 	assertRelationshipField := func(name string, wantKind pkgmodel.RelationshipKind, wantInput, wantCardinality string) {
