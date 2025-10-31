@@ -52,3 +52,6 @@ Temporary Items
 # Go workspace file
 go.work
 .tmp
+.gocache
+.gomodcache
+node_modules/
