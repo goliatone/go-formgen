@@ -7,6 +7,19 @@ import (
 	"github.com/goliatone/formgen/pkg/orchestrator"
 )
 
+// EndpointConfig mirrors the x-endpoint contract; alias exported via the root
+// package for convenience.
+type EndpointConfig = orchestrator.EndpointConfig
+
+// EndpointMapping remaps endpoint payload fields.
+type EndpointMapping = orchestrator.EndpointMapping
+
+// EndpointAuth describes runtime authentication hints.
+type EndpointAuth = orchestrator.EndpointAuth
+
+// EndpointOverride configures manual endpoint metadata for a form field.
+type EndpointOverride = orchestrator.EndpointOverride
+
 // NewOrchestrator exposes the orchestrator constructor from the top-level
 // module, mirroring the quick start guidance in go-form-gen.md:223-258.
 func NewOrchestrator(options ...orchestrator.Option) *orchestrator.Orchestrator {
@@ -34,4 +47,10 @@ func GenerateHTMLFromDocument(ctx context.Context, doc pkgopenapi.Document, oper
 		OperationID: operationID,
 		Renderer:    rendererName,
 	})
+}
+
+// WithEndpointOverrides registers endpoint overrides that can be passed to
+// GenerateHTML alongside other orchestrator options.
+func WithEndpointOverrides(overrides []EndpointOverride) orchestrator.Option {
+	return orchestrator.WithEndpointOverrides(overrides)
 }
