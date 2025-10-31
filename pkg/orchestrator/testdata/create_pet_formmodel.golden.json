@@ -9,7 +9,6 @@
       "type": "integer",
       "required": false,
       "label": "Age",
-      "description": "Age in years",
       "validations": [
         {
           "kind": "min",
@@ -89,7 +88,6 @@
       "type": "string",
       "required": true,
       "label": "Name",
-      "description": "Pet name",
       "validations": [
         {
           "kind": "minLength",
@@ -100,7 +98,7 @@
         {
           "kind": "maxLength",
           "params": {
-            "value": "64"
+            "value": "50"
           }
         },
         {
@@ -199,12 +197,11 @@
       "type": "string",
       "required": false,
       "label": "Tag",
-      "description": "Optional tag",
       "validations": [
         {
           "kind": "maxLength",
           "params": {
-            "value": "32"
+            "value": "12"
           }
         }
       ]
@@ -214,7 +211,6 @@
       "type": "number",
       "required": false,
       "label": "Weight",
-      "description": "Weight in kilograms",
       "validations": [
         {
           "kind": "min",

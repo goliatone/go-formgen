@@ -1,22 +1,116 @@
 {
-  "operationId": "createPet",
-  "endpoint": "/pets",
+  "operationId": "createWidget",
+  "endpoint": "/widgets",
   "method": "POST",
-  "summary": "Create a pet",
+  "summary": "Create widget",
+  "description": "Capture metadata for a widget.",
+  "metadata": {
+    "submitLabel": "Create widget",
+    "success-message": "Widget saved"
+  },
+  "uiHints": {
+    "submitLabel": "Create widget",
+    "success-message": "Widget saved"
+  },
   "fields": [
     {
       "name": "name",
       "type": "string",
       "label": "Name",
       "required": true,
-      "description": "Pet name"
+      "description": "Widget name",
+      "placeholder": "Give it a friendly name",
+      "metadata": {
+        "cssClass": "fg-field--name",
+        "helpText": "Shown to customers",
+        "placeholder": "Give it a friendly name",
+        "widget": "textarea"
+      },
+      "uiHints": {
+        "cssClass": "fg-field--name",
+        "helpText": "Shown to customers",
+        "placeholder": "Give it a friendly name",
+        "widget": "textarea"
+      }
     },
     {
-      "name": "tag",
-      "type": "string",
-      "label": "Tag",
+      "name": "settings",
+      "type": "object",
+      "label": "Settings",
       "required": false,
-      "description": "Optional tag"
+      "metadata": {
+        "accordion": "true",
+        "cssClass": "fg-fieldset--settings"
+      },
+      "uiHints": {
+        "accordion": "true",
+        "cssClass": "fg-fieldset--settings"
+      },
+      "nested": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "label": "Enable widget",
+          "required": false,
+          "metadata": {
+            "hideLabel": "true",
+            "label": "Enable widget"
+          },
+          "uiHints": {
+            "hideLabel": "true",
+            "label": "Enable widget"
+          }
+        },
+        {
+          "name": "threshold",
+          "type": "number",
+          "label": "Threshold",
+          "required": false,
+          "metadata": {
+            "helpText": "Controls the debounce window",
+            "inputType": "range",
+            "precision": "2",
+            "unit": "ms"
+          },
+          "uiHints": {
+            "helpText": "Controls the debounce window",
+            "inputType": "range",
+            "precision": "2",
+            "unit": "ms"
+          }
+        }
+      ]
+    },
+    {
+      "name": "tags",
+      "type": "array",
+      "label": "Tags",
+      "required": false,
+      "placeholder": "Add tag",
+      "metadata": {
+        "cssClass": "fg-array--tags",
+        "placeholder": "Add tag",
+        "repeaterLabel": "Tag"
+      },
+      "uiHints": {
+        "cssClass": "fg-array--tags",
+        "placeholder": "Add tag",
+        "repeaterLabel": "Tag"
+      },
+      "items": {
+        "name": "tagsItem",
+        "type": "string",
+        "label": "Tags item",
+        "required": false,
+        "metadata": {
+          "badge": "info",
+          "cssClass": "fg-array__item"
+        },
+        "uiHints": {
+          "badge": "info",
+          "cssClass": "fg-array__item"
+        }
+      }
     }
   ]
 }

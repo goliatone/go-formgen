@@ -4,22 +4,14 @@
   "method": "POST",
   "summary": "Create widget",
   "description": "Capture metadata for a widget.",
-  "metadata": {
-    "submitLabel": "Create widget",
-    "success-message": "Widget saved"
-  },
-  "uiHints": {
-    "submitLabel": "Create widget",
-    "success-message": "Widget saved"
-  },
   "fields": [
     {
       "name": "name",
       "type": "string",
-      "label": "Name",
       "required": true,
-      "description": "Widget name",
+      "label": "Name",
       "placeholder": "Give it a friendly name",
+      "description": "Widget name",
       "metadata": {
         "cssClass": "fg-field--name",
         "helpText": "Shown to customers",
@@ -36,22 +28,14 @@
     {
       "name": "settings",
       "type": "object",
-      "label": "Settings",
       "required": false,
-      "metadata": {
-        "accordion": "true",
-        "cssClass": "fg-fieldset--settings"
-      },
-      "uiHints": {
-        "accordion": "true",
-        "cssClass": "fg-fieldset--settings"
-      },
+      "label": "Settings",
       "nested": [
         {
           "name": "enabled",
           "type": "boolean",
-          "label": "Enable widget",
           "required": false,
+          "label": "Enable widget",
           "metadata": {
             "hideLabel": "true",
             "label": "Enable widget"
@@ -64,8 +48,8 @@
         {
           "name": "threshold",
           "type": "number",
-          "label": "Threshold",
           "required": false,
+          "label": "Threshold",
           "metadata": {
             "helpText": "Controls the debounce window",
             "inputType": "range",
@@ -79,14 +63,36 @@
             "unit": "ms"
           }
         }
-      ]
+      ],
+      "metadata": {
+        "accordion": "true",
+        "cssClass": "fg-fieldset--settings"
+      },
+      "uiHints": {
+        "accordion": "true",
+        "cssClass": "fg-fieldset--settings"
+      }
     },
     {
       "name": "tags",
       "type": "array",
-      "label": "Tags",
       "required": false,
+      "label": "Tags",
       "placeholder": "Add tag",
+      "items": {
+        "name": "tagsItem",
+        "type": "string",
+        "required": false,
+        "label": "Tags item",
+        "metadata": {
+          "badge": "info",
+          "cssClass": "fg-array__item"
+        },
+        "uiHints": {
+          "badge": "info",
+          "cssClass": "fg-array__item"
+        }
+      },
       "metadata": {
         "cssClass": "fg-array--tags",
         "placeholder": "Add tag",
@@ -96,21 +102,23 @@
         "cssClass": "fg-array--tags",
         "placeholder": "Add tag",
         "repeaterLabel": "Tag"
-      },
-      "items": {
-        "name": "tagsItem",
-        "type": "string",
-        "label": "Tags item",
-        "required": false,
-        "metadata": {
-          "badge": "info",
-          "cssClass": "fg-array__item"
-        },
-        "uiHints": {
-          "badge": "info",
-          "cssClass": "fg-array__item"
-        }
       }
     }
-  ]
+  ],
+  "metadata": {
+    "category": "inventory",
+    "description": "Capture metadata for a widget.",
+    "priority": "1",
+    "section": "details",
+    "submitLabel": "Create widget",
+    "success-message": "Widget saved",
+    "summary": "Create widget"
+  },
+  "uiHints": {
+    "category": "inventory",
+    "priority": "1",
+    "section": "details",
+    "submitLabel": "Create widget",
+    "success-message": "Widget saved"
+  }
 }

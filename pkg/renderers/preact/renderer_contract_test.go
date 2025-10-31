@@ -24,6 +24,10 @@ func TestRenderer_RenderContract(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 
+	if !strings.Contains(string(output), `"uiHints"`) {
+		t.Fatalf("expected uiHints block in output")
+	}
+
 	goldenPath := filepath.Join("testdata", "form_output.golden.html")
 	if testsupport.WriteMaybeGolden(t, goldenPath, output) {
 		return
@@ -46,6 +50,10 @@ func TestRenderer_RenderWithAssetURLPrefix(t *testing.T) {
 	output, err := renderer.Render(testsupport.Context(), form)
 	if err != nil {
 		t.Fatalf("render: %v", err)
+	}
+
+	if !strings.Contains(string(output), `"uiHints"`) {
+		t.Fatalf("expected uiHints block in prefixed output")
 	}
 
 	goldenPath := filepath.Join("testdata", "form_output_prefixed.golden.html")
@@ -84,6 +92,10 @@ func TestRenderer_RenderWithCustomAssetBundle(t *testing.T) {
 	output, err := renderer.Render(testsupport.Context(), form)
 	if err != nil {
 		t.Fatalf("render: %v", err)
+	}
+
+	if !strings.Contains(string(output), `"uiHints"`) {
+		t.Fatalf("expected uiHints block in custom asset output")
 	}
 
 	goldenPath := filepath.Join("testdata", "form_output_cdn.golden.html")

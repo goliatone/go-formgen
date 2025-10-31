@@ -5,13 +5,13 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
-  <title>Create a pet</title>
+  <title>Create widget</title>
   
   <link rel="stylesheet" href="assets/formgen-preact.min.css">
 </head>
 <body>
-  <div id="formgen-preact-root" data-operation="createPet"></div>
-  <script id="formgen-preact-data" type="application/json">{"operationId":"createPet","endpoint":"/pets","method":"POST","summary":"Create a pet","description":"Capture core info about a pet.","fields":[{"name":"name","type":"string","required":true,"label":"Name","description":"Pet name"},{"name":"tag","type":"string","required":false,"label":"Tag","description":"Optional tag"},{"name":"favorite","type":"string","required":false,"label":"Favorite food","enum":["kibble","treats","vegetables"]}]}</script>
+  <div id="formgen-preact-root" data-operation="createWidget"></div>
+  <script id="formgen-preact-data" type="application/json">{"operationId":"createWidget","endpoint":"/widgets","method":"POST","summary":"Create widget","description":"Capture metadata for a widget.","fields":[{"name":"name","type":"string","required":true,"label":"Name","placeholder":"Give it a friendly name","description":"Widget name","metadata":{"cssClass":"fg-field--name","helpText":"Shown to customers","placeholder":"Give it a friendly name","widget":"textarea"},"uiHints":{"cssClass":"fg-field--name","helpText":"Shown to customers","placeholder":"Give it a friendly name","widget":"textarea"}},{"name":"settings","type":"object","required":false,"label":"Settings","nested":[{"name":"enabled","type":"boolean","required":false,"label":"Enable widget","metadata":{"hideLabel":"true","label":"Enable widget"},"uiHints":{"hideLabel":"true","label":"Enable widget"}},{"name":"threshold","type":"number","required":false,"label":"Threshold","metadata":{"helpText":"Controls the debounce window","inputType":"range","precision":"2","unit":"ms"},"uiHints":{"helpText":"Controls the debounce window","inputType":"range","precision":"2","unit":"ms"}}],"metadata":{"accordion":"true","cssClass":"fg-fieldset--settings"},"uiHints":{"accordion":"true","cssClass":"fg-fieldset--settings"}},{"name":"tags","type":"array","required":false,"label":"Tags","placeholder":"Add tag","items":{"name":"tagsItem","type":"string","required":false,"label":"Tags item","metadata":{"badge":"info","cssClass":"fg-array__item"},"uiHints":{"badge":"info","cssClass":"fg-array__item"}},"metadata":{"cssClass":"fg-array--tags","placeholder":"Add tag","repeaterLabel":"Tag"},"uiHints":{"cssClass":"fg-array--tags","placeholder":"Add tag","repeaterLabel":"Tag"}}],"metadata":{"submitLabel":"Create widget","success-message":"Widget saved"},"uiHints":{"submitLabel":"Create widget","success-message":"Widget saved"}}</script>
   <script src="assets/vendor/preact.production.min.js" defer></script>
   <script src="assets/formgen-preact.min.js" defer></script>
 </body>

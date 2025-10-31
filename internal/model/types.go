@@ -22,7 +22,10 @@ const (
 
 // ValidationRule represents a single validation constraint applied to a field.
 // Use the ValidationRule* constants to reference canonical OpenAPI-derived
-// constraints (min/max, minLength/maxLength, pattern).
+// constraints (min/max, minLength/maxLength, pattern). Numeric bounds and length
+// limits encode their threshold in Params["value"] while pattern rules preserve
+// the original expression in Params["pattern"]. Boolean flags such as
+// exclusivity are encoded as string values to keep JSON snapshots stable.
 type ValidationRule struct {
 	Kind   string            `json:"kind"`
 	Params map[string]string `json:"params,omitempty"`

@@ -1,57 +1,215 @@
 
+
+
+
+
+
+
+
+
+
 <form class="fg-form" method="POST" action="/pets">
+    
         
 <div class="fg-field fg-type-integer">
     <label for="fg-age">Age</label>
     
         
 
+
 <input id="fg-age" type="number" name="age"   value="">
 
 
+
+    
     
     
 </div>
 
+    
+        
+<div class="fg-field fg-type-array">
+    <label for="fg-favoriteFoods">Favorite foods</label>
+    
+        
+<div class="fg-array">
+    
+    
+        
+<div class="fg-field fg-type-string">
+    <label for="fg-favoriteFoodsItem">Favorite foods item</label>
+    
+        
+
+
+<input id="fg-favoriteFoodsItem" type="text" name="favoriteFoodsItem"   value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+</div>
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-array">
+    <label for="fg-favoriteNumbers">Favorite numbers</label>
+    
+        
+<div class="fg-array">
+    
+    
+        
+<div class="fg-field fg-type-number">
+    <label for="fg-favoriteNumbersItem">Favorite numbers item</label>
+    
+        
+
+
+<input id="fg-favoriteNumbersItem" type="number" name="favoriteNumbersItem"   value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+</div>
+
+    
+    
+    
+</div>
+
+    
         
 <div class="fg-field fg-type-string">
     <label for="fg-name">Name *</label>
     
         
 
+
 <input id="fg-name" type="text" name="name"  required value="">
 
 
+
+    
     
     
 </div>
 
+    
+        
+<div class="fg-field fg-type-object">
+    <label for="fg-owner">Owner</label>
+    
+        
+<fieldset class="fg-fieldset">
+    
+        
+<div class="fg-field fg-type-string">
+    <label for="fg-email">Email *</label>
+    
+        
+
+
+<input id="fg-email" type="text" name="email"  required value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-string">
+    <label for="fg-phone">Phone</label>
+    
+        
+
+
+<input id="fg-phone" type="text" name="phone"   value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+        
+<div class="fg-field fg-type-integer">
+    <label for="fg-yearsAsCustomer">Years as customer</label>
+    
+        
+
+
+<input id="fg-yearsAsCustomer" type="number" name="yearsAsCustomer"   value="">
+
+
+
+    
+    
+    
+</div>
+
+    
+</fieldset>
+
+    
+    <small class="fg-field__help">Owner contact details</small>
+    
+</div>
+
+    
         
 <div class="fg-field fg-type-string">
     <label for="fg-tag">Tag</label>
     
         
 
+
 <input id="fg-tag" type="text" name="tag"   value="">
 
 
+
+    
     
     
 </div>
 
+    
         
 <div class="fg-field fg-type-number">
     <label for="fg-weight">Weight</label>
     
         
 
+
 <input id="fg-weight" type="number" name="weight"   value="">
 
 
+
+    
     
     
 </div>
 
+    
     <div class="fg-actions">
         <button type="submit">Submit</button>
     </div>

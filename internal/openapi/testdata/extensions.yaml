@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: Extension Demo
+  version: 1.0.0
+paths:
+  /widgets:
+    post:
+      operationId: createWidget
+      summary: Create widget
+      description: Capture metadata for a widget.
+      x-formgen:
+        submitLabel: "Create widget"
+        category: "inventory"
+        priority: 1
+      x-formgen-success-message: "Widget saved"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              x-formgen:
+                section: "details"
+              properties:
+                name:
+                  type: string
+                  description: Widget name
+                  x-formgen:
+                    widget: "textarea"
+                    helpText: "Shown to customers"
+                    placeholder: "Give it a friendly name"
+                    cssClass: "fg-field--name"
+                tags:
+                  type: array
+                  x-formgen-placeholder: "Add tag"
+                  x-formgen:
+                    repeaterLabel: "Tag"
+                    cssClass: "fg-array--tags"
+                  items:
+                    type: string
+                    x-formgen:
+                      badge: "info"
+                      cssClass: "fg-array__item"
+                settings:
+                  type: object
+                  x-formgen:
+                    accordion: true
+                    cssClass: "fg-fieldset--settings"
+                  properties:
+                    enabled:
+                      type: boolean
+                      x-formgen-label: "Enable widget"
+                      x-formgen-hideLabel: true
+                    threshold:
+                      type: number
+                      x-formgen:
+                        unit: "ms"
+                        precision: 2
+                        helpText: "Controls the debounce window"
+                        inputType: "range"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object

@@ -49,6 +49,43 @@ paths:
                   type: number
                   minimum: 0.5
                   maximum: 60
+                  exclusiveMinimum: true
+                owner:
+                  type: object
+                  description: Owner contact details
+                  required:
+                    - email
+                  properties:
+                    email:
+                      type: string
+                      format: email
+                      minLength: 5
+                      maxLength: 128
+                      pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+                    yearsAsCustomer:
+                      type: integer
+                      minimum: 0
+                      exclusiveMinimum: true
+                      maximum: 30
+                    phone:
+                      type: string
+                      pattern: '^\+?[0-9\-]{7,15}$'
+                      minLength: 7
+                      maxLength: 15
+                favoriteFoods:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 3
+                    maxLength: 24
+                    pattern: '^[a-z]+$'
+                favoriteNumbers:
+                  type: array
+                  items:
+                    type: number
+                    minimum: 0.1
+                    exclusiveMinimum: true
+                    maximum: 99.9
       responses:
         '201':
           description: Created

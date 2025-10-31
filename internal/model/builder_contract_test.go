@@ -104,3 +104,94 @@ func TestBuilder_CreatePet(t *testing.T) {
 		}
 	}
 }
+
+func TestBuilder_CreateWidgetExtensions(t *testing.T) {
+	operations := testsupport.MustLoadOperations(t, filepath.Join("../openapi", "testdata", "extensions_operations.golden.json"))
+	op := operations["createWidget"]
+
+	builder := pkgmodel.NewBuilder()
+	form, err := builder.Build(op)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "create_widget_formmodel.golden.json")
+	testsupport.WriteFormModel(t, goldenPath, form)
+	want := testsupport.MustLoadFormModel(t, goldenPath)
+
+	if diff := testsupport.CompareGolden(want, form); diff != "" {
+		t.Fatalf("widget form mismatch (-want +got):\n%s", diff)
+	}
+
+	if got := form.Metadata["submitLabel"]; got != "Create widget" {
+		t.Fatalf("form metadata submitLabel mismatch: %q", got)
+	}
+	if got := form.Metadata["priority"]; got != "1" {
+		t.Fatalf("form metadata priority mismatch: %q", got)
+	}
+	if got := form.Metadata["section"]; got != "details" {
+		t.Fatalf("form metadata section mismatch: %q", got)
+	}
+
+	fields := map[string]pkgmodel.Field{}
+	var visit func(prefix string, field pkgmodel.Field)
+	visit = func(prefix string, field pkgmodel.Field) {
+		key := field.Name
+		if prefix != "" {
+			key = prefix + "." + key
+		}
+		fields[key] = field
+
+		if field.Items != nil {
+			visit(key, *field.Items)
+		}
+		for _, nested := range field.Nested {
+			visit(key, nested)
+		}
+	}
+	for _, field := range form.Fields {
+		visit("", field)
+	}
+
+	expectMetadata := map[string]map[string]string{
+		"name": {
+			"cssClass":    "fg-field--name",
+			"helpText":    "Shown to customers",
+			"placeholder": "Give it a friendly name",
+			"widget":      "textarea",
+		},
+		"tags": {
+			"cssClass":      "fg-array--tags",
+			"placeholder":   "Add tag",
+			"repeaterLabel": "Tag",
+		},
+		"tags.tagsItem": {
+			"badge":    "info",
+			"cssClass": "fg-array__item",
+		},
+		"settings": {
+			"accordion": "true",
+			"cssClass":  "fg-fieldset--settings",
+		},
+		"settings.enabled": {
+			"hideLabel": "true",
+			"label":     "Enable widget",
+		},
+		"settings.threshold": {
+			"helpText":  "Controls the debounce window",
+			"inputType": "range",
+			"precision": "2",
+			"unit":      "ms",
+		},
+	}
+
+	for path, wantMeta := range expectMetadata {
+		field, ok := fields[path]
+		if !ok {
+			t.Fatalf("expected field %q in widget form", path)
+		}
+		if diff := testsupport.CompareGolden(wantMeta, field.Metadata); diff != "" {
+			t.Fatalf("field %q metadata mismatch (-want +got):\n%s", path, diff)
+		}
+	}
+}
