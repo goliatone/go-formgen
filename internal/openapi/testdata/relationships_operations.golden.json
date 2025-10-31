@@ -1,0 +1,204 @@
+{
+  "createArticle": {
+    "ID": "createArticle",
+    "Method": "POST",
+    "Path": "/articles",
+    "Summary": "",
+    "Description": "",
+    "RequestBody": {
+      "Ref": "",
+      "Type": "object",
+      "Format": "",
+      "Required": [
+        "author_id"
+      ],
+      "Properties": {
+        "author": {
+          "Ref": "",
+          "Type": "object",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.sourceField": "author_id"
+          }
+        },
+        "author_id": {
+          "Ref": "#/components/schemas/UUID",
+          "Type": "string",
+          "Format": "uuid",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.cardinality": "one",
+            "relationship.foreignKey": "author_id",
+            "relationship.target": "#/components/schemas/Author",
+            "relationship.type": "belongsTo"
+          }
+        },
+        "category_id": {
+          "Ref": "",
+          "Type": "string",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.cardinality": "one",
+            "relationship.target": "#/components/schemas/Category",
+            "relationship.type": "belongsTo"
+          }
+        },
+        "manager": {
+          "Ref": "",
+          "Type": "object",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.sourceField": "manager_id"
+          }
+        },
+        "manager_id": {
+          "Ref": "",
+          "Type": "string",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.cardinality": "one",
+            "relationship.foreignKey": "manager_id",
+            "relationship.target": "#/components/schemas/Manager",
+            "relationship.type": "hasOne"
+          }
+        },
+        "tags": {
+          "Ref": "",
+          "Type": "array",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": {
+            "Ref": "#/components/schemas/Tag",
+            "Type": "object",
+            "Format": "",
+            "Required": null,
+            "Properties": {
+              "id": {
+                "Ref": "#/components/schemas/UUID",
+                "Type": "string",
+                "Format": "uuid",
+                "Required": null,
+                "Properties": null,
+                "Items": null,
+                "Enum": null,
+                "Description": "",
+                "Default": null,
+                "Minimum": null,
+                "Maximum": null,
+                "ExclusiveMinimum": false,
+                "ExclusiveMaximum": false,
+                "MinLength": null,
+                "MaxLength": null,
+                "Pattern": ""
+              }
+            },
+            "Items": null,
+            "Enum": null,
+            "Description": "",
+            "Default": null,
+            "Minimum": null,
+            "Maximum": null,
+            "ExclusiveMinimum": false,
+            "ExclusiveMaximum": false,
+            "MinLength": null,
+            "MaxLength": null,
+            "Pattern": ""
+          },
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": "",
+          "Extensions": {
+            "relationship.cardinality": "many",
+            "relationship.inverse": "article",
+            "relationship.target": "#/components/schemas/Tag",
+            "relationship.type": "hasMany"
+          }
+        }
+      },
+      "Items": null,
+      "Enum": null,
+      "Description": "",
+      "Default": null,
+      "Minimum": null,
+      "Maximum": null,
+      "ExclusiveMinimum": false,
+      "ExclusiveMaximum": false,
+      "MinLength": null,
+      "MaxLength": null,
+      "Pattern": ""
+    },
+    "Responses": {}
+  }
+}

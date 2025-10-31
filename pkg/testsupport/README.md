@@ -6,6 +6,7 @@ Utilities in this package centralise the fixture workflow described in `go-form-
 - `LoadFormModel`/`MustLoadFormModel` and `MustLoadOperations` read golden JSON snapshots into their typed forms.
 - `CompareGolden` wraps `cmp.Diff` so tests surface human-friendly diffs.
 - `WriteMaybeGolden`, `WriteGolden`, and `WriteFormModel` honour the `UPDATE_GOLDENS` toggle used by contract tests.
+- Validation snapshots include canonical rule identifiers (`min`, `max`, `minLength`, `maxLength`, `pattern`) with string parameters so diff output remains stable even as numeric and textual constraints expand.
 
 To refresh every golden in the project, run:
 
@@ -14,4 +15,3 @@ To refresh every golden in the project, run:
 ```
 
 Pass package patterns (for example `./internal/model`) to limit the update scope.
-
