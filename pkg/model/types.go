@@ -24,10 +24,12 @@ const (
 	ValidationRulePattern   = internalmodel.ValidationRulePattern
 )
 
+// ValidationRule represents an OpenAPI-derived constraint. Threshold-based rules
+// encode their limit in Params["value"], pattern rules preserve the original
+// expression in Params["pattern"], and boolean qualifiers such as exclusivity
+// remain string typed to keep JSON snapshots deterministic.
 type ValidationRule = internalmodel.ValidationRule
 
-// ValidationRule describes a single constraint with canonical identifiers and
-// string parameters (documented in go-form-gen.md) that renderers can translate
-// into attributes or runtime checks.
+// Field mirrors internal model fields for renderer consumption.
 type Field = internalmodel.Field
 type FormModel = internalmodel.FormModel
