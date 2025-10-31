@@ -24,6 +24,37 @@ func stripFieldRelationship(field *pkgmodel.Field) {
 	}
 }
 
+func collectRelationships(fields []pkgmodel.Field) map[string]*pkgmodel.Relationship {
+	result := make(map[string]*pkgmodel.Relationship)
+
+	var visit func(prefix string, field pkgmodel.Field)
+	visit = func(prefix string, field pkgmodel.Field) {
+		key := field.Name
+		if prefix != "" {
+			key = prefix + "." + key
+		}
+		if field.Relationship != nil {
+			value := *field.Relationship
+			result[key] = &value
+		} else {
+			result[key] = nil
+		}
+
+		if field.Items != nil {
+			visit(key, *field.Items)
+		}
+		for _, nested := range field.Nested {
+			visit(key, nested)
+		}
+	}
+
+	for _, field := range fields {
+		visit("", field)
+	}
+
+	return result
+}
+
 func TestBuilder_CreatePet(t *testing.T) {
 	operations := testsupport.MustLoadOperations(t, filepath.Join("../openapi", "testdata", "petstore_operations.golden.json"))
 	op := operations["createPet"]
@@ -121,6 +152,69 @@ func TestBuilder_CreatePet(t *testing.T) {
 		if diff := testsupport.CompareGolden(wantRules, field.Validations); diff != "" {
 			t.Fatalf("field %q validations mismatch (-want +got):\n%s", path, diff)
 		}
+	}
+
+	expectRelationships := map[string]*pkgmodel.Relationship{
+		"author": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Author",
+			ForeignKey:  "author_id",
+			Cardinality: "one",
+			SourceField: "author_id",
+		},
+		"author_id": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Author",
+			ForeignKey:  "author_id",
+			Cardinality: "one",
+		},
+		"category_id": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Category",
+			Cardinality: "one",
+		},
+		"manager": {
+			Kind:        pkgmodel.RelationshipHasOne,
+			Target:      "#/components/schemas/Manager",
+			ForeignKey:  "manager_id",
+			Cardinality: "one",
+			SourceField: "manager_id",
+		},
+		"manager_id": {
+			Kind:        pkgmodel.RelationshipHasOne,
+			Target:      "#/components/schemas/Manager",
+			ForeignKey:  "manager_id",
+			Cardinality: "one",
+		},
+		"tags": {
+			Kind:        pkgmodel.RelationshipHasMany,
+			Target:      "#/components/schemas/Tag",
+			Cardinality: "many",
+			Inverse:     "article",
+		},
+		"tags.tagsItem": {
+			Kind:        pkgmodel.RelationshipHasMany,
+			Target:      "#/components/schemas/Tag",
+			Cardinality: "many",
+			Inverse:     "article",
+		},
+	}
+
+	for path, wantRel := range expectRelationships {
+		gotRel, ok := relationshipsByPath[path]
+		if !ok {
+			t.Fatalf("expected relationship entry for %q", path)
+		}
+		if gotRel == nil {
+			t.Fatalf("expected relationship for %q to be non-nil", path)
+		}
+		if diff := testsupport.CompareGolden(wantRel, gotRel); diff != "" {
+			t.Fatalf("relationship %q mismatch (-want +got):\n%s", path, diff)
+		}
+	}
+
+	if rel := relationshipsByPath["title"]; rel != nil {
+		t.Fatalf("expected title relationship to remain nil, got %#v", rel)
 	}
 }
 
