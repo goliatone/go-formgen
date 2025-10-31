@@ -1,6 +1,6 @@
 {% macro render_field(field) %}
-<div class="fg-field fg-type-{{ field.type }}">
-    {% if field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
+<div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}">
+    {% if field.uiHints.hideLabel != "true" and field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
     {% if field.type == "object" %}
         {{ render_object(field)|safe }}
     {% elif field.type == "array" %}
@@ -11,11 +11,12 @@
         {{ render_input(field)|safe }}
     {% endif %}
     {% if field.description %}<small class="fg-field__help">{{ field.description }}</small>{% endif %}
+    {% if field.uiHints.helpText %}<small class="fg-field__hint">{{ field.uiHints.helpText }}</small>{% endif %}
 </div>
 {% endmacro %}
 
 {% macro render_object(field) %}
-<fieldset class="fg-fieldset">
+<fieldset class="fg-fieldset{% if field.uiHints.accordion == "true" %} fg-fieldset--accordion{% endif %}">
     {% for nested in field.nested %}
         {{ render_field(nested)|safe }}
     {% endfor %}
@@ -23,7 +24,8 @@
 {% endmacro %}
 
 {% macro render_array(field) %}
-<div class="fg-array">
+<div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}">
+    {% if field.uiHints.repeaterLabel %}<div class="fg-array__label">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
     {% if field.items %}
         {{ render_field(field.items)|safe }}
     {% else %}
@@ -42,7 +44,11 @@
     {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
 </select>
 {% else %}
-<input id="fg-{{ field.name }}" type="{% if field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} value="{% if field.default %}{{ field.default }}{% endif %}">
+{% if field.uiHints.widget == "textarea" %}
+<textarea id="fg-{{ field.name }}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{% if field.default %}{{ field.default }}{% endif %}</textarea>
+{% else %}
+<input id="fg-{{ field.name }}" type="{% if field.uiHints.inputType %}{{ field.uiHints.inputType }}{% elif field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}" name="{{ field.name }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} value="{% if field.default %}{{ field.default }}{% endif %}">
+{% endif %}
 {% endif %}
 {% endmacro %}
 
