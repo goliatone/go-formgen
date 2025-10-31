@@ -9,7 +9,16 @@ import (
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
 )
 
-const extensionNamespace = "x-formgen"
+const (
+	extensionNamespace        = "x-formgen"
+	relationshipNamespace     = "relationship."
+	relationshipTypeKey       = relationshipNamespace + "type"
+	relationshipTargetKey     = relationshipNamespace + "target"
+	relationshipForeignKeyKey = relationshipNamespace + "foreignKey"
+	relationshipCardKey       = relationshipNamespace + "cardinality"
+	relationshipInverseKey    = relationshipNamespace + "inverse"
+	relationshipSourceKey     = relationshipNamespace + "sourceField"
+)
 
 // Builder converts OpenAPI operations into form models.
 type Builder struct {
@@ -87,7 +96,9 @@ func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, requir
 		field.Metadata["$ref"] = schema.Ref
 		refExt := metadataFromExtensions(schema.Extensions)
 		mergeMetadata(field.Metadata, refExt)
+		ensureRelationship(&field)
 		field.UIHints = mergeUIHints(field.UIHints, filterUIHints(refExt))
+		applyRelationshipHints(&field)
 		field.applyUIHintAttributes()
 		field.normalizeMetadata()
 		field.normalizeUIHints()
@@ -132,6 +143,8 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		fields = append(fields, converted...)
 	}
 
+	decorateRelationshipSiblings(fields)
+
 	if name != "" {
 		// Wrap nested properties inside a parent object field.
 		parent := Field{
@@ -151,7 +164,9 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		applyValidations(&parent, schema)
 		parentExt := metadataFromExtensions(schema.Extensions)
 		mergeMetadata(parent.ensureMetadata(), parentExt)
+		ensureRelationship(&parent)
 		parent.UIHints = mergeUIHints(parent.UIHints, filterUIHints(parentExt))
+		applyRelationshipHints(&parent)
 		parent.applyUIHintAttributes()
 		parent.normalizeMetadata()
 		parent.normalizeUIHints()
@@ -192,7 +207,10 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 	applyValidations(&field, schema)
 	arrayExt := metadataFromExtensions(schema.Extensions)
 	mergeMetadata(field.ensureMetadata(), arrayExt)
+	ensureRelationship(&field)
 	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(arrayExt))
+	applyRelationshipHints(&field)
+	propagateRelationshipToItems(&field)
 	field.applyUIHintAttributes()
 	field.normalizeMetadata()
 	field.normalizeUIHints()
@@ -218,7 +236,9 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 	applyValidations(&field, schema)
 	primitiveExt := metadataFromExtensions(schema.Extensions)
 	mergeMetadata(field.ensureMetadata(), primitiveExt)
+	ensureRelationship(&field)
 	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(primitiveExt))
+	applyRelationshipHints(&field)
 	field.applyUIHintAttributes()
 	field.normalizeMetadata()
 	field.normalizeUIHints()
@@ -333,6 +353,12 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			if str, ok := CanonicalizeExtensionValue(value); ok {
 				result[trimmed] = str
 			}
+			continue
+		}
+		if strings.HasPrefix(key, relationshipNamespace) {
+			if str, ok := CanonicalizeExtensionValue(value); ok {
+				result[key] = str
+			}
 		}
 	}
 	if len(result) == 0 {
@@ -375,6 +401,151 @@ func mergeUIHints(target map[string]string, updates map[string]string) map[strin
 		target[key] = updates[key]
 	}
 	return target
+}
+
+func applyRelationshipHints(field *Field) {
+	if field == nil {
+		return
+	}
+	if len(field.Metadata) == 0 {
+		return
+	}
+	relType, ok := field.Metadata[relationshipTypeKey]
+	if !ok || relType == "" {
+		return
+	}
+
+	hints := make(map[string]string)
+	switch strings.ToLower(relType) {
+	case "belongsto", "hasone":
+		switch field.Type {
+		case FieldTypeArray:
+			hints["input"] = "collection"
+		case FieldTypeObject:
+			hints["input"] = "subform"
+		default:
+			hints["input"] = "select"
+		}
+	case "hasmany":
+		switch field.Type {
+		case FieldTypeArray:
+			hints["input"] = "collection"
+		case FieldTypeObject:
+			hints["input"] = "subform"
+		default:
+			hints["input"] = "collection"
+		}
+	default:
+		if field.Type == FieldTypeArray {
+			hints["input"] = "collection"
+		} else {
+			hints["input"] = "select"
+		}
+	}
+
+	if card := field.Metadata[relationshipCardKey]; card != "" {
+		hints["cardinality"] = card
+	}
+
+	if len(hints) == 0 {
+		return
+	}
+	field.UIHints = mergeUIHints(field.UIHints, hints)
+}
+
+func decorateRelationshipSiblings(fields []Field) {
+	if len(fields) == 0 {
+		return
+	}
+	index := make(map[string]int, len(fields))
+	for i := range fields {
+		index[fields[i].Name] = i
+		ensureRelationship(&fields[i])
+	}
+	for i := range fields {
+		field := &fields[i]
+		if len(field.Metadata) == 0 {
+			continue
+		}
+		if hostName := field.Metadata[relationshipSourceKey]; hostName != "" {
+			if idx, ok := index[hostName]; ok {
+				host := &fields[idx]
+				ensureRelationship(host)
+				copyRelationshipAttributes(field, host)
+			}
+		}
+		ensureRelationship(field)
+	}
+}
+
+func copyRelationshipAttributes(target, host *Field) {
+	if target == nil || host == nil {
+		return
+	}
+	if len(host.Metadata) != 0 {
+		meta := target.ensureMetadata()
+		for key, value := range host.Metadata {
+			if !strings.HasPrefix(key, relationshipNamespace) {
+				continue
+			}
+			if key == relationshipSourceKey {
+				continue
+			}
+			meta[key] = value
+		}
+	}
+	sourceField := ""
+	if target.Metadata != nil && target.Metadata[relationshipSourceKey] != "" {
+		sourceField = target.Metadata[relationshipSourceKey]
+	}
+	if target.Relationship != nil && target.Relationship.SourceField != "" {
+		sourceField = target.Relationship.SourceField
+	}
+
+	if host.Relationship != nil {
+		cloned := cloneRelationship(host.Relationship)
+		cloned.SourceField = strings.TrimSpace(sourceField)
+		target.Relationship = cloned
+		target.Metadata = syncRelationshipMetadata(target.Metadata, cloned)
+	} else {
+		ensureRelationship(target)
+	}
+
+	applyRelationshipHints(target)
+}
+
+func propagateRelationshipToItems(field *Field) {
+	if field == nil {
+		return
+	}
+	applyRelationshipHints(field)
+	if field.Items == nil {
+		return
+	}
+	if len(field.Metadata) != 0 {
+		meta := field.Items.ensureMetadata()
+		for key, value := range field.Metadata {
+			if !strings.HasPrefix(key, relationshipNamespace) {
+				continue
+			}
+			if key == relationshipSourceKey {
+				continue
+			}
+			meta[key] = value
+		}
+	}
+
+	if field.Relationship != nil {
+		cloned := cloneRelationship(field.Relationship)
+		cloned.SourceField = ""
+		field.Items.Relationship = cloned
+		field.Items.Metadata = syncRelationshipMetadata(field.Items.Metadata, cloned)
+	} else {
+		ensureRelationship(field.Items)
+	}
+
+	applyRelationshipHints(field.Items)
+	ensureRelationship(field.Items)
 }
 
 func (f *Field) ensureMetadata() map[string]string {
