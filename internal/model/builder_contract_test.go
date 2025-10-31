@@ -195,3 +195,69 @@ func TestBuilder_CreateWidgetExtensions(t *testing.T) {
 		}
 	}
 }
+
+func TestBuilder_Relationships(t *testing.T) {
+	operations := testsupport.MustLoadOperations(t, filepath.Join("../openapi", "testdata", "relationships_operations.golden.json"))
+	op := operations["createArticle"]
+
+	builder := pkgmodel.NewBuilder()
+	form, err := builder.Build(op)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "create_article_formmodel.golden.json")
+	testsupport.WriteFormModel(t, goldenPath, form)
+	want := testsupport.MustLoadFormModel(t, goldenPath)
+
+	if diff := testsupport.CompareGolden(want, form); diff != "" {
+		t.Fatalf("relationships form mismatch (-want +got):\n%s", diff)
+	}
+
+	fields := map[string]pkgmodel.Field{}
+	var visit func(prefix string, field pkgmodel.Field)
+	visit = func(prefix string, field pkgmodel.Field) {
+		key := field.Name
+		if prefix != "" {
+			key = prefix + "." + key
+		}
+		fields[key] = field
+
+		if field.Items != nil {
+			visit(key, *field.Items)
+		}
+		for _, nested := range field.Nested {
+			visit(key, nested)
+		}
+	}
+	for _, field := range form.Fields {
+		visit("", field)
+	}
+
+	assertRelationshipField := func(name, wantType, wantInput, wantCardinality string) {
+		field, ok := fields[name]
+		if !ok {
+			t.Fatalf("expected field %q in relationships form", name)
+		}
+		if got := field.Metadata["relationship.type"]; got != wantType {
+			t.Fatalf("%s metadata relationship.type mismatch: want %q, got %q", name, wantType, got)
+		}
+		if got := field.UIHints["input"]; got != wantInput {
+			t.Fatalf("%s ui hint input mismatch: want %q, got %q", name, wantInput, got)
+		}
+		if got := field.UIHints["cardinality"]; got != wantCardinality {
+			t.Fatalf("%s ui hint cardinality mismatch: want %q, got %q", name, wantCardinality, got)
+		}
+	}
+
+	assertRelationshipField("author_id", "belongsTo", "select", "one")
+	assertRelationshipField("author", "belongsTo", "subform", "one")
+	assertRelationshipField("manager_id", "hasOne", "select", "one")
+	assertRelationshipField("manager", "hasOne", "subform", "one")
+	assertRelationshipField("tags", "hasMany", "collection", "many")
+	assertRelationshipField("tags.tagsItem", "hasMany", "subform", "many")
+
+	if field := fields["title"]; field.Metadata != nil {
+		t.Fatalf("expected title field to remain metadata-free, got %#v", field.Metadata)
+	}
+}
