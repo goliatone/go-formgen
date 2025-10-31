@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -29,6 +31,7 @@ func main() {
 		rendererFlag  = flag.String("renderer", "vanilla", "Renderer to use (vanilla, preact)")
 		outputFlag    = flag.String("output", "", "Optional file path for the generated markup (stdout when empty)")
 		timeoutFlag   = flag.Duration("timeout", 15*time.Second, "Generation timeout")
+		inspectFlag   = flag.Bool("inspect", false, "Print form metadata/UI hints as JSON (stderr)")
 	)
 	flag.Parse()
 
@@ -44,10 +47,13 @@ func main() {
 		pkgopenapi.WithHTTPClient(http.DefaultClient),
 	)
 
+	parser := formgen.NewParser()
+	builder := model.NewBuilder()
+
 	generator := formgen.NewOrchestrator(
 		orchestrator.WithLoader(loader),
-		orchestrator.WithParser(formgen.NewParser()),
-		orchestrator.WithModelBuilder(model.NewBuilder()),
+		orchestrator.WithParser(parser),
+		orchestrator.WithModelBuilder(builder),
 		orchestrator.WithRegistry(registry),
 		orchestrator.WithDefaultRenderer(*rendererFlag),
 	)
@@ -61,8 +67,13 @@ func main() {
 		log.Fatalf("renderer %q not registered (available: %v)", *rendererFlag, registry.List())
 	}
 
+	document, err := loader.Load(ctx, source)
+	if err != nil {
+		log.Fatalf("load document: %v", err)
+	}
+
 	request := orchestrator.Request{
-		Source:      source,
+		Document:    &document,
 		OperationID: *operationFlag,
 		Renderer:    *rendererFlag,
 	}
@@ -70,6 +81,15 @@ func main() {
 	html, err := generator.Generate(ctx, request)
 	if err != nil {
 		log.Fatalf("generate: %v", err)
+	}
+
+	if *inspectFlag {
+		form, inspectErr := buildFormModel(ctx, parser, builder, document, *operationFlag)
+		if inspectErr != nil {
+			log.Printf("inspect form: %v", inspectErr)
+		} else if err := writeInspection(os.Stderr, form); err != nil {
+			log.Printf("write inspection: %v", err)
+		}
 	}
 
 	if *outputFlag == "" {
@@ -91,6 +111,59 @@ func writeFile(path string, data []byte) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
+}
+
+func buildFormModel(ctx context.Context, parser pkgopenapi.Parser, builder model.Builder, document pkgopenapi.Document, operationID string) (model.FormModel, error) {
+	operations, err := parser.Operations(ctx, document)
+	if err != nil {
+		return model.FormModel{}, fmt.Errorf("parse operations: %w", err)
+	}
+	op, ok := operations[operationID]
+	if !ok {
+		return model.FormModel{}, fmt.Errorf("operation %q not found", operationID)
+	}
+	form, err := builder.Build(op)
+	if err != nil {
+		return model.FormModel{}, fmt.Errorf("build form model: %w", err)
+	}
+	return form, nil
+}
+
+func writeInspection(out io.Writer, form model.FormModel) error {
+	type fieldSummary struct {
+		Name     string            `json:"name"`
+		Type     model.FieldType   `json:"type"`
+		Metadata map[string]string `json:"metadata,omitempty"`
+		UIHints  map[string]string `json:"uiHints,omitempty"`
+	}
+
+	summary := struct {
+		OperationID string            `json:"operationId"`
+		Endpoint    string            `json:"endpoint"`
+		Method      string            `json:"method"`
+		Metadata    map[string]string `json:"metadata,omitempty"`
+		UIHints     map[string]string `json:"uiHints,omitempty"`
+		Fields      []fieldSummary    `json:"fields,omitempty"`
+	}{
+		OperationID: form.OperationID,
+		Endpoint:    form.Endpoint,
+		Method:      form.Method,
+		Metadata:    form.Metadata,
+		UIHints:     form.UIHints,
+	}
+
+	for _, field := range form.Fields {
+		summary.Fields = append(summary.Fields, fieldSummary{
+			Name:     field.Name,
+			Type:     field.Type,
+			Metadata: field.Metadata,
+			UIHints:  field.UIHints,
+		})
+	}
+
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(summary)
 }
 
 func mustVanilla() render.Renderer {
