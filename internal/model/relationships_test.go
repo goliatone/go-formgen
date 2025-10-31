@@ -2,18 +2,20 @@ package model
 
 import "testing"
 
-func TestRelationshipFromMetadataComplete(t *testing.T) {
-	meta := map[string]string{
-		relationshipTypeKey:       "belongsTo",
-		relationshipTargetKey:     "#/components/schemas/Author",
-		relationshipForeignKeyKey: "author_id",
-		relationshipCardKey:       "one",
-		relationshipInverseKey:    "articles",
-		relationshipSourceKey:     "author_id",
+func TestRelationshipFromExtensionsComplete(t *testing.T) {
+	ext := map[string]any{
+		relationshipExtensionKey: map[string]string{
+			relationshipTypeAttr:       "belongsTo",
+			relationshipTargetAttr:     "#/components/schemas/Author",
+			relationshipForeignKeyAttr: "author_id",
+			relationshipCardAttr:       "one",
+			relationshipInverseAttr:    "articles",
+			relationshipSourceAttr:     "author_id",
+		},
 	}
 
-	rel, ok := relationshipFromMetadata(meta)
-	if !ok {
+	rel := relationshipFromExtensions(ext)
+	if rel == nil {
 		t.Fatalf("expected relationship to be detected")
 	}
 	if rel.Kind != RelationshipBelongsTo {
@@ -36,14 +38,16 @@ func TestRelationshipFromMetadataComplete(t *testing.T) {
 	}
 }
 
-func TestRelationshipFromMetadataDerivesCardinality(t *testing.T) {
-	meta := map[string]string{
-		relationshipTypeKey:   "HaSmAnY",
-		relationshipTargetKey: "#/components/schemas/Tag",
+func TestRelationshipFromExtensionsDerivesCardinality(t *testing.T) {
+	ext := map[string]any{
+		relationshipExtensionKey: map[string]string{
+			relationshipTypeAttr:   "HaSmAnY",
+			relationshipTargetAttr: "#/components/schemas/Tag",
+		},
 	}
 
-	rel, ok := relationshipFromMetadata(meta)
-	if !ok {
+	rel := relationshipFromExtensions(ext)
+	if rel == nil {
 		t.Fatalf("expected relationship to be detected")
 	}
 	if rel.Kind != RelationshipHasMany {
@@ -54,42 +58,14 @@ func TestRelationshipFromMetadataDerivesCardinality(t *testing.T) {
 	}
 }
 
-func TestEnsureRelationshipRemovesEmptyOptionalKeys(t *testing.T) {
-	field := Field{
-		Metadata: map[string]string{
-			relationshipTypeKey:       "hasOne",
-			relationshipTargetKey:     "#/components/schemas/Manager",
-			relationshipCardKey:       "one",
-			relationshipForeignKeyKey: "",
-			relationshipInverseKey:    "",
+func TestRelationshipFromExtensionsMissingTarget(t *testing.T) {
+	ext := map[string]any{
+		relationshipExtensionKey: map[string]string{
+			relationshipTypeAttr: "belongsTo",
 		},
 	}
 
-	ensureRelationship(&field)
-
-	if field.Relationship == nil {
-		t.Fatalf("expected relationship pointer to be populated")
-	}
-	if field.Relationship.ForeignKey != "" {
-		t.Fatalf("expected empty foreignKey, got %q", field.Relationship.ForeignKey)
-	}
-	if field.Relationship.Inverse != "" {
-		t.Fatalf("expected empty inverse, got %q", field.Relationship.Inverse)
-	}
-	if _, ok := field.Metadata[relationshipForeignKeyKey]; ok {
-		t.Fatalf("expected foreignKey metadata to be removed when empty")
-	}
-	if _, ok := field.Metadata[relationshipInverseKey]; ok {
-		t.Fatalf("expected inverse metadata to be removed when empty")
-	}
-}
-
-func TestRelationshipFromMetadataMissingTarget(t *testing.T) {
-	meta := map[string]string{
-		relationshipTypeKey: "belongsTo",
-	}
-
-	if rel, ok := relationshipFromMetadata(meta); ok || rel != nil {
+	if rel := relationshipFromExtensions(ext); rel != nil {
 		t.Fatalf("expected missing target to yield no relationship, got %#v", rel)
 	}
 }
@@ -97,15 +73,14 @@ func TestRelationshipFromMetadataMissingTarget(t *testing.T) {
 func TestPropagateRelationshipToItemsClonesStruct(t *testing.T) {
 	field := Field{
 		Type: FieldTypeArray,
-		Metadata: map[string]string{
-			relationshipTypeKey:   "hasMany",
-			relationshipTargetKey: "#/components/schemas/Tag",
-			relationshipCardKey:   "many",
+		Relationship: &Relationship{
+			Kind:        RelationshipHasMany,
+			Target:      "#/components/schemas/Tag",
+			Cardinality: "many",
 		},
 		Items: &Field{Name: "tagsItem"},
 	}
 
-	ensureRelationship(&field)
 	propagateRelationshipToItems(&field)
 
 	if field.Items.Relationship == nil {
@@ -115,12 +90,48 @@ func TestPropagateRelationshipToItemsClonesStruct(t *testing.T) {
 		t.Fatalf("expected cloned relationship, pointers match")
 	}
 	if field.Items.Relationship.Cardinality != "many" {
-		t.Fatalf("expected card many, got %q", field.Items.Relationship.Cardinality)
+		t.Fatalf("expected cardinality many, got %q", field.Items.Relationship.Cardinality)
 	}
 	if field.Items.Relationship.SourceField != "" {
 		t.Fatalf("expected empty source field on array items, got %q", field.Items.Relationship.SourceField)
 	}
-	if field.Items.Metadata[relationshipTypeKey] != string(RelationshipHasMany) {
-		t.Fatalf("expected metadata synced to relationship")
+}
+
+func TestDecorateRelationshipSiblingsClonesHost(t *testing.T) {
+	fields := []Field{
+		{
+			Name: "author_id",
+			Relationship: &Relationship{
+				Kind:        RelationshipBelongsTo,
+				Target:      "#/components/schemas/Author",
+				ForeignKey:  "author_id",
+				Cardinality: "one",
+			},
+		},
+		{
+			Name: "author",
+			Relationship: &Relationship{
+				SourceField: "author_id",
+			},
+		},
+	}
+
+	decorateRelationshipSiblings(fields)
+
+	rel := fields[1].Relationship
+	if rel == nil {
+		t.Fatalf("expected cloned relationship on sibling")
+	}
+	if rel == fields[0].Relationship {
+		t.Fatalf("expected a cloned relationship, pointers match")
+	}
+	if rel.Target != "#/components/schemas/Author" {
+		t.Fatalf("target mismatch: got %q", rel.Target)
+	}
+	if rel.SourceField != "author_id" {
+		t.Fatalf("source field mismatch: got %q", rel.SourceField)
+	}
+	if rel.Kind != RelationshipBelongsTo {
+		t.Fatalf("kind mismatch: got %q", rel.Kind)
 	}
 }

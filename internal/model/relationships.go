@@ -4,92 +4,98 @@ import (
 	"strings"
 )
 
-// ensureRelationship hydrates the typed relationship struct from metadata and
-// mirrors the canonical dotted keys back into the metadata map. When required
-// keys are absent the relationship pointer remains nil (TODO(REL_STRUCT): add
-// logging once a structured logger is available).
-func ensureRelationship(field *Field) {
-	if field == nil {
-		return
-	}
+const (
+	relationshipExtensionKey   = "x-relationships"
+	relationshipTypeAttr       = "type"
+	relationshipTargetAttr     = "target"
+	relationshipForeignKeyAttr = "foreignKey"
+	relationshipCardAttr       = "cardinality"
+	relationshipInverseAttr    = "inverse"
+	relationshipSourceAttr     = "sourceField"
+)
 
-	rel, ok := relationshipFromMetadata(field.Metadata)
+func relationshipFromExtensions(ext map[string]any) *Relationship {
+	if len(ext) == 0 {
+		return nil
+	}
+	raw, ok := ext[relationshipExtensionKey]
 	if !ok {
-		field.Relationship = nil
-		return
+		return nil
 	}
-
-	field.Relationship = rel
-	field.Metadata = syncRelationshipMetadata(field.Metadata, rel)
+	switch value := raw.(type) {
+	case map[string]string:
+		return relationshipFromMap(value)
+	case map[string]any:
+		data := make(map[string]string, len(value))
+		for key, v := range value {
+			switch t := v.(type) {
+			case string:
+				if t != "" {
+					data[key] = t
+				}
+			default:
+				// ignore non-string values; relationship metadata is stringly typed.
+			}
+		}
+		return relationshipFromMap(data)
+	default:
+		return nil
+	}
 }
 
-func relationshipFromMetadata(metadata map[string]string) (*Relationship, bool) {
-	if len(metadata) == 0 {
-		return nil, false
+func relationshipFromMap(data map[string]string) *Relationship {
+	if len(data) == 0 {
+		return nil
 	}
 
-	rawType, ok := metadata[relationshipTypeKey]
-	if !ok {
-		return nil, false
-	}
-
-	kind, ok := normalizeRelationshipKind(rawType)
-	if !ok {
-		return nil, false
-	}
-
-	target := strings.TrimSpace(metadata[relationshipTargetKey])
+	target := strings.TrimSpace(data[relationshipTargetAttr])
 	if target == "" {
-		// TODO(REL_STRUCT): log missing relationship.target when structured logging lands.
-		return nil, false
+		return nil
 	}
 
-	cardinality := strings.TrimSpace(metadata[relationshipCardKey])
-	if cardinality == "" {
-		cardinality = deriveCardinality(kind)
-		if cardinality == "" {
-			// TODO(REL_STRUCT): log missing cardinality for future diagnostics.
-			return nil, false
+	rel := &Relationship{
+		Target: target,
+	}
+
+	if kind := strings.TrimSpace(data[relationshipTypeAttr]); kind != "" {
+		switch strings.ToLower(kind) {
+		case "belongsto":
+			rel.Kind = RelationshipBelongsTo
+		case "hasone":
+			rel.Kind = RelationshipHasOne
+		case "hasmany":
+			rel.Kind = RelationshipHasMany
+		default:
+			rel.Kind = RelationshipKind(kind)
 		}
 	}
 
-	relationship := &Relationship{
-		Kind:        kind,
-		Target:      target,
-		Cardinality: strings.ToLower(cardinality),
+	if fk := strings.TrimSpace(data[relationshipForeignKeyAttr]); fk != "" {
+		rel.ForeignKey = fk
+	}
+	if inverse := strings.TrimSpace(data[relationshipInverseAttr]); inverse != "" {
+		rel.Inverse = inverse
+	}
+	if source := strings.TrimSpace(data[relationshipSourceAttr]); source != "" {
+		rel.SourceField = source
 	}
 
-	if foreignKey := strings.TrimSpace(metadata[relationshipForeignKeyKey]); foreignKey != "" {
-		relationship.ForeignKey = foreignKey
+	cardinality := strings.TrimSpace(data[relationshipCardAttr])
+	if cardinality == "" {
+		cardinality = deriveCardinality(string(rel.Kind))
 	}
-	if inverse := strings.TrimSpace(metadata[relationshipInverseKey]); inverse != "" {
-		relationship.Inverse = inverse
-	}
-	if sourceField := strings.TrimSpace(metadata[relationshipSourceKey]); sourceField != "" {
-		relationship.SourceField = sourceField
+	if cardinality != "" {
+		rel.Cardinality = strings.ToLower(cardinality)
 	}
 
-	return relationship, true
+	return rel
 }
 
-func normalizeRelationshipKind(raw string) (RelationshipKind, bool) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "belongsto":
-		return RelationshipBelongsTo, true
-	case "hasone":
-		return RelationshipHasOne, true
+func deriveCardinality(relType string) string {
+	switch strings.ToLower(relType) {
 	case "hasmany":
-		return RelationshipHasMany, true
-	default:
-		return "", false
-	}
-}
-
-func deriveCardinality(kind RelationshipKind) string {
-	switch kind {
-	case RelationshipHasMany:
 		return "many"
-	case RelationshipBelongsTo, RelationshipHasOne:
+	case "belongsto", "hasone":
 		return "one"
 	default:
 		return ""
@@ -102,36 +108,4 @@ func cloneRelationship(rel *Relationship) *Relationship {
 	}
 	cloned := *rel
 	return &cloned
-}
-
-func syncRelationshipMetadata(metadata map[string]string, rel *Relationship) map[string]string {
-	if rel == nil {
-		return metadata
-	}
-	if metadata == nil {
-		metadata = make(map[string]string)
-	}
-	metadata[relationshipTypeKey] = string(rel.Kind)
-	metadata[relationshipTargetKey] = rel.Target
-	metadata[relationshipCardKey] = rel.Cardinality
-
-	if rel.ForeignKey != "" {
-		metadata[relationshipForeignKeyKey] = rel.ForeignKey
-	} else {
-		delete(metadata, relationshipForeignKeyKey)
-	}
-
-	if rel.Inverse != "" {
-		metadata[relationshipInverseKey] = rel.Inverse
-	} else {
-		delete(metadata, relationshipInverseKey)
-	}
-
-	if rel.SourceField != "" {
-		metadata[relationshipSourceKey] = rel.SourceField
-	} else {
-		delete(metadata, relationshipSourceKey)
-	}
-
-	return metadata
 }

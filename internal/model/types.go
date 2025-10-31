@@ -12,6 +12,28 @@ const (
 	FieldTypeObject  FieldType = "object"
 )
 
+// RelationshipKind enumerates supported relationship semantics. Keep values in
+// sync with docs/adr/RELATIONSHIP_STRUCT_ADR.md.
+type RelationshipKind string
+
+const (
+	RelationshipBelongsTo RelationshipKind = "belongsTo"
+	RelationshipHasOne    RelationshipKind = "hasOne"
+	RelationshipHasMany   RelationshipKind = "hasMany"
+)
+
+// Relationship encodes typed relationship metadata while Phase 1 dotted keys
+// remain for backward compatibility. See docs/adr/RELATIONSHIP_STRUCT_ADR.md
+// for the migration strategy.
+type Relationship struct {
+	Kind        RelationshipKind `json:"kind"`
+	Target      string           `json:"target"`
+	ForeignKey  string           `json:"foreignKey,omitempty"`
+	Cardinality string           `json:"cardinality"`
+	Inverse     string           `json:"inverse,omitempty"`
+	SourceField string           `json:"sourceField,omitempty"`
+}
+
 const (
 	ValidationRuleMin       = "min"
 	ValidationRuleMax       = "max"
@@ -34,20 +56,21 @@ type ValidationRule struct {
 // Field models an individual input inside a generated form. Struct fields are
 // annotated so renderers can serialise them directly when needed.
 type Field struct {
-	Name        string            `json:"name"`
-	Type        FieldType         `json:"type"`
-	Format      string            `json:"format,omitempty"`
-	Required    bool              `json:"required"`
-	Label       string            `json:"label,omitempty"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Enum        []any             `json:"enum,omitempty"`
-	Nested      []Field           `json:"nested,omitempty"`
-	Items       *Field            `json:"items,omitempty"`
-	Validations []ValidationRule  `json:"validations,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	UIHints     map[string]string `json:"uiHints,omitempty"`
+	Name         string            `json:"name"`
+	Type         FieldType         `json:"type"`
+	Format       string            `json:"format,omitempty"`
+	Required     bool              `json:"required"`
+	Label        string            `json:"label,omitempty"`
+	Placeholder  string            `json:"placeholder,omitempty"`
+	Description  string            `json:"description,omitempty"`
+	Default      any               `json:"default,omitempty"`
+	Enum         []any             `json:"enum,omitempty"`
+	Nested       []Field           `json:"nested,omitempty"`
+	Items        *Field            `json:"items,omitempty"`
+	Validations  []ValidationRule  `json:"validations,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	UIHints      map[string]string `json:"uiHints,omitempty"`
+	Relationship *Relationship     `json:"relationship,omitempty"`
 }
 
 // FormModel is the top-level representation renderers consume, matching the

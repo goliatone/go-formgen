@@ -8,13 +8,6 @@
       "type": "object",
       "required": false,
       "label": "Author",
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "author_id",
-        "relationship.sourceField": "author_id",
-        "relationship.target": "#/components/schemas/Author",
-        "relationship.type": "belongsTo"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "subform"
@@ -33,12 +26,6 @@
       "format": "uuid",
       "required": true,
       "label": "Author Id",
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "author_id",
-        "relationship.target": "#/components/schemas/Author",
-        "relationship.type": "belongsTo"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "select"
@@ -55,11 +42,6 @@
       "type": "string",
       "required": false,
       "label": "Category Id",
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.target": "#/components/schemas/Category",
-        "relationship.type": "belongsTo"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "select"
@@ -75,13 +57,6 @@
       "type": "object",
       "required": false,
       "label": "Manager",
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "manager_id",
-        "relationship.sourceField": "manager_id",
-        "relationship.target": "#/components/schemas/Manager",
-        "relationship.type": "hasOne"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "subform"
@@ -99,12 +74,6 @@
       "type": "string",
       "required": false,
       "label": "Manager Id",
-      "metadata": {
-        "relationship.cardinality": "one",
-        "relationship.foreignKey": "manager_id",
-        "relationship.target": "#/components/schemas/Manager",
-        "relationship.type": "hasOne"
-      },
       "uiHints": {
         "cardinality": "one",
         "input": "select"
@@ -135,12 +104,6 @@
             "label": "Id"
           }
         ],
-        "metadata": {
-          "relationship.cardinality": "many",
-          "relationship.inverse": "article",
-          "relationship.target": "#/components/schemas/Tag",
-          "relationship.type": "hasMany"
-        },
         "uiHints": {
           "cardinality": "many",
           "input": "subform"
@@ -151,12 +114,6 @@
           "cardinality": "many",
           "inverse": "article"
         }
-      },
-      "metadata": {
-        "relationship.cardinality": "many",
-        "relationship.inverse": "article",
-        "relationship.target": "#/components/schemas/Tag",
-        "relationship.type": "hasMany"
       },
       "uiHints": {
         "cardinality": "many",

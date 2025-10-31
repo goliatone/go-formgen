@@ -1,7 +1,9 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,14 +12,9 @@ import (
 )
 
 const (
-	extensionNamespace        = "x-formgen"
-	relationshipNamespace     = "relationship."
-	relationshipTypeKey       = relationshipNamespace + "type"
-	relationshipTargetKey     = relationshipNamespace + "target"
-	relationshipForeignKeyKey = relationshipNamespace + "foreignKey"
-	relationshipCardKey       = relationshipNamespace + "cardinality"
-	relationshipInverseKey    = relationshipNamespace + "inverse"
-	relationshipSourceKey     = relationshipNamespace + "sourceField"
+	extensionNamespace       = "x-formgen"
+	endpointExtensionKey     = "x-endpoint"
+	currentValueExtensionKey = "x-current-value"
 )
 
 // Builder converts OpenAPI operations into form models.
@@ -96,7 +93,7 @@ func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, requir
 		field.Metadata["$ref"] = schema.Ref
 		refExt := metadataFromExtensions(schema.Extensions)
 		mergeMetadata(field.Metadata, refExt)
-		ensureRelationship(&field)
+		field.Relationship = relationshipFromExtensions(schema.Extensions)
 		field.UIHints = mergeUIHints(field.UIHints, filterUIHints(refExt))
 		applyRelationshipHints(&field)
 		field.applyUIHintAttributes()
@@ -164,7 +161,7 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		applyValidations(&parent, schema)
 		parentExt := metadataFromExtensions(schema.Extensions)
 		mergeMetadata(parent.ensureMetadata(), parentExt)
-		ensureRelationship(&parent)
+		parent.Relationship = relationshipFromExtensions(schema.Extensions)
 		parent.UIHints = mergeUIHints(parent.UIHints, filterUIHints(parentExt))
 		applyRelationshipHints(&parent)
 		parent.applyUIHintAttributes()
@@ -207,7 +204,7 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 	applyValidations(&field, schema)
 	arrayExt := metadataFromExtensions(schema.Extensions)
 	mergeMetadata(field.ensureMetadata(), arrayExt)
-	ensureRelationship(&field)
+	field.Relationship = relationshipFromExtensions(schema.Extensions)
 	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(arrayExt))
 	applyRelationshipHints(&field)
 	propagateRelationshipToItems(&field)
@@ -236,7 +233,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 	applyValidations(&field, schema)
 	primitiveExt := metadataFromExtensions(schema.Extensions)
 	mergeMetadata(field.ensureMetadata(), primitiveExt)
-	ensureRelationship(&field)
+	field.Relationship = relationshipFromExtensions(schema.Extensions)
 	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(primitiveExt))
 	applyRelationshipHints(&field)
 	field.applyUIHintAttributes()
@@ -355,12 +352,22 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			}
 			continue
 		}
-		if strings.HasPrefix(key, relationshipNamespace) {
-			if str, ok := CanonicalizeExtensionValue(value); ok {
-				result[key] = str
-			}
-		}
 	}
+
+	if endpointMeta := endpointMetadataFromExtensions(ext); len(endpointMeta) > 0 {
+		if len(result) == 0 {
+			result = make(map[string]string, len(endpointMeta))
+		}
+		mergeMetadata(result, endpointMeta)
+	}
+
+	if currentValue, ok := currentValueFromExtensions(ext); ok {
+		if len(result) == 0 {
+			result = make(map[string]string, 1)
+		}
+		result["relationship.current"] = currentValue
+	}
+
 	if len(result) == 0 {
 		return nil
 	}
@@ -404,19 +411,12 @@ func mergeUIHints(target map[string]string, updates map[string]string) map[strin
 }
 
 func applyRelationshipHints(field *Field) {
-	if field == nil {
-		return
-	}
-	if len(field.Metadata) == 0 {
-		return
-	}
-	relType, ok := field.Metadata[relationshipTypeKey]
-	if !ok || relType == "" {
+	if field == nil || field.Relationship == nil {
 		return
 	}
 
 	hints := make(map[string]string)
-	switch strings.ToLower(relType) {
+	switch strings.ToLower(string(field.Relationship.Kind)) {
 	case "belongsto", "hasone":
 		switch field.Type {
 		case FieldTypeArray:
@@ -436,14 +436,16 @@ func applyRelationshipHints(field *Field) {
 			hints["input"] = "collection"
 		}
 	default:
-		if field.Type == FieldTypeArray {
+		if field.Relationship.Cardinality == "many" {
+			hints["input"] = "collection"
+		} else if field.Type == FieldTypeArray {
 			hints["input"] = "collection"
 		} else {
 			hints["input"] = "select"
 		}
 	}
 
-	if card := field.Metadata[relationshipCardKey]; card != "" {
+	if card := field.Relationship.Cardinality; card != "" {
 		hints["cardinality"] = card
 	}
 
@@ -460,58 +462,26 @@ func decorateRelationshipSiblings(fields []Field) {
 	index := make(map[string]int, len(fields))
 	for i := range fields {
 		index[fields[i].Name] = i
-		ensureRelationship(&fields[i])
 	}
 	for i := range fields {
 		field := &fields[i]
-		if len(field.Metadata) == 0 {
+		if field.Relationship == nil || field.Relationship.SourceField == "" {
 			continue
 		}
-		if hostName := field.Metadata[relationshipSourceKey]; hostName != "" {
-			if idx, ok := index[hostName]; ok {
-				host := &fields[idx]
-				ensureRelationship(host)
-				copyRelationshipAttributes(field, host)
-			}
-		}
-		ensureRelationship(field)
-	}
-}
 
-func copyRelationshipAttributes(target, host *Field) {
-	if target == nil || host == nil {
-		return
-	}
-	if len(host.Metadata) != 0 {
-		meta := target.ensureMetadata()
-		for key, value := range host.Metadata {
-			if !strings.HasPrefix(key, relationshipNamespace) {
-				continue
-			}
-			if key == relationshipSourceKey {
-				continue
-			}
-			meta[key] = value
+		hostIdx, ok := index[field.Relationship.SourceField]
+		if !ok {
+			continue
 		}
-	}
-	sourceField := ""
-	if target.Metadata != nil && target.Metadata[relationshipSourceKey] != "" {
-		sourceField = target.Metadata[relationshipSourceKey]
-	}
-	if target.Relationship != nil && target.Relationship.SourceField != "" {
-		sourceField = target.Relationship.SourceField
-	}
-
-	if host.Relationship != nil {
+		host := &fields[hostIdx]
+		if host.Relationship == nil {
+			continue
+		}
 		cloned := cloneRelationship(host.Relationship)
-		cloned.SourceField = strings.TrimSpace(sourceField)
-		target.Relationship = cloned
-		target.Metadata = syncRelationshipMetadata(target.Metadata, cloned)
-	} else {
-		ensureRelationship(target)
+		cloned.SourceField = field.Relationship.SourceField
+		field.Relationship = cloned
+		applyRelationshipHints(field)
 	}
-
-	applyRelationshipHints(target)
 }
 
 func propagateRelationshipToItems(field *Field) {
@@ -522,30 +492,13 @@ func propagateRelationshipToItems(field *Field) {
 	if field.Items == nil {
 		return
 	}
-	if len(field.Metadata) != 0 {
-		meta := field.Items.ensureMetadata()
-		for key, value := range field.Metadata {
-			if !strings.HasPrefix(key, relationshipNamespace) {
-				continue
-			}
-			if key == relationshipSourceKey {
-				continue
-			}
-			meta[key] = value
-		}
-	}
 
 	if field.Relationship != nil {
 		cloned := cloneRelationship(field.Relationship)
 		cloned.SourceField = ""
 		field.Items.Relationship = cloned
-		field.Items.Metadata = syncRelationshipMetadata(field.Items.Metadata, cloned)
-	} else {
-		ensureRelationship(field.Items)
+		applyRelationshipHints(field.Items)
 	}
-
-	applyRelationshipHints(field.Items)
-	ensureRelationship(field.Items)
 }
 
 func (f *Field) ensureMetadata() map[string]string {
@@ -590,6 +543,209 @@ func (f *Field) applyUIHintAttributes() {
 		}
 		f.Metadata["helpText"] = help
 	}
+}
+
+var fieldPlaceholderPattern = regexp.MustCompile(`\{\{\s*field:([^\}\s]+)\s*\}\}`)
+
+func endpointMetadataFromExtensions(ext map[string]any) map[string]string {
+	if len(ext) == 0 {
+		return nil
+	}
+	raw, ok := ext[endpointExtensionKey]
+	if !ok {
+		return nil
+	}
+
+	endpointMap := toAnyMap(raw)
+	if len(endpointMap) == 0 {
+		return nil
+	}
+
+	meta := make(map[string]string)
+	add := func(key, value string) {
+		if value == "" {
+			return
+		}
+		meta[key] = value
+	}
+
+	add("relationship.endpoint.url", strings.TrimSpace(toString(endpointMap["url"])))
+	if method := strings.TrimSpace(toString(endpointMap["method"])); method != "" {
+		add("relationship.endpoint.method", strings.ToUpper(method))
+	}
+	add("relationship.endpoint.labelField", strings.TrimSpace(toString(endpointMap["labelField"])))
+	add("relationship.endpoint.valueField", strings.TrimSpace(toString(endpointMap["valueField"])))
+	add("relationship.endpoint.resultsPath", strings.TrimSpace(toString(endpointMap["resultsPath"])))
+	add("relationship.endpoint.submitAs", strings.TrimSpace(toString(endpointMap["submitAs"])))
+
+	if params := toStringMap(endpointMap["params"]); len(params) > 0 {
+		for _, key := range sortedKeys(params) {
+			add("relationship.endpoint.params."+key, params[key])
+		}
+	}
+	dynamicParams := toStringMap(endpointMap["dynamicParams"])
+	if len(dynamicParams) > 0 {
+		for _, key := range sortedKeys(dynamicParams) {
+			add("relationship.endpoint.dynamicParams."+key, dynamicParams[key])
+		}
+		if refs := extractFieldReferences(dynamicParams); len(refs) > 0 {
+			add("relationship.endpoint.refreshOn", strings.Join(refs, ","))
+		}
+	}
+
+	if mapping := toStringMap(endpointMap["mapping"]); len(mapping) > 0 {
+		if valuePath := strings.TrimSpace(mapping["value"]); valuePath != "" {
+			add("relationship.endpoint.mapping.value", valuePath)
+		}
+		if labelPath := strings.TrimSpace(mapping["label"]); labelPath != "" {
+			add("relationship.endpoint.mapping.label", labelPath)
+		}
+	}
+
+	if auth := toStringMap(endpointMap["auth"]); len(auth) > 0 {
+		add("relationship.endpoint.auth.strategy", strings.TrimSpace(auth["strategy"]))
+		add("relationship.endpoint.auth.header", strings.TrimSpace(auth["header"]))
+		add("relationship.endpoint.auth.source", strings.TrimSpace(auth["source"]))
+	}
+
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
+func currentValueFromExtensions(ext map[string]any) (string, bool) {
+	if len(ext) == 0 {
+		return "", false
+	}
+	value, ok := ext[currentValueExtensionKey]
+	if !ok || value == nil {
+		return "", false
+	}
+	switch v := value.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return "", false
+		}
+		return v, true
+	default:
+		payload, err := json.Marshal(v)
+		if err != nil || len(payload) == 0 {
+			return "", false
+		}
+		return string(payload), true
+	}
+}
+
+func toStringMap(value any) map[string]string {
+	switch mapped := value.(type) {
+	case map[string]string:
+		return cloneStringMap(mapped)
+	case map[string]any:
+		out := make(map[string]string, len(mapped))
+		for key, val := range mapped {
+			str, ok := toStringValue(val)
+			if !ok {
+				continue
+			}
+			out[key] = str
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func toAnyMap(value any) map[string]any {
+	switch mapped := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(mapped))
+		for key, val := range mapped {
+			cloned[key] = val
+		}
+		return cloned
+	case map[string]string:
+		cloned := make(map[string]any, len(mapped))
+		for key, val := range mapped {
+			cloned[key] = val
+		}
+		return cloned
+	default:
+		return nil
+	}
+}
+
+func toStringValue(value any) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	switch v := value.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return "", false
+		}
+		return v, true
+	case fmt.Stringer:
+		return v.String(), true
+	default:
+		return fmt.Sprintf("%v", v), true
+	}
+}
+
+func toString(value any) string {
+	str, ok := toStringValue(value)
+	if !ok {
+		return ""
+	}
+	return str
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func extractFieldReferences(dynamicParams map[string]string) []string {
+	if len(dynamicParams) == 0 {
+		return nil
+	}
+	refs := make(map[string]struct{})
+	for _, value := range dynamicParams {
+		for _, match := range fieldPlaceholderPattern.FindAllStringSubmatch(value, -1) {
+			if len(match) < 2 {
+				continue
+			}
+			name := strings.TrimSpace(match[1])
+			if name == "" {
+				continue
+			}
+			refs[name] = struct{}{}
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(refs))
+	for name := range refs {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func filterUIHints(metadata map[string]string) map[string]string {

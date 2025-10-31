@@ -9,9 +9,11 @@ var (
 	uiHintKeys = []string{
 		"accordion",
 		"badge",
+		"cardinality",
 		"category",
 		"class",
 		"cssClass",
+		"input",
 		"helpText",
 		"hint",
 		"hideLabel",

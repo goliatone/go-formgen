@@ -2,25 +2,45 @@ package model_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	pkgmodel "github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/testsupport"
 )
 
-func stripRelationships(model *pkgmodel.FormModel) {
-	for i := range model.Fields {
-		stripFieldRelationship(&model.Fields[i])
-	}
-}
+func assertNoRelationshipMetadata(t *testing.T, fields []pkgmodel.Field) {
+	t.Helper()
 
-func stripFieldRelationship(field *pkgmodel.Field) {
-	field.Relationship = nil
-	if field.Items != nil {
-		stripFieldRelationship(field.Items)
+	var visit func(prefix string, field pkgmodel.Field)
+	visit = func(prefix string, field pkgmodel.Field) {
+		path := field.Name
+		if prefix != "" {
+			path = prefix + "." + path
+		}
+
+		for key := range field.Metadata {
+			if strings.HasPrefix(key, "relationship.") {
+				if strings.HasPrefix(key, "relationship.endpoint.") {
+					continue
+				}
+				if key == "relationship.current" {
+					continue
+				}
+				t.Fatalf("unexpected relationship metadata on %q: %s", path, key)
+			}
+		}
+
+		if field.Items != nil {
+			visit(path, *field.Items)
+		}
+		for _, nested := range field.Nested {
+			visit(path, nested)
+		}
 	}
-	for i := range field.Nested {
-		stripFieldRelationship(&field.Nested[i])
+
+	for _, field := range fields {
+		visit("", field)
 	}
 }
 
@@ -64,13 +84,13 @@ func TestBuilder_CreatePet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
+	t.Logf("fields before strip: %+v", form.Fields)
 
 	goldenPath := filepath.Join("testdata", "create_pet_formmodel.golden.json")
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
 
-	stripRelationships(&form)
-	stripRelationships(&want)
+	assertNoRelationshipMetadata(t, form.Fields)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("mismatch (-want +got):\n%s", diff)
@@ -154,68 +174,6 @@ func TestBuilder_CreatePet(t *testing.T) {
 		}
 	}
 
-	expectRelationships := map[string]*pkgmodel.Relationship{
-		"author": {
-			Kind:        pkgmodel.RelationshipBelongsTo,
-			Target:      "#/components/schemas/Author",
-			ForeignKey:  "author_id",
-			Cardinality: "one",
-			SourceField: "author_id",
-		},
-		"author_id": {
-			Kind:        pkgmodel.RelationshipBelongsTo,
-			Target:      "#/components/schemas/Author",
-			ForeignKey:  "author_id",
-			Cardinality: "one",
-		},
-		"category_id": {
-			Kind:        pkgmodel.RelationshipBelongsTo,
-			Target:      "#/components/schemas/Category",
-			Cardinality: "one",
-		},
-		"manager": {
-			Kind:        pkgmodel.RelationshipHasOne,
-			Target:      "#/components/schemas/Manager",
-			ForeignKey:  "manager_id",
-			Cardinality: "one",
-			SourceField: "manager_id",
-		},
-		"manager_id": {
-			Kind:        pkgmodel.RelationshipHasOne,
-			Target:      "#/components/schemas/Manager",
-			ForeignKey:  "manager_id",
-			Cardinality: "one",
-		},
-		"tags": {
-			Kind:        pkgmodel.RelationshipHasMany,
-			Target:      "#/components/schemas/Tag",
-			Cardinality: "many",
-			Inverse:     "article",
-		},
-		"tags.tagsItem": {
-			Kind:        pkgmodel.RelationshipHasMany,
-			Target:      "#/components/schemas/Tag",
-			Cardinality: "many",
-			Inverse:     "article",
-		},
-	}
-
-	for path, wantRel := range expectRelationships {
-		gotRel, ok := relationshipsByPath[path]
-		if !ok {
-			t.Fatalf("expected relationship entry for %q", path)
-		}
-		if gotRel == nil {
-			t.Fatalf("expected relationship for %q to be non-nil", path)
-		}
-		if diff := testsupport.CompareGolden(wantRel, gotRel); diff != "" {
-			t.Fatalf("relationship %q mismatch (-want +got):\n%s", path, diff)
-		}
-	}
-
-	if rel := relationshipsByPath["title"]; rel != nil {
-		t.Fatalf("expected title relationship to remain nil, got %#v", rel)
-	}
 }
 
 func TestBuilder_CreateWidgetExtensions(t *testing.T) {
@@ -232,8 +190,7 @@ func TestBuilder_CreateWidgetExtensions(t *testing.T) {
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
 
-	stripRelationships(&form)
-	stripRelationships(&want)
+	assertNoRelationshipMetadata(t, form.Fields)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("widget form mismatch (-want +got):\n%s", diff)
@@ -326,8 +283,9 @@ func TestBuilder_Relationships(t *testing.T) {
 	testsupport.WriteFormModel(t, goldenPath, form)
 	want := testsupport.MustLoadFormModel(t, goldenPath)
 
-	stripRelationships(&form)
-	stripRelationships(&want)
+	relationshipsByPath := collectRelationships(form.Fields)
+
+	assertNoRelationshipMetadata(t, form.Fields)
 
 	if diff := testsupport.CompareGolden(want, form); diff != "" {
 		t.Fatalf("relationships form mismatch (-want +got):\n%s", diff)
@@ -353,13 +311,23 @@ func TestBuilder_Relationships(t *testing.T) {
 		visit("", field)
 	}
 
-	assertRelationshipField := func(name, wantType, wantInput, wantCardinality string) {
+	assertRelationshipField := func(name string, wantKind pkgmodel.RelationshipKind, wantInput, wantCardinality string) {
 		field, ok := fields[name]
 		if !ok {
 			t.Fatalf("expected field %q in relationships form", name)
 		}
-		if got := field.Metadata["relationship.type"]; got != wantType {
-			t.Fatalf("%s metadata relationship.type mismatch: want %q, got %q", name, wantType, got)
+		rel, ok := relationshipsByPath[name]
+		if !ok || rel == nil {
+			t.Fatalf("expected relationship data for %q", name)
+		}
+		if rel.Kind != wantKind {
+			t.Fatalf("%s kind mismatch: want %q, got %q", name, wantKind, rel.Kind)
+		}
+		if rel.Cardinality != wantCardinality {
+			t.Fatalf("%s cardinality mismatch: want %q, got %q", name, wantCardinality, rel.Cardinality)
+		}
+		if rel.Target == "" {
+			t.Fatalf("%s target missing", name)
 		}
 		if got := field.UIHints["input"]; got != wantInput {
 			t.Fatalf("%s ui hint input mismatch: want %q, got %q", name, wantInput, got)
@@ -369,14 +337,77 @@ func TestBuilder_Relationships(t *testing.T) {
 		}
 	}
 
-	assertRelationshipField("author_id", "belongsTo", "select", "one")
-	assertRelationshipField("author", "belongsTo", "subform", "one")
-	assertRelationshipField("manager_id", "hasOne", "select", "one")
-	assertRelationshipField("manager", "hasOne", "subform", "one")
-	assertRelationshipField("tags", "hasMany", "collection", "many")
-	assertRelationshipField("tags.tagsItem", "hasMany", "subform", "many")
+	assertRelationshipField("author_id", pkgmodel.RelationshipBelongsTo, "select", "one")
+	assertRelationshipField("author", pkgmodel.RelationshipBelongsTo, "subform", "one")
+	assertRelationshipField("manager_id", pkgmodel.RelationshipHasOne, "select", "one")
+	assertRelationshipField("manager", pkgmodel.RelationshipHasOne, "subform", "one")
+	assertRelationshipField("tags", pkgmodel.RelationshipHasMany, "collection", "many")
+	assertRelationshipField("tags.tagsItem", pkgmodel.RelationshipHasMany, "subform", "many")
 
 	if field := fields["title"]; field.Metadata != nil {
 		t.Fatalf("expected title field to remain metadata-free, got %#v", field.Metadata)
+	}
+
+	expectRelationships := map[string]*pkgmodel.Relationship{
+		"author": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Author",
+			ForeignKey:  "author_id",
+			Cardinality: "one",
+			SourceField: "author_id",
+		},
+		"author_id": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Author",
+			ForeignKey:  "author_id",
+			Cardinality: "one",
+		},
+		"category_id": {
+			Kind:        pkgmodel.RelationshipBelongsTo,
+			Target:      "#/components/schemas/Category",
+			Cardinality: "one",
+		},
+		"manager": {
+			Kind:        pkgmodel.RelationshipHasOne,
+			Target:      "#/components/schemas/Manager",
+			ForeignKey:  "manager_id",
+			Cardinality: "one",
+			SourceField: "manager_id",
+		},
+		"manager_id": {
+			Kind:        pkgmodel.RelationshipHasOne,
+			Target:      "#/components/schemas/Manager",
+			ForeignKey:  "manager_id",
+			Cardinality: "one",
+		},
+		"tags": {
+			Kind:        pkgmodel.RelationshipHasMany,
+			Target:      "#/components/schemas/Tag",
+			Cardinality: "many",
+			Inverse:     "article",
+		},
+		"tags.tagsItem": {
+			Kind:        pkgmodel.RelationshipHasMany,
+			Target:      "#/components/schemas/Tag",
+			Cardinality: "many",
+			Inverse:     "article",
+		},
+	}
+
+	for path, wantRel := range expectRelationships {
+		gotRel, ok := relationshipsByPath[path]
+		if !ok {
+			t.Fatalf("expected relationship entry for %q", path)
+		}
+		if gotRel == nil {
+			t.Fatalf("expected relationship for %q to be non-nil", path)
+		}
+		if diff := testsupport.CompareGolden(wantRel, gotRel); diff != "" {
+			t.Fatalf("relationship %q mismatch (-want +got):\n%s", path, diff)
+		}
+	}
+
+	if rel := relationshipsByPath["title"]; rel != nil {
+		t.Fatalf("expected title relationship to remain nil, got %#v", rel)
 	}
 }
