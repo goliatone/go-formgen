@@ -214,14 +214,17 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 }
 
 func ensureAssets(store fs.FS, paths assetPaths) error {
-	required := map[string]string{
-		"vendor script": paths.vendorScript,
-		"app script":    paths.appScript,
-		"stylesheet":    paths.stylesheet,
+	required := []struct {
+		label string
+		path  string
+	}{
+		{label: "vendor script", path: paths.vendorScript},
+		{label: "app script", path: paths.appScript},
+		{label: "stylesheet", path: paths.stylesheet},
 	}
-	for label, location := range required {
-		if _, err := fs.Stat(store, location); err != nil {
-			return fmt.Errorf("preact renderer: %s %q not found: %w", label, location, err)
+	for _, item := range required {
+		if _, err := fs.Stat(store, item.path); err != nil {
+			return fmt.Errorf("preact renderer: %s %q not found: %w", item.label, item.path, err)
 		}
 	}
 	return nil
