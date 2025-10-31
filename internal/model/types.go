@@ -47,6 +47,7 @@ type Field struct {
 	Items       *Field            `json:"items,omitempty"`
 	Validations []ValidationRule  `json:"validations,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	UIHints     map[string]string `json:"uiHints,omitempty"`
 }
 
 // FormModel is the top-level representation renderers consume, matching the
@@ -59,4 +60,5 @@ type FormModel struct {
 	Description string            `json:"description,omitempty"`
 	Fields      []Field           `json:"fields"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	UIHints     map[string]string `json:"uiHints,omitempty"`
 }

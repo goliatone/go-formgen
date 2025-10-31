@@ -9,6 +9,8 @@ import (
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
 )
 
+const extensionNamespace = "x-formgen"
+
 // Builder converts OpenAPI operations into form models.
 type Builder struct {
 	opts Options
@@ -48,6 +50,12 @@ func (b *Builder) Build(op pkgopenapi.Operation) (FormModel, error) {
 	if op.Description != "" {
 		form.Metadata["description"] = op.Description
 	}
+	formExt := metadataFromExtensions(op.Extensions)
+	bodyExt := metadataFromExtensions(op.RequestBody.Extensions)
+	mergeMetadata(form.Metadata, formExt)
+	mergeMetadata(form.Metadata, bodyExt)
+	form.UIHints = mergeUIHints(form.UIHints, filterUIHints(formExt))
+	form.UIHints = mergeUIHints(form.UIHints, filterUIHints(bodyExt))
 
 	fields, err := b.fieldsFromSchema("", op.RequestBody, true)
 	if err != nil {
@@ -57,6 +65,9 @@ func (b *Builder) Build(op pkgopenapi.Operation) (FormModel, error) {
 
 	if len(form.Metadata) == 0 {
 		form.Metadata = nil
+	}
+	if len(form.UIHints) == 0 {
+		form.UIHints = nil
 	}
 
 	return form, nil
@@ -71,10 +82,15 @@ func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, requir
 			Required:    required,
 			Label:       b.opts.Labeler(name),
 			Description: schema.Description,
-			Metadata: map[string]string{
-				"$ref": schema.Ref,
-			},
+			Metadata:    map[string]string{},
 		}
+		field.Metadata["$ref"] = schema.Ref
+		refExt := metadataFromExtensions(schema.Extensions)
+		mergeMetadata(field.Metadata, refExt)
+		field.UIHints = mergeUIHints(field.UIHints, filterUIHints(refExt))
+		field.applyUIHintAttributes()
+		field.normalizeMetadata()
+		field.normalizeUIHints()
 		return []Field{field}, nil
 	}
 
@@ -133,6 +149,12 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 			parent.Enum = append([]any(nil), schema.Enum...)
 		}
 		applyValidations(&parent, schema)
+		parentExt := metadataFromExtensions(schema.Extensions)
+		mergeMetadata(parent.ensureMetadata(), parentExt)
+		parent.UIHints = mergeUIHints(parent.UIHints, filterUIHints(parentExt))
+		parent.applyUIHintAttributes()
+		parent.normalizeMetadata()
+		parent.normalizeUIHints()
 		return []Field{parent}, nil
 	}
 
@@ -168,6 +190,12 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 		field.Enum = append([]any(nil), schema.Enum...)
 	}
 	applyValidations(&field, schema)
+	arrayExt := metadataFromExtensions(schema.Extensions)
+	mergeMetadata(field.ensureMetadata(), arrayExt)
+	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(arrayExt))
+	field.applyUIHintAttributes()
+	field.normalizeMetadata()
+	field.normalizeUIHints()
 	return field, nil
 }
 
@@ -188,6 +216,12 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 		field.Default = schema.Default
 	}
 	applyValidations(&field, schema)
+	primitiveExt := metadataFromExtensions(schema.Extensions)
+	mergeMetadata(field.ensureMetadata(), primitiveExt)
+	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(primitiveExt))
+	field.applyUIHintAttributes()
+	field.normalizeMetadata()
+	field.normalizeUIHints()
 	return field
 }
 
@@ -273,4 +307,135 @@ func applyValidations(field *Field, schema pkgopenapi.Schema) {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func metadataFromExtensions(ext map[string]any) map[string]string {
+	if len(ext) == 0 {
+		return nil
+	}
+
+	result := make(map[string]string)
+	for key, value := range ext {
+		if key == extensionNamespace {
+			nested, ok := value.(map[string]any)
+			if !ok {
+				continue
+			}
+			for nestedKey, nestedValue := range nested {
+				if str, ok := CanonicalizeExtensionValue(nestedValue); ok {
+					result[nestedKey] = str
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(key, extensionNamespace+"-") {
+			trimmed := strings.TrimPrefix(key, extensionNamespace+"-")
+			if str, ok := CanonicalizeExtensionValue(value); ok {
+				result[trimmed] = str
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func mergeMetadata(target map[string]string, updates map[string]string) {
+	if len(updates) == 0 {
+		return
+	}
+	if target == nil {
+		return
+	}
+
+	keys := make([]string, 0, len(updates))
+	for key := range updates {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		target[key] = updates[key]
+	}
+}
+
+func mergeUIHints(target map[string]string, updates map[string]string) map[string]string {
+	if len(updates) == 0 {
+		return target
+	}
+	if target == nil {
+		target = make(map[string]string, len(updates))
+	}
+	keys := make([]string, 0, len(updates))
+	for key := range updates {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		target[key] = updates[key]
+	}
+	return target
+}
+
+func (f *Field) ensureMetadata() map[string]string {
+	if f.Metadata == nil {
+		f.Metadata = make(map[string]string)
+	}
+	return f.Metadata
+}
+
+func (f *Field) normalizeMetadata() {
+	if f.Metadata != nil && len(f.Metadata) == 0 {
+		f.Metadata = nil
+	}
+}
+
+func (f *Field) normalizeUIHints() {
+	if f.UIHints != nil && len(f.UIHints) == 0 {
+		f.UIHints = nil
+	}
+}
+
+func (f *Field) applyUIHintAttributes() {
+	if len(f.UIHints) == 0 {
+		return
+	}
+	if f.Placeholder == "" {
+		if placeholder, ok := f.UIHints["placeholder"]; ok && placeholder != "" {
+			f.Placeholder = placeholder
+		}
+	}
+	if label, ok := f.UIHints["label"]; ok && label != "" {
+		f.Label = label
+	}
+	if hint, ok := f.UIHints["hint"]; ok && hint != "" && f.Description == "" {
+		f.Description = hint
+	}
+	if help, ok := f.UIHints["helpText"]; ok && help != "" {
+		// Attach as an additional metadata entry so renderers without dedicated
+		// UI hint support can still surface the string.
+		if f.Metadata == nil {
+			f.Metadata = make(map[string]string)
+		}
+		f.Metadata["helpText"] = help
+	}
+}
+
+func filterUIHints(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	result := make(map[string]string)
+	for key, value := range metadata {
+		if value == "" {
+			continue
+		}
+		if IsAllowedUIHintKey(key) {
+			result[key] = value
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
