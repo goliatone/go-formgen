@@ -1,835 +1,292 @@
 {
-  "components": {
-    "schemas": {
-      "author": {
-        "description": "Schema for Author",
-        "properties": {
-          "active": {
-            "type": "boolean",
-            "x-formgen": {
-              "label": "Active contributor",
-              "helpText": "Inactive authors cannot access editorial tools"
-            }
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string",
-            "x-formgen": {
-              "widget": "datetime-local",
-              "hideLabel": true
-            }
-          },
-          "email": {
-            "type": "string",
-            "x-formgen": {
-              "inputType": "email",
-              "placeholder": "author@example.com",
-              "helpText": "Used for login and notifications"
-            }
-          },
-          "full_name": {
-            "type": "string",
-            "x-formgen": {
-              "label": "Author name",
-              "placeholder": "e.g. Octavia Butler"
-            }
-          },
-          "hired_at": {
-            "format": "date-time",
-            "type": "string",
-            "x-formgen": {
-              "widget": "datetime-local",
-              "cssClass": "fg-field--hired-at"
-            }
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string",
-            "x-formgen": {
-              "hideLabel": true
-            }
-          },
-          "pen_name": {
-            "type": "string",
-            "x-formgen": {
-              "hint": "Optional public pseudonym"
-            }
-          },
-          "publisher_id": {
-            "format": "uuid",
-            "type": "string",
-            "x-formgen": {
-              "label": "Publisher ID",
-              "helpText": "Map to your internal directory identifier",
-              "cssClass": "fg-field--publisher"
-            }
-          },
-          "updated_at": {
-            "format": "date-time",
-            "type": "string",
-            "x-formgen": {
-              "widget": "datetime-local",
-              "hideLabel": true
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Formgen Relationship Demo API",
+    "version": "1.0.0",
+    "description": "Sample schema showcasing relationship-aware form generation."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local demo server"
+    }
+  ],
+  "paths": {
+    "/articles": {
+      "post": {
+        "summary": "Create an article with related entities",
+        "operationId": "createArticle",
+        "tags": [
+          "Articles"
+        ],
+        "requestBody": {
+          "description": "Article payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "article"
+                ],
+                "properties": {
+                  "article": {
+                    "type": "object",
+                    "description": "Article attributes",
+                    "required": [
+                      "title",
+                      "author_id"
+                    ],
+                    "x-formgen-relations": {
+                      "includes": [
+                        "author",
+                        "author.manager",
+                        "category",
+                        "tags"
+                      ],
+                      "relations": [
+                        {
+                          "name": "author",
+                          "filters": [
+                            {
+                              "field": "full_name",
+                              "operator": "ilike"
+                            }
+                          ]
+                        },
+                        {
+                          "name": "tags",
+                          "filters": [
+                            {
+                              "field": "label",
+                              "operator": "ilike"
+                            }
+                          ]
+                        }
+                      ],
+                      "tree": {
+                        "name": "article",
+                        "children": {
+                          "author": {
+                            "name": "author",
+                            "children": {
+                              "manager": {
+                                "name": "manager"
+                              }
+                            }
+                          },
+                          "tags": {
+                            "name": "tags"
+                          }
+                        }
+                      }
+                    },
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Human readable title"
+                      },
+                      "slug": {
+                        "type": "string",
+                        "description": "URL friendly identifier"
+                      },
+                      "tenant_id": {
+                        "type": "string",
+                        "description": "Tenant scope to demonstrate dynamic params"
+                      },
+                      "author": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Author"
+                          }
+                        ],
+                        "type": "object",
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Author",
+                          "foreignKey": "author_id",
+                          "cardinality": "one",
+                          "sourceField": "author_id"
+                        }
+                      },
+                      "author_id": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/UUID"
+                          }
+                        ],
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Author",
+                          "foreignKey": "author_id",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/authors",
+                          "method": "GET",
+                          "labelField": "full_name",
+                          "valueField": "id",
+                          "resultsPath": "data",
+                          "params": {
+                            "include": "profile"
+                          },
+                          "dynamicParams": {
+                            "tenant_id": "{{field:tenant_id}}"
+                          }
+                        }
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "description": "Select a category",
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Category",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/categories",
+                          "method": "GET",
+                          "labelField": "name",
+                          "valueField": "id",
+                          "resultsPath": "data"
+                        }
+                      },
+                      "manager": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Manager"
+                          }
+                        ],
+                        "type": "object",
+                        "x-relationships": {
+                          "type": "hasOne",
+                          "target": "#/components/schemas/Manager",
+                          "foreignKey": "manager_id",
+                          "cardinality": "one",
+                          "sourceField": "manager_id"
+                        }
+                      },
+                      "manager_id": {
+                        "type": "string",
+                        "description": "Associate a manager",
+                        "x-relationships": {
+                          "type": "hasOne",
+                          "target": "#/components/schemas/Manager",
+                          "foreignKey": "manager_id",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/managers",
+                          "method": "GET",
+                          "labelField": "name",
+                          "valueField": "id",
+                          "resultsPath": "data"
+                        }
+                      },
+                      "tags": {
+                        "type": "array",
+                        "description": "Tags applied to the article",
+                        "items": {
+                          "$ref": "#/components/schemas/Tag"
+                        },
+                        "x-relationships": {
+                          "type": "hasMany",
+                          "target": "#/components/schemas/Tag",
+                          "inverse": "article",
+                          "cardinality": "many"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/tags",
+                          "method": "GET",
+                          "labelField": "label",
+                          "valueField": "id",
+                          "resultsPath": "data",
+                          "submitAs": "json"
+                        }
+                      },
+                      "published_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Optional publication timestamp"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },
-        "required": [
-          "publisher_id",
-          "full_name",
-          "email",
-          "active"
-        ],
-        "type": "object",
-        "x-formgen": {
-          "section": "profile",
-          "priority": 10
+        "responses": {
+          "201": {
+            "description": "Article created"
+          }
         }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UUID": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Canonical UUID string"
       },
-      "manager": {
-        "description": "Editorial manager reference",
+      "Author": {
+        "type": "object",
+        "description": "Author resource",
+        "x-formgen-label-field": "full_name",
         "properties": {
           "id": {
-            "format": "uuid",
+            "$ref": "#/components/schemas/UUID"
+          },
+          "full_name": {
             "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "description": "Category resource",
+        "x-formgen-label-field": "name",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
           },
           "name": {
             "type": "string"
           }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
+        }
       },
-      "tag": {
-        "description": "Article tag metadata",
+      "Manager": {
+        "type": "object",
+        "description": "Manager resource",
+        "x-formgen-label-field": "name",
         "properties": {
           "id": {
-            "format": "uuid",
+            "$ref": "#/components/schemas/UUID"
+          },
+          "name": {
             "type": "string"
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "description": "Tag resource",
+        "x-formgen-label-field": "label",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
           },
           "label": {
             "type": "string"
           }
-        },
-        "required": [
-          "id",
-          "label"
-        ],
-        "type": "object"
-      },
-      "category": {
-        "description": "Content category reference",
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "article": {
-        "description": "Editorial article with relationship metadata",
-        "properties": {
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/author"
-              }
-            ],
-            "type": "object",
-            "x-relationships": {
-              "type": "belongsTo",
-              "target": "#/components/schemas/author",
-              "foreignKey": "author_id"
-            }
-          },
-          "author_id": {
-            "format": "uuid",
-            "type": "string",
-            "x-relationships": {
-              "type": "belongsTo",
-              "target": "#/components/schemas/author",
-              "foreignKey": "author_id"
-            }
-          },
-          "category_id": {
-            "format": "uuid",
-            "type": "string",
-            "x-relationships": {
-              "type": "belongsTo",
-              "target": "#/components/schemas/category"
-            }
-          },
-          "manager": {
-            "type": "object",
-            "x-relationships": {
-              "type": "hasOne",
-              "target": "#/components/schemas/manager",
-              "foreignKey": "manager_id"
-            }
-          },
-          "manager_id": {
-            "format": "uuid",
-            "type": "string",
-            "x-relationships": {
-              "type": "hasOne",
-              "target": "#/components/schemas/manager",
-              "foreignKey": "manager_id"
-            }
-          },
-          "tags": {
-            "items": {
-              "$ref": "#/components/schemas/tag"
-            },
-            "type": "array",
-            "x-relationships": {
-              "type": "hasMany",
-              "target": "#/components/schemas/tag",
-              "inverse": "article"
-            }
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "author_id",
-          "title"
-        ],
-        "type": "object",
-        "x-formgen": {
-          "section": "article"
         }
       }
     }
-  },
-  "openapi": "3.0.3",
-  "paths": {
-    "/author": {
-      "post": {
-        "description": "Creates a new Author record",
-        "operationId": "post-author:create",
-        "parameters": [],
-        "x-formgen": {
-          "submitLabel": "Invite author",
-          "successMessage": "Author profile saved",
-          "category": "people"
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/author"
-              }
-            }
-          },
-          "description": "New Author data",
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/author"
-                }
-              }
-            },
-            "description": "Author created successfully"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid input"
-          }
-        },
-        "summary": "Create new Author",
-        "tags": [
-          "Author"
-        ]
-      }
-    },
-    "/articles": {
-      "post": {
-        "description": "Creates a new Article with related references",
-        "operationId": "createArticle",
-        "parameters": [],
-        "x-formgen": {
-          "submitLabel": "Publish article",
-          "successMessage": "Article saved with relationships",
-          "category": "content"
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/article"
-              }
-            }
-          },
-          "description": "Article payload",
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Article accepted for publishing"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Validation failed"
-          }
-        },
-        "summary": "Create new Article",
-        "tags": [
-          "Article"
-        ]
-      }
-    },
-    "/author/batch": {
-      "delete": {
-        "description": "Deletes multiple Author records in a single request",
-        "operationId": "delete-author:delete:batch",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "$ref": "#/components/schemas/author"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "description": "Array of Author IDs to delete",
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Records deleted successfully"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid input"
-          }
-        },
-        "summary": "Delete multiple Authors",
-        "tags": [
-          "Author"
-        ]
-      },
-      "post": {
-        "description": "Creates multiple Author records in a single request",
-        "operationId": "post-author:create:batch",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "$ref": "#/components/schemas/author"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "description": "Array of new Author data",
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/author"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Records created successfully"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid input"
-          }
-        },
-        "summary": "Create multiple Authors",
-        "tags": [
-          "Author"
-        ]
-      },
-      "put": {
-        "description": "Updates multiple Author records in a single request",
-        "operationId": "put-author:update:batch",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "$ref": "#/components/schemas/author"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "description": "Array of Author updates",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/author"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Records updated successfully"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Invalid input"
-          }
-        },
-        "summary": "Update multiple Authors",
-        "tags": [
-          "Author"
-        ]
-      }
-    },
-    "/author/{id}": {
-      "delete": {
-        "description": "Deletes a Author record",
-        "operationId": "delete-author:delete",
-        "parameters": [
-          {
-            "description": "ID of the Author to delete",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Author deleted successfully"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Author not found"
-          }
-        },
-        "summary": "Delete Author by ID",
-        "tags": [
-          "Author"
-        ]
-      },
-      "get": {
-        "description": "Retrieves a single Author by its ID",
-        "operationId": "get-author:read",
-        "parameters": [
-          {
-            "description": "ID of the Author",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Related resources to include, comma separated",
-            "in": "query",
-            "name": "include",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Fields to include in the response, comma separated",
-            "in": "query",
-            "name": "select",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/author"
-                }
-              }
-            },
-            "description": "Successful response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Author not found"
-          }
-        },
-        "summary": "Get Author by ID",
-        "tags": [
-          "Author"
-        ]
-      },
-      "put": {
-        "description": "Updates an existing Author record",
-        "operationId": "put-author:update",
-        "parameters": [
-          {
-            "description": "ID of the Author to update",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/author"
-              }
-            }
-          },
-          "description": "Updated Author data",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/author"
-                }
-              }
-            },
-            "description": "Author updated successfully"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Author not found"
-          }
-        },
-        "summary": "Update Author by ID",
-        "tags": [
-          "Author"
-        ]
-      }
-    },
-    "/authors": {
-      "get": {
-        "description": "",
-        "operationId": "get-author:list",
-        "parameters": [
-          {
-            "description": "",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 25,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "",
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Related resources to include, comma separated (e.g. Company,Profile)",
-            "in": "query",
-            "name": "include",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Fields to include in the response, comma separated (e.g. id,name,email)",
-            "in": "query",
-            "name": "select",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Sort order, comma separated with direction (e.g. name asc,created_at desc)",
-            "in": "query",
-            "name": "order",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by field value (e.g. name=John)",
-            "in": "query",
-            "name": "{field}",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field equals value",
-            "in": "query",
-            "name": "{field}__eq",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field does not equal value",
-            "in": "query",
-            "name": "{field}__ne",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field is greater than value",
-            "in": "query",
-            "name": "{field}__gt",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field is less than value",
-            "in": "query",
-            "name": "{field}__lt",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field is greater than or equal to value",
-            "in": "query",
-            "name": "{field}__gte",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field is less than or equal to value",
-            "in": "query",
-            "name": "{field}__lte",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field matches pattern (SQL LIKE)",
-            "in": "query",
-            "name": "{field}__like",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field matches pattern case insensitive (SQL ILIKE)",
-            "in": "query",
-            "name": "{field}__ilike",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field matches all values (comma separated)",
-            "in": "query",
-            "name": "{field}__and",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter where field matches any value (comma separated)",
-            "in": "query",
-            "name": "{field}__or",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/author"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful response"
-          }
-        },
-        "summary": "List Authors",
-        "tags": [
-          "Author"
-        ]
-      }
-    }
-  },
-  "tags": [
-    {
-      "name": "author"
-    }
-  ]
+  }
 }

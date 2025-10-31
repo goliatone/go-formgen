@@ -14,6 +14,20 @@ const (
 	FieldTypeObject  = internalmodel.FieldTypeObject
 )
 
+// RelationshipKind re-exports the relationship enum defined in
+// docs/adr/RELATIONSHIP_STRUCT_ADR.md.
+type RelationshipKind = internalmodel.RelationshipKind
+
+const (
+	RelationshipBelongsTo = internalmodel.RelationshipBelongsTo
+	RelationshipHasOne    = internalmodel.RelationshipHasOne
+	RelationshipHasMany   = internalmodel.RelationshipHasMany
+)
+
+// Relationship exposes typed relationship metadata alongside the existing
+// dotted keys for backward compatibility. See docs/adr/RELATIONSHIP_STRUCT_ADR.md.
+type Relationship = internalmodel.Relationship
+
 // Validation rule identifiers mirror OpenAPI keyword semantics and are emitted
 // by the form model builder when schemas define matching constraints.
 const (
