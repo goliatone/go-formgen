@@ -44,7 +44,7 @@ func (p *Parser) Operations(ctx context.Context, doc pkgopenapi.Document) (map[s
 		return nil, fmt.Errorf("openapi parser: load document: %w", err)
 	}
 
-	if spec.Paths == nil || len(spec.Paths) == 0 {
+	if len(spec.Paths) == 0 {
 		if !p.options.AllowPartialDocuments {
 			return nil, errors.New("openapi parser: document does not contain any paths")
 		}
@@ -107,6 +107,7 @@ func (p *Parser) collectOperation(ctx context.Context, target map[string]pkgopen
 	}
 	op.Summary = operation.Summary
 	op.Description = operation.Description
+	op.Extensions = extractExtensions(operation.Extensions)
 	target[opID] = op
 }
 
@@ -216,5 +217,43 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 	if src.Pattern != "" {
 		schema.Pattern = src.Pattern
 	}
+	schema.Extensions = extractExtensions(src.Extensions)
 	return schema
+}
+
+const extensionNamespace = "x-formgen"
+
+func extractExtensions(raw map[string]any) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	result := make(map[string]any)
+	for key, value := range raw {
+		if key == extensionNamespace {
+			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
+				result[key] = mapped
+			}
+			continue
+		}
+		if strings.HasPrefix(key, extensionNamespace+"-") {
+			result[key] = value
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func cloneMap(value any) (map[string]any, bool) {
+	mapped, ok := value.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	cloned := make(map[string]any, len(mapped))
+	for k, v := range mapped {
+		cloned[k] = v
+	}
+	return cloned, true
 }
