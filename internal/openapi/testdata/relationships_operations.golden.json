@@ -31,7 +31,13 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.sourceField": "author_id"
+            "x-relationships": {
+              "cardinality": "one",
+              "foreignKey": "author_id",
+              "sourceField": "author_id",
+              "target": "#/components/schemas/Author",
+              "type": "belongsTo"
+            }
           }
         },
         "author_id": {
@@ -52,10 +58,12 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.cardinality": "one",
-            "relationship.foreignKey": "author_id",
-            "relationship.target": "#/components/schemas/Author",
-            "relationship.type": "belongsTo"
+            "x-relationships": {
+              "cardinality": "one",
+              "foreignKey": "author_id",
+              "target": "#/components/schemas/Author",
+              "type": "belongsTo"
+            }
           }
         },
         "category_id": {
@@ -76,9 +84,11 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.cardinality": "one",
-            "relationship.target": "#/components/schemas/Category",
-            "relationship.type": "belongsTo"
+            "x-relationships": {
+              "cardinality": "one",
+              "target": "#/components/schemas/Category",
+              "type": "belongsTo"
+            }
           }
         },
         "manager": {
@@ -99,7 +109,13 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.sourceField": "manager_id"
+            "x-relationships": {
+              "cardinality": "one",
+              "foreignKey": "manager_id",
+              "sourceField": "manager_id",
+              "target": "#/components/schemas/Manager",
+              "type": "hasOne"
+            }
           }
         },
         "manager_id": {
@@ -120,10 +136,12 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.cardinality": "one",
-            "relationship.foreignKey": "manager_id",
-            "relationship.target": "#/components/schemas/Manager",
-            "relationship.type": "hasOne"
+            "x-relationships": {
+              "cardinality": "one",
+              "foreignKey": "manager_id",
+              "target": "#/components/schemas/Manager",
+              "type": "hasOne"
+            }
           }
         },
         "tags": {
@@ -180,10 +198,12 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
-            "relationship.cardinality": "many",
-            "relationship.inverse": "article",
-            "relationship.target": "#/components/schemas/Tag",
-            "relationship.type": "hasMany"
+            "x-relationships": {
+              "cardinality": "many",
+              "inverse": "article",
+              "target": "#/components/schemas/Tag",
+              "type": "hasMany"
+            }
           }
         },
         "title": {

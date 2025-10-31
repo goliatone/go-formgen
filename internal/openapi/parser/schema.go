@@ -8,29 +8,29 @@ import (
 )
 
 const (
-	relationshipExtensionKey  = "x-relationships"
-	relationshipNamespace     = "relationship."
-	relationshipTypeKey       = relationshipNamespace + "type"
-	relationshipTargetKey     = relationshipNamespace + "target"
-	relationshipForeignKeyKey = relationshipNamespace + "foreignKey"
-	relationshipThroughKey    = relationshipNamespace + "through"
-	relationshipInverseKey    = relationshipNamespace + "inverse"
-	relationshipCardKey       = relationshipNamespace + "cardinality"
-	relationshipSourceKey     = relationshipNamespace + "sourceField"
+	relationshipExtensionKey = "x-relationships"
+
+	relationshipTypeAttr       = "type"
+	relationshipTargetAttr     = "target"
+	relationshipForeignKeyAttr = "foreignKey"
+	relationshipThroughAttr    = "through"
+	relationshipInverseAttr    = "inverse"
+	relationshipCardAttr       = "cardinality"
+	relationshipSourceAttr     = "sourceField"
 )
 
 var relationshipKeyLookup = map[string]string{
-	"type":        relationshipTypeKey,
-	"kind":        relationshipTypeKey,
-	"target":      relationshipTargetKey,
-	"foreignkey":  relationshipForeignKeyKey,
-	"foreign_id":  relationshipForeignKeyKey,
-	"foreign-id":  relationshipForeignKeyKey,
-	"through":     relationshipThroughKey,
-	"pivot":       relationshipThroughKey,
-	"inverse":     relationshipInverseKey,
-	"cardinality": relationshipCardKey,
-	"sourcefield": relationshipSourceKey,
+	"type":        relationshipTypeAttr,
+	"kind":        relationshipTypeAttr,
+	"target":      relationshipTargetAttr,
+	"foreignkey":  relationshipForeignKeyAttr,
+	"foreign_id":  relationshipForeignKeyAttr,
+	"foreign-id":  relationshipForeignKeyAttr,
+	"through":     relationshipThroughAttr,
+	"pivot":       relationshipThroughAttr,
+	"inverse":     relationshipInverseAttr,
+	"cardinality": relationshipCardAttr,
+	"sourcefield": relationshipSourceAttr,
 }
 
 func normaliseRelationshipExtension(value any) map[string]any {
@@ -54,11 +54,10 @@ func normaliseRelationshipExtension(value any) map[string]any {
 		return nil
 	}
 
-	relType, _ := normalised[relationshipTypeKey].(string)
-	if relType != "" {
-		if _, exists := normalised[relationshipCardKey]; !exists {
+	if relType, ok := normalised[relationshipTypeAttr].(string); ok && relType != "" {
+		if _, exists := normalised[relationshipCardAttr]; !exists {
 			if card := deriveCardinality(relType); card != "" {
-				normalised[relationshipCardKey] = card
+				normalised[relationshipCardAttr] = card
 			}
 		}
 	}
@@ -78,7 +77,7 @@ func canonicalRelationshipKey(raw string) (string, bool) {
 		return canonical, true
 	}
 	// Allow unknown keys to flow through using the sanitised form.
-	return relationshipNamespace + sanitised, true
+	return sanitised, true
 }
 
 func normaliseKey(raw string) string {
@@ -147,15 +146,12 @@ func propagateRelationshipMetadata(props map[string]pkgopenapi.Schema) map[strin
 }
 
 func hostField(schema pkgopenapi.Schema, name string, props map[string]pkgopenapi.Schema) (string, bool) {
-	if len(schema.Extensions) == 0 {
+	rel := relationshipFromExtensions(schema.Extensions)
+	if len(rel) == 0 {
 		return "", false
 	}
-	value, ok := schema.Extensions[relationshipForeignKeyKey]
-	if !ok {
-		return "", false
-	}
-	fk, ok := value.(string)
-	if !ok || fk == "" || fk == name {
+	fk := rel[relationshipForeignKeyAttr]
+	if fk == "" || fk == name {
 		return "", false
 	}
 	if _, exists := props[fk]; !exists {
@@ -165,30 +161,102 @@ func hostField(schema pkgopenapi.Schema, name string, props map[string]pkgopenap
 }
 
 func mergeRelationshipExtensions(host map[string]any, source map[string]any) map[string]any {
-	merged := make(map[string]any, len(host)+len(source))
-	for key, value := range host {
-		merged[key] = value
+	hostRel := relationshipFromExtensions(host)
+	sourceRel := relationshipFromExtensions(source)
+	if len(sourceRel) == 0 {
+		return host
 	}
-	for key, value := range source {
-		if !strings.HasPrefix(key, relationshipNamespace) {
+
+	if len(hostRel) == 0 {
+		hostRel = make(map[string]string, len(sourceRel))
+	}
+	for key, value := range sourceRel {
+		if key == relationshipSourceAttr {
 			continue
 		}
-		if key == relationshipSourceKey {
-			continue
-		}
-		merged[key] = value
+		hostRel[key] = value
 	}
-	return merged
+	return setRelationshipExtension(host, hostRel)
 }
 
 func breadcrumbExtensions(ext map[string]any, host string) map[string]any {
-	result := make(map[string]any, len(ext)+1)
-	for key, value := range ext {
-		if strings.HasPrefix(key, relationshipNamespace) && key != relationshipSourceKey {
+	rel := relationshipFromExtensions(ext)
+	if len(rel) == 0 {
+		rel = make(map[string]string, 1)
+	}
+	rel[relationshipSourceAttr] = host
+	return setRelationshipExtension(ext, rel)
+}
+
+func relationshipFromExtensions(ext map[string]any) map[string]string {
+	if len(ext) == 0 {
+		return nil
+	}
+	raw, ok := ext[relationshipExtensionKey]
+	if !ok {
+		return nil
+	}
+	switch value := raw.(type) {
+	case map[string]string:
+		return cloneRelationshipMap(value)
+	case map[string]any:
+		result := make(map[string]string, len(value))
+		for key, v := range value {
+			if str, ok := toString(v); ok {
+				result[key] = str
+			}
+		}
+		if len(result) == 0 {
+			return nil
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+func setRelationshipExtension(ext map[string]any, rel map[string]string) map[string]any {
+	if ext == nil {
+		ext = make(map[string]any)
+	}
+	// Remove any legacy dotted keys that might still exist.
+	for key := range ext {
+		if strings.HasPrefix(key, "relationship.") {
+			delete(ext, key)
+		}
+	}
+	if len(rel) == 0 {
+		delete(ext, relationshipExtensionKey)
+		return ext
+	}
+	converted := make(map[string]any, len(rel))
+	for key, value := range rel {
+		if value == "" {
 			continue
 		}
-		result[key] = value
+		converted[key] = value
 	}
-	result[relationshipSourceKey] = host
-	return result
+	if len(converted) == 0 {
+		delete(ext, relationshipExtensionKey)
+		return ext
+	}
+	ext[relationshipExtensionKey] = converted
+	return ext
+}
+
+func cloneRelationshipMap(rel map[string]string) map[string]string {
+	if len(rel) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(rel))
+	for key, value := range rel {
+		if value == "" {
+			continue
+		}
+		cloned[key] = value
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
 }

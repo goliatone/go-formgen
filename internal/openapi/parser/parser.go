@@ -44,7 +44,7 @@ func (p *Parser) Operations(ctx context.Context, doc pkgopenapi.Document) (map[s
 		return nil, fmt.Errorf("openapi parser: load document: %w", err)
 	}
 
-	if len(spec.Paths) == 0 {
+	if spec.Paths == nil || spec.Paths.Len() == 0 {
 		if !p.options.AllowPartialDocuments {
 			return nil, errors.New("openapi parser: document does not contain any paths")
 		}
@@ -55,18 +55,20 @@ func (p *Parser) Operations(ctx context.Context, doc pkgopenapi.Document) (map[s
 	}
 
 	operations := make(map[string]pkgopenapi.Operation)
-	for path, item := range spec.Paths {
-		if item == nil {
-			continue
+	if spec.Paths != nil {
+		for path, item := range spec.Paths.Map() {
+			if item == nil {
+				continue
+			}
+			p.collectOperation(ctx, operations, "GET", path, item.Get)
+			p.collectOperation(ctx, operations, "PUT", path, item.Put)
+			p.collectOperation(ctx, operations, "POST", path, item.Post)
+			p.collectOperation(ctx, operations, "DELETE", path, item.Delete)
+			p.collectOperation(ctx, operations, "PATCH", path, item.Patch)
+			p.collectOperation(ctx, operations, "HEAD", path, item.Head)
+			p.collectOperation(ctx, operations, "OPTIONS", path, item.Options)
+			p.collectOperation(ctx, operations, "TRACE", path, item.Trace)
 		}
-		p.collectOperation(ctx, operations, "GET", path, item.Get)
-		p.collectOperation(ctx, operations, "PUT", path, item.Put)
-		p.collectOperation(ctx, operations, "POST", path, item.Post)
-		p.collectOperation(ctx, operations, "DELETE", path, item.Delete)
-		p.collectOperation(ctx, operations, "PATCH", path, item.Patch)
-		p.collectOperation(ctx, operations, "HEAD", path, item.Head)
-		p.collectOperation(ctx, operations, "OPTIONS", path, item.Options)
-		p.collectOperation(ctx, operations, "TRACE", path, item.Trace)
 	}
 
 	if len(operations) == 0 && !p.options.AllowPartialDocuments {
@@ -130,9 +132,12 @@ func (p *Parser) extractRequestSchema(requestBody *openapi3.RequestBodyRef) pkgo
 	return pkgopenapi.Schema{}
 }
 
-func (p *Parser) extractResponseSchemas(responses openapi3.Responses) map[string]pkgopenapi.Schema {
+func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[string]pkgopenapi.Schema {
+	if responses == nil || responses.Len() == 0 {
+		return nil
+	}
 	result := make(map[string]pkgopenapi.Schema)
-	for status, ref := range responses {
+	for status, ref := range responses.Map() {
 		if ref == nil {
 			continue
 		}
@@ -174,7 +179,7 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 	src := ref.Value
 	schema := pkgopenapi.Schema{
 		Ref:         ref.Ref,
-		Type:        src.Type,
+		Type:        firstSchemaType(src.Type),
 		Format:      src.Format,
 		Description: src.Description,
 		Default:     src.Default,
@@ -187,10 +192,11 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 		schema.Enum = append([]any(nil), src.Enum...)
 	}
 	if len(src.Properties) > 0 {
-		schema.Properties = make(map[string]pkgopenapi.Schema, len(src.Properties))
+		properties := make(map[string]pkgopenapi.Schema, len(src.Properties))
 		for name, property := range src.Properties {
-			schema.Properties[name] = convertSchema(property)
+			properties[name] = convertSchema(property)
 		}
+		schema.Properties = propagateRelationshipMetadata(properties)
 	}
 	if src.Items != nil {
 		items := convertSchema(src.Items)
@@ -221,7 +227,26 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 	return schema
 }
 
-const extensionNamespace = "x-formgen"
+func firstSchemaType(types *openapi3.Types) string {
+	if types == nil {
+		return ""
+	}
+	values := types.Slice()
+	switch len(values) {
+	case 0:
+		return ""
+	case 1:
+		return values[0]
+	default:
+		return strings.Join(values, ",")
+	}
+}
+
+const (
+	extensionNamespace       = "x-formgen"
+	endpointExtensionKey     = "x-endpoint"
+	currentValueExtensionKey = "x-current-value"
+)
 
 func extractExtensions(raw map[string]any) map[string]any {
 	if len(raw) == 0 {
@@ -230,14 +255,25 @@ func extractExtensions(raw map[string]any) map[string]any {
 
 	result := make(map[string]any)
 	for key, value := range raw {
-		if key == extensionNamespace {
+		switch {
+		case key == extensionNamespace:
 			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
 				result[key] = mapped
 			}
-			continue
-		}
-		if strings.HasPrefix(key, extensionNamespace+"-") {
+		case strings.HasPrefix(key, extensionNamespace+"-"):
 			result[key] = value
+		case key == relationshipExtensionKey:
+			if metadata := normaliseRelationshipExtension(value); len(metadata) > 0 {
+				result[key] = metadata
+			}
+		case key == endpointExtensionKey:
+			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
+				result[key] = mapped
+			}
+		case key == currentValueExtensionKey:
+			if value != nil {
+				result[key] = value
+			}
 		}
 	}
 	if len(result) == 0 {
