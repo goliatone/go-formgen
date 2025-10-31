@@ -1,0 +1,37 @@
+openapi: 3.0.3
+info:
+  title: Relationship Override Fixture
+  version: 1.0.0
+paths:
+  /articles:
+    post:
+      operationId: createArticle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - article
+              properties:
+                article:
+                  type: object
+                  required:
+                    - author_id
+                  properties:
+                    author_id:
+                      type: string
+                      x-relationships:
+                        type: belongsTo
+                        target: "#/components/schemas/author"
+      responses:
+        "200":
+          description: Accepted
+components:
+  schemas:
+    author:
+      type: object
+      properties:
+        id:
+          type: string

@@ -58,13 +58,14 @@ func WithDefaultRenderer(name string) Option {
 // output. It applies sensible defaults (vanilla renderer, embedded templates)
 // while remaining open to dependency injection for advanced callers.
 type Orchestrator struct {
-	loader          pkgopenapi.Loader
-	parser          pkgopenapi.Parser
-	builder         model.Builder
-	registry        *render.Registry
-	defaultRenderer string
-	initialiseErr   error
-	defaultsApplied bool
+	loader            pkgopenapi.Loader
+	parser            pkgopenapi.Parser
+	builder           model.Builder
+	registry          *render.Registry
+	defaultRenderer   string
+	initialiseErr     error
+	defaultsApplied   bool
+	endpointOverrides map[string][]EndpointOverride
 }
 
 // New constructs an Orchestrator applying any provided options. Missing
@@ -145,6 +146,8 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build form model: %w", err)
 	}
+
+	o.applyEndpointOverrides(req.OperationID, &form)
 
 	renderer, err := o.rendererFor(req.Renderer)
 	if err != nil {
