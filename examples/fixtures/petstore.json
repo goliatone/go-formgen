@@ -36,12 +36,20 @@
       "post": {
         "operationId": "createPet",
         "summary": "Create a pet",
+        "x-formgen": {
+          "submitLabel": "Save pet",
+          "category": "records"
+        },
+        "x-formgen-success-message": "Pet saved",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "x-formgen": {
+                  "section": "profile"
+                },
                 "required": [
                   "name"
                 ],
@@ -51,18 +59,30 @@
                     "description": "Pet name",
                     "minLength": 3,
                     "maxLength": 64,
-                    "pattern": "^[A-Za-z ]+$"
+                    "pattern": "^[A-Za-z ]+$",
+                    "x-formgen": {
+                      "widget": "textarea",
+                      "helpText": "Shown on the adoption profile",
+                      "placeholder": "Describe the pet's personality"
+                    }
                   },
                   "tag": {
                     "type": "string",
                     "description": "Optional tag",
-                    "maxLength": 32
+                    "maxLength": 32,
+                    "x-formgen-placeholder": "Optional category"
                   },
                   "age": {
                     "type": "integer",
                     "description": "Age in years",
                     "minimum": 0,
-                    "maximum": 25
+                    "maximum": 25,
+                    "x-formgen": {
+                      "unit": "years",
+                      "precision": 0,
+                      "inputType": "number",
+                      "helpText": "Form renderer will clamp to 0-25"
+                    }
                   }
                 }
               }

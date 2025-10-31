@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -30,6 +31,7 @@ func main() {
 		addrFlag      = flag.String("addr", ":8080", "HTTP listen address")
 		sourceFlag    = flag.String("source", defaultSource, "Default OpenAPI source (file path or URL)")
 		rendererFlag  = flag.String("renderer", "vanilla", "Default renderer name")
+		operationFlag = flag.String("operation", "createPet", "Default operation ID")
 		shutdownGrace = flag.Duration("grace", 5*time.Second, "Shutdown grace period")
 	)
 	flag.Parse()
@@ -46,20 +48,30 @@ func main() {
 		pkgopenapi.WithDefaultSources(),
 		pkgopenapi.WithHTTPClient(http.DefaultClient),
 	)
+	parser := formgen.NewParser()
+	builder := model.NewBuilder()
+
+	defaultOperation := strings.TrimSpace(*operationFlag)
+	if defaultOperation == "" {
+		defaultOperation = "createPet"
+	}
 
 	server := &formServer{
 		generator: formgen.NewOrchestrator(
 			orchestrator.WithLoader(loader),
-			orchestrator.WithParser(formgen.NewParser()),
-			orchestrator.WithModelBuilder(model.NewBuilder()),
+			orchestrator.WithParser(parser),
+			orchestrator.WithModelBuilder(builder),
 			orchestrator.WithRegistry(registry),
 			orchestrator.WithDefaultRenderer(*rendererFlag),
 		),
-		loader:          loader,
-		registry:        registry,
-		cache:           newDocumentCache(),
-		defaultSource:   *sourceFlag,
-		defaultRenderer: *rendererFlag,
+		loader:           loader,
+		parser:           parser,
+		builder:          builder,
+		registry:         registry,
+		cache:            newDocumentCache(),
+		defaultSource:    *sourceFlag,
+		defaultRenderer:  *rendererFlag,
+		defaultOperation: defaultOperation,
 	}
 
 	mux := http.NewServeMux()
@@ -102,12 +114,15 @@ func main() {
 }
 
 type formServer struct {
-	generator       *orchestrator.Orchestrator
-	loader          pkgopenapi.Loader
-	registry        *render.Registry
-	cache           *documentCache
-	defaultSource   string
-	defaultRenderer string
+	generator        *orchestrator.Orchestrator
+	loader           pkgopenapi.Loader
+	parser           pkgopenapi.Parser
+	builder          model.Builder
+	registry         *render.Registry
+	cache            *documentCache
+	defaultSource    string
+	defaultRenderer  string
+	defaultOperation string
 }
 
 func (s *formServer) formHandler() http.Handler {
@@ -124,8 +139,9 @@ func (s *formServer) formHandler() http.Handler {
 		}
 		operation := query.Get("operation")
 		if strings.TrimSpace(operation) == "" {
-			operation = "createPet"
+			operation = s.defaultOperation
 		}
+		format := strings.ToLower(strings.TrimSpace(query.Get("format")))
 
 		source, cacheKey, err := exampleutil.ResolveSource(sourceRaw)
 		if err != nil {
@@ -143,6 +159,19 @@ func (s *formServer) formHandler() http.Handler {
 				return
 			}
 			s.cache.Set(cacheKey, document)
+		}
+
+		if format == "json" {
+			form, err := s.buildFormModel(r.Context(), document, operation)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("build form model: %v", err), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(form); err != nil {
+				log.Printf("write json response: %v", err)
+			}
+			return
 		}
 
 		renderer, err := s.registry.Get(rendererName)
@@ -166,6 +195,25 @@ func (s *formServer) formHandler() http.Handler {
 			log.Printf("write response: %v", err)
 		}
 	})
+}
+
+func (s *formServer) buildFormModel(ctx context.Context, document pkgopenapi.Document, operation string) (model.FormModel, error) {
+	if s.parser == nil || s.builder == nil {
+		return model.FormModel{}, fmt.Errorf("form server missing parser or builder")
+	}
+	operations, err := s.parser.Operations(ctx, document)
+	if err != nil {
+		return model.FormModel{}, fmt.Errorf("parse operations: %w", err)
+	}
+	op, ok := operations[operation]
+	if !ok {
+		return model.FormModel{}, fmt.Errorf("operation %q not found", operation)
+	}
+	form, err := s.builder.Build(op)
+	if err != nil {
+		return model.FormModel{}, fmt.Errorf("build form model: %w", err)
+	}
+	return form, nil
 }
 
 type documentCache struct {

@@ -19,6 +19,8 @@ import (
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 )
 
+const preactRenderer = "preact"
+
 func main() {
 	ctx := context.Background()
 	fixture := exampleutil.FixturePath("petstore.json")
@@ -62,7 +64,7 @@ func main() {
 			continue
 		}
 
-		if name == "preact" && !assetsCopied {
+		if name == preactRenderer && !assetsCopied {
 			if err := copyAssets(preact.AssetsFS(), filepath.Join(*outputDir, "assets")); err != nil {
 				log.Printf("copy assets: %v", err)
 			} else {
