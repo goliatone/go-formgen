@@ -185,6 +185,24 @@
             "relationship.target": "#/components/schemas/Tag",
             "relationship.type": "hasMany"
           }
+        },
+        "title": {
+          "Ref": "",
+          "Type": "string",
+          "Format": "",
+          "Required": null,
+          "Properties": null,
+          "Items": null,
+          "Enum": null,
+          "Description": "",
+          "Default": null,
+          "Minimum": null,
+          "Maximum": null,
+          "ExclusiveMinimum": false,
+          "ExclusiveMaximum": false,
+          "MinLength": null,
+          "MaxLength": null,
+          "Pattern": ""
         }
       },
       "Items": null,
