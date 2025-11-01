@@ -6,7 +6,7 @@
 
 {%- macro render_field(field) %}
 {% set rel = field.relationship -%}
-<div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
+<div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
     {% if field.uiHints.hideLabel != "true" and field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
     {% if field.type == "array" or field.uiHints.input == "collection" %}
         {{ render_array(field)|safe }}
@@ -26,7 +26,7 @@
 
 {%- macro render_object(field) %}
 {% set rel = field.relationship -%}
-<fieldset class="fg-fieldset{% if field.uiHints.accordion == "true" %} fg-fieldset--accordion{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
+<fieldset class="fg-fieldset{% if field.uiHints.accordion == "true" %} fg-fieldset--accordion{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
     {% for nested in field.nested %}
         {{ render_field(nested)|safe }}
     {% endfor %}
@@ -35,7 +35,7 @@
 
 {%- macro render_array(field) %}
 {% set rel = field.relationship -%}
-<div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}{{ endpoint_attrs(field)|safe }}>
+<div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
     {% if field.uiHints.repeaterLabel %}<div class="fg-array__label">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
     {% if field.items %}
         {% if field.uiHints.cardinality %}

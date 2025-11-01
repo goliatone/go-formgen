@@ -12,6 +12,19 @@ paths:
           application/json:
             schema:
               type: object
+              x-formgen-relations:
+                includes:
+                  - author
+                relations:
+                  - name: author
+                    filters:
+                      - field: full_name
+                        operator: ilike
+                tree:
+                  name: article
+                  children:
+                    author:
+                      name: author
               required:
                 - article
               properties:
@@ -43,6 +56,9 @@ components:
   schemas:
     author:
       type: object
+      x-formgen-label-field: full_name
       properties:
         id:
+          type: string
+        full_name:
           type: string

@@ -12,6 +12,30 @@ paths:
           application/json:
             schema:
               type: object
+              x-formgen-relations:
+                includes:
+                  - author
+                  - author.manager
+                  - tags
+                relations:
+                  - name: author
+                    filters:
+                      - field: full_name
+                        operator: ilike
+                  - name: tags
+                    filters:
+                      - field: label
+                        operator: ilike
+                tree:
+                  name: article
+                  children:
+                    author:
+                      name: author
+                      children:
+                        manager:
+                          name: manager
+                    tags:
+                      name: tags
               required:
                 - author_id
               properties:
@@ -55,24 +79,36 @@ components:
   schemas:
     Author:
       type: object
+      x-formgen-label-field: full_name
       properties:
         id:
           $ref: '#/components/schemas/UUID'
+        full_name:
+          type: string
     Manager:
       type: object
+      x-formgen-label-field: name
       properties:
         id:
           $ref: '#/components/schemas/UUID'
+        name:
+          type: string
     Tag:
       type: object
+      x-formgen-label-field: label
       properties:
         id:
           $ref: '#/components/schemas/UUID'
+        label:
+          type: string
     Category:
       type: object
+      x-formgen-label-field: name
       properties:
         id:
           $ref: '#/components/schemas/UUID'
+        name:
+          type: string
     UUID:
       type: string
       format: uuid
