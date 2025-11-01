@@ -224,6 +224,7 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 		schema.Pattern = src.Pattern
 	}
 	schema.Extensions = extractExtensions(src.Extensions)
+	mergeAllOfExtensions(&schema, src.AllOf)
 	return schema
 }
 
@@ -280,6 +281,26 @@ func extractExtensions(raw map[string]any) map[string]any {
 		return nil
 	}
 	return result
+}
+
+func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs) {
+	if target == nil || len(refs) == 0 {
+		return
+	}
+	for _, ref := range refs {
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		if ext := extractExtensions(ref.Value.Extensions); len(ext) > 0 {
+			if target.Extensions == nil {
+				target.Extensions = make(map[string]any, len(ext))
+			}
+			for key, value := range ext {
+				target.Extensions[key] = value
+			}
+		}
+		mergeAllOfExtensions(target, ref.Value.AllOf)
+	}
 }
 
 func cloneMap(value any) (map[string]any, bool) {
