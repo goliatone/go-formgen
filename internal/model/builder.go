@@ -235,6 +235,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 	mergeMetadata(field.ensureMetadata(), primitiveExt)
 	field.Relationship = relationshipFromExtensions(schema.Extensions)
 	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(primitiveExt))
+	applyFormatHints(&field)
 	applyRelationshipHints(&field)
 	field.applyUIHintAttributes()
 	field.normalizeMetadata()
@@ -332,6 +333,8 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 	}
 
 	result := make(map[string]string)
+	var labelField string
+
 	for key, value := range ext {
 		if key == extensionNamespace {
 			nested, ok := value.(map[string]any)
@@ -341,6 +344,9 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			for nestedKey, nestedValue := range nested {
 				if str, ok := CanonicalizeExtensionValue(nestedValue); ok {
 					result[nestedKey] = str
+					if nestedKey == "label-field" {
+						labelField = str
+					}
 				}
 			}
 			continue
@@ -349,6 +355,9 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			trimmed := strings.TrimPrefix(key, extensionNamespace+"-")
 			if str, ok := CanonicalizeExtensionValue(value); ok {
 				result[trimmed] = str
+				if trimmed == "label-field" {
+					labelField = str
+				}
 			}
 			continue
 		}
@@ -366,6 +375,13 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			result = make(map[string]string, 1)
 		}
 		result["relationship.current"] = currentValue
+	}
+
+	if labelField != "" {
+		if len(result) == 0 {
+			result = make(map[string]string, 1)
+		}
+		result["relationship.endpoint.labelField"] = labelField
 	}
 
 	if len(result) == 0 {
@@ -408,6 +424,50 @@ func mergeUIHints(target map[string]string, updates map[string]string) map[strin
 		target[key] = updates[key]
 	}
 	return target
+}
+
+func applyFormatHints(field *Field) {
+	if field == nil {
+		return
+	}
+
+	format := strings.TrimSpace(strings.ToLower(field.Format))
+	if format == "" {
+		return
+	}
+
+	if field.UIHints != nil {
+		if current := strings.TrimSpace(field.UIHints["inputType"]); current != "" {
+			return
+		}
+	}
+
+	var inputType string
+	switch format {
+	case "date":
+		inputType = "date"
+	case "time":
+		inputType = "time"
+	case "date-time", "datetime", "datetime-local":
+		inputType = "datetime-local"
+	case "email":
+		inputType = "email"
+	case "uri", "iri", "uri-reference", "iri-reference", "url":
+		inputType = "url"
+	case "tel", "phone":
+		inputType = "tel"
+	case "password":
+		inputType = "password"
+	case "byte", "binary":
+		inputType = "file"
+	default:
+		return
+	}
+
+	if field.UIHints == nil {
+		field.UIHints = make(map[string]string, 1)
+	}
+	field.UIHints["inputType"] = inputType
 }
 
 func applyRelationshipHints(field *Field) {
