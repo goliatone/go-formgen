@@ -164,6 +164,9 @@ func mergeRelationshipExtensions(host map[string]any, source map[string]any) map
 	hostRel := relationshipFromExtensions(host)
 	sourceRel := relationshipFromExtensions(source)
 	if len(sourceRel) == 0 {
+		if label := labelFieldFromExtensions(source); label != "" {
+			return setLabelFieldExtension(host, label)
+		}
 		return host
 	}
 
@@ -176,7 +179,11 @@ func mergeRelationshipExtensions(host map[string]any, source map[string]any) map
 		}
 		hostRel[key] = value
 	}
-	return setRelationshipExtension(host, hostRel)
+	host = setRelationshipExtension(host, hostRel)
+	if label := labelFieldFromExtensions(source); label != "" {
+		host = setLabelFieldExtension(host, label)
+	}
+	return host
 }
 
 func breadcrumbExtensions(ext map[string]any, host string) map[string]any {
@@ -241,6 +248,34 @@ func setRelationshipExtension(ext map[string]any, rel map[string]string) map[str
 		return ext
 	}
 	ext[relationshipExtensionKey] = converted
+	return ext
+}
+
+func labelFieldFromExtensions(ext map[string]any) string {
+	if len(ext) == 0 {
+		return ""
+	}
+	if value, ok := ext["x-formgen-label-field"]; ok {
+		if str, ok := value.(string); ok && str != "" {
+			return str
+		}
+	}
+	if nested, ok := ext["x-formgen"].(map[string]any); ok {
+		if str, ok := nested["label-field"].(string); ok && str != "" {
+			return str
+		}
+	}
+	return ""
+}
+
+func setLabelFieldExtension(ext map[string]any, label string) map[string]any {
+	if label == "" {
+		return ext
+	}
+	if ext == nil {
+		ext = make(map[string]any)
+	}
+	ext["x-formgen-label-field"] = label
 	return ext
 }
 
