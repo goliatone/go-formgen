@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 )
@@ -99,6 +100,42 @@ func CanonicalizeExtensionValue(value any) (string, bool) {
 		return strconv.FormatFloat(float64(v), 'f', -1, 64), true
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64), true
+	case map[string]any:
+		if len(v) == 0 {
+			return "", false
+		}
+		payload, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return string(payload), true
+	case map[string]string:
+		if len(v) == 0 {
+			return "", false
+		}
+		payload, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return string(payload), true
+	case []any:
+		if len(v) == 0 {
+			return "", false
+		}
+		payload, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return string(payload), true
+	case []string:
+		if len(v) == 0 {
+			return "", false
+		}
+		payload, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return string(payload), true
 	default:
 		return "", false
 	}
