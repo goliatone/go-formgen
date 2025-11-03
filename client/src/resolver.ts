@@ -216,7 +216,9 @@ export class Resolver {
       if (error instanceof ResolverAbortError || isAbortError(error)) {
         return { options: [], fromCache: false };
       }
-      throw error;
+      // Error already handled by handleError() which dispatched the error event
+      // and set data-state="error". Don't rethrow to prevent unhandled rejections.
+      return { options: [], fromCache: false };
     }
 
     const context = this.createContext(request, fromCache);
@@ -347,8 +349,15 @@ export class Resolver {
           continue;
         }
 
+        // Convert error to ResolverError with proper message extraction
         const resolverError =
-          err instanceof ResolverError ? err : new ResolverError(String(err ?? ""));
+          err instanceof ResolverError
+            ? err
+            : new ResolverError(
+                err instanceof Error ? err.message : String(err ?? "Unknown error"),
+                undefined,
+                err instanceof Error ? { name: err.name, stack: err.stack } : undefined
+              );
         this.handleError(resolverError, request, null, startedAt, attempt);
         throw resolverError;
       }
@@ -364,6 +373,26 @@ export class Resolver {
     const method = (this.endpoint.method || "GET").toUpperCase();
     const params = new URLSearchParams(this.endpoint.params ?? {});
     this.applyDynamicParams(params);
+
+    if (this.field.mode === "search") {
+      const searchValue = this.getSearchValue();
+      if (this.field.searchParam) {
+        if (searchValue && searchValue.length > 0) {
+          params.set(this.field.searchParam, searchValue);
+        } else {
+          params.delete(this.field.searchParam);
+        }
+      }
+    }
+
+    if (!this.endpoint.resultsPath && !this.endpoint.mapping) {
+      const hasFormatParam = Array.from(params.keys()).some(
+        (key) => key.toLowerCase() === "format"
+      );
+      if (!hasFormatParam) {
+        params.set("format", "options");
+      }
+    }
 
     const baseUrl = this.normaliseBaseUrl(this.endpoint.url ?? "");
     const query = params.toString();
@@ -442,8 +471,26 @@ export class Resolver {
   }
 
   private getSelfValue(): string | undefined {
+    if (this.field.mode === "search") {
+      const searchValue = this.getSearchValue();
+      if (searchValue !== undefined) {
+        return searchValue === "" ? undefined : searchValue;
+      }
+    }
     const value = readElementValue(this.element);
     return formatDynamicValue(value);
+  }
+
+  private getSearchValue(): string | undefined {
+    if (!(this.element instanceof HTMLElement)) {
+      return undefined;
+    }
+    const attr = this.element.getAttribute("data-endpoint-search-value");
+    if (attr != null) {
+      return attr;
+    }
+    const datasetValue = (this.element.dataset as Record<string, string | undefined>).endpointSearchValue;
+    return datasetValue ?? undefined;
   }
 
   private getFieldReferenceValue(reference: string): string | undefined {
@@ -613,13 +660,33 @@ export class Resolver {
     const labelPath = this.endpoint.mapping?.label ?? this.endpoint.labelField ?? "label";
     const metaPath = this.endpoint.mapping?.meta;
 
-    const value = getByPath(item, valuePath);
-    const label = getByPath(item, labelPath);
+    const record = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null;
+    let value = getByPath(item, valuePath);
+    let label = getByPath(item, labelPath);
     const meta = metaPath ? getByPath(item, metaPath) : undefined;
 
+    if ((value === undefined || value === null) && record) {
+      if (record["value"] != null) {
+        value = record["value"];
+      } else if (record["id"] != null) {
+        value = record["id"];
+      }
+    }
+
+    if ((label === undefined || label === null) && record) {
+      if (record["label"] != null) {
+        label = record["label"];
+      } else if (record["name"] != null) {
+        label = record["name"];
+      }
+    }
+
+    const stringValue = value == null ? "" : String(value);
+    const stringLabel = label == null ? stringValue : String(label);
+
     return {
-      value: value == null ? "" : String(value),
-      label: label == null ? "" : String(label),
+      value: stringValue,
+      label: stringLabel,
       meta,
       raw: item,
     };
