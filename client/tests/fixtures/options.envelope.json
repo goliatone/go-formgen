@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "id": "1", "full_name": "Alice" },
+    { "id": "2", "full_name": "Bob" },
+    { "id": "3", "full_name": "Charlie" }
+  ]
+}
