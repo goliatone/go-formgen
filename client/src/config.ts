@@ -50,6 +50,8 @@ export interface EndpointConfig {
   dynamicParams?: Record<string, string>;
   mapping?: EndpointMapping;
   auth?: EndpointAuth;
+  mode?: string;
+  searchParam?: string;
   submitAs?: string;
 }
 
