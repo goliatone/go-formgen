@@ -11,6 +11,7 @@ import {
   readDataset,
 } from "./dom";
 import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
+import { registerChipRenderer } from "./renderers/chips";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -30,6 +31,8 @@ export async function initRelationships(
     activeRegistry = registry;
     (globalThis as Record<string, unknown>).formgenRelationships = registry;
   }
+
+  registerChipRenderer(registry);
 
   const roots = Array.from(
     document.querySelectorAll<HTMLElement>("[data-formgen-auto-init]")

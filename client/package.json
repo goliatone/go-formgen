@@ -32,6 +32,8 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "esbuild": "^0.20.2",
+    "happy-dom": "^20.0.10",
+    "jsdom": "^27.1.0",
     "preact": "^10.19.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
