@@ -27,23 +27,52 @@ export function useRelationshipOptions(element: HTMLElement | null) {
   });
 
   useEffect(() => {
+    if (!element) return;
+
     let cancelled = false;
-    initRelationships()
-      .then((instance) => {
-        if (!cancelled) {
-          setRegistry(instance);
+    let currentRegistry: ResolverRegistry | null = null;
+
+    const setupElement = async () => {
+      const reg = await initRelationships();
+      if (cancelled) return;
+
+      currentRegistry = reg;
+      setRegistry(reg);
+
+      // Check if element is already resolved
+      const dataState = element.getAttribute("data-state");
+      if (dataState === "ready" && element instanceof HTMLSelectElement) {
+        const options: Option[] = Array.from(element.options)
+          .filter((opt) => opt.value !== "")
+          .map((opt) => ({
+            value: opt.value,
+            label: opt.textContent || opt.value,
+          }));
+        setState({ options, loading: false, error: null });
+      } else if (dataState === "error") {
+        setState((prev) => ({ ...prev, loading: false, error: new Error("Failed to load options") }));
+      } else if (dataState !== "loading") {
+        setState((prev) => ({ ...prev, loading: true }));
+        try {
+          await reg.resolve(element);
+        } catch (error) {
+          if (!cancelled) {
+            setState((prev) => ({ ...prev, error: error as Error, loading: false }));
+          }
         }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setState((prev) => ({ ...prev, error: error as Error, loading: false }));
-        }
-      });
+      }
+    };
+
+    setupElement().catch((error) => {
+      if (!cancelled) {
+        setState((prev) => ({ ...prev, error: error as Error, loading: false }));
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [element]);
 
   useEffect(() => {
     if (!element || !registry) {
@@ -78,10 +107,6 @@ export function useRelationshipOptions(element: HTMLElement | null) {
     element.addEventListener(SUCCESS_EVENT, handleSuccess as EventListener);
     element.addEventListener(ERROR_EVENT, handleError as EventListener);
 
-    registry.resolve(element).catch((error) => {
-      setState((prev) => ({ ...prev, error: error as Error, loading: false }));
-    });
-
     return () => {
       element.removeEventListener(LOADING_EVENT, handleLoading as EventListener);
       element.removeEventListener(SUCCESS_EVENT, handleSuccess as EventListener);
@@ -97,12 +122,7 @@ export function useRelationshipOptions(element: HTMLElement | null) {
       if (!element || !registry) {
         return;
       }
-      setState((prev) => ({ ...prev, loading: true }));
-      try {
-        await registry.resolve(element);
-      } finally {
-        setState((prev) => ({ ...prev, loading: false }));
-      }
+      await registry.resolve(element);
     },
   };
 }
