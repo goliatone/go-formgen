@@ -21,7 +21,7 @@ function announceVersion(): void {
     return;
   }
 
-  const logger = typeof console.debug === "function" ? console.debug : console.log;
+  const logger = typeof console.info === "function" ? console.info : console.log;
   if (typeof logger === "function") {
     logger(`[formgen-relationships] runtime version ${RUNTIME_VERSION}`);
   }
