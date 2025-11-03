@@ -541,6 +541,27 @@ func decorateRelationshipSiblings(fields []Field) {
 		cloned.SourceField = field.Relationship.SourceField
 		field.Relationship = cloned
 		applyRelationshipHints(field)
+
+		if field.Label != "" {
+			host.Label = field.Label
+		}
+		if field.Description != "" && host.Description == "" {
+			host.Description = field.Description
+		}
+		if len(field.UIHints) > 0 {
+			if value, ok := field.UIHints["placeholder"]; ok && value != "" && host.Placeholder == "" {
+				host.Placeholder = value
+			}
+			if value, ok := field.UIHints["label"]; ok && value != "" {
+				host.Label = value
+			}
+			if value, ok := field.UIHints["hint"]; ok && value != "" && host.Description == "" {
+				host.Description = value
+			}
+			if value, ok := field.UIHints["helpText"]; ok && value != "" {
+				host.ensureMetadata()["helpText"] = value
+			}
+		}
 	}
 }
 
