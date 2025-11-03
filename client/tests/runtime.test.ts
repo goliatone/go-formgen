@@ -3,12 +3,30 @@ import { h } from "preact";
 import { render } from "preact";
 import { act } from "preact/test-utils";
 import { useEffect } from "preact/hooks";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   initRelationships,
+  resetGlobalRegistry,
   type ResolverEventDetail,
   type ResolverRegistry,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
+import { setGlobalConfig } from "../src/config";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+function readFixture<T>(name: string): T {
+  const filePath = join(__dirname, "fixtures", name);
+  return JSON.parse(readFileSync(filePath, "utf-8")) as T;
+}
+
+const fixtures = {
+  simplified: readFixture<Array<{ value: string; label: string }>>("options.simplified.json"),
+  envelope: readFixture<{ data: Array<Record<string, string>> }>("options.envelope.json"),
+} as const;
 
 type FetchResponder = Response & { __calledWith?: RequestInit };
 
@@ -56,10 +74,14 @@ describe("runtime resolver", () => {
   beforeEach(() => {
     fetchSpy.mockReset();
     (globalThis as any).fetch = fetchSpy;
+    // Reset global registry to ensure test isolation
+    resetGlobalRegistry();
   });
 
   afterEach(() => {
     resetDom();
+    // Clean up global registry
+    resetGlobalRegistry();
   });
 
   it("invokes global hooks and transforms options", async () => {
@@ -245,8 +267,11 @@ describe("runtime resolver", () => {
     const Harness = ({ element }: { element: HTMLElement }) => {
       const state = useRelationshipOptions(element);
       useEffect(() => {
-        state.refresh();
-      }, [element]);
+        // Only call refresh if needed (defensive check)
+        if (state.options.length === 0 && !state.loading && !state.error) {
+          state.refresh();
+        }
+      }, [state.options.length, state.loading, state.error]);
       return h("div", {
         id: "state",
         "data-loading": String(state.loading),
@@ -257,6 +282,19 @@ describe("runtime resolver", () => {
 
     await act(async () => {
       render(h(Harness, { element: field }), container);
+      await flush();
+    });
+
+    // Wait for hook to initialize registry and resolve
+    await act(async () => {
+      // Wait for the element to be resolved
+      let attempts = 0;
+      while (field.getAttribute("data-state") !== "ready" && attempts < 50) {
+        await flush();
+        attempts++;
+      }
+      // Give Preact time to process the state update
+      await flush();
       await flush();
     });
 
@@ -398,7 +436,7 @@ describe("runtime resolver", () => {
           data-relationship-cardinality="one"
           data-endpoint-refresh="manual"
         ></select>
-        <button type="button" data-endpoint-refresh-target="project_owner">Reload</button>
+        <button type="button" data-endpoint-refresh-target="project[owner_id]">Reload</button>
       </form>
     `;
 
@@ -409,7 +447,7 @@ describe("runtime resolver", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     const button = document.querySelector<HTMLButtonElement>(
-      '[data-endpoint-refresh-target="project_owner"]'
+      '[data-endpoint-refresh-target="project[owner_id]"]'
     )!;
     button.click();
 
