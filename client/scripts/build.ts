@@ -1,5 +1,5 @@
 import { build, context, analyzeMetafile, BuildOptions } from "esbuild";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -78,8 +78,29 @@ async function ensureOutDirs() {
   ]);
 }
 
+async function loadRuntimeVersion(): Promise<string> {
+  try {
+    const raw = await readFile(resolve(projectRoot, "package.json"), "utf8");
+    const parsed = JSON.parse(raw) as { version?: string };
+    if (parsed.version && typeof parsed.version === "string") {
+      return parsed.version;
+    }
+  } catch (error) {
+    console.warn("Unable to read runtime version from package.json:", error);
+  }
+  return "dev";
+}
+
 async function run() {
   await ensureOutDirs();
+
+  const runtimeVersion = await loadRuntimeVersion();
+  const define = {
+    __FORMGEN_RUNTIME_VERSION__: JSON.stringify(runtimeVersion),
+  };
+  esmOptions.define = { ...(esmOptions.define ?? {}), ...define };
+  iifeRuntimeOptions.define = { ...(iifeRuntimeOptions.define ?? {}), ...define };
+  iifePreactOptions.define = { ...(iifePreactOptions.define ?? {}), ...define };
 
   if (watch) {
     const contexts = await Promise.all([
