@@ -8,8 +8,15 @@ import (
 //go:embed templates/*.tmpl
 var embeddedTemplates embed.FS
 
+//go:embed assets/formgen-vanilla.css
+var defaultStyles string
+
 // TemplatesFS exposes the embedded template bundle for consumers that want to
 // use the built-in form rendering out of the box.
 func TemplatesFS() fs.FS {
 	return embeddedTemplates
+}
+
+func defaultStylesheet() string {
+	return defaultStyles
 }
