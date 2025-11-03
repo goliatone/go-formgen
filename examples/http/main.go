@@ -104,10 +104,10 @@ func main() {
 	mux := http.NewServeMux()
 	relationships.register(mux)
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
-	if _, err := os.Stat("client/dist/browser"); err == nil {
-		mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServer(http.Dir("client/dist/browser"))))
+	if runtimeDir, err := exampleutil.RuntimeAssetsPath(); err == nil {
+		mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServer(http.Dir(runtimeDir))))
 	} else {
-		log.Printf("relationship runtime bundle not found on disk; run `cd client && npm run build` to expose /runtime assets")
+		log.Printf("relationship runtime bundle not found at %s; run `cd client && npm run build` to expose /runtime assets", runtimeDir)
 	}
 	mux.Handle("/form", server.formHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -471,7 +471,10 @@ func (c *documentCache) Set(key string, doc pkgopenapi.Document) {
 }
 
 func mustVanilla() render.Renderer {
-	r, err := vanilla.New(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()))
+	r, err := vanilla.New(
+		vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()),
+		vanilla.WithDefaultStyles(),
+	)
 	if err != nil {
 		log.Fatalf("vanilla renderer: %v", err)
 	}
