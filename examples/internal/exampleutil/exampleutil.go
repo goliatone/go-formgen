@@ -19,6 +19,17 @@ func FixturePath(name string) string {
 	return filepath.Join(root, "fixtures", name)
 }
 
+// RuntimeAssetsPath returns the absolute path to the compiled relationship
+// runtime bundle under client/dist/browser.
+func RuntimeAssetsPath() (string, error) {
+	root := examplesRoot()
+	path := filepath.Join(root, "..", "client", "dist", "browser")
+	if _, err := os.Stat(path); err != nil {
+		return filepath.Clean(path), err
+	}
+	return filepath.Clean(path), nil
+}
+
 // ResolveSource converts the raw input into an OpenAPI source and a canonical
 // cache key. Accepts filesystem paths or HTTP(S) URLs.
 func ResolveSource(raw string) (pkgopenapi.Source, string, error) {
