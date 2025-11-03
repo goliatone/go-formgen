@@ -352,6 +352,13 @@ func (d *relationshipDataset) handleAuthors(w http.ResponseWriter, r *http.Reque
 		results = append(results, author)
 	}
 
+	if wantsOptionsFormat(r) {
+		writeRelationshipOptions(w, results, func(a authorRecord) string { return a.ID }, func(a authorRecord) string {
+			return a.FullName
+		})
+		return
+	}
+
 	writeRelationshipData(w, results)
 }
 
@@ -364,6 +371,12 @@ func (d *relationshipDataset) handleCategories(w http.ResponseWriter, r *http.Re
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
 	if search == "" {
+		if wantsOptionsFormat(r) {
+			writeRelationshipOptions(w, d.categories, func(c categoryRecord) string { return c.ID }, func(c categoryRecord) string {
+				return c.Name
+			})
+			return
+		}
 		writeRelationshipData(w, d.categories)
 		return
 	}
@@ -374,12 +387,27 @@ func (d *relationshipDataset) handleCategories(w http.ResponseWriter, r *http.Re
 			results = append(results, category)
 		}
 	}
+
+	if wantsOptionsFormat(r) {
+		writeRelationshipOptions(w, results, func(c categoryRecord) string { return c.ID }, func(c categoryRecord) string {
+			return c.Name
+		})
+		return
+	}
+
 	writeRelationshipData(w, results)
 }
 
 func (d *relationshipDataset) handleManagers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
+		return
+	}
+
+	if wantsOptionsFormat(r) {
+		writeRelationshipOptions(w, d.managers, func(m managerRecord) string { return m.ID }, func(m managerRecord) string {
+			return m.Name
+		})
 		return
 	}
 
@@ -400,7 +428,38 @@ func (d *relationshipDataset) handleTags(w http.ResponseWriter, r *http.Request)
 		}
 		results = append(results, tag)
 	}
+
+	if wantsOptionsFormat(r) {
+		writeRelationshipOptions(w, results, func(t tagRecord) string { return t.ID }, func(t tagRecord) string {
+			return t.Label
+		})
+		return
+	}
+
 	writeRelationshipData(w, results)
+}
+
+func wantsOptionsFormat(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("format")), "options")
+}
+
+func writeRelationshipOptions[T any](w http.ResponseWriter, items []T, value func(T) string, label func(T) string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	payload := make([]map[string]string, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, map[string]string{
+			"value": value(item),
+			"label": label(item),
+		})
+	}
+
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("write relationship options: %v", err)
+	}
 }
 
 func writeRelationshipData(w http.ResponseWriter, items any) {
