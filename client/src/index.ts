@@ -1,3 +1,4 @@
+import "./version";
 import { ResolverRegistry } from "./registry";
 import type {
   GlobalConfig,
@@ -11,7 +12,7 @@ import {
   readDataset,
 } from "./dom";
 import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
-import { registerChipRenderer } from "./renderers/chips";
+import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -51,6 +52,14 @@ export async function initRelationships(
         registry.register(element, { field, endpoint });
       }
 
+      if (
+        field.renderer === "chips" &&
+        element instanceof HTMLSelectElement &&
+        element.multiple
+      ) {
+        bootstrapChips(element);
+      }
+
       setupDependentRefresh(element, field, root, registry);
       setupManualRefresh(element, field, root, registry);
       setupSearchMode(element, field, registry);
@@ -66,6 +75,15 @@ export async function initRelationships(
   }
 
   return registry;
+}
+
+/**
+ * Reset the global registry. Intended for testing only.
+ * @internal
+ */
+export function resetGlobalRegistry(): void {
+  activeRegistry = null;
+  delete (globalThis as Record<string, unknown>).formgenRelationships;
 }
 
 export type {
@@ -85,6 +103,7 @@ export {
   type Renderer,
   type CustomResolver,
 } from "./resolver";
+export { RUNTIME_VERSION } from "./version";
 
 function datasetToEndpoint(dataset: Record<string, string>): EndpointConfig {
   const endpoint: EndpointConfig = {};
@@ -102,6 +121,12 @@ function datasetToEndpoint(dataset: Record<string, string>): EndpointConfig {
   }
   if (dataset.endpointResultsPath) {
     endpoint.resultsPath = dataset.endpointResultsPath;
+  }
+  if (dataset.endpointMode) {
+    endpoint.mode = dataset.endpointMode;
+  }
+  if (dataset.endpointSearchParam) {
+    endpoint.searchParam = dataset.endpointSearchParam;
   }
   if (dataset.endpointSubmitAs) {
     endpoint.submitAs = dataset.endpointSubmitAs;
@@ -386,8 +411,26 @@ function setupSearchMode(
     trigger = createThrottledInvoker(trigger, throttleMs);
   }
 
-  element.addEventListener("input", () => trigger());
-  element.addEventListener("change", () => trigger());
+  const updateSearchValue = () => {
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement
+    ) {
+      const trimmed = element.value.trim();
+      element.setAttribute("data-endpoint-search-value", trimmed);
+    }
+  };
+
+  const handleSearchEvent = () => {
+    updateSearchValue();
+    trigger();
+  };
+
+  element.addEventListener("input", handleSearchEvent);
+
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    element.addEventListener("change", handleSearchEvent);
+  }
 }
 
 function findDependencyTargets(scope: Document | HTMLElement, reference: string): HTMLElement[] {
