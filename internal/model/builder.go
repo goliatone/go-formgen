@@ -482,7 +482,12 @@ func applyRelationshipHints(field *Field) {
 		case FieldTypeArray:
 			hints["input"] = "collection"
 		case FieldTypeObject:
-			hints["input"] = "subform"
+			if shouldRenderObjectRelationshipAsSelect(field) {
+				field.Type = FieldTypeString
+				hints["input"] = "select"
+			} else {
+				hints["input"] = "subform"
+			}
 		default:
 			hints["input"] = "select"
 		}
@@ -491,7 +496,12 @@ func applyRelationshipHints(field *Field) {
 		case FieldTypeArray:
 			hints["input"] = "collection"
 		case FieldTypeObject:
-			hints["input"] = "subform"
+			if shouldRenderObjectRelationshipAsSelect(field) {
+				field.Type = FieldTypeString
+				hints["input"] = "select"
+			} else {
+				hints["input"] = "subform"
+			}
 		default:
 			hints["input"] = "collection"
 		}
@@ -500,6 +510,9 @@ func applyRelationshipHints(field *Field) {
 			hints["input"] = "collection"
 		} else if field.Type == FieldTypeArray {
 			hints["input"] = "collection"
+		} else if shouldRenderObjectRelationshipAsSelect(field) {
+			field.Type = FieldTypeString
+			hints["input"] = "select"
 		} else {
 			hints["input"] = "select"
 		}
@@ -508,11 +521,45 @@ func applyRelationshipHints(field *Field) {
 	if card := field.Relationship.Cardinality; card != "" {
 		hints["cardinality"] = card
 	}
+	if field.Type == FieldTypeArray && hasRelationshipEndpoint(field.Metadata) && hints["input"] == "collection" {
+		hints["collectionRenderer"] = "chips"
+		if metadata := field.ensureMetadata(); metadata["relationship.endpoint.renderer"] == "" {
+			metadata["relationship.endpoint.renderer"] = "chips"
+		}
+	}
 
 	if len(hints) == 0 {
 		return
 	}
 	field.UIHints = mergeUIHints(field.UIHints, hints)
+}
+
+func shouldRenderObjectRelationshipAsSelect(field *Field) bool {
+	if field == nil {
+		return false
+	}
+	if field.Type != FieldTypeObject {
+		return false
+	}
+	if field.Relationship != nil && field.Relationship.SourceField != "" {
+		return false
+	}
+	if len(field.Nested) > 0 {
+		return false
+	}
+	return hasRelationshipEndpoint(field.Metadata)
+}
+
+func hasRelationshipEndpoint(metadata map[string]string) bool {
+	if len(metadata) == 0 {
+		return false
+	}
+	for key := range metadata {
+		if strings.HasPrefix(key, "relationship.endpoint.") {
+			return true
+		}
+	}
+	return false
 }
 
 func decorateRelationshipSiblings(fields []Field) {
@@ -657,6 +704,8 @@ func endpointMetadataFromExtensions(ext map[string]any) map[string]string {
 	add("relationship.endpoint.labelField", strings.TrimSpace(toString(endpointMap["labelField"])))
 	add("relationship.endpoint.valueField", strings.TrimSpace(toString(endpointMap["valueField"])))
 	add("relationship.endpoint.resultsPath", strings.TrimSpace(toString(endpointMap["resultsPath"])))
+	add("relationship.endpoint.mode", strings.TrimSpace(toString(endpointMap["mode"])))
+	add("relationship.endpoint.searchParam", strings.TrimSpace(toString(endpointMap["searchParam"])))
 	add("relationship.endpoint.submitAs", strings.TrimSpace(toString(endpointMap["submitAs"])))
 
 	if params := toStringMap(endpointMap["params"]); len(params) > 0 {
