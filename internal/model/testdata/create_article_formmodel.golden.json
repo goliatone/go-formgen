@@ -29,7 +29,7 @@
       "type": "string",
       "format": "uuid",
       "required": true,
-      "label": "Author Id",
+      "label": "Author",
       "metadata": {
         "label-field": "full_name",
         "relationship.endpoint.labelField": "full_name"
@@ -81,7 +81,7 @@
       "name": "manager_id",
       "type": "string",
       "required": false,
-      "label": "Manager Id",
+      "label": "Manager",
       "uiHints": {
         "cardinality": "one",
         "input": "select"
