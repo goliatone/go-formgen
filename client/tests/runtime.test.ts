@@ -52,7 +52,7 @@ function mockFailure(status: number, body?: unknown): Response {
 function createMarkup(extra?: string): HTMLSelectElement {
   document.body.innerHTML = `
     <form data-formgen-auto-init="true">
-      <select id="project_owner" name="project[owner_id]" data-endpoint-url="/api/users" data-endpoint-method="GET" data-relationship-cardinality="one" ${
+      <select id="project_owner" name="project[owner_id]" data-endpoint-url="/api/users" data-endpoint-method="GET" data-endpoint-label-field="full_name" data-endpoint-value-field="id" data-relationship-cardinality="one" ${
         extra ?? ""
       }></select>
     </form>
@@ -74,6 +74,7 @@ describe("runtime resolver", () => {
   beforeEach(() => {
     fetchSpy.mockReset();
     (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
     // Reset global registry to ensure test isolation
     resetGlobalRegistry();
   });
@@ -86,7 +87,7 @@ describe("runtime resolver", () => {
 
   it("invokes global hooks and transforms options", async () => {
     createMarkup();
-    fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
 
     const beforeFetch = vi.fn();
     const afterFetch = vi.fn();
@@ -114,9 +115,45 @@ describe("runtime resolver", () => {
     expect(option?.textContent).toBe("ALICE");
   });
 
+  it("requests simplified options format by default", async () => {
+    const field = createMarkup();
+    let requestedUrl: string | undefined;
+    fetchSpy.mockImplementation(async (url, init) => {
+      requestedUrl = url;
+      return mockResponse(fixtures.simplified);
+    });
+
+    await initRelationships();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestedUrl).toBe("/api/users?format=options");
+
+    const option = field.querySelector<HTMLOptionElement>("option");
+    expect(option?.value).toBe("1");
+    expect(option?.textContent).toBe("Alice");
+  });
+
+  it("handles legacy envelopes when resultsPath is provided", async () => {
+    const field = createMarkup('data-endpoint-results-path="data"');
+    let requestedUrl: string | undefined;
+    fetchSpy.mockImplementation(async (url, init) => {
+      requestedUrl = url;
+      return mockResponse(fixtures.envelope);
+    });
+
+    await initRelationships();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestedUrl).toBe("/api/users");
+
+    const option = field.querySelector<HTMLOptionElement>("option");
+    expect(option?.value).toBe("1");
+    expect(option?.textContent).toBe("Alice");
+  });
+
   it("emits lifecycle events with resolver detail", async () => {
     const field = createMarkup();
-    fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
 
     const events: string[] = [];
     const details: ResolverEventDetail[] = [];
@@ -132,13 +169,13 @@ describe("runtime resolver", () => {
     await initRelationships();
 
     expect(events).toEqual(["loading", "success"]);
-    expect(details[1].options?.[0].label).toBe("ALICE");
+    expect(details[1].options?.[0].label).toBe("Alice");
     expect(field.getAttribute("data-state")).toBe("ready");
   });
 
   it("avoids duplicate fetches when cache is enabled", async () => {
     const field = createMarkup();
-    fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
 
     const registry = await initRelationships({ cache: { strategy: "memory", ttlMs: 1000 } });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -148,6 +185,102 @@ describe("runtime resolver", () => {
 
     await registry.resolve(field);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("propagates search input to resolver requests", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select id="tags" name="article[tags][]" multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-relationship-cardinality="many"></select>
+      </form>
+    `;
+
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+
+    fetchSpy.mockClear();
+
+    await flush();
+
+    const searchInput = document.querySelector<HTMLInputElement>(".fg-chip-select__search-input");
+    expect(searchInput).not.toBeNull();
+    searchInput!.value = "tag";
+    searchInput!.dispatchEvent(new Event("input", { bubbles: true }));
+
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const requestUrl = fetchSpy.mock.calls[0]?.[0];
+    expect(requestUrl).toContain("q=tag");
+  });
+
+  it("filters chip menus during search and resets after clearing", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select id="tags" name="article[tags][]" multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-relationship-cardinality="many"></select>
+      </form>
+    `;
+
+    const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+    const select = document.getElementById("tags") as HTMLSelectElement;
+
+    fetchSpy.mockResolvedValue(
+      mockResponse([
+        { value: "design", label: "Product Design" },
+        { value: "ai", label: "AI Strategy" },
+        { value: "ml", label: "Machine Learning" },
+      ])
+    );
+
+    await registry.resolve(select);
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    const toggle = container.querySelector<HTMLButtonElement>(".fg-chip-select__action--toggle")!;
+    toggle.click();
+    await flush();
+
+    const searchInput = container.querySelector<HTMLInputElement>(".fg-chip-select__search-input")!;
+    const menuItems = () =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>(".fg-chip-select__menu-item"));
+
+    expect(menuItems().length).toBe(3);
+
+    searchInput.value = "ai";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    const filtered = menuItems();
+    expect(filtered.length).toBe(1);
+    expect(filtered[0]?.dataset.value).toBe("ai");
+    expect(filtered[0]?.querySelector(".fg-chip-select__search-highlight")).not.toBeNull();
+
+    searchInput.value = "";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    expect(menuItems().length).toBe(3);
+
+    fetchSpy.mockClear();
+
+    menuItems()[0]?.click();
+    await flush();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(select.getAttribute("data-endpoint-search-value")).toBe("");
+    expect(searchInput.value).toBe("");
   });
 
   it("applies auth headers declared in metadata", async () => {
@@ -346,7 +479,7 @@ describe("runtime resolver", () => {
         <input id="project_lookup" name="project_lookup"
           data-endpoint-url="/api/projects"
           data-endpoint-mode="search"
-          data-endpoint-dynamic-params-q="{{self}}"
+          data-endpoint-search-param="q"
         />
       </form>
     `;
