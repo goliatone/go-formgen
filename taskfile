@@ -96,19 +96,23 @@ function dev:env:load {
 }
 
 function dev:test {
-    _go:exec go test ./...
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    _go:exec "${go_bin}" test ./...
 }
 
 function dev:cover {
-    go test -coverprofile=coverage.out ./... && go tool cover -func coverage.out
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    "${go_bin}" test -coverprofile=coverage.out ./... && "${go_bin}" tool cover -func coverage.out
 }
 
 function dev:test:contracts {
-    _go:exec go test ./... -run '(Contract|Integration)' -count=1
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    _go:exec "${go_bin}" test ./... -run '(Contract|Integration)' -count=1
 }
 
 function dev:lint {
-    _go:exec go vet ./...
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    _go:exec "${go_bin}" vet ./...
     if command -v golangci-lint >/dev/null 2>&1; then
         golangci-lint run ./...
     else
@@ -116,10 +120,81 @@ function dev:lint {
     fi
 }
 
-function dev:ci {
-    dev:test && dev:test:contracts && dev:lint
+function dev:lint:extensions {
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    local args=("$@")
+    if [ ${#args[@]} -eq 0 ]; then
+        args=(examples/fixtures/petstore.json examples/http/schema.json)
+    fi
+    _go:exec "${go_bin}" run ./cmd/formgen-lint-extensions "${args[@]}"
 }
 
+function dev:test:examples {
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    _go:exec "${go_bin}" test -tags example ./examples/...
+}
+
+function dev:goldens {
+    ./scripts/update_goldens.sh "$@"
+}
+
+function dev:ci {
+    dev:test && dev:test:contracts && dev:test:examples && dev:lint
+}
+
+##
+## ########################################
+##           Client Management
+## ########################################
+
+function client:build {
+    cd "./client" || exit 1
+    npm run build
+}
+
+function client:release {
+    local level=${1:-patch}
+    case "$level" in
+        major|minor|patch) ;;
+        *)
+            echo "Invalid release level: ${level}. Use major, minor, or patch." >&2
+            return 1
+        ;;
+    esac
+
+    (
+        cd "./client" || exit 1
+        node - "$level" <<'NODE'
+const fs = require("fs");
+const path = require("path");
+
+const level = process.argv[2] || "patch";
+const pkgPath = path.resolve("package.json");
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+const source = typeof pkg.version === "string" ? pkg.version : "0.0.0";
+const segments = source.split(".").map((value) => Number.parseInt(value, 10));
+if (segments.length !== 3 || segments.some((n) => Number.isNaN(n) || n < 0)) {
+  throw new Error(`Invalid version "${source}"`);
+}
+
+if (level === "major") {
+  segments[0] += 1;
+  segments[1] = 0;
+  segments[2] = 0;
+} else if (level === "minor") {
+  segments[1] += 1;
+  segments[2] = 0;
+} else {
+  segments[2] += 1;
+}
+
+const next = segments.join(".");
+pkg.version = next;
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+console.log(`formgen-runtime version bumped to ${next}`);
+NODE
+    )
+}
 ##
 ## ########################################
 ##           Version Management
