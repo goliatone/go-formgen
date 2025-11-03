@@ -17,7 +17,7 @@ fi
 
 # This makes all bin packages installed via npm available here
 # e.g. bogota, nyc, autocannon, etc.
-PATH=$(pwd)/node_modules/.bin:$PATH
+PATH=$(pwd)/client/node_modules/.bin:$PATH
 
 # This will make all scripts available in the ./src/bin directory
 PATH=$(pwd)/src/bin:$PATH
@@ -148,23 +148,30 @@ function dev:ci {
 ## ########################################
 
 function client:build {
-    cd "./client" || exit 1
+    pushd "./client" >/dev/null || exit 1
     npm run build
+    popd >/dev/null || exit 1
 }
 
 function client:release {
     local level=${1:-patch}
+
+    client:version:bump "$level"
+    client:build
+}
+
+function client:version:bump {
+    local level=${1:-patch}
     case "$level" in
         major|minor|patch) ;;
         *)
-            echo "Invalid release level: ${level}. Use major, minor, or patch." >&2
+            echo "Invalid version level: ${level}. Use major, minor, or patch." >&2
             return 1
         ;;
     esac
 
-    (
-        cd "./client" || exit 1
-        node - "$level" <<'NODE'
+    pushd "./client" >/dev/null || exit 1
+    node - "$level" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 
@@ -193,7 +200,7 @@ pkg.version = next;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 console.log(`formgen-runtime version bumped to ${next}`);
 NODE
-    )
+    popd >/dev/null || exit 1
 }
 ##
 ## ########################################
