@@ -170,13 +170,32 @@ func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[strin
 }
 
 func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
+	return convertSchemaWithState(ref, make(map[*openapi3.Schema]pkgopenapi.Schema), make(map[*openapi3.Schema]struct{}))
+}
+
+func convertSchemaWithState(
+	ref *openapi3.SchemaRef,
+	cache map[*openapi3.Schema]pkgopenapi.Schema,
+	active map[*openapi3.Schema]struct{},
+) pkgopenapi.Schema {
 	if ref == nil {
 		return pkgopenapi.Schema{}
 	}
 	if ref.Value == nil {
 		return pkgopenapi.Schema{Ref: ref.Ref}
 	}
+
 	src := ref.Value
+	if cached, ok := cache[src]; ok {
+		return cached
+	}
+	if _, ok := active[src]; ok {
+		result := pkgopenapi.Schema{Ref: ref.Ref}
+		cache[src] = result
+		return result
+	}
+	active[src] = struct{}{}
+
 	schema := pkgopenapi.Schema{
 		Ref:         ref.Ref,
 		Type:        firstSchemaType(src.Type),
@@ -194,12 +213,12 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 	if len(src.Properties) > 0 {
 		properties := make(map[string]pkgopenapi.Schema, len(src.Properties))
 		for name, property := range src.Properties {
-			properties[name] = convertSchema(property)
+			properties[name] = convertSchemaWithState(property, cache, active)
 		}
 		schema.Properties = propagateRelationshipMetadata(properties)
 	}
 	if src.Items != nil {
-		items := convertSchema(src.Items)
+		items := convertSchemaWithState(src.Items, cache, active)
 		schema.Items = &items
 	}
 	if src.Min != nil {
@@ -224,7 +243,10 @@ func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
 		schema.Pattern = src.Pattern
 	}
 	schema.Extensions = extractExtensions(src.Extensions)
-	mergeAllOfExtensions(&schema, src.AllOf)
+	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
+
+	delete(active, src)
+	cache[src] = schema
 	return schema
 }
 
@@ -283,13 +305,19 @@ func extractExtensions(raw map[string]any) map[string]any {
 	return result
 }
 
-func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs) {
+func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, visited map[*openapi3.Schema]struct{}) {
 	if target == nil || len(refs) == 0 {
 		return
 	}
 	for _, ref := range refs {
 		if ref == nil || ref.Value == nil {
 			continue
+		}
+		if visited != nil {
+			if _, seen := visited[ref.Value]; seen {
+				continue
+			}
+			visited[ref.Value] = struct{}{}
 		}
 		if ext := extractExtensions(ref.Value.Extensions); len(ext) > 0 {
 			if target.Extensions == nil {
@@ -299,7 +327,7 @@ func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs) {
 				target.Extensions[key] = value
 			}
 		}
-		mergeAllOfExtensions(target, ref.Value.AllOf)
+		mergeAllOfExtensions(target, ref.Value.AllOf, visited)
 	}
 }
 
