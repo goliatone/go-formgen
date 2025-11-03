@@ -19,6 +19,8 @@ type Option func(*config)
 type config struct {
 	templateFS       fs.FS
 	templateRenderer rendertemplate.TemplateRenderer
+	inlineStyles     string
+	stylesheets      []string
 }
 
 // WithTemplatesFS supplies an alternate template bundle via fs.FS.
@@ -47,8 +49,48 @@ func WithTemplateRenderer(renderer rendertemplate.TemplateRenderer) Option {
 	}
 }
 
+// WithDefaultStyles injects the bundled CSS into the rendered form so the
+// output looks polished during development. Downstream consumers can skip this
+// option or call WithoutStyles for unstyled markup.
+func WithDefaultStyles() Option {
+	return func(cfg *config) {
+		cfg.inlineStyles = strings.TrimSpace(defaultStylesheet())
+	}
+}
+
+// WithInlineStyles allows callers to provide custom inline CSS that will be
+// emitted in a <style> block above the rendered form.
+func WithInlineStyles(css string) Option {
+	return func(cfg *config) {
+		if trimmed := strings.TrimSpace(css); trimmed != "" {
+			cfg.inlineStyles = trimmed
+		}
+	}
+}
+
+// WithStylesheet appends a <link rel="stylesheet"> tag that references the
+// provided path.
+func WithStylesheet(path string) Option {
+	return func(cfg *config) {
+		if trimmed := strings.TrimSpace(path); trimmed != "" {
+			cfg.stylesheets = append(cfg.stylesheets, trimmed)
+		}
+	}
+}
+
+// WithoutStyles disables any inline styles or external stylesheets that have
+// been configured so far.
+func WithoutStyles() Option {
+	return func(cfg *config) {
+		cfg.inlineStyles = ""
+		cfg.stylesheets = nil
+	}
+}
+
 type Renderer struct {
-	templates rendertemplate.TemplateRenderer
+	templates   rendertemplate.TemplateRenderer
+	inlineStyle string
+	stylesheets []string
 }
 
 const dataAttributesMetadataKey = "__data_attrs"
@@ -79,7 +121,11 @@ func New(options ...Option) (*Renderer, error) {
 		renderer = engine
 	}
 
-	return &Renderer{templates: renderer}, nil
+	return &Renderer{
+		templates:   renderer,
+		inlineStyle: cfg.inlineStyles,
+		stylesheets: append([]string(nil), cfg.stylesheets...),
+	}, nil
 }
 
 func (r *Renderer) Name() string {
@@ -98,7 +144,9 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 	decorated := decorateFormModel(form)
 
 	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
-		"form": decorated,
+		"form":          decorated,
+		"stylesheets":   r.stylesheets,
+		"inline_styles": r.inlineStyle,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("vanilla renderer: render template: %w", err)
