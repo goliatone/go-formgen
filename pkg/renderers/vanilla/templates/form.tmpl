@@ -18,12 +18,14 @@
 {% if not (rel and rel.sourceField) %}
 <div class="fg-field fg-type-{{ field.type }}{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% elif field.uiHints.class %} {{ field.uiHints.class }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.foreignKey %} data-relationship-foreign-key="{{ rel.foreignKey }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
     {% if field.uiHints.hideLabel != "true" and field.label %}<label for="fg-{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>{% endif %}
-    {% if field.type == "array" or field.uiHints.input == "collection" %}
+    {% if field.type == "array" %}
         {{ render_array(field)|safe }}
-    {% elif field.type == "object" or field.uiHints.input == "subform" %}
-        {{ render_object(field)|safe }}
+    {% elif field.uiHints.input == "collection" %}
+        {{ render_array(field)|safe }}
     {% elif field.uiHints.input == "select" %}
         {{ render_select(field)|safe }}
+    {% elif field.type == "object" or field.uiHints.input == "subform" %}
+        {{ render_object(field)|safe }}
     {% elif field.type == "boolean" %}
         {{ render_boolean(field)|safe }}
     {% else %}
@@ -44,8 +46,11 @@
 </fieldset>
 {% endmacro %}
 
-{%- macro render_array(field) %}
+{%- macro render_array(field) -%}
 {% set rel = field.relationship -%}
+{%- if field.uiHints.collectionRenderer == "select" or field.uiHints.collectionRenderer == "chips" -%}
+    {{ render_select(field)|safe }}
+{% else %}
 <div class="fg-array{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
     {% if field.uiHints.repeaterLabel %}<div class="fg-array__label">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
     {% if field.items %}
@@ -65,7 +70,8 @@
         <p class="fg-array__notice">Array field {{ field.name }} requires item definition.</p>
     {% endif %}
 </div>
-{% endmacro %}
+{% endif %}
+{%- endmacro %}
 
 {%- macro render_boolean(field) %}
 <input id="fg-{{ field.name }}" type="checkbox" name="{{ field.name }}" {% if field.default %}checked{% endif %}>
