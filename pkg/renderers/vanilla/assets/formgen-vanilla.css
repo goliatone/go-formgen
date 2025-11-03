@@ -1,0 +1,124 @@
+:root {
+  --fg-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fg-label-color: #111827;
+  --fg-input-border: #d1d5db;
+  --fg-input-border-focus: #2563eb;
+  --fg-input-background: #ffffff;
+  --fg-input-text: #111827;
+  --fg-help-text: #6b7280;
+  --fg-card-background: #f9fafb;
+}
+
+.fg-form {
+  font-family: var(--fg-font-family);
+  display: grid;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--fg-card-background);
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.fg-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.fg-field label {
+  font-weight: 600;
+  color: var(--fg-label-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.fg-field__help,
+.fg-field__hint {
+  color: var(--fg-help-text);
+  font-size: 0.875rem;
+}
+
+.fg-field input,
+.fg-field select,
+.fg-field textarea {
+  width: 100%;
+  border: 1px solid var(--fg-input-border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--fg-input-background);
+  color: var(--fg-input-text);
+  font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fg-field input:focus,
+.fg-field select:focus,
+.fg-field textarea:focus {
+  outline: none;
+  border-color: var(--fg-input-border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.fg-array {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px dashed #d1d5db;
+  background: #fff;
+}
+
+.fg-array__items {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.fg-array__add {
+  justify-self: start;
+  border: 1px solid var(--fg-input-border);
+  background: #fff;
+  color: #111827;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.fg-array__add:hover {
+  border-color: var(--fg-input-border-focus);
+  color: var(--fg-input-border-focus);
+}
+
+.fg-fieldset {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+  display: grid;
+  gap: 1rem;
+}
+
+.fg-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fg-actions button {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.fg-actions button:hover {
+  background: #1e4ed8;
+}
+
+.fg-actions button:active {
+  transform: translateY(1px);
+}
