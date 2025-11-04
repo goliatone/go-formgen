@@ -1,0 +1,92 @@
+{
+  "operations": {
+    "createArticle": {
+      "form": {
+        "title": "Create New Session",
+        "subtitle": "Basic Information",
+        "layout": {
+          "gridColumns": 12,
+          "gutter": "md"
+        },
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "href": "/sessions"
+          },
+          {
+            "kind": "primary",
+            "label": "Create Session",
+            "type": "submit"
+          }
+        ],
+        "metadata": {
+          "hero": "session"
+        },
+        "uiHints": {
+          "theme": "garden"
+        }
+      },
+      "sections": [
+        {
+          "id": "basic-info",
+          "title": "Basic Information",
+          "description": "Session metadata and scheduling.",
+          "order": 0,
+          "fieldset": true
+        },
+        {
+          "id": "schedule",
+          "title": "Schedule",
+          "description": "Timing details",
+          "order": 1
+        }
+      ],
+      "fields": {
+        "session_name": {
+          "section": "basic-info",
+          "order": 0,
+          "grid": {
+            "span": 12
+          },
+          "helpText": "Visible to attendees",
+          "uiHints": {
+            "input": "text"
+          }
+        },
+        "event_id": {
+          "section": "basic-info",
+          "order": 1,
+          "grid": {
+            "span": 6
+          },
+          "component": "event-select",
+          "componentOptions": {
+            "placeholder": "Search events"
+          }
+        },
+        "session_time": {
+          "section": "schedule",
+          "order": 2,
+          "grid": {
+            "span": 6,
+            "start": 7
+          },
+          "widget": "datetime",
+          "metadata": {
+            "timezone": "UTC"
+          }
+        },
+        "notes": {
+          "section": "schedule",
+          "order": 3,
+          "grid": {
+            "span": 12
+          },
+          "widget": "textarea",
+          "cssClass": "fg-field--notes"
+        }
+      }
+    }
+  }
+}

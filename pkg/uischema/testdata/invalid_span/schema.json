@@ -1,0 +1,18 @@
+{
+  "operations": {
+    "createArticle": {
+      "form": {
+        "layout": {
+          "gridColumns": 4
+        }
+      },
+      "fields": {
+        "session_name": {
+          "grid": {
+            "span": 6
+          }
+        }
+      }
+    }
+  }
+}

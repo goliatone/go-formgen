@@ -1,0 +1,27 @@
+operations:
+  updateManager:
+    form:
+      layout:
+        gridColumns: 6
+        gutter: sm
+    sections:
+      - id: management
+        title: Management
+        order: 0
+        fieldset: true
+    fields:
+      manager.id:
+        section: management
+        order: 0
+        grid:
+          span: 3
+      manager.name:
+        section: management
+        order: 1
+        grid:
+          span: 3
+      tags[].id:
+        section: management
+        order: 2
+        grid:
+          span: 6

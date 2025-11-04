@@ -1,0 +1,11 @@
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "nonexistent": {
+          "order": 0
+        }
+      }
+    }
+  }
+}

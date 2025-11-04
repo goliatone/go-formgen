@@ -1,0 +1,14 @@
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "tags[].id": {
+          "order": 0
+        },
+        "tags.items.id": {
+          "order": 1
+        }
+      }
+    }
+  }
+}
