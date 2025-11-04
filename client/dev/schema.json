@@ -1,0 +1,311 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Formgen Relationship Demo API",
+    "version": "1.0.0",
+    "description": "Sample schema showcasing relationship-aware form generation."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local demo server"
+    }
+  ],
+  "paths": {
+    "/articles": {
+      "post": {
+        "summary": "Create an article with related entities",
+        "operationId": "createArticle",
+        "tags": [
+          "Articles"
+        ],
+        "requestBody": {
+          "description": "Article payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "article"
+                ],
+                "properties": {
+                  "article": {
+                    "type": "object",
+                    "description": "Article attributes",
+                    "required": [
+                      "title",
+                      "author_id"
+                    ],
+                    "x-formgen-relations": {
+                      "includes": [
+                        "author",
+                        "author.manager",
+                        "category",
+                        "tags"
+                      ],
+                      "relations": [
+                        {
+                          "name": "author",
+                          "filters": [
+                            {
+                              "field": "full_name",
+                              "operator": "ilike"
+                            }
+                          ]
+                        },
+                        {
+                          "name": "tags",
+                          "filters": [
+                            {
+                              "field": "label",
+                              "operator": "ilike"
+                            }
+                          ]
+                        }
+                      ],
+                      "tree": {
+                        "name": "article",
+                        "children": {
+                          "author": {
+                            "name": "author",
+                            "children": {
+                              "manager": {
+                                "name": "manager"
+                              }
+                            }
+                          },
+                          "tags": {
+                            "name": "tags"
+                          }
+                        }
+                      }
+                    },
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Human readable title"
+                      },
+                      "slug": {
+                        "type": "string",
+                        "description": "URL friendly identifier"
+                      },
+                      "tenant_id": {
+                        "type": "string",
+                        "description": "Tenant scope to demonstrate dynamic params"
+                      },
+                      "author": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Author"
+                          }
+                        ],
+                        "type": "object",
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Author",
+                          "foreignKey": "author_id",
+                          "cardinality": "one",
+                          "sourceField": "author_id"
+                        }
+                      },
+                      "author_id": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/UUID"
+                          }
+                        ],
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Author",
+                          "foreignKey": "author_id",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/authors",
+                          "method": "GET",
+                          "labelField": "full_name",
+                          "valueField": "id",
+                          "params": {
+                            "include": "profile",
+                            "limit": "50",
+                            "order": "full_name asc",
+                            "select": "id,full_name",
+                            "format": "options"
+                          },
+                          "dynamicParams": {
+                            "tenant_id": "{{field:tenant_id}}"
+                          }
+                        }
+                      },
+                      "category_id": {
+                        "type": "string",
+                        "description": "Select a category",
+                        "x-relationships": {
+                          "type": "belongsTo",
+                          "target": "#/components/schemas/Category",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/categories",
+                          "method": "GET",
+                          "labelField": "name",
+                          "valueField": "id",
+                          "params": {
+                            "limit": "50",
+                            "order": "name asc",
+                            "select": "id,name",
+                            "format": "options"
+                          }
+                        }
+                      },
+                      "manager": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Manager"
+                          }
+                        ],
+                        "type": "object",
+                        "x-relationships": {
+                          "type": "hasOne",
+                          "target": "#/components/schemas/Manager",
+                          "foreignKey": "manager_id",
+                          "cardinality": "one",
+                          "sourceField": "manager_id"
+                        }
+                      },
+                      "manager_id": {
+                        "type": "string",
+                        "description": "Associate a manager",
+                        "x-relationships": {
+                          "type": "hasOne",
+                          "target": "#/components/schemas/Manager",
+                          "foreignKey": "manager_id",
+                          "cardinality": "one"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/managers",
+                          "method": "GET",
+                          "labelField": "name",
+                          "valueField": "id",
+                          "params": {
+                            "order": "name asc",
+                            "select": "id,name",
+                            "format": "options"
+                          }
+                        }
+                      },
+                      "tags": {
+                        "type": "array",
+                        "description": "Tags applied to the article",
+                        "items": {
+                          "$ref": "#/components/schemas/Tag"
+                        },
+                        "x-relationships": {
+                          "type": "hasMany",
+                          "target": "#/components/schemas/Tag",
+                          "inverse": "article",
+                          "cardinality": "many"
+                        },
+                        "x-endpoint": {
+                          "url": "/api/tags",
+                          "method": "GET",
+                          "labelField": "label",
+                          "valueField": "id",
+                          "params": {
+                            "limit": "50",
+                            "order": "label asc",
+                            "select": "id,label",
+                            "format": "options"
+                          },
+                          "mode": "search",
+                          "searchParam": "q",
+                          "submitAs": "json"
+                        }
+                      },
+                      "published_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Optional publication timestamp"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Article created"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UUID": {
+        "type": "string",
+        "format": "uuid",
+        "description": "Canonical UUID string"
+      },
+      "Author": {
+        "type": "object",
+        "description": "Author resource",
+        "x-formgen-label-field": "full_name",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "description": "Category resource",
+        "x-formgen-label-field": "name",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Manager": {
+        "type": "object",
+        "description": "Manager resource",
+        "x-formgen-label-field": "name",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "description": "Tag resource",
+        "x-formgen-label-field": "label",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
