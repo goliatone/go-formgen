@@ -1,7 +1,7 @@
 {
   "name": "@goliatone/formgen-runtime",
   "private": false,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "scripts": {
     "build": "npm run build:types && npm run build:bundle",
@@ -9,7 +9,9 @@
     "build:stats": "tsx scripts/build.ts --analyze",
     "build:types": "tsc --project tsconfig.build.json",
     "watch": "tsx scripts/build.ts --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev": "vite dev",
+    "preview": "vite preview"
   },
   "module": "./dist/esm/index.js",
   "browser": "./dist/browser/formgen-relationships.min.js",
