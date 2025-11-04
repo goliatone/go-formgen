@@ -1,206 +1,140 @@
-
-
-<form class="fg-form" method="POST" action="/widgets" data-formgen-auto-init="true">
+<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="POST" action="/widgets" data-formgen-auto-init="true">
     
+    <header class="grid gap-1">
+        <h1 class="text-2xl font-semibold text-gray-900">Create Widget</h1>
+        <p class="text-gray-600">Configure widget metadata and associations.</p>
+    </header>
+    
+
+    
+    <div class="grid gap-4 grid-cols-True">
         
-
-<div class="fg-field fg-type-string fg-field--name">
-    <label for="fg-name">Name *</label>
-    
-        
-
-
-<textarea id="fg-name" name="name" placeholder="Give it a friendly name" required></textarea>
-
-
-
-    
-    <small class="fg-field__help">Widget name</small>
-    <small class="fg-field__hint">Shown to customers</small>
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2 fg-fieldset--settings" data-component="object">
+    <label for="fg-settings" class="text-sm font-medium text-gray-900">Settings</label>
+    <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4 border-l-4 border-l-blue-600"><legend class="text-sm font-medium">Settings</legend><div class="grid gap-2" data-component="boolean">
+        <div class="flex items-center gap-2">
+            <input id="fg-enabled" type="checkbox" name="enabled" class="h-4 w-4 rounded border-gray-300">
+            <label for="fg-enabled" class="text-sm font-medium">Enable widget</label>
+        </div>
+    </div>
+    <div class="grid gap-2" data-component="input">
+        <label for="fg-threshold" class="text-sm font-medium text-gray-900">Threshold</label>
+        <input id="fg-threshold" type="range"
+            name="threshold" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <small class="text-sm text-gray-600">Controls the debounce window</small>
+    </div>
+    </fieldset>
 </div>
 
-
-    
+        </div>
         
-
-<div class="fg-field fg-type-string">
-    <label for="fg-title">Title</label>
+    </div>
     
+
+    
+    
+    <section class="grid gap-4 border border-gray-200 rounded-lg p-5 bg-white border-none p-0">
         
-
-
-<input id="fg-title" type="text" name="title"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-string" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
-    <label for="fg-author_id">Author *</label>
-    
-        
-<select id="fg-author_id" name="author_id" required data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-cardinality="one">
-    
-        
-            <option value="">Select an author</option>
-        
-    
-</select>
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-
-    
-        
-
-<div class="fg-field fg-type-string" data-relationship-type="hasOne" data-relationship-target="#/components/schemas/Manager" data-relationship-foreign-key="manager_id" data-relationship-cardinality="one">
-    <label for="fg-manager_id">Manager Id</label>
-    
-        
-<select id="fg-manager_id" name="manager_id"  data-relationship-type="hasOne" data-relationship-target="#/components/schemas/Manager" data-relationship-cardinality="one">
-    
-        
-            <option value="">Select a manager</option>
-        
-    
-</select>
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-object fg-fieldset--settings">
-    <label for="fg-settings">Settings</label>
-    
-        
-<fieldset class="fg-fieldset fg-fieldset--accordion">
-    
-        
-
-<div class="fg-field fg-type-boolean">
-    
-    
-        
-<input id="fg-enabled" type="checkbox" name="enabled" >
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-number">
-    <label for="fg-threshold">Threshold</label>
-    
-        
-
-
-<input id="fg-threshold" type="range" name="threshold"   value="">
-
-
-
-    
-    
-    <small class="fg-field__hint">Controls the debounce window</small>
-</div>
-
-
-    
-</fieldset>
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-array fg-array--tags" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
-    <label for="fg-tags">Tags</label>
-    
-        
-<div class="fg-array fg-array--tags" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
-    <div class="fg-array__label">Tag</div>
-    
-        
-        <div class="fg-array__items" data-relationship-collection="many">
-        
+        <header class="grid gap-1">
+            <h2 class="text-xl font-semibold">Details</h2>
             
-
-<div class="fg-field fg-type-object fg-array__item" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
-    <label for="fg-tagsItem">Tags item</label>
-    
+        </header>
         
-<fieldset class="fg-fieldset" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
-    
         
-
-<div class="fg-field fg-type-string">
-    <label for="fg-id">Id</label>
-    
-        
-
-
-<input id="fg-id" type="text" name="id"   value="">
-
-
-
-    
-    
-    
+        <fieldset class="border-none rounded-lg m-0 p-5 bg-gray-50">
+            <div class="grid gap-4 grid-cols-True">
+                
+                <div class="fg-grid__item" style="--fg-grid-span: 6">
+                    <div class="grid gap-2 fg-field--name" data-component="textarea">
+    <label for="fg-name" class="text-sm font-medium text-gray-900">Name *</label>
+    <textarea id="fg-name" name="name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Give it a friendly name" required></textarea>
+    <small class="text-sm text-gray-500">Widget name</small>
+    <small class="text-sm text-gray-600">Shown to customers</small>
 </div>
 
-
-    
-</fieldset>
-
-    
-    
-    
+                </div>
+                
+                <div class="fg-grid__item" style="--fg-grid-span: 6">
+                    <div class="grid gap-2" data-component="input">
+    <label for="fg-title" class="text-sm font-medium text-gray-900">Title</label>
+    <input id="fg-title" type="text"
+        name="title" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
 </div>
 
-
+                </div>
+                
+            </div>
+        </fieldset>
+        
+    </section>
+    
+    <section class="grid gap-4 border border-gray-200 rounded-lg p-5 bg-white">
+        
+        <header class="grid gap-1">
+            <h2 class="text-xl font-semibold">Relationships</h2>
             
-            <button type="button" class="fg-array__add" data-relationship-action="add">
-                Add Tag
-            </button>
+        </header>
+        
+        
+        <div class="grid gap-4 grid-cols-True">
+            
+            <div class="fg-grid__item" style="--fg-grid-span: 6">
+                <div class="grid gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
+    <label for="fg-author_id" class="text-sm font-medium text-gray-900">Author *</label>
+    <select id="fg-author_id" name="author_id" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-cardinality="one">
+                <option value="">Select an author</option>
+    </select>
+</div>
+
+            </div>
+            
+            <div class="fg-grid__item" style="--fg-grid-span: 6">
+                <div class="grid gap-2" data-component="select" data-relationship-type="hasOne" data-relationship-target="#/components/schemas/Manager" data-relationship-foreign-key="manager_id" data-relationship-cardinality="one">
+    <label for="fg-manager_id" class="text-sm font-medium text-gray-900">Manager Id</label>
+    <select id="fg-manager_id" name="manager_id" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" data-relationship-type="hasOne" data-relationship-target="#/components/schemas/Manager" data-relationship-cardinality="one">
+                <option value="">Select a manager</option>
+    </select>
+</div>
+
+            </div>
+            
+            <div class="fg-grid__item" style="--fg-grid-span: 12">
+                <div class="grid gap-2 fg-array--tags" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
+    <label for="fg-tags" class="text-sm font-medium text-gray-900">Tags</label>
+    <div class="grid gap-3 fg-array--tags"><div class="text-sm font-medium">Tag</div><div class="grid gap-2" data-relationship-collection="many"><div class="grid gap-2 fg-array__item" data-component="object" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Tag" data-relationship-cardinality="many" data-relationship-inverse="article">
+        <label for="fg-tagsItem" class="text-sm font-medium text-gray-900">Tags item</label>
+        <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4"><legend class="text-sm font-medium">Tags item</legend><div class="grid gap-2" data-component="input">
+            <label for="fg-id" class="text-sm font-medium text-gray-900">Id</label>
+            <input id="fg-id" type="text"
+                name="id" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </div>
+        </fieldset>
+    </div>
+    <button type="button" class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" data-relationship-action="add">Add Tag</button></div></div>
+</div>
+
+            </div>
             
         </div>
+        
+    </section>
     
-</div>
+    
 
-    
-    
-    
-</div>
-
-
-    
-    <div class="fg-actions">
-        <button type="submit">Submit</button>
+    <div class="flex gap-2">
+        
+            
+                
+                <a class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" href="/widgets">Cancel</a>
+                
+            
+                
+                <button type="True" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Create</button>
+                
+            
+        
     </div>
 </form>
+
+
