@@ -16,6 +16,8 @@ const entryPreact = resolve(moduleDir, runtimeEntryPoints.preact);
  * requirements expand beyond the current esbuild pipeline.
  */
 export default defineConfig({
+  root: "dev",
+  publicDir: false,
   build: {
     outDir: "dist/vite",
     sourcemap: true,
@@ -35,5 +37,17 @@ export default defineConfig({
   server: {
     port: 5173,
     host: "localhost",
+    open: true,
+    fs: {
+      // Allow serving files from parent directories (Go package assets)
+      allow: [resolve(moduleDir, "..")],
+    },
+  },
+  resolve: {
+    alias: {
+      "@formgen": resolve(moduleDir, "src"),
+      // Alias to serve CSS from Go package
+      "@assets": resolve(moduleDir, "..", "pkg", "renderers"),
+    },
   },
 });
