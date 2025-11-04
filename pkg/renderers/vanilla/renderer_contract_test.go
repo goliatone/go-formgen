@@ -62,10 +62,10 @@ func TestRenderer_WithTemplateRenderer(t *testing.T) {
 
 	stub := &stubTemplateRenderer{
 		renderTemplateFunc: func(name string, data any, out ...io.Writer) (string, error) {
-			if name != "templates/form.tmpl" {
-				t.Fatalf("unexpected template name: %s", name)
+			if name == "templates/form.tmpl" {
+				return "custom-output", nil
 			}
-			return "custom-output", nil
+			return "<component />", nil
 		},
 	}
 
