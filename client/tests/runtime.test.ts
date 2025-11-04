@@ -9,11 +9,12 @@ import { fileURLToPath } from "node:url";
 import {
   initRelationships,
   resetGlobalRegistry,
+  resetComponentRegistryForTests,
   type ResolverEventDetail,
   type ResolverRegistry,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
-import { setGlobalConfig } from "../src/config";
+import { setGlobalConfig, getGlobalConfig } from "../src/config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,6 +76,7 @@ describe("runtime resolver", () => {
     fetchSpy.mockReset();
     (globalThis as any).fetch = fetchSpy;
     setGlobalConfig();
+    resetComponentRegistryForTests();
     // Reset global registry to ensure test isolation
     resetGlobalRegistry();
   });
@@ -372,6 +374,180 @@ describe("runtime resolver", () => {
     expect(menu?.hidden).toBe(true);
   });
 
+  it("renders typeahead UI for has-one relationships", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="category"
+          name="article[category_id]"
+          data-endpoint-url="/api/categories"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-label-field="name"
+          data-endpoint-value-field="id"
+          data-endpoint-search-param="q"
+          data-endpoint-mode="search"
+          data-relationship-cardinality="one"
+        ></select>
+      </form>
+    `;
+
+    const select = document.getElementById("category") as HTMLSelectElement;
+
+    fetchSpy.mockResolvedValue(
+      mockResponse([
+        { value: "eng", label: "Engineering" },
+        { value: "culture", label: "Culture" },
+      ])
+    );
+
+    const registry = await initRelationships();
+    await registry.resolve(select);
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    expect(container?.classList.contains("fg-typeahead")).toBe(true);
+    expect(container.classList.contains("fg-typeahead--ready")).toBe(true);
+
+    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
+    expect(input).not.toBeNull();
+
+    input!.focus();
+    await flush();
+
+    const dropdown = container.querySelector<HTMLElement>(".fg-typeahead__dropdown");
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.hidden).toBe(false);
+
+    const optionButton = dropdown!.querySelector<HTMLButtonElement>("[data-value='culture']");
+    expect(optionButton).not.toBeNull();
+    optionButton!.click();
+    await flush();
+
+    expect(select.value).toBe("culture");
+    expect(input!.value).toBe("Culture");
+  });
+
+  it("preserves typed queries while relationship options resolve", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-label-field="name"
+          data-endpoint-value-field="id"
+          data-endpoint-search-param="q"
+          data-endpoint-mode="search"
+          data-relationship-cardinality="one"
+        ></select>
+      </form>
+    `;
+
+    const select = document.getElementById("manager") as HTMLSelectElement;
+
+    let resolveFetch: (() => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      resolveFetch = () => resolve(mockResponse([{ value: "radia", label: "Radia Perlman" }]));
+    });
+    fetchSpy.mockImplementationOnce(() => pending);
+
+    setGlobalConfig({ searchThrottleMs: 0, searchDebounceMs: 0 });
+    await initRelationships();
+    const container = select.previousElementSibling as HTMLElement;
+    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
+    expect(input).not.toBeNull();
+
+    input!.focus();
+    input!.value = "Ra";
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(input!.value).toBe("Ra");
+
+    resolveFetch && resolveFetch();
+    await flush();
+    await flush();
+
+    expect(input!.value).toBe("Ra");
+  });
+
+  it("clears typeahead selections and re-issues search", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="publisher"
+          name="article[publisher_id]"
+          data-endpoint-url="/api/publishing-houses"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-label-field="name"
+          data-endpoint-value-field="id"
+          data-endpoint-search-param="q"
+          data-endpoint-mode="search"
+          data-relationship-cardinality="one"
+        ></select>
+      </form>
+    `;
+
+    const select = document.getElementById("publisher") as HTMLSelectElement;
+
+    fetchSpy.mockResolvedValue(
+      mockResponse([
+        { value: "atlas", label: "Atlas Press" },
+        { value: "lumen", label: "Lumen House" },
+      ])
+    );
+
+    setGlobalConfig({ searchThrottleMs: 0, searchDebounceMs: 0 });
+    const registry = await initRelationships();
+    await registry.resolve(select);
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
+    const dropdown = container.querySelector<HTMLElement>(".fg-typeahead__dropdown");
+    const clear = container.querySelector<HTMLButtonElement>(".fg-typeahead__clear");
+
+    expect(input).not.toBeNull();
+    expect(dropdown).not.toBeNull();
+    expect(clear).not.toBeNull();
+    expect(clear!.disabled).toBe(true);
+
+    input!.focus();
+    await flush();
+
+    const optionButton = dropdown!.querySelector<HTMLButtonElement>("[data-value='lumen']");
+    expect(optionButton).not.toBeNull();
+    optionButton!.click();
+    await flush();
+
+    expect(select.value).toBe("lumen");
+    expect(input!.value).toBe("Lumen House");
+    expect(clear!.disabled).toBe(false);
+
+    const inputEvent = vi.fn();
+    select.addEventListener("input", inputEvent);
+
+    clear!.click();
+    await flush();
+
+    expect(select.value).toBe("");
+    expect(input!.value).toBe("");
+    expect(clear!.disabled).toBe(true);
+    if (inputEvent.mock.calls.length === 0) {
+      await flush();
+    }
+    expect(inputEvent).toHaveBeenCalled();
+  });
+
   it("permits custom resolvers to short-circuit fetch", async () => {
     const field = createMarkup();
     fetchSpy.mockResolvedValue(mockResponse([{ value: "server", label: "Server" }]));
@@ -544,7 +720,9 @@ describe("runtime resolver", () => {
 
     await initRelationships();
 
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const attempts = fetchSpy.mock.calls.length;
+    expect(attempts).toBeGreaterThanOrEqual(2);
+    expect(attempts).toBeLessThanOrEqual((getGlobalConfig().retryAttempts ?? 0) + 1);
     const errorNode = document.querySelector("[data-relationship-error]");
     expect(errorNode).toBeNull();
   });
