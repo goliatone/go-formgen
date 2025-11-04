@@ -1,46 +1,94 @@
-<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="POST" action="/widgets" data-formgen-auto-init="true">
+
+
+
+
+
+
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="POST" action="/widgets" data-formgen-auto-init="true">
     
 
     
-    <div class="grid gap-4 grid-cols-True">
+    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2 fg-field--name" data-component="textarea">
-    <label for="fg-name" class="text-sm font-medium text-gray-900">Name *</label>
-    <textarea id="fg-name" name="name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Give it a friendly name" required></textarea>
-    <small class="text-sm text-gray-500">Widget name</small>
-    <small class="text-sm text-gray-600">Shown to customers</small>
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field fg-field--name" data-component="textarea">
+    <label for="fg-name" class="fg-field__label">Name *</label>
+    <div class="space-y-2 fg-field--name">
+        <label for="fg-name" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+            Name<span class="text-red-500">*</span>
+        </label>
+        <textarea
+            id="fg-name"
+            name="name"
+            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            rows="True"
+            placeholder="Give it a friendly name"
+            required
+        ></textarea>
+        <p class="text-xs text-gray-500 mt-2 dark:text-gray-400">Widget name</p>
+        <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">Shown to customers</p>
+    </div>
+    <small class="fg-field__help">Widget name</small>
+    <small class="fg-field__hint">Shown to customers</small>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2 fg-fieldset--settings" data-component="object">
-    <label for="fg-settings" class="text-sm font-medium text-gray-900">Settings</label>
-    <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4 border-l-4 border-l-blue-600"><legend class="text-sm font-medium">Settings</legend><div class="grid gap-2" data-component="boolean">
-        <div class="flex items-center gap-2">
-            <input id="fg-enabled" type="checkbox" name="enabled" class="h-4 w-4 rounded border-gray-300">
-            <label for="fg-enabled" class="text-sm font-medium">Enable widget</label>
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field fg-fieldset--settings" data-component="object">
+    <label for="fg-settings" class="fg-field__label">Settings</label>
+    <fieldset class="fg-fieldset fg-fieldset--accent"><legend>Settings</legend><div class="fg-field" data-component="boolean">
+        <div class="space-y-2">
+            <div class="flex items-center gap-x-3">
+                <input
+                    type="checkbox"
+                    id="fg-enabled"
+                    name="enabled"
+                    class="shrink-0 mt-0.5 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
+                >
+                <label for="fg-enabled" class="text-sm font-medium text-gray-800 dark:text-white">
+                    Enable widget
+                </label>
+            </div>
         </div>
     </div>
-    <div class="grid gap-2" data-component="input">
-        <label for="fg-threshold" class="text-sm font-medium text-gray-900">Threshold</label>
-        <input id="fg-threshold" type="range"
-            name="threshold" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-        <small class="text-sm text-gray-600">Controls the debounce window</small>
+    <div class="fg-field" data-component="input">
+        <label for="fg-threshold" class="fg-field__label">Threshold</label>
+        <div class="space-y-2">
+            <label for="fg-threshold" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Threshold
+            </label>
+            <input
+                type="True"
+                id="fg-threshold"
+                name="threshold"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+            <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">Controls the debounce window</p>
+        </div>
+        <small class="fg-field__hint">Controls the debounce window</small>
     </div>
     </fieldset>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2 fg-array--tags" data-component="array">
-    <label for="fg-tags" class="text-sm font-medium text-gray-900">Tags</label>
-    <div class="grid gap-3 fg-array--tags"><div class="text-sm font-medium">Tag</div><div class="grid gap-2"><div class="grid gap-2 fg-array__item" data-component="input">
-        <label for="fg-tagsItem" class="text-sm font-medium text-gray-900">Tags item</label>
-        <input id="fg-tagsItem" type="text"
-            name="tagsItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field fg-array--tags" data-component="array">
+    <label for="fg-tags" class="fg-field__label">Tags</label>
+    <div class="fg-array fg-array--tags"><div class="text-sm font-medium">Tag</div><div class="fg-array__items"><div class="fg-field fg-array__item" data-component="input">
+        <label for="fg-tagsItem" class="fg-field__label">Tags item</label>
+        <div class="space-y-2 fg-array__item">
+            <label for="fg-tagsItem" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Tags item
+            </label>
+            <input
+                type="False"
+                id="fg-tagsItem"
+                name="tagsItem"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+        </div>
     </div>
     </div></div>
 </div>
@@ -52,9 +100,9 @@
 
     
 
-    <div class="flex gap-2">
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         
-            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
         
     </div>
 </form>

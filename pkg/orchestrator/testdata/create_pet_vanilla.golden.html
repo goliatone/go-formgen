@@ -1,91 +1,180 @@
-<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="POST" action="/pets" data-formgen-auto-init="true">
+
+
+
+
+
+
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="POST" action="/pets" data-formgen-auto-init="true">
     
 
     
-    <div class="grid gap-4 grid-cols-True">
+    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="input">
-    <label for="fg-age" class="text-sm font-medium text-gray-900">Age</label>
-    <input id="fg-age" type="number"
-        name="age" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="input">
+    <label for="fg-age" class="fg-field__label">Age</label>
+    <div class="space-y-2">
+        <label for="fg-age" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+            Age
+        </label>
+        <input
+            type="True"
+            id="fg-age"
+            name="age"
+            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        >
+    </div>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="array">
-    <label for="fg-favoriteFoods" class="text-sm font-medium text-gray-900">Favorite foods</label>
-    <div class="grid gap-3"><div class="grid gap-2"><div class="grid gap-2" data-component="input">
-        <label for="fg-favoriteFoodsItem" class="text-sm font-medium text-gray-900">Favorite foods item</label>
-        <input id="fg-favoriteFoodsItem" type="text"
-            name="favoriteFoodsItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="array">
+    <label for="fg-favoriteFoods" class="fg-field__label">Favorite foods</label>
+    <div class="fg-array"><div class="fg-array__items"><div class="fg-field" data-component="input">
+        <label for="fg-favoriteFoodsItem" class="fg-field__label">Favorite foods item</label>
+        <div class="space-y-2">
+            <label for="fg-favoriteFoodsItem" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Favorite foods item
+            </label>
+            <input
+                type="False"
+                id="fg-favoriteFoodsItem"
+                name="favoriteFoodsItem"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+        </div>
     </div>
     </div></div>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="array">
-    <label for="fg-favoriteNumbers" class="text-sm font-medium text-gray-900">Favorite numbers</label>
-    <div class="grid gap-3"><div class="grid gap-2"><div class="grid gap-2" data-component="input">
-        <label for="fg-favoriteNumbersItem" class="text-sm font-medium text-gray-900">Favorite numbers item</label>
-        <input id="fg-favoriteNumbersItem" type="number"
-            name="favoriteNumbersItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="array">
+    <label for="fg-favoriteNumbers" class="fg-field__label">Favorite numbers</label>
+    <div class="fg-array"><div class="fg-array__items"><div class="fg-field" data-component="input">
+        <label for="fg-favoriteNumbersItem" class="fg-field__label">Favorite numbers item</label>
+        <div class="space-y-2">
+            <label for="fg-favoriteNumbersItem" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Favorite numbers item
+            </label>
+            <input
+                type="True"
+                id="fg-favoriteNumbersItem"
+                name="favoriteNumbersItem"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+        </div>
     </div>
     </div></div>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="input">
-    <label for="fg-name" class="text-sm font-medium text-gray-900">Name *</label>
-    <input id="fg-name" type="text"
-        name="name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="input">
+    <label for="fg-name" class="fg-field__label">Name *</label>
+    <div class="space-y-2">
+        <label for="fg-name" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+            Name<span class="text-red-500">*</span>
+        </label>
+        <input
+            type="False"
+            id="fg-name"
+            name="name"
+            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            required
+        >
+    </div>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="object">
-    <label for="fg-owner" class="text-sm font-medium text-gray-900">Owner</label>
-    <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4"><legend class="text-sm font-medium">Owner</legend><div class="grid gap-2" data-component="input">
-        <label for="fg-email" class="text-sm font-medium text-gray-900">Email *</label>
-        <input id="fg-email" type="email"
-            name="email" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="object">
+    <label for="fg-owner" class="fg-field__label">Owner</label>
+    <fieldset class="fg-fieldset"><legend>Owner</legend><div class="fg-field" data-component="input">
+        <label for="fg-email" class="fg-field__label">Email *</label>
+        <div class="space-y-2">
+            <label for="fg-email" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Email<span class="text-red-500">*</span>
+            </label>
+            <input
+                type="True"
+                id="fg-email"
+                name="email"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+                required
+            >
+        </div>
     </div>
-    <div class="grid gap-2" data-component="input">
-        <label for="fg-phone" class="text-sm font-medium text-gray-900">Phone</label>
-        <input id="fg-phone" type="text"
-            name="phone" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    <div class="fg-field" data-component="input">
+        <label for="fg-phone" class="fg-field__label">Phone</label>
+        <div class="space-y-2">
+            <label for="fg-phone" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Phone
+            </label>
+            <input
+                type="False"
+                id="fg-phone"
+                name="phone"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+        </div>
     </div>
-    <div class="grid gap-2" data-component="input">
-        <label for="fg-yearsAsCustomer" class="text-sm font-medium text-gray-900">Years as customer</label>
-        <input id="fg-yearsAsCustomer" type="number"
-            name="yearsAsCustomer" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    <div class="fg-field" data-component="input">
+        <label for="fg-yearsAsCustomer" class="fg-field__label">Years as customer</label>
+        <div class="space-y-2">
+            <label for="fg-yearsAsCustomer" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+                Years as customer
+            </label>
+            <input
+                type="True"
+                id="fg-yearsAsCustomer"
+                name="yearsAsCustomer"
+                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+            >
+        </div>
     </div>
     </fieldset>
-    <small class="text-sm text-gray-500">Owner contact details</small>
+    <small class="fg-field__help">Owner contact details</small>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="input">
-    <label for="fg-tag" class="text-sm font-medium text-gray-900">Tag</label>
-    <input id="fg-tag" type="text"
-        name="tag" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="input">
+    <label for="fg-tag" class="fg-field__label">Tag</label>
+    <div class="space-y-2">
+        <label for="fg-tag" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+            Tag
+        </label>
+        <input
+            type="False"
+            id="fg-tag"
+            name="tag"
+            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        >
+    </div>
 </div>
 
         </div>
         
-        <div class="fg-grid__item" style="--fg-grid-span: 12">
-            <div class="grid gap-2" data-component="input">
-    <label for="fg-weight" class="text-sm font-medium text-gray-900">Weight</label>
-    <input id="fg-weight" type="number"
-        name="weight" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <div style="--fg-grid-span: 12">
+            <div class="fg-field" data-component="input">
+    <label for="fg-weight" class="fg-field__label">Weight</label>
+    <div class="space-y-2">
+        <label for="fg-weight" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+            Weight
+        </label>
+        <input
+            type="True"
+            id="fg-weight"
+            name="weight"
+            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        >
+    </div>
 </div>
 
         </div>
@@ -95,9 +184,9 @@
 
     
 
-    <div class="flex gap-2">
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         
-            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
         
     </div>
 </form>
