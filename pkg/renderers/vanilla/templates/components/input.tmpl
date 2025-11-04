@@ -1,0 +1,3 @@
+{% set data_attrs = field.metadata.__data_attrs %}
+<input id="fg-{{ field.name }}" type="{% if field.uiHints.inputType %}{{ field.uiHints.inputType }}{% elif field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}"
+    name="{{ field.name }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"{% if field.placeholder %} placeholder="{{ field.placeholder }}"{% endif %}{% if field.required %} required{% endif %}{% if field.default %} value="{{ field.default }}"{% endif %}{% if data_attrs %}{{ data_attrs|safe }}{% endif %}>

@@ -1,0 +1,9 @@
+<div class="grid gap-4">
+    {% if field.nested %}
+        {% for nested in field.nested %}
+            {% if render_child %}{{ render_child(nested)|safe }}{% endif %}
+        {% endfor %}
+    {% else %}
+        <p class="text-sm text-gray-500">Datetime range "{{ field.name }}" requires nested start/end fields.</p>
+    {% endif %}
+</div>

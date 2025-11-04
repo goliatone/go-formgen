@@ -1,0 +1,4 @@
+<div class="flex items-center gap-2">
+    <input id="fg-{{ field.name }}" type="checkbox" name="{{ field.name }}" class="h-4 w-4 rounded border-gray-300"{% if field.default %} checked{% endif %}>
+    {% if field.label %}<label for="fg-{{ field.name }}" class="text-sm font-medium">{{ field.label }}</label>{% endif %}
+</div>

@@ -1,0 +1,15 @@
+{% set rel = field.relationship %}
+{% set data_attrs = field.metadata.__data_attrs %}
+<select id="fg-{{ field.name }}" name="{{ field.name }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"{% if field.required %} required{% endif %}{% if rel and rel.cardinality == "many" %} multiple data-relationship-collection="many"{% endif %}{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if data_attrs %}{{ data_attrs|safe }}{% endif %}>
+    {% if field.enum %}
+        {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+    {% else %}
+        {% if field.uiHints.placeholder %}
+            <option value="">{{ field.uiHints.placeholder }}</option>
+        {% elif field.label %}
+            <option value="">Select {{ field.label }}</option>
+        {% else %}
+            <option value="">Select an option</option>
+        {% endif %}
+    {% endif %}
+</select>

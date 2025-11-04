@@ -1,0 +1,20 @@
+{% set rel = field.relationship %}
+<div class="grid gap-3{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
+    {% if field.uiHints.repeaterLabel %}<div class="text-sm font-medium">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
+    {% if field.items %}
+        {% if field.uiHints.cardinality %}
+        <div class="grid gap-2" data-relationship-collection="{{ field.uiHints.cardinality }}">
+        {% else %}
+        <div class="grid gap-2">
+        {% endif %}
+            {% if render_child %}{{ render_child(field.items)|safe }}{% endif %}
+            {% if field.uiHints.cardinality == "many" %}
+            <button type="button" class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" data-relationship-action="add">
+                Add {% if field.uiHints.repeaterLabel %}{{ field.uiHints.repeaterLabel }}{% elif field.label %}{{ field.label }}{% else %}item{% endif %}
+            </button>
+            {% endif %}
+        </div>
+    {% else %}
+        <p class="text-sm text-gray-500">Array field {{ field.name }} requires item definition.</p>
+    {% endif %}
+</div>
