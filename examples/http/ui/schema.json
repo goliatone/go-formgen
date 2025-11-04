@@ -2,8 +2,8 @@
   "operations": {
     "post-book:create": {
       "form": {
-        "title": "Create Book",
-        "subtitle": "Provide core details and relationships.",
+        "title": "Catalog a New Release",
+        "subtitle": "Curate the launch package, assign collaborators, and seed the first chapters.",
         "layout": {
           "gridColumns": 12,
           "gutter": "md"
@@ -15,6 +15,11 @@
             "href": "/form?operation=get-book:list"
           },
           {
+            "kind": "secondary",
+            "label": "Preview JSON",
+            "href": "/form?format=json&operation=post-book:create"
+          },
+          {
             "kind": "primary",
             "label": "Create Book",
             "type": "submit"
@@ -23,73 +28,198 @@
       },
       "sections": [
         {
-          "id": "details",
-          "title": "Book Details",
+          "id": "overview",
+          "title": "Book Overview",
+          "description": "Set the core identity for your release.",
           "order": 0,
           "fieldset": true
         },
         {
-          "id": "associations",
-          "title": "Associations",
+          "id": "timeline",
+          "title": "Release Planning",
+          "description": "Track scheduling milestones for reprints or special editions.",
           "order": 1
+        },
+        {
+          "id": "relationships",
+          "title": "Publishing Workflow",
+          "description": "Attach the right collaborators and catalog tags.",
+          "order": 2
+        },
+        {
+          "id": "toc",
+          "title": "Table of Contents",
+          "description": "Seed the first chapters readers will encounter.",
+          "order": 3,
+          "fieldset": true
         }
       ],
       "fields": {
         "title": {
-          "section": "details",
+          "section": "overview",
           "order": 0,
           "grid": {
-            "span": 12
-          }
-        },
-        "isbn": {
-          "section": "details",
-          "order": 1,
-          "grid": {
-            "span": 6
-          }
+            "span": 8,
+            "row": 1
+          },
+          "placeholder": "The Infinite Archive",
+          "helpText": "Visible in storefronts and metadata feeds."
         },
         "status": {
-          "section": "details",
-          "order": 2,
+          "section": "overview",
+          "order": 1,
           "grid": {
-            "span": 6
+            "span": 4,
+            "start": 9,
+            "row": 1
           },
           "component": "status-pill",
+          "helpText": "Controls availability and downstream automation.",
           "componentOptions": {
             "options": [
-              { "label": "Draft", "value": "draft" },
-              { "label": "In Review", "value": "in_review" },
-              { "label": "Published", "value": "published" }
+              {
+                "label": "Draft",
+                "value": "draft"
+              },
+              {
+                "label": "In Review",
+                "value": "in_review"
+              },
+              {
+                "label": "Published",
+                "value": "published"
+              }
             ]
           }
         },
-        "release_date": {
-          "section": "details",
-          "order": 3,
+        "isbn": {
+          "section": "overview",
+          "order": 2,
           "grid": {
-            "span": 6
-          }
+            "span": 4,
+            "row": 2
+          },
+          "placeholder": "978-1-4028-9462-6",
+          "helpText": "Required for distribution partners."
+        },
+        "release_date": {
+          "section": "timeline",
+          "order": 0,
+          "grid": {
+            "span": 6,
+            "row": 1
+          },
+          "helpText": "Launch date shown to retailers."
+        },
+        "last_reprint_at": {
+          "section": "timeline",
+          "order": 1,
+          "grid": {
+            "span": 6,
+            "start": 7,
+            "row": 1
+          },
+          "helpText": "Most recent reprint for collectors."
         },
         "author_id": {
-          "section": "associations",
+          "section": "relationships",
           "order": 0,
           "grid": {
             "span": 6
-          }
+          },
+          "placeholder": "Search by author name",
+          "helpText": "Loads author details and contract metadata."
         },
         "publisher_id": {
-          "section": "associations",
+          "section": "relationships",
           "order": 1,
           "grid": {
             "span": 6
-          }
+          },
+          "placeholder": "Select imprint",
+          "helpText": "Determines default pricing and legal templates."
         },
         "tags": {
-          "section": "associations",
+          "section": "relationships",
           "order": 2,
           "grid": {
             "span": 12
+          },
+          "placeholder": "Search tags",
+          "helpText": "Tag the release so internal workflows stay in sync.",
+          "component": "select",
+          "uiHints": {
+            "collectionRenderer": "chips"
+          }
+        },
+        "chapters": {
+          "section": "toc",
+          "order": 0,
+          "grid": {
+            "span": 12
+          },
+          "uiHints": {
+            "repeaterLabel": "Chapter"
+          }
+        },
+        "chapters[].chapter_index": {
+          "order": 0,
+          "grid": {
+            "span": 2
+          },
+          "placeholder": "1",
+          "helpText": "Display order in the finished book."
+        },
+        "chapters[].title": {
+          "order": 1,
+          "grid": {
+            "span": 7,
+            "start": 3
+          },
+          "placeholder": "Chapter title",
+          "helpText": "Readers see this in the table of contents."
+        },
+        "chapters[].word_count": {
+          "order": 2,
+          "grid": {
+            "span": 3,
+            "start": 10
+          },
+          "placeholder": "2500",
+          "helpText": "Used for copy editing capacity planning."
+        },
+        "chapters[].book": {
+          "component": "empty"
+        },
+        "chapters[].book_id": {
+          "uiHints": {
+            "inputType": "hidden"
+          }
+        },
+        "chapters[].id": {
+          "uiHints": {
+            "inputType": "hidden"
+          }
+        },
+        "author": {
+          "component": "empty"
+        },
+        "publisher": {
+          "component": "empty"
+        },
+        "id": {
+          "uiHints": {
+            "inputType": "hidden"
+          }
+        },
+        "created_at": {
+          "uiHints": {
+            "inputType": "hidden"
+          }
+        },
+        "updated_at": {
+          "uiHints": {
+            "inputType": "hidden"
           }
         }
       }
