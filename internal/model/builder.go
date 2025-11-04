@@ -165,6 +165,7 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 		parent.UIHints = mergeUIHints(parent.UIHints, filterUIHints(parentExt))
 		applyRelationshipHints(&parent)
 		parent.applyUIHintAttributes()
+		decorateTypeaheadMetadata(&parent)
 		parent.normalizeMetadata()
 		parent.normalizeUIHints()
 		return []Field{parent}, nil
@@ -209,6 +210,7 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 	applyRelationshipHints(&field)
 	propagateRelationshipToItems(&field)
 	field.applyUIHintAttributes()
+	decorateTypeaheadMetadata(&field)
 	field.normalizeMetadata()
 	field.normalizeUIHints()
 	return field, nil
@@ -238,6 +240,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 	applyFormatHints(&field)
 	applyRelationshipHints(&field)
 	field.applyUIHintAttributes()
+	decorateTypeaheadMetadata(&field)
 	field.normalizeMetadata()
 	field.normalizeUIHints()
 	return field
@@ -528,6 +531,19 @@ func applyRelationshipHints(field *Field) {
 		}
 	}
 
+	if shouldUseTypeaheadRenderer(field, hints) {
+		metadata := field.ensureMetadata()
+		if metadata["relationship.endpoint.renderer"] == "" {
+			metadata["relationship.endpoint.renderer"] = "typeahead"
+		}
+		if metadata["relationship.endpoint.mode"] == "" && shouldDefaultTypeaheadSearch(metadata) {
+			metadata["relationship.endpoint.mode"] = "search"
+		}
+		if hints["relationshipRenderer"] == "" {
+			hints["relationshipRenderer"] = "typeahead"
+		}
+	}
+
 	if len(hints) == 0 {
 		return
 	}
@@ -560,6 +576,71 @@ func hasRelationshipEndpoint(metadata map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func shouldUseTypeaheadRenderer(field *Field, hints map[string]string) bool {
+	if field == nil || field.Relationship == nil {
+		return false
+	}
+	if field.Type == FieldTypeArray {
+		return false
+	}
+	if !hasRelationshipEndpoint(field.Metadata) {
+		return false
+	}
+	if field.Metadata != nil {
+		renderer := field.Metadata["relationship.endpoint.renderer"]
+		if renderer != "" && renderer != "typeahead" {
+			return false
+		}
+	}
+	if !isSingleRelationship(field.Relationship) {
+		return false
+	}
+	input := ""
+	if hints != nil {
+		input = hints["input"]
+	}
+	if input == "" && field.UIHints != nil {
+		input = field.UIHints["input"]
+	}
+	if input != "" && input != "select" {
+		return false
+	}
+	return true
+}
+
+func shouldDefaultTypeaheadSearch(metadata map[string]string) bool {
+	if len(metadata) == 0 {
+		return false
+	}
+	if param := strings.TrimSpace(metadata["relationship.endpoint.searchParam"]); param != "" {
+		return true
+	}
+	for key, value := range metadata {
+		if strings.HasPrefix(key, "relationship.endpoint.dynamicParams.") && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func isSingleRelationship(rel *Relationship) bool {
+	if rel == nil {
+		return false
+	}
+	if strings.EqualFold(rel.Cardinality, "many") {
+		return false
+	}
+	if rel.Cardinality != "" {
+		return true
+	}
+	switch strings.ToLower(string(rel.Kind)) {
+	case "belongsto", "hasone":
+		return true
+	default:
+		return false
+	}
 }
 
 func decorateRelationshipSiblings(fields []Field) {
@@ -627,6 +708,49 @@ func propagateRelationshipToItems(field *Field) {
 		field.Items.Relationship = cloned
 		applyRelationshipHints(field.Items)
 	}
+}
+
+func decorateTypeaheadMetadata(field *Field) {
+	if field == nil {
+		return
+	}
+	if len(field.Metadata) == 0 {
+		return
+	}
+	if strings.TrimSpace(field.Metadata["relationship.endpoint.renderer"]) != "typeahead" {
+		return
+	}
+
+	metadata := field.ensureMetadata()
+	if metadata["relationship.endpoint.placeholder"] == "" {
+		metadata["relationship.endpoint.placeholder"] = typeaheadPlaceholder(field)
+	}
+	if metadata["relationship.endpoint.fieldLabel"] == "" && strings.TrimSpace(field.Label) != "" {
+		metadata["relationship.endpoint.fieldLabel"] = field.Label
+	}
+	if metadata["relationship.endpoint.searchPlaceholder"] == "" {
+		metadata["relationship.endpoint.searchPlaceholder"] = typeaheadSearchPlaceholder(field)
+	}
+}
+
+func typeaheadPlaceholder(field *Field) string {
+	if field.Placeholder != "" {
+		return field.Placeholder
+	}
+	if label := strings.TrimSpace(field.Label); label != "" {
+		return fmt.Sprintf("Select %s", label)
+	}
+	return "Select an option"
+}
+
+func typeaheadSearchPlaceholder(field *Field) string {
+	if label := strings.TrimSpace(field.Label); label != "" {
+		return fmt.Sprintf("Search %s", label)
+	}
+	if field.Name != "" {
+		return fmt.Sprintf("Search %s", field.Name)
+	}
+	return "Search options"
 }
 
 func (f *Field) ensureMetadata() map[string]string {

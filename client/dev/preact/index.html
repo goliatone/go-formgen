@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Formgen Preact Sandbox</title>
+
+    <!-- Load Tailwind CSS -->
+    <link rel="stylesheet" href="../styles.css" />
+
+    <style>
+      /* Minimal wrapper styling */
+      body {
+        margin: 0;
+        padding: 1.5rem;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+      }
+
+      .sandbox-header {
+        max-width: 50rem;
+        margin: 0 auto 2rem;
+        text-align: center;
+      }
+
+      .sandbox-header h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.75rem;
+        color: #111;
+      }
+
+      .sandbox-header p {
+        margin: 0 0 1rem;
+        font-size: 0.875rem;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      .sandbox-controls {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        align-items: center;
+        margin-top: 1rem;
+      }
+
+      .sandbox-controls label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+
+      .sandbox-controls select {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        background: white;
+        cursor: pointer;
+      }
+
+      .sandbox-controls select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .sandbox-container {
+        max-width: 50rem;
+        margin: 0 auto;
+      }
+
+      .debug-panel {
+        max-width: 50rem;
+        margin: 2rem auto;
+        padding: 1rem;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+      }
+
+      .debug-panel h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .debug-panel pre {
+        margin: 0;
+        padding: 0.75rem;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="sandbox-header">
+      <h1>Formgen Preact Sandbox</h1>
+      <p>
+        Preact components using <code>useRelationshipOptions</code> hook.
+        Edit <code>src/frameworks/preact.ts</code> to see changes.
+      </p>
+      <div class="sandbox-controls">
+        <label for="view-select">View:</label>
+        <select id="view-select">
+          <option value="vanilla">Vanilla (Go Rendered)</option>
+          <option value="preact">Preact (Current)</option>
+        </select>
+      </div>
+    </header>
+
+    <div class="sandbox-container">
+      <div id="app"></div>
+    </div>
+
+    <script type="module" src="./app.tsx"></script>
+  </body>
+</html>
