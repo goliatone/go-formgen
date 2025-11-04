@@ -1,0 +1,98 @@
+{
+  "operations": {
+    "post-book:create": {
+      "form": {
+        "title": "Create Book",
+        "subtitle": "Provide core details and relationships.",
+        "layout": {
+          "gridColumns": 12,
+          "gutter": "md"
+        },
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "href": "/form?operation=get-book:list"
+          },
+          {
+            "kind": "primary",
+            "label": "Create Book",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "details",
+          "title": "Book Details",
+          "order": 0,
+          "fieldset": true
+        },
+        {
+          "id": "associations",
+          "title": "Associations",
+          "order": 1
+        }
+      ],
+      "fields": {
+        "title": {
+          "section": "details",
+          "order": 0,
+          "grid": {
+            "span": 12
+          }
+        },
+        "isbn": {
+          "section": "details",
+          "order": 1,
+          "grid": {
+            "span": 6
+          }
+        },
+        "status": {
+          "section": "details",
+          "order": 2,
+          "grid": {
+            "span": 6
+          },
+          "component": "status-pill",
+          "componentOptions": {
+            "options": [
+              { "label": "Draft", "value": "draft" },
+              { "label": "In Review", "value": "in_review" },
+              { "label": "Published", "value": "published" }
+            ]
+          }
+        },
+        "release_date": {
+          "section": "details",
+          "order": 3,
+          "grid": {
+            "span": 6
+          }
+        },
+        "author_id": {
+          "section": "associations",
+          "order": 0,
+          "grid": {
+            "span": 6
+          }
+        },
+        "publisher_id": {
+          "section": "associations",
+          "order": 1,
+          "grid": {
+            "span": 6
+          }
+        },
+        "tags": {
+          "section": "associations",
+          "order": 2,
+          "grid": {
+            "span": 12
+          }
+        }
+      }
+    }
+  }
+}

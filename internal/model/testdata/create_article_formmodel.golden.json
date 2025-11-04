@@ -32,11 +32,16 @@
       "label": "Author",
       "metadata": {
         "label-field": "full_name",
-        "relationship.endpoint.labelField": "full_name"
+        "relationship.endpoint.fieldLabel": "Author Id",
+        "relationship.endpoint.labelField": "full_name",
+        "relationship.endpoint.placeholder": "Select Author Id",
+        "relationship.endpoint.renderer": "typeahead",
+        "relationship.endpoint.searchPlaceholder": "Search Author Id"
       },
       "uiHints": {
         "cardinality": "one",
-        "input": "select"
+        "input": "select",
+        "relationshipRenderer": "typeahead"
       },
       "relationship": {
         "kind": "belongsTo",

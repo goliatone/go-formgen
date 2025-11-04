@@ -2,5 +2,4 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Formgen relationships - chips and typeahead styles */
-@import '../src/renderers/chips.css';
+/* Custom component styles for chips/typeahead will be added here if needed */

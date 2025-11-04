@@ -18,6 +18,11 @@ const entryPreact = resolve(moduleDir, runtimeEntryPoints.preact);
 export default defineConfig({
   root: "dev",
   publicDir: false,
+  esbuild: {
+    jsxFactory: "h",
+    jsxFragment: "Fragment",
+    jsxInject: `import { h, Fragment } from 'preact'`,
+  },
   build: {
     outDir: "dist/vite",
     sourcemap: true,

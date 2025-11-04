@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Formgen Runtime Sandbox</title>
 
-    <!-- Load production CSS (copied from Go package) -->
-    <link rel="stylesheet" href="./formgen-vanilla.css" />
+    <!-- Load Tailwind CSS -->
+    <link rel="stylesheet" href="./styles.css" />
 
     <style>
       /* Minimal wrapper styling - does NOT override form styles */
@@ -30,10 +30,39 @@
       }
 
       .sandbox-header p {
-        margin: 0;
+        margin: 0 0 1rem;
         font-size: 0.875rem;
         color: #666;
         line-height: 1.5;
+      }
+
+      .sandbox-controls {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        align-items: center;
+        margin-top: 1rem;
+      }
+
+      .sandbox-controls label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+
+      .sandbox-controls select {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        background: white;
+        cursor: pointer;
+      }
+
+      .sandbox-controls select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
       }
 
       .sandbox-container {
@@ -47,8 +76,15 @@
       <h1>Formgen Runtime Sandbox</h1>
       <p>
         Production preview: This loads the exact CSS and runtime that ships with the Go package.
-        Edit <code>src/</code> or <code>pkg/renderers/vanilla/assets/formgen-vanilla.css</code> to see changes.
+        Edit <code>src/</code> to see changes.
       </p>
+      <div class="sandbox-controls">
+        <label for="view-select">View:</label>
+        <select id="view-select">
+          <option value="vanilla">Vanilla (Go Rendered + Tailwind)</option>
+          <option value="preact">Preact (Client Components)</option>
+        </select>
+      </div>
     </header>
 
     <div class="sandbox-container">
@@ -57,6 +93,18 @@
 
     <script type="module">
       import { initRelationships } from "../src/index.ts";
+
+      // Set up view selector
+      const viewSelect = document.getElementById('view-select');
+      viewSelect.value = 'vanilla';
+
+      // Handle view change
+      viewSelect.addEventListener('change', (e) => {
+        const newView = e.target.value;
+        if (newView === 'preact') {
+          window.location.href = '/preact/';
+        }
+      });
 
       const schema = await loadSchema();
       const form = buildForm(schema, "createArticle");
@@ -89,7 +137,7 @@
 
       function buildForm(documentSchema, operationId) {
         const form = document.createElement("form");
-        form.className = "fg-form";
+        form.className = "grid gap-6 p-6 bg-white rounded-lg border border-gray-200";
         form.dataset.formgenAutoInit = "true";
         form.noValidate = true;
 
@@ -117,9 +165,10 @@
         });
 
         const actions = document.createElement("div");
-        actions.className = "fg-actions";
+        actions.className = "flex gap-2";
         const submit = document.createElement("button");
         submit.type = "submit";
+        submit.className = "px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700";
         submit.textContent = "Submit";
         actions.appendChild(submit);
         form.appendChild(actions);
@@ -169,6 +218,22 @@
       function createField(scope, key, originalSpec, required, doc) {
         const spec = dereferenceSchema(doc, originalSpec) ?? originalSpec ?? {};
 
+        // Skip relationship objects that have a sourceField pointing to another field
+        // (e.g., skip "author" object if "author_id" field exists with x-endpoint)
+        if (spec.type === "object" && spec["x-relationships"]?.sourceField) {
+          return null;
+        }
+
+        // Check for relationships FIRST - they take precedence over object type
+        if (spec.type === "array" && spec.items && spec["x-endpoint"]) {
+          return buildSelectField(scope, key, spec, required, { multiple: true });
+        }
+
+        if (spec["x-endpoint"]) {
+          return buildSelectField(scope, key, spec, required);
+        }
+
+        // Only create fieldset if it's an object WITHOUT x-endpoint
         if (spec.type === "object" && spec.properties) {
           const fieldset = document.createElement("fieldset");
           fieldset.className = "fg-fieldset";
@@ -193,14 +258,6 @@
           return fieldset;
         }
 
-        if (spec.type === "array" && spec.items && spec["x-endpoint"]) {
-          return buildSelectField(scope, key, spec, required, { multiple: true });
-        }
-
-        if (spec["x-endpoint"]) {
-          return buildSelectField(scope, key, spec, required);
-        }
-
         if (spec.type === "string" || spec.type === "number" || spec.type === "integer") {
           return buildInputField(scope, key, spec, required);
         }
@@ -211,16 +268,18 @@
 
       function buildSelectField(scope, key, spec, required, options = {}) {
         const wrapper = document.createElement("div");
-        wrapper.className = `fg-field fg-type-select`;
+        wrapper.className = "grid gap-2";
 
         const controlId = `fg-${sanitizeId(`${scope}-${key}`)}`;
         const label = document.createElement("label");
         label.htmlFor = controlId;
+        label.className = "text-sm font-medium text-gray-900";
         label.textContent = humaniseLabel(key);
         wrapper.appendChild(label);
 
         const select = document.createElement("select");
         select.id = controlId;
+        select.className = "w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500";
         select.name = options.multiple ? `${scope}[${key}][]` : `${scope}[${key}]`;
         select.required = Boolean(required);
 
@@ -233,7 +292,29 @@
         applyEndpointAttributes(select, spec["x-endpoint"]);
         applyRelationshipAttributes(select, spec["x-relationships"]);
 
-        const placeholderText = spec.uiHints?.placeholder ?? `Select ${humaniseLabel(key)}`;
+        const labelText = humaniseLabel(key);
+        const placeholderText = spec.uiHints?.placeholder ?? `Select ${labelText}`;
+
+        if (!select.hasAttribute("data-endpoint-field-label")) {
+          select.setAttribute("data-endpoint-field-label", labelText);
+        }
+        if (!select.hasAttribute("data-endpoint-placeholder")) {
+          select.setAttribute("data-endpoint-placeholder", placeholderText);
+        }
+        if (
+          !options.multiple &&
+          !select.hasAttribute("data-endpoint-renderer") &&
+          spec["x-relationships"]?.cardinality !== "many" &&
+          spec["x-endpoint"]
+        ) {
+          select.setAttribute("data-endpoint-renderer", "typeahead");
+        }
+        if (
+          select.getAttribute("data-endpoint-mode") === "search" &&
+          !select.hasAttribute("data-endpoint-search-placeholder")
+        ) {
+          select.setAttribute("data-endpoint-search-placeholder", `Search ${labelText}`);
+        }
         const placeholderOption = document.createElement("option");
         placeholderOption.value = "";
         placeholderOption.textContent = placeholderText;
@@ -243,7 +324,7 @@
 
         if (spec.description) {
           const help = document.createElement("small");
-          help.className = "fg-field__help";
+          help.className = "text-sm text-gray-500";
           help.textContent = spec.description;
           wrapper.appendChild(help);
         }
@@ -253,16 +334,18 @@
 
       function buildInputField(scope, key, spec, required) {
         const wrapper = document.createElement("div");
-        wrapper.className = `fg-field fg-type-${spec.type ?? "string"}`;
+        wrapper.className = "grid gap-2";
 
         const controlId = `fg-${sanitizeId(`${scope}-${key}`)}`;
         const label = document.createElement("label");
         label.htmlFor = controlId;
+        label.className = "text-sm font-medium text-gray-900";
         label.textContent = humaniseLabel(key);
         wrapper.appendChild(label);
 
         const input = document.createElement("input");
         input.id = controlId;
+        input.className = "w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500";
         input.name = `${scope}[${key}]`;
         input.required = Boolean(required);
         input.placeholder = spec.placeholder ?? `Enter ${humaniseLabel(key)}`;
@@ -279,7 +362,7 @@
 
         if (spec.description) {
           const help = document.createElement("small");
-          help.className = "fg-field__help";
+          help.className = "text-sm text-gray-500";
           help.textContent = spec.description;
           wrapper.appendChild(help);
         }
