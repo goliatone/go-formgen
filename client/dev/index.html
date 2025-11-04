@@ -2,298 +2,61 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Formgen Runtime Sandbox</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #0f172a;
-        color: #e2e8f0;
-      }
 
+    <!-- Load production CSS (copied from Go package) -->
+    <link rel="stylesheet" href="./formgen-vanilla.css" />
+
+    <style>
+      /* Minimal wrapper styling - does NOT override form styles */
       body {
         margin: 0;
-        min-height: 100vh;
+        padding: 1.5rem;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #f5f5f5;
       }
 
-      .playground {
-        margin: 0 auto;
-        padding: 2.5rem 1.5rem 4rem;
-        max-width: 70rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-      }
-
-      .playground h1 {
-        margin: 0;
-        font-size: clamp(2rem, 3vw, 2.5rem);
-        font-weight: 700;
-      }
-
-      .playground p {
-        margin: 0;
-        max-width: 45rem;
-        line-height: 1.6;
-        color: #cbd5f5;
-      }
-
-      .sandbox-card {
-        background: rgba(15, 23, 42, 0.55);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 1.25rem;
-        padding: 2rem;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
-      }
-
-      .fg-form {
-        display: grid;
-        gap: 1.75rem;
-      }
-
-      .fg-field label {
-        font-weight: 600;
-        color: #f8fafc;
-        display: block;
-        margin-bottom: 0.5rem;
-      }
-
-      .fg-field__help {
-        display: block;
-        margin-top: 0.35rem;
-        color: #94a3b8;
-        font-size: 0.9rem;
-      }
-
-      .sandbox-note {
-        font-size: 0.9rem;
-        color: #94a3b8;
-      }
-
-      /* Extracted chips renderer styles from pkg/renderers/vanilla/assets/formgen-vanilla.css */
-      .fg-chip-select__native {
-        display: none;
-      }
-
-      .fg-chip-select {
-        display: none;
-        width: 100%;
-        position: relative;
-        border: 1px solid var(--fg-input-border, rgba(148, 163, 184, 0.35));
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.35);
-        padding: 0.4rem 0.6rem;
-        align-items: center;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-      }
-
-      .fg-chip-select--ready {
-        display: flex;
-      }
-
-      .fg-chip-select--open {
-        border-color: rgba(148, 163, 184, 0.65);
-        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
-        background: rgba(15, 23, 42, 0.85);
-      }
-
-      .fg-chip-select__inner {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        flex: 1 1 auto;
-        min-height: 2.25rem;
-      }
-
-      .fg-chip-select__chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        flex: 1 1 auto;
-      }
-
-      .fg-chip-select__chips-content {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        align-items: center;
-      }
-
-      .fg-chip-select__search {
-        flex: 1 1 8rem;
-        min-width: 6rem;
-        display: flex;
-      }
-
-      .fg-chip-select__search-input {
-        flex: 1 1 auto;
-        border: none;
-        background: transparent;
-        padding: 0.2rem 0.35rem;
-        font: inherit;
-        color: var(--fg-input-text, #f8fafc);
-      }
-
-      .fg-chip-select__search-input:focus {
-        outline: none;
-      }
-
-      .fg-chip-select__search-input::placeholder {
-        color: #9ca3af;
-      }
-
-      .fg-chip-select__search-highlight {
-        background: #fde68a;
-        color: inherit;
-        padding: 0;
-      }
-
-      .fg-chip-select__placeholder {
-        color: #cbd5f5;
-        font-size: 0.95rem;
-      }
-
-      .fg-chip-select__chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        border-radius: 999px;
-        border: 1px solid rgba(96, 165, 250, 0.6);
-        background: rgba(59, 130, 246, 0.18);
-        color: #dbeafe;
-        padding: 0.3rem 0.75rem;
-        font-weight: 500;
-        line-height: 1;
-        max-width: 100%;
-      }
-
-      .fg-chip-select__chip-label {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .fg-chip-select__chip-remove {
-        background: transparent;
-        border: none;
-        color: #bfdbfe;
-        cursor: pointer;
-        font-size: 0.95rem;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        transition: color 0.15s ease;
-      }
-
-      .fg-chip-select__chip-remove:hover {
-        color: #dbeafe;
-      }
-
-      .fg-chip-select__actions {
-        display: flex;
-        gap: 0.35rem;
-      }
-
-      .fg-chip-select__action {
-        width: 1.75rem;
-        height: 1.75rem;
-        border-radius: 999px;
-        border: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(59, 130, 246, 0.2);
-        color: #bfdbfe;
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
-      }
-
-      .fg-chip-select__action:hover:not(:disabled) {
-        background: rgba(59, 130, 246, 0.35);
-        color: #f1f5f9;
-      }
-
-      .fg-chip-select__action:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-      }
-
-      .fg-chip-select__menu {
-        position: absolute;
-        z-index: 10;
-        top: calc(100% + 0.5rem);
-        left: 0;
-        right: 0;
-        border-radius: 1rem;
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        padding: 0.75rem;
-        display: grid;
-        gap: 0.35rem;
-        max-height: 18rem;
-        overflow-y: auto;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.4);
-      }
-
-      .fg-chip-select__menu-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-        border-radius: 0.75rem;
-        background: transparent;
-        padding: 0.65rem 0.85rem;
-        border: none;
-        color: #e2e8f0;
-        cursor: pointer;
-        text-align: left;
-        transition: background 0.15s ease, transform 0.1s ease;
-      }
-
-      .fg-chip-select__menu-item:hover,
-      .fg-chip-select__menu-item:focus-visible {
-        background: rgba(59, 130, 246, 0.22);
-        outline: none;
-        transform: translateY(-1px);
-      }
-
-      .fg-chip-select__menu-empty {
-        padding: 0.75rem;
+      .sandbox-header {
+        max-width: 50rem;
+        margin: 0 auto 2rem;
         text-align: center;
-        color: #94a3b8;
-        font-style: italic;
       }
 
-      .fg-chip-select [hidden] {
-        display: none !important;
+      .sandbox-header h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.75rem;
+        color: #111;
+      }
+
+      .sandbox-header p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      .sandbox-container {
+        max-width: 50rem;
+        margin: 0 auto;
       }
     </style>
   </head>
   <body>
-    <main class="playground">
-      <header>
-        <h1>Formgen Runtime Sandbox</h1>
-        <p>
-          This playground loads the full OpenAPI schema from <code>client/data/schema.json</code>,
-          synthesises the relationship-aware form markup, and boots the runtime against mocked HTTP
-          endpoints. Tweak the TypeScript sources under <code>client/src</code> with
-          <code>npm run watch</code> running and refresh to inspect the behaviour in a real UI.
-        </p>
-      </header>
+    <header class="sandbox-header">
+      <h1>Formgen Runtime Sandbox</h1>
+      <p>
+        Production preview: This loads the exact CSS and runtime that ships with the Go package.
+        Edit <code>src/</code> or <code>pkg/renderers/vanilla/assets/formgen-vanilla.css</code> to see changes.
+      </p>
+    </header>
 
-      <section class="sandbox-card">
-        <div id="app">
-          <p class="sandbox-note">Loading schema &hellip;</p>
-        </div>
-      </section>
-    </main>
+    <div class="sandbox-container">
+      <div id="app"></div>
+    </div>
 
     <script type="module">
-      import { initRelationships } from "../dist/esm/index.js";
+      import { initRelationships } from "../src/index.ts";
 
       const schema = await loadSchema();
       const form = buildForm(schema, "createArticle");
@@ -317,7 +80,7 @@
       }
 
       async function loadSchema() {
-        const response = await fetch("../data/schema.json", { cache: "no-store" });
+        const response = await fetch("./schema.json", { cache: "no-store" });
         if (!response.ok) {
           throw new Error(`Failed to load schema: ${response.status}`);
         }
