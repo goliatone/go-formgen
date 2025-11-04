@@ -151,6 +151,7 @@ func (o *Orchestrator) applyEndpointOverrides(operationID string, form *pkgmodel
 		for key, value := range metadata {
 			target.Metadata[key] = value
 		}
+		ensureTypeaheadDefaults(target)
 	}
 }
 
@@ -305,4 +306,117 @@ func extractFieldReferences(params map[string]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func ensureTypeaheadDefaults(field *pkgmodel.Field) {
+	if field == nil {
+		return
+	}
+	if !shouldUseTypeahead(field) {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string)
+	}
+	if field.Metadata["relationship.endpoint.renderer"] == "" {
+		field.Metadata["relationship.endpoint.renderer"] = "typeahead"
+	}
+	if field.Metadata["relationship.endpoint.mode"] == "" && shouldDefaultSearchMode(field.Metadata) {
+		field.Metadata["relationship.endpoint.mode"] = "search"
+	}
+	label := deriveFieldLabel(field)
+	if field.Metadata["relationship.endpoint.fieldLabel"] == "" && label != "" {
+		field.Metadata["relationship.endpoint.fieldLabel"] = label
+	}
+	if field.Metadata["relationship.endpoint.placeholder"] == "" {
+		field.Metadata["relationship.endpoint.placeholder"] = typeaheadPlaceholder(field, label)
+	}
+	if field.Metadata["relationship.endpoint.searchPlaceholder"] == "" {
+		field.Metadata["relationship.endpoint.searchPlaceholder"] = typeaheadSearchPlaceholder(field, label)
+	}
+	if field.UIHints == nil {
+		field.UIHints = make(map[string]string)
+	}
+	if field.UIHints["relationshipRenderer"] == "" {
+		field.UIHints["relationshipRenderer"] = "typeahead"
+	}
+}
+
+func shouldUseTypeahead(field *pkgmodel.Field) bool {
+	if field.Relationship == nil {
+		return false
+	}
+	if strings.EqualFold(field.Relationship.Cardinality, "many") {
+		return false
+	}
+	if field.Type == pkgmodel.FieldTypeArray {
+		return false
+	}
+	if input := strings.TrimSpace(field.UIHints["input"]); input != "" && input != "select" {
+		return false
+	}
+	return true
+}
+
+func shouldDefaultSearchMode(metadata map[string]string) bool {
+	if len(metadata) == 0 {
+		return false
+	}
+	if strings.TrimSpace(metadata["relationship.endpoint.searchParam"]) != "" {
+		return true
+	}
+	for key, value := range metadata {
+		if strings.HasPrefix(key, "relationship.endpoint.dynamicParams.") && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func deriveFieldLabel(field *pkgmodel.Field) string {
+	if field == nil {
+		return ""
+	}
+	if label := strings.TrimSpace(field.Label); label != "" {
+		return label
+	}
+	return humaniseFieldName(field.Name)
+}
+
+func typeaheadPlaceholder(field *pkgmodel.Field, label string) string {
+	if field != nil && strings.TrimSpace(field.Placeholder) != "" {
+		return field.Placeholder
+	}
+	if label == "" {
+		return "Select an option"
+	}
+	return fmt.Sprintf("Select %s", label)
+}
+
+func typeaheadSearchPlaceholder(_ *pkgmodel.Field, label string) string {
+	if label == "" {
+		return "Search options"
+	}
+	return fmt.Sprintf("Search %s", label)
+}
+
+func humaniseFieldName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	segments := strings.FieldsFunc(name, func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	})
+	if len(segments) == 0 {
+		return ""
+	}
+	for i, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		lower := strings.ToLower(segment)
+		segments[i] = strings.ToUpper(lower[:1]) + lower[1:]
+	}
+	return strings.Join(segments, " ")
 }

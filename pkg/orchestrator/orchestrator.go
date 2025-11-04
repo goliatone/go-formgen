@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 
 	internalLoader "github.com/goliatone/formgen/internal/openapi/loader"
 	internalParser "github.com/goliatone/formgen/internal/openapi/parser"
@@ -11,6 +12,7 @@ import (
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
+	"github.com/goliatone/formgen/pkg/uischema"
 )
 
 const defaultRendererName = "vanilla"
@@ -54,18 +56,42 @@ func WithDefaultRenderer(name string) Option {
 	}
 }
 
+// WithUIDecorators registers decorators that should run against the generated
+// form model before rendering.
+func WithUIDecorators(decorators ...model.Decorator) Option {
+	return func(o *Orchestrator) {
+		if len(decorators) == 0 {
+			return
+		}
+		o.decorators = append(o.decorators, decorators...)
+	}
+}
+
+// WithUISchemaFS supplies an fs.FS holding UI schema documents. Pass nil to
+// disable the embedded defaults.
+func WithUISchemaFS(fsys fs.FS) Option {
+	return func(o *Orchestrator) {
+		o.uiSchemaFS = fsys
+		o.uiSchemaSpecified = true
+	}
+}
+
 // Orchestrator coordinates the full pipeline from OpenAPI document to rendered
 // output. It applies sensible defaults (vanilla renderer, embedded templates)
 // while remaining open to dependency injection for advanced callers.
 type Orchestrator struct {
-	loader            pkgopenapi.Loader
-	parser            pkgopenapi.Parser
-	builder           model.Builder
-	registry          *render.Registry
-	defaultRenderer   string
-	initialiseErr     error
-	defaultsApplied   bool
-	endpointOverrides map[string][]EndpointOverride
+	loader                pkgopenapi.Loader
+	parser                pkgopenapi.Parser
+	builder               model.Builder
+	registry              *render.Registry
+	defaultRenderer       string
+	initialiseErr         error
+	defaultsApplied       bool
+	endpointOverrides     map[string][]EndpointOverride
+	decorators            []model.Decorator
+	uiSchemaFS            fs.FS
+	uiSchemaSpecified     bool
+	uiDecoratorConfigured bool
 }
 
 // New constructs an Orchestrator applying any provided options. Missing
@@ -148,6 +174,9 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	}
 
 	o.applyEndpointOverrides(req.OperationID, &form)
+	if err := o.applyDecorators(&form); err != nil {
+		return nil, err
+	}
 
 	renderer, err := o.rendererFor(req.Renderer)
 	if err != nil {
@@ -208,6 +237,21 @@ func (o *Orchestrator) rendererFor(name string) (render.Renderer, error) {
 	return renderer, nil
 }
 
+func (o *Orchestrator) applyDecorators(form *model.FormModel) error {
+	if len(o.decorators) == 0 || form == nil {
+		return nil
+	}
+	for _, decorator := range o.decorators {
+		if decorator == nil {
+			continue
+		}
+		if err := decorator.Decorate(form); err != nil {
+			return fmt.Errorf("orchestrator: decorate form: %w", err)
+		}
+	}
+	return nil
+}
+
 func (o *Orchestrator) applyDefaults() {
 	if o.defaultsApplied {
 		return
@@ -235,5 +279,32 @@ func (o *Orchestrator) applyDefaults() {
 		o.defaultRenderer = defaultRendererName
 	}
 
+	o.ensureUIDecorator()
+
 	o.defaultsApplied = true
+}
+
+func (o *Orchestrator) ensureUIDecorator() {
+	if o.uiDecoratorConfigured {
+		return
+	}
+	o.uiDecoratorConfigured = true
+
+	if !o.uiSchemaSpecified && o.uiSchemaFS == nil {
+		o.uiSchemaFS = uischema.EmbeddedFS()
+	}
+	if o.uiSchemaFS == nil {
+		return
+	}
+
+	store, err := uischema.LoadFS(o.uiSchemaFS)
+	if err != nil {
+		o.initialiseErr = fmt.Errorf("orchestrator: load ui schema: %w", err)
+		return
+	}
+	if store.Empty() {
+		return
+	}
+
+	o.decorators = append(o.decorators, uischema.NewDecorator(store))
 }

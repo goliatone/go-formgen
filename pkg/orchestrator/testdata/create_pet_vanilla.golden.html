@@ -1,242 +1,105 @@
-
-
-<form class="fg-form" method="POST" action="/pets" data-formgen-auto-init="true">
+<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="POST" action="/pets" data-formgen-auto-init="true">
     
+
+    
+    <div class="grid gap-4 grid-cols-True">
         
-
-<div class="fg-field fg-type-integer">
-    <label for="fg-age">Age</label>
-    
-        
-
-
-<input id="fg-age" type="number" name="age"   value="">
-
-
-
-    
-    
-    
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="input">
+    <label for="fg-age" class="text-sm font-medium text-gray-900">Age</label>
+    <input id="fg-age" type="number"
+        name="age" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
 </div>
 
-
-    
-        
-
-<div class="fg-field fg-type-array">
-    <label for="fg-favoriteFoods">Favorite foods</label>
-    
-        
-<div class="fg-array">
-    
-    
-        
-        <div class="fg-array__items">
-        
-            
-
-<div class="fg-field fg-type-string">
-    <label for="fg-favoriteFoodsItem">Favorite foods item</label>
-    
-        
-
-
-<input id="fg-favoriteFoodsItem" type="text" name="favoriteFoodsItem"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-            
         </div>
-    
+        
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="array">
+    <label for="fg-favoriteFoods" class="text-sm font-medium text-gray-900">Favorite foods</label>
+    <div class="grid gap-3"><div class="grid gap-2"><div class="grid gap-2" data-component="input">
+        <label for="fg-favoriteFoodsItem" class="text-sm font-medium text-gray-900">Favorite foods item</label>
+        <input id="fg-favoriteFoodsItem" type="text"
+            name="favoriteFoodsItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    </div>
+    </div></div>
 </div>
 
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-array">
-    <label for="fg-favoriteNumbers">Favorite numbers</label>
-    
-        
-<div class="fg-array">
-    
-    
-        
-        <div class="fg-array__items">
-        
-            
-
-<div class="fg-field fg-type-number">
-    <label for="fg-favoriteNumbersItem">Favorite numbers item</label>
-    
-        
-
-
-<input id="fg-favoriteNumbersItem" type="number" name="favoriteNumbersItem"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-            
         </div>
-    
+        
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="array">
+    <label for="fg-favoriteNumbers" class="text-sm font-medium text-gray-900">Favorite numbers</label>
+    <div class="grid gap-3"><div class="grid gap-2"><div class="grid gap-2" data-component="input">
+        <label for="fg-favoriteNumbersItem" class="text-sm font-medium text-gray-900">Favorite numbers item</label>
+        <input id="fg-favoriteNumbersItem" type="number"
+            name="favoriteNumbersItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    </div>
+    </div></div>
 </div>
 
-    
-    
-    
+        </div>
+        
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="input">
+    <label for="fg-name" class="text-sm font-medium text-gray-900">Name *</label>
+    <input id="fg-name" type="text"
+        name="name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
 </div>
 
-
-    
+        </div>
         
-
-<div class="fg-field fg-type-string">
-    <label for="fg-name">Name *</label>
-    
-        
-
-
-<input id="fg-name" type="text" name="name"  required value="">
-
-
-
-    
-    
-    
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="object">
+    <label for="fg-owner" class="text-sm font-medium text-gray-900">Owner</label>
+    <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4"><legend class="text-sm font-medium">Owner</legend><div class="grid gap-2" data-component="input">
+        <label for="fg-email" class="text-sm font-medium text-gray-900">Email *</label>
+        <input id="fg-email" type="email"
+            name="email" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+    </div>
+    <div class="grid gap-2" data-component="input">
+        <label for="fg-phone" class="text-sm font-medium text-gray-900">Phone</label>
+        <input id="fg-phone" type="text"
+            name="phone" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    </div>
+    <div class="grid gap-2" data-component="input">
+        <label for="fg-yearsAsCustomer" class="text-sm font-medium text-gray-900">Years as customer</label>
+        <input id="fg-yearsAsCustomer" type="number"
+            name="yearsAsCustomer" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    </div>
+    </fieldset>
+    <small class="text-sm text-gray-500">Owner contact details</small>
 </div>
 
-
-    
+        </div>
         
-
-<div class="fg-field fg-type-object">
-    <label for="fg-owner">Owner</label>
-    
-        
-<fieldset class="fg-fieldset">
-    
-        
-
-<div class="fg-field fg-type-string">
-    <label for="fg-email">Email *</label>
-    
-        
-
-
-<input id="fg-email" type="email" name="email"  required value="">
-
-
-
-    
-    
-    
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="input">
+    <label for="fg-tag" class="text-sm font-medium text-gray-900">Tag</label>
+    <input id="fg-tag" type="text"
+        name="tag" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
 </div>
 
-
-    
+        </div>
         
-
-<div class="fg-field fg-type-string">
-    <label for="fg-phone">Phone</label>
-    
-        
-
-
-<input id="fg-phone" type="text" name="phone"   value="">
-
-
-
-    
-    
-    
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2" data-component="input">
+    <label for="fg-weight" class="text-sm font-medium text-gray-900">Weight</label>
+    <input id="fg-weight" type="number"
+        name="weight" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
 </div>
 
-
-    
+        </div>
         
-
-<div class="fg-field fg-type-integer">
-    <label for="fg-yearsAsCustomer">Years as customer</label>
+    </div>
     
+
+    
+
+    <div class="flex gap-2">
         
-
-
-<input id="fg-yearsAsCustomer" type="number" name="yearsAsCustomer"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-    
-</fieldset>
-
-    
-    <small class="fg-field__help">Owner contact details</small>
-    
-</div>
-
-
-    
+            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
         
-
-<div class="fg-field fg-type-string">
-    <label for="fg-tag">Tag</label>
-    
-        
-
-
-<input id="fg-tag" type="text" name="tag"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-number">
-    <label for="fg-weight">Weight</label>
-    
-        
-
-
-<input id="fg-weight" type="number" name="weight"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-    
-    <div class="fg-actions">
-        <button type="submit">Submit</button>
     </div>
 </form>
+
+

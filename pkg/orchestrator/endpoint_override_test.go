@@ -51,6 +51,7 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 	orch := orchestrator.New(
 		orchestrator.WithRegistry(registry),
 		orchestrator.WithDefaultRenderer("capture"),
+		orchestrator.WithUISchemaFS(nil),
 		orchestrator.WithEndpointOverrides([]orchestrator.EndpointOverride{override}),
 	)
 
@@ -141,6 +142,7 @@ func TestWithEndpointOverrides_RenderedAttributes(t *testing.T) {
 
 	orch := orchestrator.New(
 		orchestrator.WithRegistry(defaultVanillaRegistry(t)),
+		orchestrator.WithUISchemaFS(nil),
 		orchestrator.WithEndpointOverrides([]orchestrator.EndpointOverride{override}),
 	)
 
@@ -222,6 +224,7 @@ func gatherFieldMetadata(t *testing.T, fixture string, opts ...orchestrator.Opti
 	base := []orchestrator.Option{
 		orchestrator.WithRegistry(registry),
 		orchestrator.WithDefaultRenderer("capture"),
+		orchestrator.WithUISchemaFS(nil),
 	}
 	base = append(base, opts...)
 

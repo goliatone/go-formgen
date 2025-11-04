@@ -32,6 +32,7 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 	orch := orchestrator.New(
 		orchestrator.WithRegistry(registry),
 		orchestrator.WithDefaultRenderer("vanilla"),
+		orchestrator.WithUISchemaFS(nil),
 	)
 
 	type goldenCase struct {

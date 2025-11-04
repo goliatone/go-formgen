@@ -1,120 +1,62 @@
-
-
-<form class="fg-form" method="POST" action="/widgets" data-formgen-auto-init="true">
+<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="POST" action="/widgets" data-formgen-auto-init="true">
     
+
+    
+    <div class="grid gap-4 grid-cols-True">
         
-
-<div class="fg-field fg-type-string fg-field--name">
-    <label for="fg-name">Name *</label>
-    
-        
-
-
-<textarea id="fg-name" name="name" placeholder="Give it a friendly name" required></textarea>
-
-
-
-    
-    <small class="fg-field__help">Widget name</small>
-    <small class="fg-field__hint">Shown to customers</small>
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2 fg-field--name" data-component="textarea">
+    <label for="fg-name" class="text-sm font-medium text-gray-900">Name *</label>
+    <textarea id="fg-name" name="name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Give it a friendly name" required></textarea>
+    <small class="text-sm text-gray-500">Widget name</small>
+    <small class="text-sm text-gray-600">Shown to customers</small>
 </div>
 
-
-    
-        
-
-<div class="fg-field fg-type-object fg-fieldset--settings">
-    <label for="fg-settings">Settings</label>
-    
-        
-<fieldset class="fg-fieldset fg-fieldset--accordion">
-    
-        
-
-<div class="fg-field fg-type-boolean">
-    
-    
-        
-<input id="fg-enabled" type="checkbox" name="enabled" >
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-number">
-    <label for="fg-threshold">Threshold</label>
-    
-        
-
-
-<input id="fg-threshold" type="range" name="threshold"   value="">
-
-
-
-    
-    
-    <small class="fg-field__hint">Controls the debounce window</small>
-</div>
-
-
-    
-</fieldset>
-
-    
-    
-    
-</div>
-
-
-    
-        
-
-<div class="fg-field fg-type-array fg-array--tags">
-    <label for="fg-tags">Tags</label>
-    
-        
-<div class="fg-array fg-array--tags">
-    <div class="fg-array__label">Tag</div>
-    
-        
-        <div class="fg-array__items">
-        
-            
-
-<div class="fg-field fg-type-string fg-array__item">
-    <label for="fg-tagsItem">Tags item</label>
-    
-        
-
-
-<input id="fg-tagsItem" type="text" name="tagsItem"   value="">
-
-
-
-    
-    
-    
-</div>
-
-
-            
         </div>
-    
+        
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2 fg-fieldset--settings" data-component="object">
+    <label for="fg-settings" class="text-sm font-medium text-gray-900">Settings</label>
+    <fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4 border-l-4 border-l-blue-600"><legend class="text-sm font-medium">Settings</legend><div class="grid gap-2" data-component="boolean">
+        <div class="flex items-center gap-2">
+            <input id="fg-enabled" type="checkbox" name="enabled" class="h-4 w-4 rounded border-gray-300">
+            <label for="fg-enabled" class="text-sm font-medium">Enable widget</label>
+        </div>
+    </div>
+    <div class="grid gap-2" data-component="input">
+        <label for="fg-threshold" class="text-sm font-medium text-gray-900">Threshold</label>
+        <input id="fg-threshold" type="range"
+            name="threshold" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        <small class="text-sm text-gray-600">Controls the debounce window</small>
+    </div>
+    </fieldset>
 </div>
 
-    
-    
-    
+        </div>
+        
+        <div class="fg-grid__item" style="--fg-grid-span: 12">
+            <div class="grid gap-2 fg-array--tags" data-component="array">
+    <label for="fg-tags" class="text-sm font-medium text-gray-900">Tags</label>
+    <div class="grid gap-3 fg-array--tags"><div class="text-sm font-medium">Tag</div><div class="grid gap-2"><div class="grid gap-2 fg-array__item" data-component="input">
+        <label for="fg-tagsItem" class="text-sm font-medium text-gray-900">Tags item</label>
+        <input id="fg-tagsItem" type="text"
+            name="tagsItem" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+    </div>
+    </div></div>
 </div>
 
+        </div>
+        
+    </div>
+    
 
     
-    <div class="fg-actions">
-        <button type="submit">Submit</button>
+
+    <div class="flex gap-2">
+        
+            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+        
     </div>
 </form>
+
+
