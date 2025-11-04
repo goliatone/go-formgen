@@ -64,14 +64,14 @@ func templateComponentRenderer(templateName string) Renderer {
 
 func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<fieldset class="grid gap-4 rounded-lg border border-gray-200 p-4`)
+	builder.WriteString(`<fieldset class="fg-fieldset`)
 	if strings.TrimSpace(field.UIHints["accordion"]) == "true" {
-		builder.WriteString(` border-l-4 border-l-blue-600`)
+		builder.WriteString(` fg-fieldset--accent`)
 	}
 	builder.WriteString(`">`)
 
 	if label := strings.TrimSpace(field.Label); label != "" {
-		builder.WriteString(`<legend class="text-sm font-medium">`)
+		builder.WriteString(`<legend>`)
 		builder.WriteString(html.EscapeString(label))
 		builder.WriteString(`</legend>`)
 	}
@@ -93,7 +93,7 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 
 func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<div class="grid gap-3`)
+	builder.WriteString(`<div class="fg-array`)
 	if cls := strings.TrimSpace(field.UIHints["cssClass"]); cls != "" {
 		builder.WriteByte(' ')
 		builder.WriteString(html.EscapeString(cls))
@@ -108,7 +108,7 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 
 	if field.Items != nil {
 		cardinality := strings.TrimSpace(field.UIHints["cardinality"])
-		builder.WriteString(`<div class="grid gap-2"`)
+		builder.WriteString(`<div class="fg-array__items"`)
 		if cardinality != "" {
 			builder.WriteString(` data-relationship-collection="`)
 			builder.WriteString(html.EscapeString(cardinality))
@@ -125,7 +125,7 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 		}
 
 		if cardinality == "many" {
-			builder.WriteString(`<button type="button" class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" data-relationship-action="add">Add `)
+			builder.WriteString(`<button type="button" class="fg-array__add" data-relationship-action="add">Add `)
 			if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
 				builder.WriteString(html.EscapeString(label))
 			} else if field.Label != "" {
@@ -150,9 +150,9 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 
 func datetimeRangeRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<div class="grid gap-4">`)
+	builder.WriteString(`<div class="fg-field">`)
 	if len(field.Nested) == 0 {
-		builder.WriteString(`<p class="text-sm text-gray-500">Datetime range "`)
+		builder.WriteString(`<p class="fg-field__help">Datetime range "`)
 		builder.WriteString(html.EscapeString(field.Name))
 		builder.WriteString(`" requires nested start/end fields.</p>`)
 	} else if data.RenderChild != nil {

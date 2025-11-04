@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed templates/*.tmpl
+//go:embed templates/*.tmpl templates/components/*.tmpl
 var embeddedTemplates embed.FS
 
 //go:embed assets/formgen-vanilla.css

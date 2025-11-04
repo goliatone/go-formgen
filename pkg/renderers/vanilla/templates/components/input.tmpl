@@ -1,3 +1,34 @@
-{% set data_attrs = field.metadata.__data_attrs %}
-<input id="fg-{{ field.name }}" type="{% if field.uiHints.inputType %}{{ field.uiHints.inputType }}{% elif field.type == "integer" or field.type == "number" %}number{% else %}text{% endif %}"
-    name="{{ field.name }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"{% if field.placeholder %} placeholder="{{ field.placeholder }}"{% endif %}{% if field.required %} required{% endif %}{% if field.default %} value="{{ field.default }}"{% endif %}{% if data_attrs %}{{ data_attrs|safe }}{% endif %}>
+{% set inputType = field.uiHints.inputType or (field.type == "integer" or field.type == "number") and "number" or "text" -%}
+
+<div class="space-y-2{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if field.component %} data-component="{{ field.component }}"{% if field.componentConfig %} data-component-config='{{ field.componentConfig|safe }}'{% endif %}{% endif %}>
+    {% if field.uiHints.hideLabel != "true" and field.label %}
+    <label for="fg-{{ field.name }}" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
+        {{ field.label }}{% if field.required %}<span class="text-red-500">*</span>{% endif %}
+    </label>
+    {% endif %}
+
+    <input
+        type="{{ inputType }}"
+        id="fg-{{ field.name }}"
+        name="{{ field.name }}"
+        class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+        {% if field.required %}required{% endif %}
+        {% if field.disabled %}disabled{% endif %}
+        {% if field.readonly %}readonly{% endif %}
+        {% if field.default %}value="{{ field.default }}"{% endif %}
+        {% if field.min %}min="{{ field.min }}"{% endif %}
+        {% if field.max %}max="{{ field.max }}"{% endif %}
+        {% if field.step %}step="{{ field.step }}"{% endif %}
+        {% if field.pattern %}pattern="{{ field.pattern }}"{% endif %}
+        {% if field.dataAttrs %}{{ field.dataAttrs|safe }}{% endif %}
+    >
+
+    {% if field.description %}
+    <p class="text-xs text-gray-500 mt-2 dark:text-gray-400">{{ field.description }}</p>
+    {% endif %}
+
+    {% if field.uiHints.helpText %}
+    <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">{{ field.uiHints.helpText }}</p>
+    {% endif %}
+</div>

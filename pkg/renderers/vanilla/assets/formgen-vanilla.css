@@ -181,6 +181,10 @@
   gap: 1rem;
 }
 
+.fg-fieldset--accent {
+  border-left: 4px solid #2563eb;
+}
+
 .fg-actions {
   display: flex;
   justify-content: flex-end;

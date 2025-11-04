@@ -1,9 +1,23 @@
-<div class="grid gap-4">
+<div class="space-y-2">
+    {% if field.label %}
+    <div class="text-sm font-medium text-gray-800 mb-2 dark:text-white">{{ field.label }}</div>
+    {% endif %}
+
     {% if field.nested %}
+    <div class="grid sm:grid-cols-2 gap-3">
         {% for nested in field.nested %}
             {% if render_child %}{{ render_child(nested)|safe }}{% endif %}
         {% endfor %}
+    </div>
     {% else %}
-        <p class="text-sm text-gray-500">Datetime range "{{ field.name }}" requires nested start/end fields.</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Datetime range "{{ field.name }}" requires nested start/end fields.</p>
+    {% endif %}
+
+    {% if field.description %}
+    <p class="text-xs text-gray-500 mt-2 dark:text-gray-400">{{ field.description }}</p>
+    {% endif %}
+
+    {% if field.uiHints.helpText %}
+    <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">{{ field.uiHints.helpText }}</p>
     {% endif %}
 </div>

@@ -7,21 +7,34 @@
 <style data-formgen-default-style>{{ inline_styles|safe }}</style>
 {%- endif -%}
 
-{% set grid_columns = layout.gridColumns or 12 -%}
-{% set grid_gutter = layout.gutter or 'md' -%}
+{% set grid_columns = layout.gridColumnsValue -%}
+{% if not grid_columns %}
+{% set grid_columns = layout.gridColumns -%}
+{% endif %}
+{% if not grid_columns %}
+{% set grid_columns = 12 %}
+{% endif %}
+{% set grid_gutter = layout.gutter -%}
+{% if not grid_gutter %}
+{% set grid_gutter = 'md' %}
+{% endif %}
 
-<form class="grid gap-6 p-6 bg-white rounded-lg border border-gray-200" method="{{ form.method }}" action="{{ form.endpoint }}" data-formgen-auto-init="true">
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ form.method }}" action="{{ form.endpoint }}" data-formgen-auto-init="true">
     {% if form.uiHints and (form.uiHints['layout.title'] or form.uiHints['layout.subtitle']) %}
-    <header class="grid gap-1">
-        {% if form.uiHints['layout.title'] %}<h1 class="text-2xl font-semibold text-gray-900">{{ form.uiHints['layout.title'] }}</h1>{% endif %}
-        {% if form.uiHints['layout.subtitle'] %}<p class="text-gray-600">{{ form.uiHints['layout.subtitle'] }}</p>{% endif %}
+    <header class="space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700">
+        {% if form.uiHints['layout.title'] %}
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form.uiHints['layout.title'] }}</h1>
+        {% endif %}
+        {% if form.uiHints['layout.subtitle'] %}
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ form.uiHints['layout.subtitle'] }}</p>
+        {% endif %}
     </header>
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div class="grid gap-4 grid-cols-{{ grid_columns }}">
+    <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
         {% for field in layout.unsectioned %}
-        <div class="fg-grid__item"{% if field.style %}{{ field.style|safe }}{% endif %}>
+        <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
         </div>
         {% endfor %}
@@ -30,27 +43,31 @@
 
     {% if layout.sections %}
     {% for section in layout.sections %}
-    <section class="grid gap-4 border border-gray-200 rounded-lg p-5 bg-white{% if section.fieldset %} border-none p-0{% endif %}">
+    <section class="space-y-4{% if section.fieldset %} p-4 border border-gray-200 rounded-lg dark:border-gray-700{% endif %}">
         {% if section.title or section.description %}
-        <header class="grid gap-1">
-            {% if section.title %}<h2 class="text-xl font-semibold">{{ section.title }}</h2>{% endif %}
-            {% if section.description %}<p class="text-gray-600">{{ section.description }}</p>{% endif %}
+        <header class="space-y-1">
+            {% if section.title %}
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ section.title }}</h2>
+            {% endif %}
+            {% if section.description %}
+            <p class="text-sm text-gray-600 dark:text-gray-400">{{ section.description }}</p>
+            {% endif %}
         </header>
         {% endif %}
         {% if section.fieldset %}
-        <fieldset class="border-none rounded-lg m-0 p-5 bg-gray-50">
-            <div class="grid gap-4 grid-cols-{{ grid_columns }}">
+        <fieldset>
+            <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
                 {% for field in section.fields %}
-                <div class="fg-grid__item"{% if field.style %}{{ field.style|safe }}{% endif %}>
+                <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
                 </div>
                 {% endfor %}
             </div>
         </fieldset>
         {% else %}
-        <div class="grid gap-4 grid-cols-{{ grid_columns }}">
+        <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
             {% for field in section.fields %}
-            <div class="fg-grid__item"{% if field.style %}{{ field.style|safe }}{% endif %}>
+            <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
             </div>
             {% endfor %}
@@ -60,17 +77,17 @@
     {% endfor %}
     {% endif %}
 
-    <div class="flex gap-2">
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         {% if actions and actions|length > 0 %}
             {% for action in actions %}
                 {% if action.href %}
-                <a class="px-4 py-2 text-sm font-medium rounded-md {% if action.kind == 'primary' %}bg-blue-600 text-white hover:bg-blue-700{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}" href="{{ action.href }}">{{ action.label }}</a>
+                <a class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' %} border-transparent bg-blue-600 text-white hover:bg-blue-700{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none" href="{{ action.href }}">{{ action.label }}</a>
                 {% else %}
-                <button type="{{ action.type or 'submit' }}" class="px-4 py-2 text-sm font-medium rounded-md {% if action.kind == 'primary' or not action.kind %}bg-blue-600 text-white hover:bg-blue-700{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">{{ action.label }}</button>
+                <button type="{{ action.type or 'submit' }}" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' or not action.kind %} border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none">{{ action.label }}</button>
                 {% endif %}
             {% endfor %}
         {% else %}
-            <button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Submit</button>
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
         {% endif %}
     </div>
 </form>

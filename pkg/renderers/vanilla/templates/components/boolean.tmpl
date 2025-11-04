@@ -1,4 +1,26 @@
-<div class="flex items-center gap-2">
-    <input id="fg-{{ field.name }}" type="checkbox" name="{{ field.name }}" class="h-4 w-4 rounded border-gray-300"{% if field.default %} checked{% endif %}>
-    {% if field.label %}<label for="fg-{{ field.name }}" class="text-sm font-medium">{{ field.label }}</label>{% endif %}
+<div class="space-y-2{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}">
+    <div class="flex items-center gap-x-3">
+        <input
+            type="checkbox"
+            id="fg-{{ field.name }}"
+            name="{{ field.name }}"
+            class="shrink-0 mt-0.5 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
+            {% if field.default %}checked{% endif %}
+            {% if field.disabled %}disabled{% endif %}
+            {% if field.required %}required{% endif %}
+        >
+        {% if field.label %}
+        <label for="fg-{{ field.name }}" class="text-sm font-medium text-gray-800 dark:text-white">
+            {{ field.label }}{% if field.required %}<span class="text-red-500">*</span>{% endif %}
+        </label>
+        {% endif %}
+    </div>
+
+    {% if field.description %}
+    <p class="text-xs text-gray-500 ms-6 dark:text-gray-400">{{ field.description }}</p>
+    {% endif %}
+
+    {% if field.uiHints.helpText %}
+    <p class="text-xs text-gray-600 ms-6 dark:text-gray-300">{{ field.uiHints.helpText }}</p>
+    {% endif %}
 </div>

@@ -113,7 +113,7 @@ func buildFieldMarkup(field model.Field, componentName, control string) string {
 	var builder strings.Builder
 	builder.Grow(len(control) + 256)
 
-	builder.WriteString(`<div class="grid gap-2`)
+	builder.WriteString(`<div class="fg-field`)
 	if cls := field.UIHints["cssClass"]; cls != "" {
 		builder.WriteByte(' ')
 		builder.WriteString(html.EscapeString(cls))
@@ -168,7 +168,7 @@ func buildFieldMarkup(field model.Field, componentName, control string) string {
 	if shouldRenderLabel(field) {
 		builder.WriteString(`    <label for="fg-`)
 		builder.WriteString(html.EscapeString(field.Name))
-		builder.WriteString(`" class="text-sm font-medium text-gray-900">`)
+		builder.WriteString(`" class="fg-field__label">`)
 		builder.WriteString(html.EscapeString(field.Label))
 		if field.Required {
 			builder.WriteString(` *`)
@@ -189,14 +189,14 @@ func buildFieldMarkup(field model.Field, componentName, control string) string {
 	}
 
 	if desc := strings.TrimSpace(field.Description); desc != "" {
-		builder.WriteString(`    <small class="text-sm text-gray-500">`)
+		builder.WriteString(`    <small class="fg-field__help">`)
 		builder.WriteString(html.EscapeString(desc))
 		builder.WriteString(`</small>
 `)
 	}
 
 	if hint := strings.TrimSpace(field.UIHints["helpText"]); hint != "" {
-		builder.WriteString(`    <small class="text-sm text-gray-600">`)
+		builder.WriteString(`    <small class="fg-field__hint">`)
 		builder.WriteString(html.EscapeString(hint))
 		builder.WriteString(`</small>
 `)
@@ -208,6 +208,9 @@ func buildFieldMarkup(field model.Field, componentName, control string) string {
 
 func shouldRenderLabel(field model.Field) bool {
 	if strings.TrimSpace(field.Label) == "" {
+		return false
+	}
+	if strings.TrimSpace(field.UIHints["inputType"]) == "hidden" {
 		return false
 	}
 	return strings.TrimSpace(field.UIHints["hideLabel"]) != "true"

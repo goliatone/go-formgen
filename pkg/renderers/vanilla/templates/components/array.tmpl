@@ -1,20 +1,28 @@
-{% set rel = field.relationship %}
-<div class="grid gap-3{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
-    {% if field.uiHints.repeaterLabel %}<div class="text-sm font-medium">{{ field.uiHints.repeaterLabel }}</div>{% endif %}
+{% set rel = field.relationship -%}
+<div class="space-y-3{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}"{% if rel and rel.kind %} data-relationship-type="{{ rel.kind }}"{% endif %}{% if rel and rel.target %} data-relationship-target="{{ rel.target }}"{% endif %}{% if rel and rel.cardinality %} data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}{% if rel and rel.inverse %} data-relationship-inverse="{{ rel.inverse }}"{% endif %}>
+    {% if field.uiHints.repeaterLabel %}
+    <div class="text-sm font-medium text-gray-800 dark:text-white">{{ field.uiHints.repeaterLabel }}</div>
+    {% endif %}
+
     {% if field.items %}
         {% if field.uiHints.cardinality %}
-        <div class="grid gap-2" data-relationship-collection="{{ field.uiHints.cardinality }}">
+        <div class="space-y-3" data-relationship-collection="{{ field.uiHints.cardinality }}">
         {% else %}
-        <div class="grid gap-2">
+        <div class="space-y-3">
         {% endif %}
             {% if render_child %}{{ render_child(field.items)|safe }}{% endif %}
             {% if field.uiHints.cardinality == "many" %}
-            <button type="button" class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" data-relationship-action="add">
+            <button
+                type="button"
+                class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800"
+                data-relationship-action="add"
+            >
+                <svg class="flex-shrink-0 w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                 Add {% if field.uiHints.repeaterLabel %}{{ field.uiHints.repeaterLabel }}{% elif field.label %}{{ field.label }}{% else %}item{% endif %}
             </button>
             {% endif %}
         </div>
     {% else %}
-        <p class="text-sm text-gray-500">Array field {{ field.name }} requires item definition.</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Array field {{ field.name }} requires item definition.</p>
     {% endif %}
 </div>
