@@ -210,7 +210,10 @@ describe("runtime resolver", () => {
 
     await flush();
 
-    const searchInput = document.querySelector<HTMLInputElement>(".fg-chip-select__search-input");
+    const chipContainer = document.querySelector<HTMLElement>("[data-fg-chip-root='true']");
+    expect(chipContainer).not.toBeNull();
+
+    const searchInput = chipContainer!.querySelector<HTMLInputElement>('input[type="search"]');
     expect(searchInput).not.toBeNull();
     searchInput!.value = "tag";
     searchInput!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -250,13 +253,13 @@ describe("runtime resolver", () => {
     await flush();
 
     const container = select.previousElementSibling as HTMLElement;
-    const toggle = container.querySelector<HTMLButtonElement>(".fg-chip-select__action--toggle")!;
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
     toggle.click();
     await flush();
 
-    const searchInput = container.querySelector<HTMLInputElement>(".fg-chip-select__search-input")!;
+    const searchInput = container.querySelector<HTMLInputElement>('input[type="search"]')!;
     const menuItems = () =>
-      Array.from(container.querySelectorAll<HTMLButtonElement>(".fg-chip-select__menu-item"));
+      Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
 
     expect(menuItems().length).toBe(3);
 
@@ -267,7 +270,8 @@ describe("runtime resolver", () => {
     const filtered = menuItems();
     expect(filtered.length).toBe(1);
     expect(filtered[0]?.dataset.value).toBe("ai");
-    expect(filtered[0]?.querySelector(".fg-chip-select__search-highlight")).not.toBeNull();
+    const highlight = filtered[0]?.querySelector("mark");
+    expect(highlight?.classList.contains("bg-amber-100")).toBe(true);
 
     searchInput.value = "";
     searchInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -343,17 +347,15 @@ describe("runtime resolver", () => {
     await flush();
 
     const container = select.previousElementSibling as HTMLElement;
-    expect(container?.classList.contains("fg-chip-select")).toBe(true);
-    expect(container.classList.contains("fg-chip-select--ready")).toBe(true);
+    expect(container?.classList.contains("relative")).toBe(true);
+    expect(container.classList.contains("flex")).toBe(true);
 
-    const toggle = container.querySelector<HTMLButtonElement>(".fg-chip-select__action--toggle");
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
     expect(toggle).not.toBeNull();
     toggle!.click();
     await flush();
 
-    const optionButton = container.querySelector<HTMLButtonElement>(
-      ".fg-chip-select__menu-item[data-value='design']"
-    );
+    const optionButton = container.querySelector<HTMLButtonElement>("[role='option'][data-value='design']");
     expect(optionButton).not.toBeNull();
     optionButton!.click();
     await flush();
@@ -363,14 +365,14 @@ describe("runtime resolver", () => {
     const chip = container.querySelector("[data-fg-chip-value='design']");
     expect(chip).not.toBeNull();
 
-    const remove = chip!.querySelector<HTMLButtonElement>(".fg-chip-select__chip-remove");
+    const remove = chip!.querySelector<HTMLButtonElement>("button[aria-label^='Remove']");
     expect(remove).not.toBeNull();
     remove!.click();
     await flush();
 
     expect(Array.from(select.selectedOptions).map((item) => item.value)).not.toContain("design");
 
-    const menu = container.querySelector<HTMLElement>(".fg-chip-select__menu");
+    const menu = container.querySelector<HTMLElement>("[role='listbox']");
     expect(menu?.hidden).toBe(true);
   });
 
@@ -408,16 +410,18 @@ describe("runtime resolver", () => {
     await flush();
 
     const container = select.previousElementSibling as HTMLElement;
-    expect(container?.classList.contains("fg-typeahead")).toBe(true);
-    expect(container.classList.contains("fg-typeahead--ready")).toBe(true);
+    expect(container?.classList.contains("relative")).toBe(true);
+    expect(container.classList.contains("w-full")).toBe(true);
+    expect(container.classList.contains("text-sm")).toBe(true);
+    expect(container.classList.contains("block")).toBe(true);
 
-    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
+    const input = container.querySelector<HTMLInputElement>('input[type="text"]');
     expect(input).not.toBeNull();
 
     input!.focus();
     await flush();
 
-    const dropdown = container.querySelector<HTMLElement>(".fg-typeahead__dropdown");
+    const dropdown = container.querySelector<HTMLElement>('[role="listbox"]');
     expect(dropdown).not.toBeNull();
     expect(dropdown!.hidden).toBe(false);
 
@@ -459,7 +463,7 @@ describe("runtime resolver", () => {
     setGlobalConfig({ searchThrottleMs: 0, searchDebounceMs: 0 });
     await initRelationships();
     const container = select.previousElementSibling as HTMLElement;
-    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
+    const input = container.querySelector<HTMLInputElement>('input[type="text"]');
     expect(input).not.toBeNull();
 
     input!.focus();
@@ -512,9 +516,9 @@ describe("runtime resolver", () => {
     await flush();
 
     const container = select.previousElementSibling as HTMLElement;
-    const input = container.querySelector<HTMLInputElement>(".fg-typeahead__input");
-    const dropdown = container.querySelector<HTMLElement>(".fg-typeahead__dropdown");
-    const clear = container.querySelector<HTMLButtonElement>(".fg-typeahead__clear");
+    const input = container.querySelector<HTMLInputElement>('input[type="text"]');
+    const dropdown = container.querySelector<HTMLElement>('[role="listbox"]');
+    const clear = container.querySelector<HTMLButtonElement>('[aria-label="Clear selection"]');
 
     expect(input).not.toBeNull();
     expect(dropdown).not.toBeNull();
