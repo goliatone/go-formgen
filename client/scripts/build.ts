@@ -20,6 +20,8 @@ const analyze = args.has("--analyze");
 const distRoot = resolve(projectRoot, buildOutput.root);
 const esmOutDir = resolve(projectRoot, buildOutput.esm);
 const iifeOutDir = resolve(projectRoot, buildOutput.iife);
+const themesOutDir = resolve(projectRoot, "dist", "themes");
+const viteOutDir = resolve(projectRoot, "dist", "vite");
 
 const esmOptions: BuildOptions = {
   absWorkingDir: projectRoot,
@@ -70,11 +72,17 @@ const iifePreactOptions: BuildOptions = {
 
 async function ensureOutDirs() {
   if (!watch) {
-    await rm(distRoot, { recursive: true, force: true });
+    await Promise.all([
+      rm(esmOutDir, { recursive: true, force: true }),
+      rm(iifeOutDir, { recursive: true, force: true }),
+      rm(viteOutDir, { recursive: true, force: true }),
+    ]);
   }
   await Promise.all([
+    mkdir(distRoot, { recursive: true }),
     mkdir(esmOutDir, { recursive: true }),
     mkdir(resolve(iifeOutDir, "frameworks"), { recursive: true }),
+    mkdir(themesOutDir, { recursive: true }),
   ]);
 }
 
