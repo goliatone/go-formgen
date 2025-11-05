@@ -7,6 +7,14 @@ import {
   buildHighlightedFragment,
 } from "./relationship-utils";
 import { registerRendererCleanup } from "./relationship-cleanup";
+import {
+  addElementClasses,
+  classesToString,
+  getThemeClasses,
+  removeElementClasses,
+  setElementClasses,
+  type TypeaheadClassMap,
+} from "../theme/classes";
 
 interface TypeaheadStore {
   select: HTMLSelectElement;
@@ -25,6 +33,7 @@ interface TypeaheadStore {
   searchMode: boolean;
   searchQuery: string;
   documentHandler: (event: MouseEvent) => void;
+  theme: TypeaheadClassMap;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -73,26 +82,28 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     return existing;
   }
 
+  const theme = getThemeClasses().typeahead;
+
   const container = document.createElement("div");
-  container.className = "fg-typeahead";
+  setElementClasses(container, theme.container);
   container.setAttribute(TYPEAHEAD_ROOT_ATTR, "true");
   container.hidden = true;
 
   const control = document.createElement("div");
-  control.className = "fg-typeahead__control";
+  setElementClasses(control, theme.control);
   control.setAttribute("role", "combobox");
   control.setAttribute("aria-haspopup", "listbox");
   control.setAttribute("aria-expanded", "false");
 
   const input = document.createElement("input");
   input.type = "text";
-  input.className = "fg-typeahead__input";
+  setElementClasses(input, theme.input);
   input.autocomplete = "off";
   input.setAttribute("aria-autocomplete", "list");
 
   const clear = document.createElement("button");
   clear.type = "button";
-  clear.className = "fg-typeahead__clear";
+  setElementClasses(clear, theme.clear);
   clear.setAttribute("aria-label", "Clear selection");
   clear.innerHTML = '<span aria-hidden="true">&times;</span>';
   clear.disabled = true;
@@ -100,7 +111,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   control.append(input, clear);
 
   const dropdown = document.createElement("div");
-  dropdown.className = "fg-typeahead__dropdown";
+  setElementClasses(dropdown, theme.dropdown);
   dropdown.setAttribute("role", "listbox");
   dropdown.hidden = true;
 
@@ -112,7 +123,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   container.append(control, dropdown);
 
   select.insertAdjacentElement("beforebegin", container);
-  select.classList.add("fg-typeahead__native");
+  addElementClasses(select, theme.nativeSelect);
 
   const placeholder =
     select.dataset.endpointPlaceholder || derivePlaceholder(select);
@@ -147,6 +158,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     searchMode: select.dataset.endpointMode === "search",
     searchQuery: "",
     documentHandler: () => {},
+    theme,
   };
 
   input.placeholder = store.searchMode ? store.searchPlaceholder : store.placeholder;
@@ -160,11 +172,11 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
       container.hidden = false;
-      container.classList.add("fg-typeahead--ready");
+      addElementClasses(container, theme.containerReady);
     });
   } else {
     container.hidden = false;
-    container.classList.add("fg-typeahead--ready");
+    addElementClasses(container, theme.containerReady);
   }
 
   return store;
@@ -360,7 +372,7 @@ function openDropdown(store: TypeaheadStore): void {
   renderOptions(store);
   store.dropdown.hidden = false;
   store.control.setAttribute("aria-expanded", "true");
-  store.container.classList.add("fg-typeahead--open");
+  addElementClasses(store.container, store.theme.containerOpen);
   store.isOpen = true;
   if (store.highlightedIndex === -1 && store.filtered.length > 0) {
     store.highlightedIndex = 0;
@@ -374,14 +386,14 @@ function closeDropdown(store: TypeaheadStore): void {
   }
   store.dropdown.hidden = true;
   store.control.setAttribute("aria-expanded", "false");
-  store.container.classList.remove("fg-typeahead--open");
+  removeElementClasses(store.container, store.theme.containerOpen);
   store.isOpen = false;
   store.highlightedIndex = -1;
   updateHighlightedOption(store);
 }
 
 function renderOptions(store: TypeaheadStore): void {
-  const { dropdown, select } = store;
+  const { dropdown, select, theme } = store;
   dropdown.innerHTML = "";
   const trimmed = store.searchQuery.trim().toLowerCase();
 
@@ -400,7 +412,7 @@ function renderOptions(store: TypeaheadStore): void {
 
   if (available.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "fg-typeahead__empty";
+    setElementClasses(empty, theme.empty);
     empty.textContent = trimmed ? "No matches" : "No options";
     dropdown.appendChild(empty);
     return;
@@ -413,7 +425,7 @@ function renderOptions(store: TypeaheadStore): void {
   available.forEach((option, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "fg-typeahead__option";
+    setElementClasses(button, theme.option);
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     button.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
@@ -422,7 +434,7 @@ function renderOptions(store: TypeaheadStore): void {
       buildHighlightedFragment(
         option.label ?? option.value,
         trimmed,
-        "fg-typeahead__highlight"
+        classesToString(theme.highlight)
       )
     );
     if (option.value === selectedValue) {
@@ -440,14 +452,18 @@ function renderOptions(store: TypeaheadStore): void {
 }
 
 function updateHighlightedOption(store: TypeaheadStore): void {
-  const { dropdown, highlightedIndex } = store;
+  const { dropdown, highlightedIndex, theme } = store;
   const options = Array.from(
     dropdown.querySelectorAll<HTMLElement>(`[${TYPEAHEAD_OPTION_ATTR}]`)
   );
 
   options.forEach((option, index) => {
     const isActive = index === highlightedIndex;
-    option.classList.toggle("fg-typeahead__option--active", isActive);
+    if (isActive) {
+      addElementClasses(option, theme.optionActive);
+    } else {
+      removeElementClasses(option, theme.optionActive);
+    }
     option.setAttribute(
       "aria-selected",
       isActive ? "true" : option.dataset.selected === "true" ? "true" : "false"

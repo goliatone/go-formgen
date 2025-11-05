@@ -1,5 +1,22 @@
 import type { Option, RendererContext } from "../config";
 import type { ResolverRegistry } from "../registry";
+import {
+  syncSelectOptions,
+  derivePlaceholder,
+  deriveSearchPlaceholder,
+  getSelectedValues,
+  buildHighlightedFragment,
+} from "./relationship-utils";
+import { registerRendererCleanup } from "./relationship-cleanup";
+import {
+  addElementClasses,
+  classesToString,
+  combineClasses,
+  getThemeClasses,
+  removeElementClasses,
+  setElementClasses,
+  type ChipsClassMap,
+} from "../theme/classes";
 
 interface ChipStore {
   select: HTMLSelectElement;
@@ -16,6 +33,7 @@ interface ChipStore {
   searchMode: boolean;
   searchInput?: HTMLInputElement;
   searchValue: string;
+  theme: ChipsClassMap;
 }
 
 const CHIP_ROOT_ATTR = "data-fg-chip-root";
@@ -31,7 +49,11 @@ export function bootstrapChips(element: HTMLSelectElement): void {
     return;
   }
   const store = ensureStore(element);
-  const selected = syncNativeOptions(store);
+  const selected = syncSelectOptions({
+    select: store.select,
+    options: store.options,
+    placeholder: store.placeholder,
+  });
   renderChips(store, selected);
   renderMenu(store, selected);
   updateClearState(store, selected);
@@ -46,7 +68,11 @@ const chipsRenderer = (context: RendererContext): void => {
   const store = ensureStore(element);
   store.options = options;
 
-  const selectedValues = syncNativeOptions(store);
+  const selectedValues = syncSelectOptions({
+    select: store.select,
+    options,
+    placeholder: store.placeholder,
+  });
   renderChips(store, selectedValues);
   renderMenu(store, selectedValues);
   if (!store.isOpen) {
@@ -61,30 +87,32 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     return existing;
   }
 
+  const theme = getThemeClasses().chips;
+
   const container = document.createElement("div");
-  container.className = "fg-chip-select";
+  setElementClasses(container, theme.container);
   container.style.width = "100%";
   container.setAttribute(CHIP_ROOT_ATTR, "true");
   container.hidden = true;
 
   const chips = document.createElement("div");
-  chips.className = "fg-chip-select__chips";
+  setElementClasses(chips, theme.chips);
   const chipsContent = document.createElement("div");
-  chipsContent.className = "fg-chip-select__chips-content";
+  setElementClasses(chipsContent, theme.chipsContent);
   chips.appendChild(chipsContent);
 
   const actions = document.createElement("div");
-  actions.className = "fg-chip-select__actions";
+  setElementClasses(actions, theme.actions);
 
   const clear = document.createElement("button");
   clear.type = "button";
-  clear.className = "fg-chip-select__action fg-chip-select__action--clear";
+  setElementClasses(clear, combineClasses(theme.action, theme.actionClear));
   clear.setAttribute("aria-label", "Clear selection");
   clear.innerHTML = '<span aria-hidden="true">&times;</span>';
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = "fg-chip-select__action fg-chip-select__action--toggle";
+  setElementClasses(toggle, combineClasses(theme.action, theme.actionToggle));
   toggle.setAttribute("aria-haspopup", "listbox");
   toggle.setAttribute("aria-expanded", "false");
   toggle.innerHTML = '<span aria-hidden="true">&#x2304;</span>';
@@ -92,17 +120,17 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   actions.append(clear, toggle);
 
   const inner = document.createElement("div");
-  inner.className = "fg-chip-select__inner";
+  setElementClasses(inner, theme.inner);
   inner.append(chips, actions);
 
   const menu = document.createElement("div");
-  menu.className = "fg-chip-select__menu";
+  setElementClasses(menu, theme.menu);
   menu.hidden = true;
 
   container.append(inner, menu);
 
   select.insertAdjacentElement("beforebegin", container);
-  select.classList.add("fg-chip-select__native");
+  addElementClasses(select, theme.nativeSelect);
 
   const placeholder = derivePlaceholder(select);
   const searchMode = select.dataset.endpointMode === "search";
@@ -120,15 +148,16 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     isOpen: false,
     searchMode,
     searchValue: "",
+    theme,
   };
 
   if (searchMode) {
     const searchContainer = document.createElement("div");
-    searchContainer.className = "fg-chip-select__search";
+    setElementClasses(searchContainer, theme.search);
 
     const searchInput = document.createElement("input");
     searchInput.type = "search";
-    searchInput.className = "fg-chip-select__search-input";
+    setElementClasses(searchInput, theme.searchInput);
     searchInput.setAttribute("placeholder", deriveSearchPlaceholder(select));
     searchInput.setAttribute("autocomplete", "off");
     searchInput.setAttribute("aria-label", "Search options");
@@ -179,63 +208,18 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
       container.hidden = false;
-      container.classList.add("fg-chip-select--ready");
+      addElementClasses(container, theme.containerReady);
     });
   } else {
     container.hidden = false;
-    container.classList.add("fg-chip-select--ready");
+    addElementClasses(container, theme.containerReady);
   }
 
   return store;
 }
 
-function syncNativeOptions(store: ChipStore): Set<string> {
-  const { select, options } = store;
-
-  // Preserve existing labels from pre-rendered options
-  const existingLabels = new Map(
-    Array.from(select.options)
-      .filter((option) => option.value !== "")
-      .map((option) => [option.value, option.textContent || option.value])
-  );
-
-  const currentSelection = new Set(
-    Array.from(select.options)
-      .filter((option) => option.selected && option.value !== "")
-      .map((option) => option.value)
-  );
-
-  select.innerHTML = "";
-  if (store.placeholder) {
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = store.placeholder;
-    select.appendChild(placeholder);
-  }
-
-  const optionByValue = new Map(options.map((option) => [option.value, option]));
-  for (const value of currentSelection) {
-    if (!optionByValue.has(value)) {
-      // Use preserved label instead of value as fallback
-      const label = existingLabels.get(value) || value;
-      optionByValue.set(value, { value, label });
-    }
-  }
-
-  for (const option of optionByValue.values()) {
-    const node = document.createElement("option");
-    node.value = option.value;
-    node.textContent = option.label;
-    node.selected = currentSelection.has(option.value);
-    select.appendChild(node);
-  }
-
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-  return getSelectedValues(select);
-}
-
 function renderChips(store: ChipStore, selectedValues: Set<string>): void {
-  const { chipsContent, chips, select, placeholder, searchInput } = store;
+  const { chipsContent, chips, select, placeholder, searchInput, theme } = store;
 
   // Don't re-render chips if user is actively typing in search input
   if (searchInput && document.activeElement === searchInput) {
@@ -250,7 +234,7 @@ function renderChips(store: ChipStore, selectedValues: Set<string>): void {
 
   if (selectedOptions.length === 0) {
     const placeholderNode = document.createElement("span");
-    placeholderNode.className = "fg-chip-select__placeholder";
+    setElementClasses(placeholderNode, theme.placeholder);
     placeholderNode.textContent = placeholder || "Select an option";
     chipsContent.appendChild(placeholderNode);
   } else {
@@ -259,16 +243,16 @@ function renderChips(store: ChipStore, selectedValues: Set<string>): void {
       const label = option.textContent ?? value;
 
       const chip = document.createElement("span");
-      chip.className = "fg-chip-select__chip";
+      setElementClasses(chip, theme.chip);
       chip.setAttribute(CHIP_DATA_VALUE, value);
 
       const text = document.createElement("span");
-      text.className = "fg-chip-select__chip-label";
+      setElementClasses(text, theme.chipLabel);
       text.textContent = label;
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "fg-chip-select__chip-remove";
+      setElementClasses(remove, theme.chipRemove);
       remove.setAttribute("aria-label", `Remove ${label}`);
       remove.innerHTML = "&times;";
       remove.addEventListener("click", () => {
@@ -292,7 +276,7 @@ function renderChips(store: ChipStore, selectedValues: Set<string>): void {
 }
 
 function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
-  const { menu, options, searchMode, searchValue } = store;
+  const { menu, options, searchMode, searchValue, theme } = store;
   menu.innerHTML = "";
 
   menu.setAttribute("role", "listbox");
@@ -313,7 +297,7 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
 
   if (available.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "fg-chip-select__menu-empty";
+    setElementClasses(empty, theme.menuEmpty);
     empty.textContent = query ? "No matches" : "No more options";
     menu.appendChild(empty);
     return;
@@ -322,15 +306,13 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
   for (const option of available) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "fg-chip-select__menu-item";
+    setElementClasses(button, theme.menuItem);
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     const label = option.label ?? option.value;
-    if (query) {
-      button.appendChild(buildHighlightedLabel(label, query));
-    } else {
-      button.textContent = label;
-    }
+    button.appendChild(
+      buildHighlightedFragment(label, query, classesToString(theme.searchHighlight))
+    );
     button.addEventListener("click", () => {
       const updated = new Set(selectedValues);
       updated.add(option.value);
@@ -374,111 +356,20 @@ function toggleMenu(store: ChipStore, open: boolean): void {
   store.menu.hidden = !open;
   store.toggle.setAttribute("aria-expanded", open ? "true" : "false");
   if (open) {
-    store.container.classList.add("fg-chip-select--open");
+    addElementClasses(store.container, store.theme.containerOpen);
     if (store.searchMode && store.searchInput) {
       store.searchInput.focus();
     }
   } else {
-    store.container.classList.remove("fg-chip-select--open");
+    removeElementClasses(store.container, store.theme.containerOpen);
   }
   store.isOpen = open;
 }
 
-function derivePlaceholder(select: HTMLSelectElement): string {
-  const option = Array.from(select.options).find((item) => item.value === "");
-  if (option && option.textContent) {
-    return option.textContent;
-  }
-  if (select.getAttribute("placeholder")) {
-    return select.getAttribute("placeholder") ?? "";
-  }
-  if (select.getAttribute("aria-label")) {
-    return select.getAttribute("aria-label") ?? "";
-  }
-  return "Select an option";
+function destroyChipStore(store: ChipStore): void {
+  document.removeEventListener("click", store.documentHandler);
 }
 
-function deriveSearchPlaceholder(select: HTMLSelectElement): string {
-  const explicit = select.getAttribute("data-endpoint-search-placeholder");
-  if (explicit) {
-    return explicit;
-  }
-  const label =
-    select.getAttribute("aria-label") ??
-    select.getAttribute("placeholder") ??
-    select.getAttribute("name") ??
-    select.id;
-  if (label) {
-    return `Search ${label}`.trim();
-  }
-  return "Search options";
-}
-
-function getSelectedValues(select: HTMLSelectElement): Set<string> {
-  return new Set(
-    Array.from(select.options)
-      .filter((option) => option.selected && option.value !== "")
-      .map((option) => option.value)
-  );
-}
-
-function buildHighlightedLabel(label: string, query: string): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  const lowerLabel = label.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-
-  if (!lowerQuery) {
-    fragment.append(document.createTextNode(label));
-    return fragment;
-  }
-
-  let cursor = 0;
-  let index = lowerLabel.indexOf(lowerQuery);
-  const length = lowerQuery.length;
-
-  while (index !== -1) {
-    if (index > cursor) {
-      fragment.append(document.createTextNode(label.slice(cursor, index)));
-    }
-
-    const match = label.slice(index, index + length);
-    const highlight = document.createElement("mark");
-    highlight.className = "fg-chip-select__search-highlight";
-    highlight.textContent = match;
-    fragment.append(highlight);
-
-    cursor = index + length;
-    index = lowerLabel.indexOf(lowerQuery, cursor);
-  }
-
-  if (cursor < label.length) {
-    fragment.append(document.createTextNode(label.slice(cursor)));
-  }
-
-  return fragment;
-}
-
-// Ensure cleanup when elements are removed from the DOM.
-const observer = new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    mutation.removedNodes.forEach((node) => {
-      if (!(node instanceof HTMLElement)) {
-        return;
-      }
-      const select = node.matches("select[data-endpoint-renderer='chips']")
-        ? (node as HTMLSelectElement)
-        : (node.querySelector("select[data-endpoint-renderer='chips']") as HTMLSelectElement | null);
-      if (select && stores.has(select)) {
-        const store = stores.get(select);
-        if (store) {
-          document.removeEventListener("click", store.documentHandler);
-          stores.delete(select);
-        }
-      }
-    });
-  }
+registerRendererCleanup("chips", stores, (_select, store) => {
+  destroyChipStore(store as ChipStore);
 });
-
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}

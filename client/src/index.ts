@@ -13,6 +13,8 @@ import {
 } from "./dom";
 import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
 import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
+import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
+import { initComponents } from "./components/registry";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -34,6 +36,7 @@ export async function initRelationships(
   }
 
   registerChipRenderer(registry);
+  registerTypeaheadRenderer(registry);
 
   const roots = Array.from(
     document.querySelectorAll<HTMLElement>("[data-formgen-auto-init]")
@@ -42,6 +45,7 @@ export async function initRelationships(
   const promises: Promise<void>[] = [];
 
   for (const root of roots) {
+    initComponents(root);
     const fields = locateRelationshipFields(root);
     for (const element of fields) {
       const dataset = readDataset(element);
@@ -58,6 +62,13 @@ export async function initRelationships(
         element.multiple
       ) {
         bootstrapChips(element);
+      }
+      if (
+        field.renderer === "typeahead" &&
+        element instanceof HTMLSelectElement &&
+        !element.multiple
+      ) {
+        bootstrapTypeahead(element);
       }
 
       setupDependentRefresh(element, field, root, registry);
@@ -104,6 +115,18 @@ export {
   type CustomResolver,
 } from "./resolver";
 export { RUNTIME_VERSION } from "./version";
+export {
+  registerComponent,
+  initComponents,
+  __resetComponentRegistryForTests as resetComponentRegistryForTests,
+} from "./components/registry";
+export {
+  registerThemeClasses,
+  getThemeClasses,
+  type ThemeClassMap,
+  type ChipsClassMap,
+  type TypeaheadClassMap,
+} from "./theme/classes";
 
 function datasetToEndpoint(dataset: Record<string, string>): EndpointConfig {
   const endpoint: EndpointConfig = {};
