@@ -159,6 +159,22 @@ func (s *stubChromeTemplateRenderer) RenderString(templateContent string, data a
 	return "", nil
 }
 
+func TestBuildDataAttributesIncludesBehaviors(t *testing.T) {
+	metadata := map[string]string{
+		behaviorNamesMetadataKey:  "autoSlug autoResize",
+		behaviorConfigMetadataKey: `{"autoSlug":{"source":"title"},"autoResize":{"minRows":5}}`,
+	}
+
+	result := buildDataAttributes(metadata)
+	if !strings.Contains(result, `data-behavior="autoSlug autoResize"`) {
+		t.Fatalf("expected behavior names attribute, got %q", result)
+	}
+	expectedConfig := `data-behavior-config="{&#34;autoSlug&#34;:{&#34;source&#34;:&#34;title&#34;},&#34;autoResize&#34;:{&#34;minRows&#34;:5}}"` // html-escaped quotes
+	if !strings.Contains(result, expectedConfig) {
+		t.Fatalf("expected behavior config attribute with escaped payload, got %q", result)
+	}
+}
+
 func (s *stubChromeTemplateRenderer) RegisterFilter(name string, fn func(any, any) (any, error)) error {
 	return nil
 }

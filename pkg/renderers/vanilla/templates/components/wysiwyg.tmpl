@@ -1,5 +1,5 @@
 {% set data_attrs = field.metadata.__data_attrs -%}
-{% set component_config = field.uiHints.componentOptions -%}
+{% set component_config = field.metadata["component.config"] -%}
 
 <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
   <textarea
@@ -7,7 +7,7 @@
       name="{{ field.name }}"
       class="sr-only"
       data-fg-component="wysiwyg"
-      {% if component_config %}data-component-config='{{ component_config|tojson }}'{% endif %}
+      {% if component_config %}data-component-config='{{ component_config|safe }}'{% endif %}
       {% if field.placeholder %}data-placeholder="{{ field.placeholder }}"{% endif %}
       {% if field.required %}required{% endif %}
       {% if field.disabled %}disabled{% endif %}

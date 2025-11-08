@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"os"
 	"sort"
@@ -147,6 +148,8 @@ const (
 	componentNameMetadataKey   = "component.name"
 	componentConfigMetadataKey = "component.config"
 	componentChromeMetadataKey = "component.chrome"
+	behaviorNamesMetadataKey   = "behavior.names"
+	behaviorConfigMetadataKey  = "behavior.config"
 	defaultGridColumns         = 12
 )
 
@@ -710,6 +713,14 @@ func buildDataAttributes(metadata map[string]string) string {
 	}
 
 	attrs := make(map[string]string)
+
+	if names := strings.TrimSpace(metadata[behaviorNamesMetadataKey]); names != "" {
+		attrs["data-behavior"] = names
+	}
+	if config := strings.TrimSpace(metadata[behaviorConfigMetadataKey]); config != "" {
+		attrs["data-behavior-config"] = config
+	}
+
 	keys := make([]string, 0, len(metadata))
 	for key := range metadata {
 		keys = append(keys, key)
@@ -756,7 +767,7 @@ func buildDataAttributes(metadata map[string]string) string {
 		builder.WriteByte(' ')
 		builder.WriteString(name)
 		builder.WriteString(`="`)
-		builder.WriteString(attrs[name])
+		builder.WriteString(html.EscapeString(attrs[name]))
 		builder.WriteByte('"')
 	}
 	return builder.String()

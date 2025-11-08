@@ -1,244 +1,636 @@
 {
-  "operationId": "createWidget",
-  "endpoint": "/widgets",
+  "operationId": "createArticle",
+  "endpoint": "/articles",
   "method": "POST",
-  "summary": "Create widget",
-  "description": "Capture metadata for a widget.",
-  "metadata": {
-    "submitLabel": "Create widget",
-    "success-message": "Widget saved",
-    "layout.sections": "[{\"id\":\"details\",\"title\":\"Details\",\"order\":0,\"fieldset\":true},{\"id\":\"relationships\",\"title\":\"Relationships\",\"order\":1}]",
-    "actions": "[{\"kind\":\"secondary\",\"label\":\"Cancel\",\"href\":\"/widgets\"},{\"kind\":\"primary\",\"label\":\"Create\",\"type\":\"submit\"}]"
-  },
-  "uiHints": {
-    "submitLabel": "Create widget",
-    "success-message": "Widget saved",
-    "layout.title": "Create Widget",
-    "layout.subtitle": "Configure widget metadata and associations.",
-    "layout.gridColumns": "12",
-    "layout.gutter": "md"
-  },
+  "summary": "Create an article with related entities",
   "fields": [
     {
-      "name": "name",
+      "name": "title",
       "type": "string",
-      "label": "Name",
       "required": true,
-      "description": "Widget name",
-      "placeholder": "Give it a friendly name",
+      "label": "Title",
+      "placeholder": "Garden maintenance tips",
+      "description": "Human readable title",
       "metadata": {
-        "cssClass": "fg-field--name",
-        "helpText": "Shown to customers",
-        "placeholder": "Give it a friendly name",
-        "widget": "textarea",
-        "layout.section": "details"
+        "layout.order": "0",
+        "layout.section": "overview"
       },
       "uiHints": {
-        "cssClass": "fg-field--name",
-        "helpText": "Shown to customers",
-        "placeholder": "Give it a friendly name",
-        "widget": "textarea",
+        "layout.span": "8"
+      }
+    },
+    {
+      "name": "slug",
+      "type": "string",
+      "required": false,
+      "label": "Slug",
+      "placeholder": "garden-maintenance-tips",
+      "description": "URL friendly identifier",
+      "metadata": {
+        "behavior.config": "{\"source\":\"title\"}",
+        "behavior.names": "autoSlug",
+        "component.config": "{\"behaviors\":{\"autoSlug\":{\"source\":\"title\"}}}",
+        "layout.order": "1",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "helpText": "Auto generated from the title but editable.",
+        "layout.span": "4"
+      }
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "required": false,
+      "label": "Status",
+      "placeholder": "Select status",
+      "description": "Workflow status used to drive approvals",
+      "enum": [
+        "draft",
+        "in_review",
+        "scheduled",
+        "published"
+      ],
+      "metadata": {
+        "layout.order": "2",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "layout.span": "4"
+      }
+    },
+    {
+      "name": "featured",
+      "type": "boolean",
+      "required": false,
+      "label": "Featured",
+      "description": "Promote this article on the homepage",
+      "metadata": {
+        "layout.order": "3",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "helpText": "Pins the story to the homepage hero.",
+        "layout.span": "4"
+      }
+    },
+    {
+      "name": "read_time_minutes",
+      "type": "integer",
+      "required": false,
+      "label": "Read time (min)",
+      "placeholder": "5",
+      "description": "Estimated reading time in minutes",
+      "validations": [
+        {
+          "kind": "min",
+          "params": {
+            "value": "1"
+          }
+        }
+      ],
+      "metadata": {
+        "layout.order": "4",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "layout.span": "4"
+      }
+    },
+    {
+      "name": "tenant_id",
+      "type": "string",
+      "required": false,
+      "label": "Tenant",
+      "placeholder": "Select tenant",
+      "description": "Tenant scope to demonstrate dynamic params",
+      "enum": [
+        "garden",
+        "archive",
+        "lumen"
+      ],
+      "metadata": {
+        "layout.order": "5",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "helpText": "Changing tenants refreshes author, category, tags, and related resources.",
         "layout.span": "6"
       }
     },
     {
-      "name": "title",
+      "name": "summary",
       "type": "string",
-      "label": "Title",
       "required": false,
+      "label": "Summary",
+      "placeholder": "Short teaser shown in listings",
+      "description": "Short teaser shown on index cards",
+      "validations": [
+        {
+          "kind": "maxLength",
+          "params": {
+            "value": "280"
+          }
+        }
+      ],
       "metadata": {
-        "layout.section": "details"
+        "layout.order": "6",
+        "layout.section": "content"
       },
       "uiHints": {
-        "layout.span": "6"
+        "layout.span": "12"
+      }
+    },
+    {
+      "name": "body",
+      "type": "string",
+      "format": "markdown",
+      "required": false,
+      "label": "Body",
+      "placeholder": "Write the full article content",
+      "description": "Full article content in Markdown",
+      "metadata": {
+        "component.config": "{\"toolbar\":[[\"bold\",\"italic\",\"underline\"],[{\"header\":1},{\"header\":2}],[\"link\",\"blockquote\",\"code-block\"],[{\"list\":\"ordered\"},{\"list\":\"bullet\"}]]}",
+        "layout.order": "7",
+        "layout.section": "content"
+      },
+      "uiHints": {
+        "component": "wysiwyg",
+        "helpText": "Main article content with rich text formatting",
+        "layout.span": "12"
+      }
+    },
+    {
+      "name": "keywords",
+      "type": "array",
+      "required": false,
+      "label": "Keywords",
+      "description": "SEO keywords used for search discovery",
+      "items": {
+        "name": "keywordsItem",
+        "type": "string",
+        "required": false,
+        "label": "Keywords item"
+      },
+      "metadata": {
+        "layout.order": "8",
+        "layout.section": "content"
+      },
+      "uiHints": {
+        "helpText": "Comma separated keywords used for SEO.",
+        "layout.span": "12"
+      }
+    },
+    {
+      "name": "published_at",
+      "type": "string",
+      "format": "date-time",
+      "required": false,
+      "label": "Publish at",
+      "description": "Optional publication timestamp",
+      "metadata": {
+        "layout.order": "9",
+        "layout.section": "content"
+      },
+      "uiHints": {
+        "inputType": "datetime-local",
+        "layout.span": "4"
+      }
+    },
+    {
+      "name": "workflow_notes",
+      "type": "string",
+      "required": false,
+      "label": "Workflow notes",
+      "description": "Internal workflow notes visible to approvers",
+      "metadata": {
+        "layout.order": "10",
+        "layout.section": "content"
+      },
+      "uiHints": {
+        "helpText": "Internal communication for reviewers.",
+        "layout.span": "12"
       }
     },
     {
       "name": "author_id",
       "type": "string",
-      "label": "Author",
       "required": true,
+      "label": "Author",
+      "placeholder": "Search authors",
       "metadata": {
-        "layout.section": "relationships"
+        "label-field": "full_name",
+        "layout.order": "11",
+        "layout.section": "relationships",
+        "relationship.endpoint.dynamicParams.tenant_id": "{{field:tenant_id}}",
+        "relationship.endpoint.fieldLabel": "Author Id",
+        "relationship.endpoint.labelField": "full_name",
+        "relationship.endpoint.method": "GET",
+        "relationship.endpoint.mode": "search",
+        "relationship.endpoint.params.format": "options",
+        "relationship.endpoint.params.include": "profile",
+        "relationship.endpoint.params.limit": "50",
+        "relationship.endpoint.params.order": "full_name asc",
+        "relationship.endpoint.params.select": "id,full_name",
+        "relationship.endpoint.placeholder": "Select Author Id",
+        "relationship.endpoint.refreshOn": "tenant_id",
+        "relationship.endpoint.renderer": "typeahead",
+        "relationship.endpoint.searchPlaceholder": "Search Author Id",
+        "relationship.endpoint.url": "/api/authors",
+        "relationship.endpoint.valueField": "id"
       },
       "uiHints": {
         "cardinality": "one",
         "input": "select",
-        "placeholder": "Select an author",
-        "layout.span": "6"
+        "layout.span": "6",
+        "relationshipRenderer": "typeahead"
       },
       "relationship": {
         "kind": "belongsTo",
+        "target": "#/components/schemas/Author",
         "foreignKey": "author_id",
-        "cardinality": "one",
-        "target": "#/components/schemas/Author"
-      }
-    },
-    {
-      "name": "manager",
-      "type": "object",
-      "label": "Manager",
-      "required": false,
-      "metadata": {
-        "layout.section": "relationships"
-      },
-      "uiHints": {
-        "cardinality": "one",
-        "input": "subform",
-        "layout.span": "6",
-        "layout.start": "7"
-      },
-      "nested": [
-        {
-          "name": "id",
-          "type": "string",
-          "format": "uuid",
-          "label": "Id",
-          "uiHints": {
-            "cardinality": "one",
-            "input": "select"
-          },
-          "relationship": {
-            "kind": "hasOne",
-            "cardinality": "one",
-            "target": "#/components/schemas/Manager"
-          }
-        }
-      ],
-      "relationship": {
-        "kind": "hasOne",
-        "foreignKey": "manager_id",
-        "cardinality": "one",
-        "target": "#/components/schemas/Manager",
-        "sourceField": "manager_id"
+        "cardinality": "one"
       }
     },
     {
       "name": "manager_id",
       "type": "string",
-      "label": "Manager Id",
       "required": false,
+      "label": "Manager",
+      "placeholder": "Search managers",
+      "description": "Associate a manager",
       "metadata": {
-        "layout.section": "relationships"
+        "label-field": "name",
+        "layout.order": "12",
+        "layout.section": "relationships",
+        "relationship.endpoint.dynamicParams.author_id": "{{field:author_id}}",
+        "relationship.endpoint.fieldLabel": "Manager Id",
+        "relationship.endpoint.labelField": "name",
+        "relationship.endpoint.method": "GET",
+        "relationship.endpoint.mode": "search",
+        "relationship.endpoint.params.format": "options",
+        "relationship.endpoint.params.order": "name asc",
+        "relationship.endpoint.params.select": "id,name",
+        "relationship.endpoint.placeholder": "Select Manager Id",
+        "relationship.endpoint.refreshOn": "author_id",
+        "relationship.endpoint.renderer": "typeahead",
+        "relationship.endpoint.searchParam": "q",
+        "relationship.endpoint.searchPlaceholder": "Search Manager Id",
+        "relationship.endpoint.url": "/api/managers",
+        "relationship.endpoint.valueField": "id"
       },
       "uiHints": {
         "cardinality": "one",
+        "helpText": "Filters by the selected author.",
         "input": "select",
-        "placeholder": "Select a manager",
-        "layout.span": "6"
+        "layout.span": "6",
+        "relationshipRenderer": "typeahead"
       },
       "relationship": {
         "kind": "hasOne",
+        "target": "#/components/schemas/Manager",
         "foreignKey": "manager_id",
-        "cardinality": "one",
-        "target": "#/components/schemas/Manager"
+        "cardinality": "one"
       }
     },
     {
-      "name": "settings",
-      "type": "object",
-      "label": "Settings",
+      "name": "category_id",
+      "type": "string",
       "required": false,
+      "label": "Category",
+      "placeholder": "Search categories",
+      "description": "Select a category",
       "metadata": {
-        "accordion": "true",
-        "cssClass": "fg-fieldset--settings"
+        "layout.order": "13",
+        "layout.section": "relationships",
+        "relationship.endpoint.dynamicParams.tenant_id": "{{field:tenant_id}}",
+        "relationship.endpoint.fieldLabel": "Category Id",
+        "relationship.endpoint.labelField": "name",
+        "relationship.endpoint.method": "GET",
+        "relationship.endpoint.mode": "search",
+        "relationship.endpoint.params.format": "options",
+        "relationship.endpoint.params.limit": "50",
+        "relationship.endpoint.params.order": "name asc",
+        "relationship.endpoint.params.select": "id,name",
+        "relationship.endpoint.placeholder": "Select Category Id",
+        "relationship.endpoint.refreshOn": "tenant_id",
+        "relationship.endpoint.renderer": "typeahead",
+        "relationship.endpoint.searchParam": "q",
+        "relationship.endpoint.searchPlaceholder": "Search Category Id",
+        "relationship.endpoint.url": "/api/categories",
+        "relationship.endpoint.valueField": "id"
       },
       "uiHints": {
-        "accordion": "true",
-        "cssClass": "fg-fieldset--settings",
-        "layout.span": "12"
+        "cardinality": "one",
+        "helpText": "Scoped by tenant.",
+        "input": "select",
+        "layout.span": "6",
+        "relationshipRenderer": "typeahead"
       },
-      "nested": [
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "label": "Enable widget",
-          "required": false,
-          "metadata": {
-            "hideLabel": "true",
-            "label": "Enable widget"
-          },
-          "uiHints": {
-            "hideLabel": "true",
-            "label": "Enable widget"
-          }
-        },
-        {
-          "name": "threshold",
-          "type": "number",
-          "label": "Threshold",
-          "required": false,
-          "metadata": {
-            "helpText": "Controls the debounce window",
-            "inputType": "range",
-            "precision": "2",
-            "unit": "ms"
-          },
-          "uiHints": {
-            "helpText": "Controls the debounce window",
-            "inputType": "range",
-            "precision": "2",
-            "unit": "ms"
-          }
-        }
-      ]
+      "relationship": {
+        "kind": "belongsTo",
+        "target": "#/components/schemas/Category",
+        "cardinality": "one"
+      }
     },
     {
       "name": "tags",
       "type": "array",
-      "label": "Tags",
       "required": false,
-      "placeholder": "Add tag",
-      "metadata": {
-        "cssClass": "fg-array--tags",
-        "placeholder": "Add tag",
-        "repeaterLabel": "Tag",
-        "layout.section": "relationships"
-      },
-      "uiHints": {
-        "cardinality": "many",
-        "cssClass": "fg-array--tags",
-        "input": "collection",
-        "placeholder": "Add tag",
-        "repeaterLabel": "Tag",
-        "layout.span": "12"
-      },
+      "label": "Tags",
+      "placeholder": "Search tags",
+      "description": "Tags applied to the article",
       "items": {
         "name": "tagsItem",
         "type": "object",
-        "label": "Tags item",
         "required": false,
-        "metadata": {
-          "badge": "info",
-          "cssClass": "fg-array__item"
-        },
-        "uiHints": {
-          "badge": "info",
-          "cardinality": "many",
-          "cssClass": "fg-array__item",
-          "input": "subform"
-        },
+        "label": "Tags item",
+        "description": "Tag resource",
         "nested": [
           {
             "name": "id",
             "type": "string",
             "format": "uuid",
-            "label": "Id"
+            "required": false,
+            "label": "Id",
+            "description": "Canonical UUID string"
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "required": false,
+            "label": "Label"
           }
         ],
+        "metadata": {
+          "label-field": "label",
+          "relationship.endpoint.labelField": "label"
+        },
+        "uiHints": {
+          "cardinality": "many",
+          "input": "subform"
+        },
         "relationship": {
           "kind": "hasMany",
-          "cardinality": "many",
           "target": "#/components/schemas/Tag",
+          "cardinality": "many",
           "inverse": "article"
         }
       },
+      "metadata": {
+        "layout.order": "14",
+        "layout.section": "relationships",
+        "relationship.endpoint.dynamicParams.category_id": "{{field:category_id}}",
+        "relationship.endpoint.dynamicParams.tenant_id": "{{field:tenant_id}}",
+        "relationship.endpoint.labelField": "label",
+        "relationship.endpoint.method": "GET",
+        "relationship.endpoint.mode": "search",
+        "relationship.endpoint.params.format": "options",
+        "relationship.endpoint.params.limit": "50",
+        "relationship.endpoint.params.order": "label asc",
+        "relationship.endpoint.params.select": "id,label",
+        "relationship.endpoint.refreshOn": "category_id,tenant_id",
+        "relationship.endpoint.renderer": "chips",
+        "relationship.endpoint.searchParam": "q",
+        "relationship.endpoint.submitAs": "json",
+        "relationship.endpoint.url": "/api/tags",
+        "relationship.endpoint.valueField": "id"
+      },
+      "uiHints": {
+        "cardinality": "many",
+        "collectionRenderer": "chips",
+        "helpText": "Supports free-text search with debounce.",
+        "input": "collection",
+        "layout.span": "6"
+      },
       "relationship": {
         "kind": "hasMany",
-        "cardinality": "many",
         "target": "#/components/schemas/Tag",
+        "cardinality": "many",
         "inverse": "article"
       }
+    },
+    {
+      "name": "related_article_ids",
+      "type": "array",
+      "required": false,
+      "label": "Related articles",
+      "placeholder": "Search articles",
+      "description": "Link to related articles to surface cross-sell opportunities",
+      "items": {
+        "name": "related_article_idsItem",
+        "type": "string",
+        "required": false,
+        "label": "Related Article Ids item",
+        "uiHints": {
+          "cardinality": "many",
+          "input": "collection"
+        },
+        "relationship": {
+          "kind": "hasMany",
+          "target": "#/components/schemas/ArticleSummary",
+          "cardinality": "many"
+        }
+      },
+      "metadata": {
+        "layout.order": "15",
+        "layout.section": "relationships",
+        "relationship.endpoint.dynamicParams.category_id": "{{field:category_id}}",
+        "relationship.endpoint.dynamicParams.tenant_id": "{{field:tenant_id}}",
+        "relationship.endpoint.labelField": "title",
+        "relationship.endpoint.method": "GET",
+        "relationship.endpoint.mode": "search",
+        "relationship.endpoint.params.format": "options",
+        "relationship.endpoint.params.limit": "25",
+        "relationship.endpoint.params.order": "published_at desc",
+        "relationship.endpoint.refreshOn": "category_id,tenant_id",
+        "relationship.endpoint.renderer": "chips",
+        "relationship.endpoint.searchParam": "q",
+        "relationship.endpoint.submitAs": "json",
+        "relationship.endpoint.url": "/api/articles",
+        "relationship.endpoint.valueField": "id"
+      },
+      "uiHints": {
+        "cardinality": "many",
+        "collectionRenderer": "chips",
+        "input": "collection",
+        "layout.span": "12"
+      },
+      "relationship": {
+        "kind": "hasMany",
+        "target": "#/components/schemas/ArticleSummary",
+        "cardinality": "many"
+      }
+    },
+    {
+      "name": "contributors",
+      "type": "array",
+      "required": false,
+      "label": "Contributors",
+      "description": "Assign supporting editors and reviewers",
+      "items": {
+        "name": "contributorsItem",
+        "type": "object",
+        "required": false,
+        "label": "Contributors item",
+        "nested": [
+          {
+            "name": "person_id",
+            "type": "string",
+            "required": true,
+            "label": "Person",
+            "placeholder": "Search contributors",
+            "description": "Select a contributor",
+            "metadata": {
+              "layout.order": "17",
+              "layout.section": "collaboration",
+              "relationship.endpoint.dynamicParams.status": "{{field:status}}",
+              "relationship.endpoint.dynamicParams.tenant_id": "{{field:tenant_id}}",
+              "relationship.endpoint.fieldLabel": "Person Id",
+              "relationship.endpoint.labelField": "full_name",
+              "relationship.endpoint.method": "GET",
+              "relationship.endpoint.mode": "search",
+              "relationship.endpoint.params.format": "options",
+              "relationship.endpoint.params.limit": "25",
+              "relationship.endpoint.params.order": "full_name asc",
+              "relationship.endpoint.placeholder": "Select Person Id",
+              "relationship.endpoint.refreshOn": "status,tenant_id",
+              "relationship.endpoint.renderer": "typeahead",
+              "relationship.endpoint.searchParam": "q",
+              "relationship.endpoint.searchPlaceholder": "Search Person Id",
+              "relationship.endpoint.url": "/api/contributors",
+              "relationship.endpoint.valueField": "id"
+            },
+            "uiHints": {
+              "cardinality": "one",
+              "input": "select",
+              "layout.span": "6",
+              "relationshipRenderer": "typeahead"
+            },
+            "relationship": {
+              "kind": "belongsTo",
+              "target": "#/components/schemas/Contributor",
+              "cardinality": "one"
+            }
+          },
+          {
+            "name": "role",
+            "type": "string",
+            "required": true,
+            "label": "Role",
+            "description": "Role the contributor performs",
+            "enum": [
+              "Reviewer",
+              "Copy Editor",
+              "Fact Checker",
+              "Producer"
+            ],
+            "metadata": {
+              "layout.order": "18",
+              "layout.section": "collaboration"
+            },
+            "uiHints": {
+              "layout.span": "3"
+            }
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "required": false,
+            "label": "Notes",
+            "description": "Private editorial notes for this contributor",
+            "metadata": {
+              "layout.order": "19",
+              "layout.section": "collaboration"
+            },
+            "uiHints": {
+              "layout.span": "3"
+            }
+          }
+        ],
+        "uiHints": {
+          "cardinality": "many",
+          "input": "subform"
+        },
+        "relationship": {
+          "kind": "hasMany",
+          "target": "#/components/schemas/Contributor",
+          "cardinality": "many",
+          "inverse": "article"
+        }
+      },
+      "metadata": {
+        "layout.order": "16",
+        "layout.section": "collaboration"
+      },
+      "uiHints": {
+        "cardinality": "many",
+        "helpText": "Demonstrates nested arrays with relationship fields.",
+        "input": "collection",
+        "layout.span": "12"
+      },
+      "relationship": {
+        "kind": "hasMany",
+        "target": "#/components/schemas/Contributor",
+        "cardinality": "many",
+        "inverse": "article"
+      }
+    },
+    {
+      "name": "author",
+      "type": "object",
+      "required": false,
+      "label": "Author",
+      "metadata": {
+        "label-field": "full_name",
+        "relationship.endpoint.labelField": "full_name"
+      },
+      "uiHints": {
+        "cardinality": "one",
+        "input": "subform"
+      },
+      "relationship": {
+        "kind": "belongsTo",
+        "target": "#/components/schemas/Author",
+        "foreignKey": "author_id",
+        "cardinality": "one",
+        "sourceField": "author_id"
+      }
+    },
+    {
+      "name": "manager",
+      "type": "object",
+      "required": false,
+      "label": "Manager",
+      "metadata": {
+        "label-field": "name",
+        "relationship.endpoint.labelField": "name"
+      },
+      "uiHints": {
+        "cardinality": "one",
+        "input": "subform"
+      },
+      "relationship": {
+        "kind": "hasOne",
+        "target": "#/components/schemas/Manager",
+        "foreignKey": "manager_id",
+        "cardinality": "one",
+        "sourceField": "manager_id"
+      }
     }
-  ]
+  ],
+  "metadata": {
+    "actions": "[{\"kind\":\"secondary\",\"label\":\"Cancel\",\"href\":\"/articles\"},{\"kind\":\"primary\",\"label\":\"Publish Article\",\"type\":\"submit\"}]",
+    "layout.sections": "[{\"id\":\"overview\",\"title\":\"Overview\",\"description\":\"Core identity and workflow details.\",\"order\":0,\"fieldset\":true},{\"id\":\"content\",\"title\":\"Content\",\"description\":\"Editorial copy and metadata.\",\"order\":1,\"fieldset\":true},{\"id\":\"relationships\",\"title\":\"Relationships\",\"description\":\"Remote resources hydrated by the runtime resolver.\",\"order\":2},{\"id\":\"collaboration\",\"title\":\"Collaboration\",\"description\":\"Contributors and related assets.\",\"order\":3}]",
+    "relations": "{\"includes\":[\"author\",\"author.manager\",\"category\",\"contributors\",\"contributors.person\",\"related_articles\",\"tags\"],\"relations\":[{\"filters\":[{\"field\":\"full_name\",\"operator\":\"ilike\"}],\"name\":\"author\"},{\"filters\":[{\"field\":\"label\",\"operator\":\"ilike\"}],\"name\":\"tags\"},{\"filters\":[{\"field\":\"role\",\"operator\":\"eq\"},{\"field\":\"person.full_name\",\"operator\":\"ilike\"}],\"name\":\"contributors\"},{\"filters\":[{\"field\":\"title\",\"operator\":\"ilike\"},{\"field\":\"category_id\",\"operator\":\"eq\"}],\"name\":\"related_articles\"}],\"tree\":{\"children\":{\"author\":{\"children\":{\"manager\":{\"name\":\"manager\"}},\"name\":\"author\"},\"category\":{\"name\":\"category\"},\"contributors\":{\"children\":{\"person\":{\"name\":\"person\"}},\"name\":\"contributors\"},\"related_articles\":{\"name\":\"related_articles\"},\"tags\":{\"name\":\"tags\"}},\"name\":\"article\"}}",
+    "scenario": "sandbox",
+    "summary": "Create an article with related entities"
+  },
+  "uiHints": {
+    "layout.gridColumns": "12",
+    "layout.gutter": "md",
+    "layout.subtitle": "Preview generated by formgen sandbox",
+    "layout.title": "Create Editorial Article",
+    "theme": "basecoat"
+  }
 }
