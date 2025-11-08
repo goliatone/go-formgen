@@ -62,27 +62,27 @@ describe("sandbox scenario loader", () => {
 
     expect(scenario.sections.length).toBeGreaterThanOrEqual(3);
 
-    const managerField = scenario.fieldMap["article.manager_id"];
+    const managerField = scenario.fieldMap["manager_id"];
     expect(managerField).toBeDefined();
     expect(managerField.refresh?.mode).toBe("manual");
     expect(managerField.refresh?.triggers).toContain("manager-refresh");
     expect(managerField.endpoint?.dynamicParams?.author_id).toBe("{{field:author_id}}");
 
-    const tagsField = scenario.fieldMap["article.tags"];
+    const tagsField = scenario.fieldMap["tags"];
     expect(tagsField.endpoint?.dynamicParams).toMatchObject({
       tenant_id: "{{field:tenant_id}}",
       category_id: "{{field:category_id}}",
     });
 
-    const contributors = scenario.fieldMap["article.contributors"];
+    const contributors = scenario.fieldMap["contributors"];
     expect(contributors.component).toBe("array");
     expect(contributors.nestedKeys).toEqual([
-      "article.contributors[].person_id",
-      "article.contributors[].role",
-      "article.contributors[].notes",
+      "contributors[].person_id",
+      "contributors[].role",
+      "contributors[].notes",
     ]);
 
-    const contributorPerson = scenario.fieldMap["article.contributors[].person_id"];
+    const contributorPerson = scenario.fieldMap["contributors[].person_id"];
     expect(contributorPerson.endpoint?.dynamicParams?.status).toBe("{{field:status}}");
     expect(contributorPerson.relationship?.cardinality).toBe("one");
   });
