@@ -11,6 +11,7 @@ export const projectRoot = resolve(moduleDir);
 export const runtimeEntryPoints = {
   runtime: "src/index.ts",
   preact: "src/frameworks/preact.ts",
+  behaviors: "src/behaviors/index.ts",
 };
 
 export const buildOutput = {
@@ -21,6 +22,7 @@ export const buildOutput = {
 
 export const esbuildTarget = ["es2019"];
 export const iifeGlobalName = "FormgenRelationships";
+export const behaviorsGlobalName = "FormgenBehaviors";
 
 export const banner = `/**
  * formgen relationship runtime

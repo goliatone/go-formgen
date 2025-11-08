@@ -5,8 +5,8 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
     "./tests/**/*.{js,ts,jsx,tsx}",
     "./data/**/*.{json,html}",
-    "../examples/http/**/*.{go,html,tmpl}",
-    "../pkg/renderers/**/*.{tmpl,html}",
+    "../examples/**/*.{go,html,tmpl}",
+    "../pkg/**/*.{go,tmpl,html}",
     "../pkg/renderers/vanilla/testdata/**/*.{html,json}",
     "../pkg/uischema/**/*.{json,yml,yaml}",
     "./node_modules/preline/preline.js",
@@ -22,5 +22,8 @@ export default {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+  ],
 }
