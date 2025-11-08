@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "layout.fieldOrder.details": "[\"title\",\"metrics.items.value\"]"
+  },
+  "uiHints": {
+    "layout.title": "Transformed Title"
+  },
+  "fields": {
+    "title": {
+      "label": "Custom Title",
+      "metadata": {
+        "layout.section": "details"
+      }
+    },
+    "metrics.items.value": {
+      "metadata": {
+        "unit": "ms"
+      }
+    }
+  }
+}

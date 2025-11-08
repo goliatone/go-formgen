@@ -56,6 +56,14 @@ func WithDefaultRenderer(name string) Option {
 	}
 }
 
+// WithSchemaTransformer registers a Transformer that can mutate form models
+// after building but before UI schema decorators run.
+func WithSchemaTransformer(t Transformer) Option {
+	return func(o *Orchestrator) {
+		o.transformer = t
+	}
+}
+
 // WithUIDecorators registers decorators that should run against the generated
 // form model before rendering.
 func WithUIDecorators(decorators ...model.Decorator) Option {
@@ -92,6 +100,7 @@ type Orchestrator struct {
 	uiSchemaFS            fs.FS
 	uiSchemaSpecified     bool
 	uiDecoratorConfigured bool
+	transformer           Transformer
 }
 
 // New constructs an Orchestrator applying any provided options. Missing
@@ -174,6 +183,9 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	}
 
 	o.applyEndpointOverrides(req.OperationID, &form)
+	if err := o.applyTransformer(ctx, &form); err != nil {
+		return nil, err
+	}
 	if err := o.applyDecorators(&form); err != nil {
 		return nil, err
 	}
@@ -248,6 +260,16 @@ func (o *Orchestrator) applyDecorators(form *model.FormModel) error {
 		if err := decorator.Decorate(form); err != nil {
 			return fmt.Errorf("orchestrator: decorate form: %w", err)
 		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) applyTransformer(ctx context.Context, form *model.FormModel) error {
+	if o.transformer == nil || form == nil {
+		return nil
+	}
+	if err := o.transformer.Transform(ctx, form); err != nil {
+		return fmt.Errorf("orchestrator: transform form: %w", err)
 	}
 	return nil
 }

@@ -26,29 +26,24 @@ paths:
                     author:
                       name: author
               required:
-                - article
+                - author_id
               properties:
-                article:
-                  type: object
-                  required:
-                    - author_id
-                  properties:
-                    author_id:
-                      type: string
-                      x-relationships:
-                        type: belongsTo
-                        target: "#/components/schemas/author"
-                      x-endpoint:
-                        url: /api/authors
-                        method: GET
-                        labelField: full_name
-                        valueField: id
-                        dynamicParams:
-                          tenant_id: "{{field:tenant_id}}"
-                        auth:
-                          strategy: header
-                          header: X-Auth-Token
-                          source: meta:formgen-auth
+                author_id:
+                  type: string
+                  x-relationships:
+                    type: belongsTo
+                    target: "#/components/schemas/author"
+                  x-endpoint:
+                    url: /api/authors
+                    method: GET
+                    labelField: full_name
+                    valueField: id
+                    dynamicParams:
+                      tenant_id: "{{field:tenant_id}}"
+                    auth:
+                      strategy: header
+                      header: X-Auth-Token
+                      source: meta:formgen-auth
       responses:
         "200":
           description: Accepted

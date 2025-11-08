@@ -10,85 +10,76 @@
     
     <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
         
-        <div style="--fg-grid-span: 12">
-            <div class="fg-field fg-field--name" data-component="textarea">
-    <label for="fg-name" class="fg-field__label">Name *</label>
-    <div class="space-y-2 fg-field--name">
-        <label for="fg-name" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
-            Name<span class="text-red-500">*</span>
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="textarea">
+    <label data-formgen-chrome="label" id="fg-name-label" for="fg-name" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Name<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <textarea
+        id="fg-name"
+        name="name"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        rows="4"
+        placeholder="Give it a friendly name"
+        required
+    ></textarea>
+    <p data-formgen-chrome="description" id="fg-name-description" class="text-xs text-gray-500 dark:text-gray-400">
+        Widget name
+    </p>
+    <p data-formgen-chrome="help" id="fg-name-help" class="text-xs text-gray-600 dark:text-gray-300">
+        Shown to customers
+    </p>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="object">
+    <fieldset id="fg-settings" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700 border-s-4 border-s-blue-600" aria-labelledby="fg-settings-label"><legend id="fg-settings-label" class="text-sm font-semibold text-gray-900 dark:text-white">Settings</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="boolean">
+        <label data-formgen-chrome="label" id="fg-enabled-label" for="fg-enabled" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300 sr-only">
+            Enable widget
         </label>
-        <textarea
-            id="fg-name"
-            name="name"
-            class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-            rows="True"
-            placeholder="Give it a friendly name"
-            required
-        ></textarea>
-        <p class="text-xs text-gray-500 mt-2 dark:text-gray-400">Widget name</p>
-        <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">Shown to customers</p>
+        <div class="flex items-center">
+            <input
+                type="checkbox"
+                id="fg-enabled"
+                name="enabled"
+                class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
+            >
+            <label for="fg-enabled" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">Enable widget</label>
+        </div>
     </div>
-    <small class="fg-field__help">Widget name</small>
-    <small class="fg-field__hint">Shown to customers</small>
+    <div class="flex flex-col gap-2" data-component="input">
+        <label data-formgen-chrome="label" id="fg-threshold-label" for="fg-threshold" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+            Threshold
+        </label>
+        <input
+            type="number"
+            id="fg-threshold"
+            name="threshold"
+            class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        >
+        <p data-formgen-chrome="help" id="fg-threshold-help" class="text-xs text-gray-600 dark:text-gray-300">
+            Controls the debounce window
+        </p>
+    </div>
+    </div></fieldset>
 </div>
 
         </div>
         
-        <div style="--fg-grid-span: 12">
-            <div class="fg-field fg-fieldset--settings" data-component="object">
-    <label for="fg-settings" class="fg-field__label">Settings</label>
-    <fieldset class="fg-fieldset fg-fieldset--accent"><legend>Settings</legend><div class="fg-field" data-component="boolean">
-        <div class="space-y-2">
-            <div class="flex items-center gap-x-3">
-                <input
-                    type="checkbox"
-                    id="fg-enabled"
-                    name="enabled"
-                    class="shrink-0 mt-0.5 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
-                >
-                <label for="fg-enabled" class="text-sm font-medium text-gray-800 dark:text-white">
-                    Enable widget
-                </label>
-            </div>
-        </div>
-    </div>
-    <div class="fg-field" data-component="input">
-        <label for="fg-threshold" class="fg-field__label">Threshold</label>
-        <div class="space-y-2">
-            <label for="fg-threshold" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
-                Threshold
-            </label>
-            <input
-                type="True"
-                id="fg-threshold"
-                name="threshold"
-                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-            >
-            <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">Controls the debounce window</p>
-        </div>
-        <small class="fg-field__hint">Controls the debounce window</small>
-    </div>
-    </fieldset>
-</div>
-
-        </div>
-        
-        <div style="--fg-grid-span: 12">
-            <div class="fg-field fg-array--tags" data-component="array">
-    <label for="fg-tags" class="fg-field__label">Tags</label>
-    <div class="fg-array fg-array--tags"><div class="text-sm font-medium">Tag</div><div class="fg-array__items"><div class="fg-field fg-array__item" data-component="input">
-        <label for="fg-tagsItem" class="fg-field__label">Tags item</label>
-        <div class="space-y-2 fg-array__item">
-            <label for="fg-tagsItem" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
-                Tags item
-            </label>
-            <input
-                type="False"
-                id="fg-tagsItem"
-                name="tagsItem"
-                class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-            >
-        </div>
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="array">
+    <div id="fg-tags" class="space-y-3" role="group" aria-labelledby="fg-tags-label"><div id="fg-tags-label" class="text-sm font-medium text-gray-900 dark:text-white">Tags</div><div class="space-y-3"><div class="flex flex-col gap-2" data-component="input">
+        <label data-formgen-chrome="label" id="fg-tagsItem-label" for="fg-tagsItem" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+            Tags item
+        </label>
+        <input
+            type="text"
+            id="fg-tagsItem"
+            name="tagsItem"
+            class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        >
     </div>
     </div></div>
 </div>

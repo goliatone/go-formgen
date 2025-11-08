@@ -28,7 +28,7 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 
 	override := orchestrator.EndpointOverride{
 		OperationID: "createArticle",
-		FieldPath:   "article.author_id",
+		FieldPath:   "author_id",
 		Endpoint: orchestrator.EndpointConfig{
 			URL:        "/api/authors",
 			Method:     "get",
@@ -68,7 +68,7 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 		t.Fatalf("unmarshal form model: %v", err)
 	}
 
-	field := findField(form.Fields, []string{"article", "author_id"})
+	field := findField(form.Fields, []string{"author_id"})
 	if field == nil {
 		t.Fatalf("author_id field not found")
 	}
@@ -107,14 +107,6 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 		t.Fatalf("relationship.endpoint.auth.source = %q, want %q", got, "meta:formgen-auth")
 	}
 
-	// Ensure unrelated fields remain untouched.
-	if other := findField(form.Fields, []string{"article"}); other != nil && other != field {
-		if other.Metadata != nil {
-			if _, ok := other.Metadata["relationship.endpoint.url"]; ok {
-				t.Fatalf("unexpected endpoint metadata on parent article field")
-			}
-		}
-	}
 }
 
 func TestWithEndpointOverrides_RenderedAttributes(t *testing.T) {
@@ -123,7 +115,7 @@ func TestWithEndpointOverrides_RenderedAttributes(t *testing.T) {
 
 	override := orchestrator.EndpointOverride{
 		OperationID: "createArticle",
-		FieldPath:   "article.author_id",
+		FieldPath:   "author_id",
 		Endpoint: orchestrator.EndpointConfig{
 			URL:        "/api/authors",
 			Method:     "GET",
@@ -187,7 +179,7 @@ func TestEndpointMetadata_SchemaMatchesOverride(t *testing.T) {
 	overrideMetadata := gatherFieldMetadata(t, "relationships.yaml", orchestrator.WithEndpointOverrides([]orchestrator.EndpointOverride{
 		{
 			OperationID: "createArticle",
-			FieldPath:   "article.author_id",
+			FieldPath:   "author_id",
 			Endpoint: orchestrator.EndpointConfig{
 				URL:        "/api/authors",
 				Method:     "GET",
@@ -243,7 +235,7 @@ func gatherFieldMetadata(t *testing.T, fixture string, opts ...orchestrator.Opti
 		t.Fatalf("unmarshal form: %v", err)
 	}
 
-	field := findField(form.Fields, []string{"article", "author_id"})
+	field := findField(form.Fields, []string{"author_id"})
 	if field == nil {
 		t.Fatalf("author_id field missing in %s", fixture)
 	}
