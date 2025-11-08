@@ -7,6 +7,7 @@ import {
   buildOutput,
   esbuildTarget,
   iifeGlobalName,
+  behaviorsGlobalName,
   banner,
 } from "../build.config";
 
@@ -70,6 +71,21 @@ const iifePreactOptions: BuildOptions = {
   banner: { js: banner },
 };
 
+const iifeBehaviorsOptions: BuildOptions = {
+  absWorkingDir: projectRoot,
+  entryPoints: [runtimeEntryPoints.behaviors],
+  outfile: resolve(iifeOutDir, "formgen-behaviors.min.js"),
+  bundle: true,
+  format: "iife",
+  sourcemap: true,
+  minify: true,
+  target: esbuildTarget,
+  platform: "browser",
+  globalName: behaviorsGlobalName,
+  legalComments: "none",
+  banner: { js: banner },
+};
+
 async function ensureOutDirs() {
   if (!watch) {
     await Promise.all([
@@ -109,12 +125,14 @@ async function run() {
   esmOptions.define = { ...(esmOptions.define ?? {}), ...define };
   iifeRuntimeOptions.define = { ...(iifeRuntimeOptions.define ?? {}), ...define };
   iifePreactOptions.define = { ...(iifePreactOptions.define ?? {}), ...define };
+  iifeBehaviorsOptions.define = { ...(iifeBehaviorsOptions.define ?? {}), ...define };
 
   if (watch) {
     const contexts = await Promise.all([
       context(esmOptions),
       context(iifeRuntimeOptions),
       context(iifePreactOptions),
+      context(iifeBehaviorsOptions),
     ]);
     await Promise.all(contexts.map((ctx) => ctx.watch()));
     console.log("Watching relationship runtime sources for changes…");
@@ -125,6 +143,7 @@ async function run() {
     { label: "esm", options: esmOptions },
     { label: "runtime", options: iifeRuntimeOptions },
     { label: "preact", options: iifePreactOptions },
+    { label: "behaviors", options: iifeBehaviorsOptions },
   ];
 
   for (const buildTarget of builds) {
