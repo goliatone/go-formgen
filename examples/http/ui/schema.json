@@ -65,9 +65,28 @@
           "placeholder": "The Infinite Archive",
           "helpText": "Visible in storefronts and metadata feeds."
         },
-        "status": {
+        "slug": {
           "section": "overview",
           "order": 1,
+          "grid": {
+            "span": 4,
+            "row": 1,
+            "start": 9
+          },
+          "placeholder": "the-infinite-archive",
+          "helpText": "Auto generated from the title but editable.",
+          "component": "input",
+          "componentOptions": {
+            "behaviors": {
+              "autoSlug": {
+                "source": "title"
+              }
+            }
+          }
+        },
+        "status": {
+          "section": "overview",
+          "order": 2,
           "grid": {
             "span": 4,
             "start": 9,
@@ -94,7 +113,7 @@
         },
         "isbn": {
           "section": "overview",
-          "order": 2,
+          "order": 3,
           "grid": {
             "span": 4,
             "row": 2

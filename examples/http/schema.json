@@ -7063,16 +7063,10 @@
   },
   "tags": [
     {
-      "name": "headquarters"
-    },
-    {
-      "name": "book"
+      "name": "author"
     },
     {
       "name": "chapter"
-    },
-    {
-      "name": "author"
     },
     {
       "name": "tag"
@@ -7082,6 +7076,12 @@
     },
     {
       "name": "publishing-house"
+    },
+    {
+      "name": "headquarters"
+    },
+    {
+      "name": "book"
     }
   ]
 }
