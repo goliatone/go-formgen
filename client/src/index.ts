@@ -126,7 +126,11 @@ export {
   type ThemeClassMap,
   type ChipsClassMap,
   type TypeaheadClassMap,
+  type SwitchClassMap,
+  type WysiwygClassMap,
 } from "./theme/classes";
+export { renderSwitch, type SwitchStore } from "./renderers/switch";
+export { renderWysiwyg, autoInitWysiwyg, type WysiwygStore, type WysiwygConfig } from "./renderers/wysiwyg";
 
 function datasetToEndpoint(dataset: Record<string, string>): EndpointConfig {
   const endpoint: EndpointConfig = {};

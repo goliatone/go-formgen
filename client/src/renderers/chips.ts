@@ -115,7 +115,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   setElementClasses(toggle, combineClasses(theme.action, theme.actionToggle));
   toggle.setAttribute("aria-haspopup", "listbox");
   toggle.setAttribute("aria-expanded", "false");
-  toggle.innerHTML = '<span aria-hidden="true">&#x2304;</span>';
+  toggle.innerHTML = '<svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
 
   actions.append(clear, toggle);
 
@@ -180,7 +180,12 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
 
     searchInput.addEventListener("input", () => propagateSearch());
     searchInput.addEventListener("focus", () => {
-      toggleMenu(store, true);
+      // Only open menu if there are options available or if user has typed something
+      const hasQuery = store.searchValue.trim().length > 0;
+      const hasOptions = store.options.length > 0;
+      if (hasQuery || hasOptions) {
+        toggleMenu(store, true);
+      }
     });
 
     chips.addEventListener("click", () => {
@@ -309,10 +314,24 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
     setElementClasses(button, theme.menuItem);
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
+
+    // Create label span
+    const labelSpan = document.createElement("span");
     const label = option.label ?? option.value;
-    button.appendChild(
+    labelSpan.appendChild(
       buildHighlightedFragment(label, query, classesToString(theme.searchHighlight))
     );
+    button.appendChild(labelSpan);
+
+    // Add checkmark for already selected options
+    const isSelected = selectedValues.has(option.value);
+    if (isSelected) {
+      button.setAttribute("aria-selected", "true");
+      const checkmark = document.createElement("span");
+      checkmark.innerHTML = '<svg class="shrink-0 size-3.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      button.appendChild(checkmark);
+    }
+
     button.addEventListener("click", () => {
       const updated = new Set(selectedValues);
       updated.add(option.value);

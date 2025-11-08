@@ -42,22 +42,57 @@ export interface TypeaheadClassMap {
   nativeSelect: ClassToken[];
 }
 
+export interface SwitchClassMap {
+  [key: string]: ClassToken[];
+  container: ClassToken[];
+  input: ClassToken[];
+  track: ClassToken[];
+  toggle: ClassToken[];
+}
+
+export interface WysiwygClassMap {
+  [key: string]: ClassToken[];
+  wrapper: ClassToken[];
+  editor: ClassToken[];
+  content: ClassToken[];
+  toolbar: ClassToken[];
+}
+
 export interface ThemeClassMap {
   chips: ChipsClassMap;
   typeahead: TypeaheadClassMap;
+  switch: SwitchClassMap;
+  wysiwyg: WysiwygClassMap;
 }
 
 export type PartialThemeClassMap = {
   chips?: Partial<{ [K in keyof ChipsClassMap]: ClassValue }>;
   typeahead?: Partial<{ [K in keyof TypeaheadClassMap]: ClassValue }>;
+  switch?: Partial<{ [K in keyof SwitchClassMap]: ClassValue }>;
+  wysiwyg?: Partial<{ [K in keyof WysiwygClassMap]: ClassValue }>;
 };
 
 const DEFAULT_THEME_CLASSES: ThemeClassMap = {
   chips: {
     container: ["relative", "w-full", "text-sm"],
     containerReady: ["flex"],
-    containerOpen: ["ring-2", "ring-blue-500", "ring-offset-2", "ring-offset-white"],
-    inner: ["flex", "w-full", "items-stretch", "gap-3"],
+    containerOpen: [],
+    inner: [
+      "flex",
+      "w-full",
+      "items-stretch",
+      "gap-3",
+      "rounded-lg",
+      "border",
+      "border-gray-200",
+      "bg-white",
+      "py-3",
+      "ps-4",
+      "pe-9",
+      "transition",
+      "focus-within:border-blue-500",
+      "focus-within:ring-blue-500",
+    ],
     chips: ["flex", "flex-wrap", "gap-2", "grow", "items-center"],
     chipsContent: ["flex", "flex-wrap", "items-center", "gap-2"],
     placeholder: ["text-slate-500"],
@@ -65,19 +100,14 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     searchInput: [
       "w-full",
       "min-w-[6rem]",
-      "rounded-md",
-      "border",
-      "border-slate-300",
+      "border-none",
       "bg-transparent",
-      "px-2.5",
-      "py-1.5",
+      "px-0",
+      "py-0",
       "text-sm",
       "placeholder:text-slate-400",
       "focus:outline-none",
-      "focus:border-blue-500",
-      "focus:ring-2",
-      "focus:ring-blue-500",
-      "focus:ring-offset-2",
+      "focus:ring-0",
     ],
     searchHighlight: ["bg-amber-100", "font-semibold"],
     chip: [
@@ -142,31 +172,34 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "mt-2",
       "flex",
       "flex-col",
-      "gap-1",
+      "space-y-0.5",
       "rounded-lg",
       "border",
-      "border-slate-200",
+      "border-gray-200",
       "bg-white",
-      "p-2",
+      "p-1",
       "shadow-xl",
-      "max-h-48",
+      "max-h-72",
+      "overflow-hidden",
       "overflow-y-auto",
     ],
     menuItem: [
       "flex",
+      "justify-between",
       "items-center",
       "gap-2",
-      "rounded-md",
-      "px-3",
+      "rounded-lg",
+      "px-4",
       "py-2",
+      "w-full",
       "text-left",
       "text-sm",
-      "text-slate-700",
+      "text-gray-800",
+      "cursor-pointer",
       "transition",
-      "hover:bg-slate-100",
-      "focus-visible:outline-none",
-      "focus-visible:ring-2",
-      "focus-visible:ring-blue-500",
+      "hover:bg-gray-100",
+      "focus:outline-none",
+      "focus:bg-gray-100",
     ],
     menuEmpty: ["px-3", "py-2", "text-sm", "text-slate-500"],
     nativeSelect: ["hidden"],
@@ -174,23 +207,21 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
   typeahead: {
     container: ["relative", "w-full", "text-sm"],
     containerReady: ["block"],
-    containerOpen: ["ring-2", "ring-blue-500", "ring-offset-2", "ring-offset-white"],
+    containerOpen: [],
     control: [
       "flex",
       "items-center",
-      "gap-2",
+      "gap-x-2",
       "rounded-lg",
       "border",
-      "border-slate-300",
+      "border-gray-200",
       "bg-white",
-      "px-3",
-      "py-2",
-      "shadow-sm",
+      "py-3",
+      "ps-4",
+      "pe-9",
       "transition",
       "focus-within:border-blue-500",
-      "focus-within:ring-2",
       "focus-within:ring-blue-500",
-      "focus-within:ring-offset-2",
     ],
     input: [
       "w-full",
@@ -203,6 +234,7 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "text-slate-900",
       "placeholder:text-slate-400",
       "focus:outline-none",
+      "focus:ring-0",
     ],
     clear: [
       "inline-flex",
@@ -230,36 +262,117 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "mt-2",
       "flex",
       "flex-col",
-      "gap-1",
+      "space-y-0.5",
       "rounded-lg",
       "border",
-      "border-slate-200",
+      "border-gray-200",
       "bg-white",
-      "p-2",
+      "p-1",
       "shadow-xl",
-      "max-h-56",
+      "max-h-72",
+      "overflow-hidden",
       "overflow-y-auto",
     ],
     option: [
       "flex",
+      "justify-between",
       "items-center",
       "gap-2",
-      "rounded-md",
-      "px-3",
+      "rounded-lg",
+      "px-4",
       "py-2",
+      "w-full",
       "text-left",
       "text-sm",
-      "text-slate-700",
+      "text-gray-800",
+      "cursor-pointer",
       "transition",
-      "hover:bg-slate-100",
-      "focus-visible:outline-none",
-      "focus-visible:ring-2",
-      "focus-visible:ring-blue-500",
+      "hover:bg-gray-100",
+      "focus:outline-none",
+      "focus:bg-gray-100",
     ],
     optionActive: ["bg-slate-100"],
     highlight: ["bg-amber-100", "font-semibold"],
     empty: ["px-3", "py-2", "text-sm", "text-slate-500"],
     nativeSelect: ["hidden"],
+  },
+  switch: {
+    container: [
+      "relative",
+      "inline-block",
+      "w-11",
+      "h-6",
+      "cursor-pointer",
+    ],
+    input: [
+      "peer",
+      "sr-only",
+    ],
+    track: [
+      "absolute",
+      "inset-0",
+      "bg-gray-200",
+      "rounded-full",
+      "transition-colors",
+      "duration-200",
+      "ease-in-out",
+      "peer-checked:bg-blue-600",
+      "dark:bg-neutral-700",
+      "dark:peer-checked:bg-blue-500",
+      "peer-disabled:opacity-50",
+      "peer-disabled:pointer-events-none",
+    ],
+    toggle: [
+      "absolute",
+      "top-1/2",
+      "start-0.5",
+      "-translate-y-1/2",
+      "size-5",
+      "bg-white",
+      "rounded-full",
+      "shadow-xs",
+      "transition-transform",
+      "duration-200",
+      "ease-in-out",
+      "peer-checked:translate-x-full",
+      "dark:bg-neutral-400",
+      "dark:peer-checked:bg-white",
+    ],
+  },
+  wysiwyg: {
+    wrapper: ["wysiwyg-wrapper"],
+    editor: [
+      "wysiwyg-editor",
+      "border",
+      "border-gray-200",
+      "rounded-lg",
+      "overflow-hidden",
+      "dark:border-neutral-700",
+      "focus-within:border-blue-500",
+      "focus-within:ring-1",
+      "focus-within:ring-blue-500",
+    ],
+    content: [
+      "max-w-none",
+      "p-4",
+      "min-h-[200px]",
+      "focus:outline-none",
+      "text-sm",
+      "leading-relaxed",
+      "text-gray-800",
+      "dark:text-neutral-200",
+    ],
+    toolbar: [
+      "wysiwyg-toolbar",
+      "flex",
+      "gap-1",
+      "p-2",
+      "border-b",
+      "border-gray-200",
+      "bg-gray-50",
+      "dark:border-neutral-700",
+      "dark:bg-neutral-800",
+    ],
   },
 };
 
@@ -273,6 +386,8 @@ export function registerThemeClasses(overrides: PartialThemeClassMap = {}): Them
   const next: ThemeClassMap = {
     chips: mergeSection<ChipsClassMap>(activeThemeClasses.chips, overrides.chips),
     typeahead: mergeSection<TypeaheadClassMap>(activeThemeClasses.typeahead, overrides.typeahead),
+    switch: mergeSection<SwitchClassMap>(activeThemeClasses.switch, overrides.switch),
+    wysiwyg: mergeSection<WysiwygClassMap>(activeThemeClasses.wysiwyg, overrides.wysiwyg),
   };
   activeThemeClasses = next;
   return getThemeClasses();
@@ -330,6 +445,8 @@ function cloneThemeClasses(map: ThemeClassMap): ThemeClassMap {
   return {
     chips: cloneSection<ChipsClassMap>(map.chips),
     typeahead: cloneSection<TypeaheadClassMap>(map.typeahead),
+    switch: cloneSection<SwitchClassMap>(map.switch),
+    wysiwyg: cloneSection<WysiwygClassMap>(map.wysiwyg),
   };
 }
 

@@ -120,7 +120,12 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   control.setAttribute("aria-controls", dropdownId);
   input.setAttribute("aria-controls", dropdownId);
 
-  container.append(control, dropdown);
+  // Add dropdown arrow indicator
+  const arrow = document.createElement("div");
+  arrow.className = "absolute top-1/2 end-3 -translate-y-1/2 pointer-events-none";
+  arrow.innerHTML = '<svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+
+  container.append(control, arrow, dropdown);
 
   select.insertAdjacentElement("beforebegin", container);
   addElementClasses(select, theme.nativeSelect);
@@ -370,6 +375,13 @@ function openDropdown(store: TypeaheadStore): void {
   }
   store.input.placeholder = store.searchMode ? store.searchPlaceholder : store.placeholder;
   renderOptions(store);
+  if (store.searchMode && store.filtered.length === 0 && !store.searchQuery) {
+    // When search-driven fields have no data yet (tenant/category filters missing),
+    // keep the dropdown collapsed so the empty state doesn't cover other inputs.
+    store.dropdown.hidden = true;
+    store.control.setAttribute("aria-expanded", "false");
+    return;
+  }
   store.dropdown.hidden = false;
   store.control.setAttribute("aria-expanded", "true");
   addElementClasses(store.container, store.theme.containerOpen);
@@ -430,16 +442,26 @@ function renderOptions(store: TypeaheadStore): void {
     button.dataset.value = option.value;
     button.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
     button.dataset.selected = option.value === selectedValue ? "true" : "false";
-    button.appendChild(
+
+    // Create label span
+    const label = document.createElement("span");
+    label.appendChild(
       buildHighlightedFragment(
         option.label ?? option.value,
         trimmed,
         classesToString(theme.highlight)
       )
     );
+    button.appendChild(label);
+
+    // Add checkmark icon for selected option
     if (option.value === selectedValue) {
       button.setAttribute("aria-selected", "true");
+      const checkmark = document.createElement("span");
+      checkmark.innerHTML = '<svg class="shrink-0 size-3.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      button.appendChild(checkmark);
     }
+
     button.addEventListener("click", () => selectOption(store, option));
     dropdown.appendChild(button);
 
