@@ -144,17 +144,17 @@ export async function loadSandboxScenario(
     throw new Error(`UI schema for operation ${operationId} not found.`);
   }
 
-  const articleSchema = locateArticleSchema(schemaDoc, operationId);
+  const requestSchema = locateRequestSchema(schemaDoc, operationId);
   const schemaMap: SchemaMap = new Map();
   const requiredPaths = new Set<string>();
 
   flattenSchema(
     schemaDoc,
-    articleSchema,
-    "article",
+    requestSchema,
+    "",
     schemaMap,
   );
-  collectRequiredPaths(schemaDoc, articleSchema, "article", requiredPaths);
+  collectRequiredPaths(schemaDoc, requestSchema, "", requiredPaths);
 
   const fieldEntries = Object.entries(operation.fields);
   const fieldMap: Record<string, ScenarioField> = {};
@@ -204,7 +204,7 @@ async function fetchJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function locateArticleSchema(doc: OpenAPISchema, operationId: string): OpenAPISchema {
+function locateRequestSchema(doc: OpenAPISchema, operationId: string): OpenAPISchema {
   const paths = doc.paths as Record<string, JsonValue>;
   if (!paths) {
     throw new Error("OpenAPI document missing paths.");
@@ -224,12 +224,10 @@ function locateArticleSchema(doc: OpenAPISchema, operationId: string): OpenAPISc
         const content = requestBody?.content as Record<string, JsonValue>;
         const jsonSchema = content?.["application/json"] as Record<string, JsonValue>;
         const schema = jsonSchema?.schema as OpenAPISchema;
-        const properties = schema?.properties as Record<string, JsonValue>;
-        const article = properties?.article as OpenAPISchema;
-        if (!article) {
-          throw new Error(`Operation ${operationId} missing article schema.`);
+        if (!schema) {
+          throw new Error(`Operation ${operationId} missing request schema.`);
         }
-        return article;
+        return schema;
       }
     }
   }
@@ -244,7 +242,9 @@ function flattenSchema(
   map: SchemaMap,
 ): void {
   const resolved = dereferenceSchema(doc, schema);
-  map.set(path, resolved);
+  if (path) {
+    map.set(path, resolved);
+  }
 
   if (isObject(resolved.properties)) {
     const properties = resolved.properties as Record<string, JsonValue>;
@@ -252,13 +252,14 @@ function flattenSchema(
       if (!isObject(value)) {
         continue;
       }
-      flattenSchema(doc, value as OpenAPISchema, `${path}.${key}`, map);
+      const nextPath = path ? `${path}.${key}` : key;
+      flattenSchema(doc, value as OpenAPISchema, nextPath, map);
     }
   }
 
   if (resolved.items && typeof resolved.items === "object") {
     const itemSchema = resolved.items as OpenAPISchema;
-    const itemPath = `${path}[]`;
+    const itemPath = path ? `${path}[]` : "[]";
     flattenSchema(doc, itemSchema, itemPath, map);
   }
 }
@@ -272,7 +273,8 @@ function collectRequiredPaths(
   const resolved = dereferenceSchema(doc, schema);
   if (Array.isArray(resolved.required)) {
     for (const key of resolved.required) {
-      required.add(`${path}.${String(key)}`);
+      const next = path ? `${path}.${String(key)}` : String(key);
+      required.add(next);
     }
   }
 
@@ -282,7 +284,8 @@ function collectRequiredPaths(
       if (!isObject(value)) {
         continue;
       }
-      collectRequiredPaths(doc, value as OpenAPISchema, `${path}.${key}`, required);
+      const nextPath = path ? `${path}.${key}` : key;
+      collectRequiredPaths(doc, value as OpenAPISchema, nextPath, required);
     }
   }
 
@@ -418,11 +421,11 @@ function extractEndpoint(schemaNode: OpenAPISchema | undefined): EndpointSpec | 
 function extractFieldReferences(map: Record<string, string>): string[] {
   const refs = new Set<string>();
   Object.values(map).forEach((value) => {
-    const matches = String(value).match(/\\{\\{field:([^}]+)\\}\\}/g);
+    const matches = String(value).match(/\{\{field:([^}]+)\}\}/g);
     matches?.forEach((match) => {
-      const field = match.replace(/\\{\\{field:([^}]+)\\}\\}/, "$1").trim();
+      const field = match.replace(/\{\{field:([^}]+)\}\}/, "$1").trim();
       if (field) {
-        refs.add(`article.${field}`);
+        refs.add(field);
       }
     });
   });

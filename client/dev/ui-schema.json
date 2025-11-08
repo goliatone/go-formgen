@@ -76,7 +76,14 @@
           "label": "Slug",
           "placeholder": "garden-maintenance-tips",
           "component": "input",
-          "helpText": "Auto generated from the title but editable."
+          "helpText": "Auto generated from the title but editable.",
+          "componentOptions": {
+            "behaviors": {
+              "autoSlug": {
+                "source": "title"
+              }
+            }
+          }
         },
         "status": {
           "section": "overview",
@@ -147,8 +154,7 @@
           },
           "label": "Body",
           "component": "wysiwyg",
-          "placeholder": "Write the full article content",
-          "helpText": "Main article content with rich text formatting",
+          "placeholder": "Full article content in Markdown",
           "componentOptions": {
             "toolbar": [
               ["bold", "italic", "underline"],

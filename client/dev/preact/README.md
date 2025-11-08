@@ -9,11 +9,6 @@ This sandbox demonstrates using the formgen runtime with **Preact components** a
 npm run dev:preact
 ```
 
-**Basecoat renderer:**
-```bash
-npm run dev:preact:basecoat
-```
-
 This opens http://localhost:5173/preact/ with a Preact-rendered form.
 
 ## What's Different
@@ -110,7 +105,7 @@ Shows loading/error feedback:
 ```
 
 ### 4. **Renderer Support**
-Switch between vanilla and basecoat renderers using the dropdown or URL param.
+Switch between the Preact sandbox and the server-rendered vanilla view using the dropdown or URL param.
 
 ## Workflow
 
@@ -138,8 +133,8 @@ All endpoints support `?q=search` for filtering.
 ## Switching Renderers
 
 Use the dropdown in the header or URL params:
-- `?renderer=vanilla` - Custom CSS (~8KB)
-- `?renderer=basecoat` - Tailwind CSS (~111KB)
+- `?renderer=vanilla` - Server-rendered HTML preview
+- `?renderer=preact` - Preact component preview
 
 ## Comparison: Vanilla vs Preact
 

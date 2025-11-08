@@ -1,3 +1,3 @@
-import formOutputHtml from "@assets/vanilla/testdata/form_output.golden.html?raw";
+import articleFormHtml from "./data/article-form.html?raw";
 
-export const vanillaFormHtml = formOutputHtml;
+export const vanillaFormHtml = articleFormHtml;
