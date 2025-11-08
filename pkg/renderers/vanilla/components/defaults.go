@@ -39,6 +39,9 @@ func NewDefaultRegistry() *Registry {
 	registry.MustRegister("datetime-range", Descriptor{
 		Renderer: datetimeRangeRenderer,
 	})
+	registry.MustRegister("wysiwyg", Descriptor{
+		Renderer: templateComponentRenderer(templatePrefix + "wysiwyg.tmpl"),
+	})
 
 	return registry
 }
@@ -64,26 +67,79 @@ func templateComponentRenderer(templateName string) Renderer {
 
 func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<fieldset class="fg-fieldset`)
-	if strings.TrimSpace(field.UIHints["accordion"]) == "true" {
-		builder.WriteString(` fg-fieldset--accent`)
+	classes := []string{
+		"space-y-4",
+		"p-4",
+		"border",
+		"border-gray-200",
+		"rounded-lg",
+		"dark:border-gray-700",
 	}
-	builder.WriteString(`">`)
+	if strings.TrimSpace(field.UIHints["accordion"]) == "true" {
+		classes = append(classes, "border-s-4", "border-s-blue-600")
+	}
+	if field.UIHints != nil {
+		if extra := sanitizeClassList(field.UIHints["cssClass"]); extra != "" {
+			classes = append(classes, extra)
+		}
+		if extra := sanitizeClassList(field.UIHints["class"]); extra != "" {
+			classes = append(classes, extra)
+		}
+	}
+
+	builder.WriteString(`<fieldset`)
+	if id := componentControlID(field.Name); id != "" {
+		builder.WriteString(` id="`)
+		builder.WriteString(html.EscapeString(id))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(` class="`)
+	builder.WriteString(html.EscapeString(strings.Join(classes, " ")))
+	builder.WriteString(`"`)
+	writeRelationshipAttributes(&builder, field.Relationship)
+	labelID := ""
+	if strings.TrimSpace(field.Label) != "" {
+		labelID = componentLabelID(field.Name)
+	}
+	if labelID != "" {
+		builder.WriteString(` aria-labelledby="`)
+		builder.WriteString(html.EscapeString(labelID))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(`>`)
 
 	if label := strings.TrimSpace(field.Label); label != "" {
-		builder.WriteString(`<legend>`)
+		builder.WriteString(`<legend`)
+		if labelID != "" {
+			builder.WriteString(` id="`)
+			builder.WriteString(html.EscapeString(labelID))
+			builder.WriteString(`"`)
+		}
+		builder.WriteString(` class="text-sm font-semibold text-gray-900 dark:text-white">`)
 		builder.WriteString(html.EscapeString(label))
 		builder.WriteString(`</legend>`)
 	}
+	if desc := strings.TrimSpace(field.Description); desc != "" {
+		builder.WriteString(`<p class="text-xs text-gray-500 dark:text-gray-400">`)
+		builder.WriteString(html.EscapeString(desc))
+		builder.WriteString(`</p>`)
+	}
+	if hint := strings.TrimSpace(field.UIHints["helpText"]); hint != "" {
+		builder.WriteString(`<p class="text-xs text-gray-600 dark:text-gray-300">`)
+		builder.WriteString(html.EscapeString(hint))
+		builder.WriteString(`</p>`)
+	}
 
 	if data.RenderChild != nil {
+		builder.WriteString(`<div class="space-y-4">`)
 		for _, nested := range field.Nested {
-			html, err := data.RenderChild(nested)
+			child, err := data.RenderChild(nested)
 			if err != nil {
 				return err
 			}
-			builder.WriteString(html)
+			builder.WriteString(child)
 		}
+		builder.WriteString(`</div>`)
 	}
 
 	builder.WriteString(`</fieldset>`)
@@ -93,22 +149,62 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 
 func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<div class="fg-array`)
-	if cls := strings.TrimSpace(field.UIHints["cssClass"]); cls != "" {
-		builder.WriteByte(' ')
-		builder.WriteString(html.EscapeString(cls))
+	label := strings.TrimSpace(field.Label)
+	labelID := ""
+	if label != "" {
+		labelID = componentLabelID(field.Name)
 	}
-	builder.WriteString(`">`)
+	builder.WriteString(`<div`)
+	if id := componentControlID(field.Name); id != "" {
+		builder.WriteString(` id="`)
+		builder.WriteString(html.EscapeString(id))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(` class="space-y-3`)
+	if field.UIHints != nil {
+		if extra := sanitizeClassList(field.UIHints["cssClass"]); extra != "" {
+			builder.WriteByte(' ')
+			builder.WriteString(html.EscapeString(extra))
+		} else if extra := sanitizeClassList(field.UIHints["class"]); extra != "" {
+			builder.WriteByte(' ')
+			builder.WriteString(html.EscapeString(extra))
+		}
+	}
+	builder.WriteString(`"`)
+	writeRelationshipAttributes(&builder, field.Relationship)
+	builder.WriteString(` role="group"`)
+	if labelID != "" {
+		builder.WriteString(` aria-labelledby="`)
+		builder.WriteString(html.EscapeString(labelID))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(`>`)
 
-	if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
-		builder.WriteString(`<div class="text-sm font-medium">`)
+	if label != "" {
+		builder.WriteString(`<div`)
+		if labelID != "" {
+			builder.WriteString(` id="`)
+			builder.WriteString(html.EscapeString(labelID))
+			builder.WriteString(`"`)
+		}
+		builder.WriteString(` class="text-sm font-medium text-gray-900 dark:text-white">`)
 		builder.WriteString(html.EscapeString(label))
 		builder.WriteString(`</div>`)
 	}
+	if desc := strings.TrimSpace(field.Description); desc != "" {
+		builder.WriteString(`<p class="text-xs text-gray-500 dark:text-gray-400">`)
+		builder.WriteString(html.EscapeString(desc))
+		builder.WriteString(`</p>`)
+	}
+	if hint := strings.TrimSpace(field.UIHints["helpText"]); hint != "" {
+		builder.WriteString(`<p class="text-xs text-gray-600 dark:text-gray-300">`)
+		builder.WriteString(html.EscapeString(hint))
+		builder.WriteString(`</p>`)
+	}
 
-	if field.Items != nil {
+	if field.Items != nil && data.RenderChild != nil {
 		cardinality := strings.TrimSpace(field.UIHints["cardinality"])
-		builder.WriteString(`<div class="fg-array__items"`)
+		builder.WriteString(`<div class="space-y-3"`)
 		if cardinality != "" {
 			builder.WriteString(` data-relationship-collection="`)
 			builder.WriteString(html.EscapeString(cardinality))
@@ -116,16 +212,16 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 		}
 		builder.WriteString(`>`)
 
-		if data.RenderChild != nil {
-			html, err := data.RenderChild(*field.Items)
-			if err != nil {
-				return err
-			}
-			builder.WriteString(html)
+		child, err := data.RenderChild(*field.Items)
+		if err != nil {
+			return err
 		}
+		builder.WriteString(child)
+		builder.WriteString(`</div>`)
 
 		if cardinality == "many" {
-			builder.WriteString(`<button type="button" class="fg-array__add" data-relationship-action="add">Add `)
+			builder.WriteString(`<button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">`)
+			builder.WriteString(`Add `)
 			if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
 				builder.WriteString(html.EscapeString(label))
 			} else if field.Label != "" {
@@ -135,10 +231,8 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 			}
 			builder.WriteString(`</button>`)
 		}
-
-		builder.WriteString(`</div>`)
 	} else {
-		builder.WriteString(`<p class="text-sm text-gray-500">Array field `)
+		builder.WriteString(`<p class="text-sm text-gray-500 dark:text-gray-400">Array field `)
 		builder.WriteString(html.EscapeString(field.Name))
 		builder.WriteString(` requires item definition.</p>`)
 	}
@@ -150,21 +244,126 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 
 func datetimeRangeRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
-	builder.WriteString(`<div class="fg-field">`)
-	if len(field.Nested) == 0 {
-		builder.WriteString(`<p class="fg-field__help">Datetime range "`)
+	builder.WriteString(`<div`)
+	if id := componentControlID(field.Name); id != "" {
+		builder.WriteString(` id="`)
+		builder.WriteString(html.EscapeString(id))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(` class="space-y-3`)
+	if field.UIHints != nil {
+		if extra := sanitizeClassList(field.UIHints["cssClass"]); extra != "" {
+			builder.WriteByte(' ')
+			builder.WriteString(html.EscapeString(extra))
+		} else if extra := sanitizeClassList(field.UIHints["class"]); extra != "" {
+			builder.WriteByte(' ')
+			builder.WriteString(html.EscapeString(extra))
+		}
+	}
+	builder.WriteString(`"`)
+	writeRelationshipAttributes(&builder, field.Relationship)
+	builder.WriteString(` role="group"`)
+	builder.WriteString(`>`)
+
+	if label := strings.TrimSpace(field.Label); label != "" {
+		builder.WriteString(`<div class="text-sm font-medium text-gray-900 dark:text-white">`)
+		builder.WriteString(html.EscapeString(label))
+		builder.WriteString(`</div>`)
+	}
+	if desc := strings.TrimSpace(field.Description); desc != "" {
+		builder.WriteString(`<p class="text-xs text-gray-500 dark:text-gray-400">`)
+		builder.WriteString(html.EscapeString(desc))
+		builder.WriteString(`</p>`)
+	}
+	if hint := strings.TrimSpace(field.UIHints["helpText"]); hint != "" {
+		builder.WriteString(`<p class="text-xs text-gray-600 dark:text-gray-300">`)
+		builder.WriteString(html.EscapeString(hint))
+		builder.WriteString(`</p>`)
+	}
+	if len(field.Nested) == 0 || data.RenderChild == nil {
+		builder.WriteString(`<p class="text-sm text-red-600 dark:text-red-400">`)
+		builder.WriteString(`Datetime range "`)
 		builder.WriteString(html.EscapeString(field.Name))
-		builder.WriteString(`" requires nested start/end fields.</p>`)
-	} else if data.RenderChild != nil {
+		builder.WriteString(`" requires nested start/end fields.`)
+		builder.WriteString(`</p>`)
+	} else {
+		builder.WriteString(`<div class="grid gap-3 sm:grid-cols-2">`)
 		for _, nested := range field.Nested {
-			html, err := data.RenderChild(nested)
+			child, err := data.RenderChild(nested)
 			if err != nil {
 				return err
 			}
-			builder.WriteString(html)
+			builder.WriteString(child)
 		}
+		builder.WriteString(`</div>`)
 	}
 	builder.WriteString(`</div>`)
 	buf.WriteString(builder.String())
 	return nil
+}
+
+func writeRelationshipAttributes(builder *strings.Builder, rel *model.Relationship) {
+	if rel == nil {
+		return
+	}
+	if rel.Kind != "" {
+		builder.WriteString(` data-relationship-type="`)
+		builder.WriteString(html.EscapeString(string(rel.Kind)))
+		builder.WriteString(`"`)
+	}
+	if rel.Target != "" {
+		builder.WriteString(` data-relationship-target="`)
+		builder.WriteString(html.EscapeString(rel.Target))
+		builder.WriteString(`"`)
+	}
+	if rel.ForeignKey != "" {
+		builder.WriteString(` data-relationship-foreign-key="`)
+		builder.WriteString(html.EscapeString(rel.ForeignKey))
+		builder.WriteString(`"`)
+	}
+	if rel.Cardinality != "" {
+		builder.WriteString(` data-relationship-cardinality="`)
+		builder.WriteString(html.EscapeString(rel.Cardinality))
+		builder.WriteString(`"`)
+	}
+	if rel.Inverse != "" {
+		builder.WriteString(` data-relationship-inverse="`)
+		builder.WriteString(html.EscapeString(rel.Inverse))
+		builder.WriteString(`"`)
+	}
+}
+
+func componentControlID(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	return "fg-" + trimmed
+}
+
+func componentLabelID(name string) string {
+	controlID := componentControlID(name)
+	if controlID == "" {
+		return ""
+	}
+	return controlID + "-label"
+}
+
+func sanitizeClassList(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	tokens := strings.Fields(value)
+	keep := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if token == "" {
+			continue
+		}
+		if strings.HasPrefix(token, "fg-") {
+			continue
+		}
+		keep = append(keep, token)
+	}
+	return strings.Join(keep, " ")
 }

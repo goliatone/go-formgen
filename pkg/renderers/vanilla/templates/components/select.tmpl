@@ -1,43 +1,27 @@
 {% set rel = field.relationship -%}
 {% set data_attrs = field.metadata.__data_attrs -%}
 
-<div class="space-y-2{% if field.uiHints.cssClass %} {{ field.uiHints.cssClass }}{% endif %}">
-    {% if field.uiHints.hideLabel != "true" and field.label %}
-    <label for="fg-{{ field.name }}" class="block text-sm font-medium text-gray-800 mb-2 dark:text-white">
-        {{ field.label }}{% if field.required %}<span class="text-red-500">*</span>{% endif %}
-    </label>
-    {% endif %}
-
-    <select
-        id="fg-{{ field.name }}"
-        name="{{ field.name }}"
-        class="py-3 px-4 pe-9 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-        {% if field.required %}required{% endif %}
-        {% if field.disabled %}disabled{% endif %}
-        {% if rel and rel.cardinality == "many" %}multiple data-relationship-collection="many"{% endif %}
-        {% if rel and rel.kind %}data-relationship-type="{{ rel.kind }}"{% endif %}
-        {% if rel and rel.target %}data-relationship-target="{{ rel.target }}"{% endif %}
-        {% if rel and rel.cardinality %}data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}
-        {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
-    >
-        {% if field.enum %}
-            {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+<select
+    id="fg-{{ field.name }}"
+    name="{{ field.name }}"
+    class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    {% if field.required %}required{% endif %}
+    {% if field.disabled %}disabled{% endif %}
+    {% if rel and rel.cardinality == "many" %}multiple data-relationship-collection="many"{% endif %}
+    {% if rel and rel.kind %}data-relationship-type="{{ rel.kind }}"{% endif %}
+    {% if rel and rel.target %}data-relationship-target="{{ rel.target }}"{% endif %}
+    {% if rel and rel.cardinality %}data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}
+    {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
+>
+    {% if field.enum %}
+        {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+    {% else %}
+        {% if field.uiHints.placeholder %}
+            <option value="">{{ field.uiHints.placeholder }}</option>
+        {% elif field.label %}
+            <option value="">Select {{ field.label }}</option>
         {% else %}
-            {% if field.uiHints.placeholder %}
-                <option value="">{{ field.uiHints.placeholder }}</option>
-            {% elif field.label %}
-                <option value="">Select {{ field.label }}</option>
-            {% else %}
-                <option value="">Select an option</option>
-            {% endif %}
+            <option value="">Select an option</option>
         {% endif %}
-    </select>
-
-    {% if field.description %}
-    <p class="text-xs text-gray-500 mt-2 dark:text-gray-400">{{ field.description }}</p>
     {% endif %}
-
-    {% if field.uiHints.helpText %}
-    <p class="text-xs text-gray-600 mt-2 dark:text-gray-300">{{ field.uiHints.helpText }}</p>
-    {% endif %}
-</div>
+</select>

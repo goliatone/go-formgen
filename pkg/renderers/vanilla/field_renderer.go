@@ -21,6 +21,17 @@ type componentRenderer struct {
 	usedComponents map[string]struct{}
 }
 
+const (
+	chromeTemplatePrefix       = "templates/components/chrome/"
+	chromeLabelTemplate        = chromeTemplatePrefix + "_label.tmpl"
+	chromeDescriptionTemplate  = chromeTemplatePrefix + "_description.tmpl"
+	chromeHelpTemplate         = chromeTemplatePrefix + "_help.tmpl"
+	controlIDPrefix            = "fg-"
+	descriptionIDSuffix        = "-description"
+	helpIDSuffix               = "-help"
+	componentChromeSkipKeyword = "skip"
+)
+
 func newComponentRenderer(templates template.TemplateRenderer, registry *components.Registry, overrides map[string]string) *componentRenderer {
 	if registry == nil {
 		registry = components.NewDefaultRegistry()
@@ -69,7 +80,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 
 	r.usedComponents[componentName] = struct{}{}
 
-	return buildFieldMarkup(field, componentName, control.String()), nil
+	return buildFieldMarkup(r.templates, field, componentName, control.String()), nil
 }
 
 func (r *componentRenderer) childRenderer(parentPath string) func(any) (string, error) {
@@ -109,17 +120,21 @@ func skipRelationshipSource(field model.Field) bool {
 	return field.Relationship != nil && strings.TrimSpace(field.Relationship.SourceField) != ""
 }
 
-func buildFieldMarkup(field model.Field, componentName, control string) string {
+func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, componentName, control string) string {
+	if strings.TrimSpace(control) == "" {
+		return ""
+	}
+	if shouldSkipChrome(field) {
+		return control
+	}
+
 	var builder strings.Builder
 	builder.Grow(len(control) + 256)
 
-	builder.WriteString(`<div class="fg-field`)
-	if cls := field.UIHints["cssClass"]; cls != "" {
+	builder.WriteString(`<div class="flex flex-col gap-2`)
+	if extra := sanitizedWrapperClass(field); extra != "" {
 		builder.WriteByte(' ')
-		builder.WriteString(html.EscapeString(cls))
-	} else if cls := field.UIHints["class"]; cls != "" {
-		builder.WriteByte(' ')
-		builder.WriteString(html.EscapeString(cls))
+		builder.WriteString(html.EscapeString(extra))
 	}
 	builder.WriteString(`"`)
 
@@ -165,45 +180,166 @@ func buildFieldMarkup(field model.Field, componentName, control string) string {
 
 	builder.WriteString(">\n")
 
-	if shouldRenderLabel(field) {
-		builder.WriteString(`    <label for="fg-`)
-		builder.WriteString(html.EscapeString(field.Name))
-		builder.WriteString(`" class="fg-field__label">`)
-		builder.WriteString(html.EscapeString(field.Label))
-		if field.Required {
-			builder.WriteString(` *`)
-		}
-		builder.WriteString(`</label>
-`)
+	context := buildChromeContext(field, componentName)
+
+	skipChrome := componentHandlesChrome(componentName)
+
+	if !skipChrome && shouldRenderLabel(field) {
+		label := renderChromePartial(templates, chromeLabelTemplate, field, context, fallbackLabelMarkup)
+		writeIndentedBlock(&builder, label)
 	}
 
-	if control != "" {
-		for _, line := range strings.Split(control, "\n") {
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
-			builder.WriteString("    ")
-			builder.WriteString(line)
-			builder.WriteByte('\n')
-		}
+	writeIndentedBlock(&builder, control)
+
+	if !skipChrome && strings.TrimSpace(field.Description) != "" {
+		description := renderChromePartial(templates, chromeDescriptionTemplate, field, context, fallbackDescriptionMarkup)
+		writeIndentedBlock(&builder, description)
 	}
 
-	if desc := strings.TrimSpace(field.Description); desc != "" {
-		builder.WriteString(`    <small class="fg-field__help">`)
-		builder.WriteString(html.EscapeString(desc))
-		builder.WriteString(`</small>
-`)
-	}
-
-	if hint := strings.TrimSpace(field.UIHints["helpText"]); hint != "" {
-		builder.WriteString(`    <small class="fg-field__hint">`)
-		builder.WriteString(html.EscapeString(hint))
-		builder.WriteString(`</small>
-`)
+	if !skipChrome && strings.TrimSpace(stringFromMap(field.UIHints, "helpText")) != "" {
+		help := renderChromePartial(templates, chromeHelpTemplate, field, context, fallbackHelpMarkup)
+		writeIndentedBlock(&builder, help)
 	}
 
 	builder.WriteString("</div>\n")
 	return builder.String()
+}
+
+func renderChromePartial(renderer template.TemplateRenderer, templateName string, field model.Field, context map[string]any, fallback func(model.Field, map[string]any) string) string {
+	if renderer != nil {
+		payload := map[string]any{
+			"field":   field,
+			"context": context,
+		}
+		if rendered, err := renderer.RenderTemplate(templateName, payload); err == nil {
+			return strings.TrimSpace(rendered)
+		}
+	}
+	if fallback == nil {
+		return ""
+	}
+	return strings.TrimSpace(fallback(field, context))
+}
+
+func buildChromeContext(field model.Field, componentName string) map[string]any {
+	controlID := buildControlID(field.Name)
+	context := map[string]any{
+		"controlID": controlID,
+	}
+	if isLabelVisuallyHidden(field) {
+		context["visuallyHiddenLabel"] = true
+	}
+
+	if labelID := componentLabelID(field.Name); labelID != "" {
+		context["labelID"] = labelID
+	}
+	if labelSupportsFor(componentName) && controlID != "" {
+		context["labelTarget"] = controlID
+	}
+
+	if strings.TrimSpace(field.Description) != "" && controlID != "" {
+		context["descriptionID"] = controlID + descriptionIDSuffix
+	}
+	if strings.TrimSpace(stringFromMap(field.UIHints, "helpText")) != "" && controlID != "" {
+		context["helpID"] = controlID + helpIDSuffix
+	}
+
+	return context
+}
+
+func buildControlID(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	return controlIDPrefix + trimmed
+}
+
+func writeIndentedBlock(builder *strings.Builder, block string) {
+	if strings.TrimSpace(block) == "" {
+		return
+	}
+	for _, line := range strings.Split(block, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		builder.WriteString("    ")
+		builder.WriteString(line)
+		builder.WriteByte('\n')
+	}
+}
+
+func fallbackLabelMarkup(field model.Field, context map[string]any) string {
+	if strings.TrimSpace(field.Label) == "" {
+		return ""
+	}
+	labelID, _ := context["labelID"].(string)
+	labelTarget, _ := context["labelTarget"].(string)
+	hidden, _ := context["visuallyHiddenLabel"].(bool)
+
+	var builder strings.Builder
+	builder.WriteString(`<label data-formgen-chrome="label"`)
+	if labelID != "" {
+		builder.WriteString(` id="`)
+		builder.WriteString(html.EscapeString(labelID))
+		builder.WriteString(`"`)
+	}
+	if labelTarget != "" {
+		builder.WriteString(` for="`)
+		builder.WriteString(html.EscapeString(labelTarget))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(` class="text-sm font-medium text-gray-900 dark:text-white inline-flex items-center gap-1`)
+	if hidden {
+		builder.WriteString(` sr-only`)
+	}
+	builder.WriteString(`">`)
+	builder.WriteString(html.EscapeString(field.Label))
+	if field.Required {
+		builder.WriteString(`<span class="text-red-500">*</span>`)
+	}
+	builder.WriteString(`</label>`)
+	return builder.String()
+}
+
+func fallbackDescriptionMarkup(field model.Field, _ map[string]any) string {
+	if desc := strings.TrimSpace(field.Description); desc != "" {
+		var builder strings.Builder
+		builder.WriteString(`<p data-formgen-chrome="description" class="text-xs text-gray-500 dark:text-gray-400">`)
+		builder.WriteString(html.EscapeString(desc))
+		builder.WriteString(`</p>`)
+		return builder.String()
+	}
+	return ""
+}
+
+func fallbackHelpMarkup(field model.Field, _ map[string]any) string {
+	if hint := strings.TrimSpace(stringFromMap(field.UIHints, "helpText")); hint != "" {
+		var builder strings.Builder
+		builder.WriteString(`<p data-formgen-chrome="help" class="text-xs text-gray-600 dark:text-gray-300">`)
+		builder.WriteString(html.EscapeString(hint))
+		builder.WriteString(`</p>`)
+		return builder.String()
+	}
+	return ""
+}
+
+func shouldSkipChrome(field model.Field) bool {
+	value := strings.TrimSpace(strings.ToLower(stringFromMap(field.Metadata, componentChromeMetadataKey)))
+	return value == componentChromeSkipKeyword
+}
+
+func sanitizedWrapperClass(field model.Field) string {
+	if field.UIHints == nil {
+		return ""
+	}
+	if value := sanitizeClassList(field.UIHints["cssClass"]); value != "" {
+		return value
+	}
+	if value := sanitizeClassList(field.UIHints["class"]); value != "" {
+		return value
+	}
+	return ""
 }
 
 func shouldRenderLabel(field model.Field) bool {
@@ -213,7 +349,11 @@ func shouldRenderLabel(field model.Field) bool {
 	if strings.TrimSpace(field.UIHints["inputType"]) == "hidden" {
 		return false
 	}
-	return strings.TrimSpace(field.UIHints["hideLabel"]) != "true"
+	return true
+}
+
+func isLabelVisuallyHidden(field model.Field) bool {
+	return strings.TrimSpace(field.UIHints["hideLabel"]) == "true"
 }
 
 func parseComponentConfig(raw string) (map[string]any, error) {

@@ -1,0 +1,5 @@
+{% if field.uiHints.helpText %}
+<p data-formgen-chrome="help"{% if context.helpID %} id="{{ context.helpID }}"{% endif %} class="text-xs text-gray-600 dark:text-gray-300">
+    {{ field.uiHints.helpText }}
+</p>
+{% endif %}

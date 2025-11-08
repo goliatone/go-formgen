@@ -137,6 +137,7 @@ const (
 	dataAttributesMetadataKey  = "__data_attrs"
 	layoutSectionsMetadataKey  = "layout.sections"
 	layoutSectionFieldKey      = "layout.section"
+	layoutFieldOrderPrefix     = "layout.fieldOrder."
 	layoutActionsMetadataKey   = "actions"
 	layoutGridColumnsHintKey   = "layout.gridColumns"
 	layoutGutterHintKey        = "layout.gutter"
@@ -145,6 +146,7 @@ const (
 	fieldLayoutRowHintKey      = "layout.row"
 	componentNameMetadataKey   = "component.name"
 	componentConfigMetadataKey = "component.config"
+	componentChromeMetadataKey = "component.chrome"
 	defaultGridColumns         = 12
 )
 
@@ -167,6 +169,18 @@ type sectionGroup struct {
 type renderedField struct {
 	HTML  string `json:"html"`
 	Style string `json:"style"`
+}
+
+type renderedSectionField struct {
+	path     string
+	field    renderedField
+	fallback int
+}
+
+type sectionedField struct {
+	field     model.Field
+	path      string
+	sectionID string
 }
 
 type sectionMeta struct {
@@ -316,28 +330,186 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 		index[meta.ID] = &ctx.Sections[i]
 	}
 
-	for _, field := range form.Fields {
-		rendered, err := renderer.render(field, field.Name)
-		if err != nil {
-			return layoutContext{}, err
-		}
-		if strings.TrimSpace(rendered) == "" {
-			continue
-		}
-		item := renderedField{
-			HTML:  rendered,
-			Style: gridStyleAttribute(field, ctx.GridColumns),
-		}
-		if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
-			if target, ok := index[sectionID]; ok {
-				target.Fields = append(target.Fields, item)
+	sectionOrders := parseFieldOrderMetadata(form.Metadata)
+	sectionOutputs := make(map[string][]renderedSectionField, len(index))
+	fallbackCounter := 0
+
+	// Collect all fields that have section assignments, including nested fields
+	sectioned := collectSectionedFields(form.Fields, "")
+	if len(sectioned) > 0 {
+		// We have nested fields with section metadata - render them individually
+		for _, sf := range sectioned {
+			rendered, err := renderer.render(sf.field, sf.path)
+			if err != nil {
+				return layoutContext{}, err
+			}
+			if strings.TrimSpace(rendered) == "" {
 				continue
 			}
+			item := renderedField{
+				HTML:  rendered,
+				Style: gridStyleAttribute(sf.field, ctx.GridColumns),
+			}
+			if _, ok := index[sf.sectionID]; ok {
+				fallbackCounter++
+				sectionOutputs[sf.sectionID] = append(sectionOutputs[sf.sectionID], renderedSectionField{
+					path:     sf.path,
+					field:    item,
+					fallback: fallbackCounter,
+				})
+			} else {
+				ctx.Unsectioned = append(ctx.Unsectioned, item)
+			}
 		}
-		ctx.Unsectioned = append(ctx.Unsectioned, item)
+	} else {
+		// Fall back to top-level field iteration
+		for _, field := range form.Fields {
+			rendered, err := renderer.render(field, field.Name)
+			if err != nil {
+				return layoutContext{}, err
+			}
+			if strings.TrimSpace(rendered) == "" {
+				continue
+			}
+			item := renderedField{
+				HTML:  rendered,
+				Style: gridStyleAttribute(field, ctx.GridColumns),
+			}
+			if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
+				if _, ok := index[sectionID]; ok {
+					fallbackCounter++
+					sectionOutputs[sectionID] = append(sectionOutputs[sectionID], renderedSectionField{
+						path:     joinPath("", field.Name),
+						field:    item,
+						fallback: fallbackCounter,
+					})
+					continue
+				}
+			}
+			ctx.Unsectioned = append(ctx.Unsectioned, item)
+		}
+	}
+
+	for id, group := range index {
+		order := sectionOrders[id]
+		group.Fields = orderRenderedFields(sectionOutputs[id], order)
 	}
 
 	return ctx, nil
+}
+
+func collectSectionedFields(fields []model.Field, parentPath string) []sectionedField {
+	var result []sectionedField
+	for _, field := range fields {
+		path := field.Name
+		if parentPath != "" {
+			path = parentPath + "." + field.Name
+		}
+
+		// Check if this field has a section assignment
+		if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
+			result = append(result, sectionedField{
+				field:     field,
+				path:      path,
+				sectionID: sectionID,
+			})
+		}
+
+		// Recursively collect from nested fields
+		if len(field.Nested) > 0 {
+			nested := collectSectionedFields(field.Nested, path)
+			result = append(result, nested...)
+		}
+
+		// Recursively collect from array item schemas
+		if field.Items != nil && len(field.Items.Nested) > 0 {
+			itemPath := path + ".items"
+			nested := collectSectionedFields(field.Items.Nested, itemPath)
+			result = append(result, nested...)
+		}
+	}
+	return result
+}
+
+func parseFieldOrderMetadata(metadata map[string]string) map[string][]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	result := make(map[string][]string)
+	for key, raw := range metadata {
+		if !strings.HasPrefix(key, layoutFieldOrderPrefix) {
+			continue
+		}
+		sectionID := strings.TrimSpace(strings.TrimPrefix(key, layoutFieldOrderPrefix))
+		if sectionID == "" || strings.TrimSpace(raw) == "" {
+			continue
+		}
+		var order []string
+		if err := json.Unmarshal([]byte(raw), &order); err != nil {
+			continue
+		}
+		filtered := make([]string, 0, len(order))
+		for _, entry := range order {
+			if trimmed := strings.TrimSpace(entry); trimmed != "" {
+				filtered = append(filtered, trimmed)
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		result[sectionID] = filtered
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func orderRenderedFields(entries []renderedSectionField, order []string) []renderedField {
+	if len(entries) == 0 {
+		return nil
+	}
+	if len(order) == 0 {
+		out := make([]renderedField, len(entries))
+		for idx, entry := range entries {
+			out[idx] = entry.field
+		}
+		return out
+	}
+
+	result := make([]renderedField, 0, len(entries))
+	lookup := make(map[string]renderedSectionField, len(entries))
+	used := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		lookup[entry.path] = entry
+	}
+
+	for _, token := range order {
+		path := strings.TrimSpace(token)
+		if path == "" {
+			continue
+		}
+		entry, ok := lookup[path]
+		if !ok {
+			continue
+		}
+		if _, exists := used[path]; exists {
+			continue
+		}
+		result = append(result, entry.field)
+		used[path] = struct{}{}
+	}
+
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].fallback < entries[j].fallback
+	})
+	for _, entry := range entries {
+		if _, exists := used[entry.path]; exists {
+			continue
+		}
+		result = append(result, entry.field)
+	}
+	return result
 }
 
 func parseSectionsMetadata(raw string) []sectionMeta {
@@ -366,16 +538,34 @@ func parseActions(metadata map[string]string) []actionButton {
 	if err := json.Unmarshal([]byte(raw), &actions); err != nil {
 		return nil
 	}
+	for i := range actions {
+		actions[i].Type = normalizeActionType(actions[i].Type)
+	}
 	return actions
 }
 
-func gridStyleAttribute(field model.Field, columns int) string {
-	span := ""
-	if field.UIHints != nil {
-		span = strings.TrimSpace(field.UIHints[fieldLayoutSpanHintKey])
+func normalizeActionType(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	switch value {
+	case "", "submit":
+		return "submit"
+	case "button":
+		return "button"
+	case "reset":
+		return "reset"
+	default:
+		return "submit"
 	}
-	if span == "" {
-		span = strconv.Itoa(columns)
+}
+
+func gridStyleAttribute(field model.Field, columns int) string {
+	span := columns
+	if field.UIHints != nil {
+		if raw := strings.TrimSpace(field.UIHints[fieldLayoutSpanHintKey]); raw != "" {
+			if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+				span = value
+			}
+		}
 	}
 	start := ""
 	row := ""
@@ -385,17 +575,12 @@ func gridStyleAttribute(field model.Field, columns int) string {
 	}
 
 	parts := make([]string, 0, 3)
-	if span != "" {
-		parts = append(parts, fmt.Sprintf("--fg-grid-span: %s", span))
-	}
+	parts = append(parts, fmt.Sprintf("grid-column: span %d / span %d", span, span))
 	if start != "" {
-		parts = append(parts, fmt.Sprintf("--fg-grid-start: %s", start))
+		parts = append(parts, fmt.Sprintf("grid-column-start: %s", start))
 	}
 	if row != "" {
-		parts = append(parts, fmt.Sprintf("--fg-grid-row: %s", row))
-	}
-	if len(parts) == 0 {
-		return ""
+		parts = append(parts, fmt.Sprintf("grid-row: %s", row))
 	}
 	return ` style="` + strings.Join(parts, "; ") + `"`
 }

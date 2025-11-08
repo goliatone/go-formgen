@@ -1,0 +1,19 @@
+{% set data_attrs = field.metadata.__data_attrs -%}
+{% set component_config = field.uiHints.componentOptions -%}
+
+<div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
+  <textarea
+      id="fg-{{ field.name }}"
+      name="{{ field.name }}"
+      class="sr-only"
+      data-fg-component="wysiwyg"
+      {% if component_config %}data-component-config='{{ component_config|tojson }}'{% endif %}
+      {% if field.placeholder %}data-placeholder="{{ field.placeholder }}"{% endif %}
+      {% if field.required %}required{% endif %}
+      {% if field.disabled %}disabled{% endif %}
+      {% if field.readonly %}readonly{% endif %}
+      {% if field.maxLength or field.maxLength == 0 %}data-maxlength="{{ field.maxLength }}"{% endif %}
+      {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
+  >{% if field.default %}{{ field.default }}{% endif %}</textarea>
+  <div id="fg-{{ field.name }}-editor" class="wysiwyg-editor"></div>
+</div>

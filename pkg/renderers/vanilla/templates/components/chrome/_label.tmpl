@@ -1,0 +1,5 @@
+{% if field.label %}
+<label data-formgen-chrome="label"{% if context.labelID %} id="{{ context.labelID }}"{% endif %}{% if context.labelTarget %} for="{{ context.labelTarget }}"{% endif %} class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300{% if context.visuallyHiddenLabel %} sr-only{% endif %}">
+    {{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}
+</label>
+{% endif %}
