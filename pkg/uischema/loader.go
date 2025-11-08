@@ -39,6 +39,11 @@ func LoadFS(fsys fs.FS) (*Store, error) {
 			return err
 		}
 
+		presets, err := normalisePresets(doc.FieldOrderPresets, path)
+		if err != nil {
+			return err
+		}
+
 		for opID, raw := range doc.Operations {
 			id := strings.TrimSpace(opID)
 			if id == "" {
@@ -48,7 +53,7 @@ func LoadFS(fsys fs.FS) (*Store, error) {
 				return fmt.Errorf("uischema: duplicate operation %q (file %s)", id, path)
 			}
 
-			op, err := normaliseOperation(raw, id, path)
+			op, err := normaliseOperation(raw, id, path, presets)
 			if err != nil {
 				return err
 			}
@@ -79,7 +84,8 @@ func (s *Store) Empty() bool {
 }
 
 type documentFile struct {
-	Operations map[string]operationFile `json:"operations" yaml:"operations"`
+	FieldOrderPresets map[string][]string      `json:"fieldOrderPresets" yaml:"fieldOrderPresets"`
+	Operations        map[string]operationFile `json:"operations" yaml:"operations"`
 }
 
 type operationFile struct {
@@ -105,13 +111,14 @@ func parseDocument(data []byte, source string) (documentFile, error) {
 	return documentFile{}, fmt.Errorf("uischema: parse %s: invalid JSON or YAML", source)
 }
 
-func normaliseOperation(raw operationFile, id, source string) (Operation, error) {
+func normaliseOperation(raw operationFile, id, source string, presets map[string][]string) (Operation, error) {
 	op := Operation{
-		ID:       id,
-		Source:   source,
-		Form:     raw.Form,
-		Sections: append([]SectionConfig(nil), raw.Sections...),
-		Fields:   make(map[string]FieldConfig, len(raw.Fields)),
+		ID:                id,
+		Source:            source,
+		Form:              raw.Form,
+		Sections:          append([]SectionConfig(nil), raw.Sections...),
+		Fields:            make(map[string]FieldConfig, len(raw.Fields)),
+		FieldOrderPresets: clonePresetMap(presets),
 	}
 
 	for key, cfg := range raw.Fields {
@@ -160,4 +167,43 @@ func isSchemaFile(path string) bool {
 	default:
 		return false
 	}
+}
+
+func normalisePresets(raw map[string][]string, source string) (map[string][]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	out := make(map[string][]string, len(raw))
+	for name, pattern := range raw {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			return nil, fmt.Errorf("uischema: file %s defines a fieldOrderPresets entry with an empty name", source)
+		}
+		if len(pattern) == 0 {
+			return nil, fmt.Errorf("uischema: file %s preset %q is empty", source, trimmedName)
+		}
+		cloned := make([]string, len(pattern))
+		for idx, entry := range pattern {
+			value := strings.TrimSpace(entry)
+			if value == "" {
+				return nil, fmt.Errorf("uischema: file %s preset %q contains an empty entry at index %d", source, trimmedName, idx)
+			}
+			cloned[idx] = value
+		}
+		out[trimmedName] = cloned
+	}
+	return out, nil
+}
+
+func clonePresetMap(src map[string][]string) map[string][]string {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(src))
+	for key, values := range src {
+		cloned := make([]string, len(values))
+		copy(cloned, values)
+		out[key] = cloned
+	}
+	return out
 }

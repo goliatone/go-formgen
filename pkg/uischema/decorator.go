@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	layoutSectionKey   = "layout.section"
-	layoutOrderKey     = "layout.order"
-	layoutSpanKey      = "layout.span"
-	layoutStartKey     = "layout.start"
-	layoutRowKey       = "layout.row"
-	layoutSectionsKey  = "layout.sections"
-	componentConfigKey = "component.config"
-	actionsMetadataKey = "actions"
+	layoutSectionKey       = "layout.section"
+	layoutOrderKey         = "layout.order"
+	layoutSpanKey          = "layout.span"
+	layoutStartKey         = "layout.start"
+	layoutRowKey           = "layout.row"
+	layoutSectionsKey      = "layout.sections"
+	layoutFieldOrderPrefix = "layout.fieldOrder."
+	componentConfigKey     = "component.config"
+	actionsMetadataKey     = "actions"
 )
 
 // Decorator applies UI schema metadata to a form model.
@@ -162,7 +163,7 @@ func applyFieldConfig(form *pkgmodel.FormModel, op Operation) error {
 		}
 	}
 
-	targetOrders := make(map[string]int, len(op.Fields))
+	explicitOrders := make(map[string]int, len(op.Fields))
 	maxColumns := op.Form.Layout.GridColumns
 	if maxColumns <= 0 {
 		maxColumns = 12
@@ -183,7 +184,7 @@ func applyFieldConfig(form *pkgmodel.FormModel, op Operation) error {
 		}
 
 		if cfg.Order != nil {
-			targetOrders[path] = *cfg.Order
+			explicitOrders[path] = *cfg.Order
 			field.Metadata = ensureMetadata(field.Metadata)
 			field.Metadata[layoutOrderKey] = strconv.Itoa(*cfg.Order)
 		}
@@ -196,7 +197,12 @@ func applyFieldConfig(form *pkgmodel.FormModel, op Operation) error {
 		mergeFieldMaps(field, cfg)
 	}
 
-	reorderFields(form.Fields, "", targetOrders, originalOrder)
+	presetOrders, err := buildSectionFieldOrders(form, op, fieldRefs, originalOrder, explicitOrders)
+	if err != nil {
+		return err
+	}
+
+	reorderFields(form.Fields, "", explicitOrders, presetOrders, originalOrder)
 	return nil
 }
 
@@ -280,48 +286,236 @@ func mergeFieldMaps(field *pkgmodel.Field, cfg FieldConfig) {
 	}
 }
 
-func reorderFields(fields []pkgmodel.Field, parentPath string, targetOrders map[string]int, originals map[string]int) {
+func reorderFields(fields []pkgmodel.Field, parentPath string, explicitOrders, presetOrders map[string]int, originals map[string]int) {
 	sort.SliceStable(fields, func(i, j int) bool {
 		pathI := joinPath(parentPath, fields[i].Name)
 		pathJ := joinPath(parentPath, fields[j].Name)
 
-		orderI, hasI := targetOrders[pathI]
-		orderJ, hasJ := targetOrders[pathJ]
-
-		switch {
-		case hasI && hasJ:
-			if orderI != orderJ {
-				return orderI < orderJ
-			}
-			return originals[pathI] < originals[pathJ]
-		case hasI:
-			return true
-		case hasJ:
-			return false
-		default:
-			return originals[pathI] < originals[pathJ]
-		}
+		return fieldOrderLess(pathI, pathJ, explicitOrders, presetOrders, originals)
 	})
 
 	for idx := range fields {
 		path := joinPath(parentPath, fields[idx].Name)
 		if len(fields[idx].Nested) > 0 {
-			reorderFields(fields[idx].Nested, path, targetOrders, originals)
+			reorderFields(fields[idx].Nested, path, explicitOrders, presetOrders, originals)
 		}
 		if fields[idx].Items != nil {
-			reorderFieldItems(fields[idx].Items, path, targetOrders, originals)
+			reorderFieldItems(fields[idx].Items, path, explicitOrders, presetOrders, originals)
 		}
 	}
 }
 
-func reorderFieldItems(field *pkgmodel.Field, parentPath string, targetOrders map[string]int, originals map[string]int) {
+func reorderFieldItems(field *pkgmodel.Field, parentPath string, explicitOrders, presetOrders map[string]int, originals map[string]int) {
 	itemPath := joinPath(parentPath, "items")
 	if field == nil {
 		return
 	}
 	if len(field.Nested) > 0 {
-		reorderFields(field.Nested, itemPath, targetOrders, originals)
+		reorderFields(field.Nested, itemPath, explicitOrders, presetOrders, originals)
 	}
+}
+
+func fieldOrderLess(pathI, pathJ string, explicitOrders, presetOrders map[string]int, originals map[string]int) bool {
+	orderI, hasExplicitI := explicitOrders[pathI]
+	orderJ, hasExplicitJ := explicitOrders[pathJ]
+
+	switch {
+	case hasExplicitI && hasExplicitJ:
+		if orderI != orderJ {
+			return orderI < orderJ
+		}
+		return originals[pathI] < originals[pathJ]
+	case hasExplicitI:
+		return true
+	case hasExplicitJ:
+		return false
+	}
+
+	presetI, hasPresetI := presetOrders[pathI]
+	presetJ, hasPresetJ := presetOrders[pathJ]
+
+	switch {
+	case hasPresetI && hasPresetJ:
+		if presetI != presetJ {
+			return presetI < presetJ
+		}
+		return originals[pathI] < originals[pathJ]
+	case hasPresetI:
+		return true
+	case hasPresetJ:
+		return false
+	}
+
+	return originals[pathI] < originals[pathJ]
+}
+
+func buildSectionFieldOrders(form *pkgmodel.FormModel, op Operation, fieldRefs map[string]*pkgmodel.Field, originals map[string]int, explicitOrders map[string]int) (map[string]int, error) {
+	if len(op.Sections) == 0 {
+		return nil, nil
+	}
+
+	sectionFields := collectSectionFields(fieldRefs)
+	if len(sectionFields) == 0 {
+		return nil, nil
+	}
+
+	presetOrders := make(map[string]int)
+
+	for _, section := range op.Sections {
+		id := strings.TrimSpace(section.ID)
+		if id == "" {
+			continue
+		}
+		paths := sectionFields[id]
+		if len(paths) == 0 || !section.OrderPreset.Defined() {
+			continue
+		}
+
+		pattern, err := section.OrderPreset.Pattern(op.FieldOrderPresets)
+		if err != nil {
+			return nil, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
+		}
+		if len(pattern) == 0 {
+			continue
+		}
+
+		resolved, err := resolveSectionOrder(pattern, paths, originals)
+		if err != nil {
+			return nil, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
+		}
+		if len(resolved) == 0 {
+			continue
+		}
+
+		sectionPresetOrders := make(map[string]int, len(resolved))
+		for idx, path := range resolved {
+			sectionPresetOrders[path] = idx
+			if _, exists := presetOrders[path]; !exists {
+				presetOrders[path] = idx
+			}
+		}
+
+		ordered := append([]string(nil), paths...)
+		sort.SliceStable(ordered, func(i, j int) bool {
+			return fieldOrderLess(ordered[i], ordered[j], explicitOrders, sectionPresetOrders, originals)
+		})
+		if len(ordered) == 0 {
+			continue
+		}
+
+		form.Metadata = ensureMetadata(form.Metadata)
+		payload, err := json.Marshal(ordered)
+		if err != nil {
+			return nil, fmt.Errorf("uischema: marshal field order metadata for section %q: %w", id, err)
+		}
+		form.Metadata[layoutFieldOrderPrefix+id] = string(payload)
+	}
+
+	if len(presetOrders) == 0 {
+		return nil, nil
+	}
+	return presetOrders, nil
+}
+
+func collectSectionFields(fieldRefs map[string]*pkgmodel.Field) map[string][]string {
+	sections := make(map[string][]string)
+	for path, field := range fieldRefs {
+		if field == nil || len(field.Metadata) == 0 {
+			continue
+		}
+		sectionID := strings.TrimSpace(field.Metadata[layoutSectionKey])
+		if sectionID == "" {
+			continue
+		}
+		sections[sectionID] = append(sections[sectionID], path)
+	}
+	return sections
+}
+
+func resolveSectionOrder(pattern []string, sectionFields []string, originals map[string]int) ([]string, error) {
+	if len(pattern) == 0 {
+		return nil, nil
+	}
+
+	allowed := make(map[string]struct{}, len(sectionFields))
+	for _, path := range sectionFields {
+		allowed[path] = struct{}{}
+	}
+
+	type token struct {
+		wildcard bool
+		path     string
+	}
+
+	tokens := make([]token, 0, len(pattern))
+	explicit := make(map[string]struct{})
+
+	for _, raw := range pattern {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "*" {
+			tokens = append(tokens, token{wildcard: true})
+			continue
+		}
+		normalised := NormalizeFieldPath(trimmed)
+		if normalised == "" {
+			return nil, fmt.Errorf("field order entry %q resolves to empty path", raw)
+		}
+		if _, ok := allowed[normalised]; !ok {
+			return nil, fmt.Errorf("references unknown field %q", trimmed)
+		}
+		tokens = append(tokens, token{path: normalised})
+		explicit[normalised] = struct{}{}
+	}
+
+	if len(tokens) == 0 {
+		// No usable tokens; fall back to the natural order.
+		out := append([]string(nil), sectionFields...)
+		sort.SliceStable(out, func(i, j int) bool {
+			return originals[out[i]] < originals[out[j]]
+		})
+		return out, nil
+	}
+
+	ordered := append([]string(nil), sectionFields...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return originals[ordered[i]] < originals[ordered[j]]
+	})
+
+	used := make(map[string]bool, len(sectionFields))
+	resolved := make([]string, 0, len(sectionFields))
+
+	appendResidual := func(skipExplicit bool) {
+		for _, path := range ordered {
+			if used[path] {
+				continue
+			}
+			if skipExplicit {
+				if _, exists := explicit[path]; exists {
+					continue
+				}
+			}
+			used[path] = true
+			resolved = append(resolved, path)
+		}
+	}
+
+	for _, token := range tokens {
+		if token.wildcard {
+			appendResidual(true)
+			continue
+		}
+		if used[token.path] {
+			continue
+		}
+		used[token.path] = true
+		resolved = append(resolved, token.path)
+	}
+
+	appendResidual(false)
+	return resolved, nil
 }
 
 func collectFieldRefs(fields []pkgmodel.Field, parentPath string, refs map[string]*pkgmodel.Field, originals map[string]int) {

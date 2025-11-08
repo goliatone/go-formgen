@@ -1,0 +1,56 @@
+{
+  "fieldOrderPresets": {
+    "audited": ["id", "name", "description", "*", "created_at", "updated_at"]
+  },
+  "operations": {
+    "orderedExample": {
+      "form": {
+        "layout": {
+          "gridColumns": 12
+        }
+      },
+      "sections": [
+        {
+          "id": "primary",
+          "order": 0,
+          "orderPreset": "audited"
+        },
+        {
+          "id": "extras",
+          "order": 1,
+          "orderPreset": ["address.street", "*", "address.city"]
+        }
+      ],
+      "fields": {
+        "id": {
+          "section": "primary"
+        },
+        "name": {
+          "section": "primary"
+        },
+        "description": {
+          "section": "primary"
+        },
+        "created_at": {
+          "section": "primary"
+        },
+        "updated_at": {
+          "section": "primary"
+        },
+        "address.street": {
+          "section": "extras"
+        },
+        "address.city": {
+          "section": "extras"
+        },
+        "address.postcode": {
+          "section": "extras"
+        },
+        "notes": {
+          "section": "extras",
+          "order": 0
+        }
+      }
+    }
+  }
+}

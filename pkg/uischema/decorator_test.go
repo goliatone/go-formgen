@@ -87,6 +87,67 @@ func TestDecorator_Decorate(t *testing.T) {
 	}
 }
 
+func TestDecorator_FieldOrderPresets(t *testing.T) {
+	store := loadStore(t, "ordering")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "orderedExample",
+		Fields: []pkgmodel.Field{
+			{Name: "id"},
+			{Name: "name"},
+			{Name: "description"},
+			{Name: "created_at"},
+			{Name: "updated_at"},
+			{
+				Name: "address",
+				Type: pkgmodel.FieldTypeObject,
+				Nested: []pkgmodel.Field{
+					{Name: "street"},
+					{Name: "city"},
+					{Name: "postcode"},
+				},
+			},
+			{Name: "notes"},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	assertOrder := func(section string, want []string) {
+		t.Helper()
+		raw := form.Metadata["layout.fieldOrder."+section]
+		if raw == "" {
+			t.Fatalf("field order metadata missing for section %s", section)
+		}
+		var got []string
+		if err := json.Unmarshal([]byte(raw), &got); err != nil {
+			t.Fatalf("unmarshal %s order: %v", section, err)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("section %s order length mismatch: want %v got %v", section, want, got)
+		}
+		for idx := range want {
+			if got[idx] != want[idx] {
+				t.Fatalf("section %s order mismatch at %d: want %s got %s", section, idx, want[idx], got[idx])
+			}
+		}
+	}
+
+	assertOrder("primary", []string{"id", "name", "description", "created_at", "updated_at"})
+	assertOrder("extras", []string{"notes", "address.street", "address.postcode", "address.city"})
+
+	address := mustField(t, form.Fields, "address")
+	if len(address.Nested) != 3 {
+		t.Fatalf("address nested count mismatch: %#v", address.Nested)
+	}
+	if address.Nested[0].Name != "street" || address.Nested[1].Name != "postcode" || address.Nested[2].Name != "city" {
+		t.Fatalf("address nested order mismatch: %#v", address.Nested)
+	}
+}
+
 func TestDecorator_UnknownField(t *testing.T) {
 	store := loadStore(t, "invalid_unknown")
 	decorator := uischema.NewDecorator(store)

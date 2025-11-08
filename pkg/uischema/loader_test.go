@@ -72,6 +72,40 @@ func TestLoadFS_DuplicateFieldPath(t *testing.T) {
 	}
 }
 
+func TestLoadFS_FieldOrderPresets(t *testing.T) {
+	store := loadStore(t, "ordering")
+	op, ok := store.Operation("orderedExample")
+	if !ok {
+		t.Fatalf("operation orderedExample not found")
+	}
+
+	if got := len(op.FieldOrderPresets); got != 1 {
+		t.Fatalf("expected 1 fieldOrder preset, got %d", got)
+	}
+
+	preset := op.FieldOrderPresets["audited"]
+	if len(preset) != 6 || preset[3] != "*" {
+		t.Fatalf("unexpected preset contents: %#v", preset)
+	}
+
+	var primary, extras uischema.SectionConfig
+	for _, section := range op.Sections {
+		switch section.ID {
+		case "primary":
+			primary = section
+		case "extras":
+			extras = section
+		}
+	}
+	if !primary.OrderPreset.Defined() || primary.OrderPreset.Reference() != "audited" {
+		t.Fatalf("primary section should reference audited preset: %#v", primary.OrderPreset)
+	}
+	inline := extras.OrderPreset.Inline()
+	if len(inline) != 3 || inline[0] != "address.street" || inline[1] != "*" {
+		t.Fatalf("extras section should carry inline preset, got %#v", inline)
+	}
+}
+
 func TestNormalizeFieldPath(t *testing.T) {
 	cases := map[string]string{
 		"tags[].id":           "tags.items.id",

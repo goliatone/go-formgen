@@ -1,0 +1,126 @@
+{
+  "operations": {
+    "createArticle": {
+      "form": {
+        "title": "Create Editorial Article",
+        "subtitle": "Configure article metadata and associations",
+        "layout": {
+          "gridColumns": 12,
+          "gutter": "md"
+        },
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "href": "/articles"
+          },
+          {
+            "kind": "primary",
+            "label": "Publish Article",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "overview",
+          "title": "Overview",
+          "description": "Core identity and workflow details",
+          "order": 0,
+          "fieldset": true
+        },
+        {
+          "id": "content",
+          "title": "Content",
+          "description": "Editorial copy and metadata",
+          "order": 1,
+          "fieldset": true
+        },
+        {
+          "id": "relationships",
+          "title": "Relationships",
+          "description": "Related resources and associations",
+          "order": 2
+        },
+        {
+          "id": "collaboration",
+          "title": "Collaboration",
+          "description": "Contributors and teamwork",
+          "order": 3
+        }
+      ],
+      "fields": {
+        "article.title": {
+          "section": "overview",
+          "order": 0,
+          "grid": { "span": 8 },
+          "label": "Title",
+          "placeholder": "Article title",
+          "required": true
+        },
+        "article.slug": {
+          "section": "overview",
+          "order": 1,
+          "grid": { "span": 4 },
+          "label": "Slug",
+          "placeholder": "article-slug",
+          "helpText": "URL-friendly identifier"
+        },
+        "article.status": {
+          "section": "overview",
+          "order": 2,
+          "grid": { "span": 4 }
+        },
+        "article.featured": {
+          "section": "overview",
+          "order": 3,
+          "grid": { "span": 4 },
+          "helpText": "Feature on homepage"
+        },
+        "article.tenant_id": {
+          "section": "overview",
+          "order": 4,
+          "grid": { "span": 4 }
+        },
+        "article.summary": {
+          "section": "content",
+          "order": 5,
+          "grid": { "span": 12 },
+          "widget": "textarea"
+        },
+        "article.body": {
+          "section": "content",
+          "order": 6,
+          "grid": { "span": 12 },
+          "widget": "textarea"
+        },
+        "article.published_at": {
+          "section": "content",
+          "order": 7,
+          "grid": { "span": 6 }
+        },
+        "article.author_id": {
+          "section": "relationships",
+          "order": 8,
+          "grid": { "span": 6 },
+          "required": true
+        },
+        "article.category_id": {
+          "section": "relationships",
+          "order": 9,
+          "grid": { "span": 6 }
+        },
+        "article.tags": {
+          "section": "relationships",
+          "order": 10,
+          "grid": { "span": 12 }
+        },
+        "article.contributors": {
+          "section": "collaboration",
+          "order": 11,
+          "grid": { "span": 12 }
+        }
+      }
+    }
+  }
+}
