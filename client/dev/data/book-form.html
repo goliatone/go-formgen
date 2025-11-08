@@ -1,0 +1,203 @@
+
+
+
+
+
+
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="POST" action="/book" data-formgen-auto-init="true">
+    
+
+    
+    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
+    <label data-formgen-chrome="label" id="fg-author_id-label" for="fg-author_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Author<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <select
+        id="fg-author_id"
+        name="author_id"
+        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        required
+        data-relationship-type="belongsTo"
+        data-relationship-target="#/components/schemas/author"
+        data-relationship-cardinality="one"
+         data-endpoint-field-label="Author Id" data-endpoint-label-field="full_name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="50" data-endpoint-params-order="full_name asc" data-endpoint-params-select="id,full_name" data-endpoint-placeholder="Select Author Id" data-endpoint-renderer="typeahead" data-endpoint-search-param="q" data-endpoint-search-placeholder="Search Author Id" data-endpoint-submit-as="json" data-endpoint-url="/api/authors" data-endpoint-value-field="id"
+    >
+                <option value="">Select Author</option>
+    </select>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-created_at-label" for="fg-created_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Created At
+    </label>
+    <input
+        type="datetime-local"
+        id="fg-created_at"
+        name="created_at"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/chapter" data-relationship-foreign-key="book_id" data-relationship-cardinality="many">
+    <div id="fg-id" class="space-y-3" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/chapter" data-relationship-foreign-key="book_id" data-relationship-cardinality="many" role="group" aria-labelledby="fg-id-label"><div id="fg-id-label" class="text-sm font-medium text-gray-900 dark:text-white">Chapters</div><p class="text-sm text-gray-500 dark:text-gray-400">Array field id requires item definition.</p></div>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-isbn-label" for="fg-isbn" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Isbn<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <input
+        type="text"
+        id="fg-isbn"
+        name="isbn"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        required
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-last_reprint_at-label" for="fg-last_reprint_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Last Reprint At
+    </label>
+    <input
+        type="datetime-local"
+        id="fg-last_reprint_at"
+        name="last_reprint_at"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/publishing-house" data-relationship-foreign-key="publisher_id" data-relationship-cardinality="one">
+    <label data-formgen-chrome="label" id="fg-publisher_id-label" for="fg-publisher_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Publisher<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <select
+        id="fg-publisher_id"
+        name="publisher_id"
+        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        required
+        data-relationship-type="belongsTo"
+        data-relationship-target="#/components/schemas/publishing-house"
+        data-relationship-cardinality="one"
+         data-endpoint-field-label="Publisher Id" data-endpoint-label-field="name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="50" data-endpoint-params-order="name asc" data-endpoint-params-select="id,name" data-endpoint-placeholder="Select Publisher Id" data-endpoint-renderer="typeahead" data-endpoint-search-param="q" data-endpoint-search-placeholder="Search Publisher Id" data-endpoint-submit-as="json" data-endpoint-url="/api/publishing-houses" data-endpoint-value-field="id"
+    >
+                <option value="">Select Publisher</option>
+    </select>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-release_date-label" for="fg-release_date" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Release Date
+    </label>
+    <input
+        type="datetime-local"
+        id="fg-release_date"
+        name="release_date"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-status-label" for="fg-status" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Status<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <input
+        type="text"
+        id="fg-status"
+        name="status"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        required
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="select" data-relationship-type="manyToMany" data-relationship-target="#/components/schemas/tag" data-relationship-cardinality="many">
+    <label data-formgen-chrome="label" id="fg-tags-label" for="fg-tags" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Tags
+    </label>
+    <select
+        id="fg-tags"
+        name="tags"
+        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        multiple data-relationship-collection="many"
+        data-relationship-type="manyToMany"
+        data-relationship-target="#/components/schemas/tag"
+        data-relationship-cardinality="many"
+         data-endpoint-label-field="name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="50" data-endpoint-params-order="name asc" data-endpoint-params-select="id,name" data-endpoint-renderer="chips" data-endpoint-search-param="q" data-endpoint-submit-as="json" data-endpoint-url="/api/tags" data-endpoint-value-field="id"
+    >
+                <option value="">Select Tags</option>
+    </select>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-title-label" for="fg-title" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Title<span class="text-red-500 ms-1" aria-hidden="true">*</span>
+    </label>
+    <input
+        type="text"
+        id="fg-title"
+        name="title"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        required
+    >
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-updated_at-label" for="fg-updated_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Updated At
+    </label>
+    <input
+        type="datetime-local"
+        id="fg-updated_at"
+        name="updated_at"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    >
+</div>
+
+        </div>
+        
+    </div>
+    
+
+    
+
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+        
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
+        
+    </div>
+</form>
+
+
