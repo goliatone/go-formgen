@@ -196,8 +196,9 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 
 	urls := r.assetURLs()
 	data := map[string]any{
-		"form":      form,
-		"form_json": string(payload),
+		"form":         form,
+		"form_json":    string(payload),
+		"field_orders": fieldOrderPayload(form.Metadata),
 		"assets": map[string]string{
 			"vendorScript": urls.VendorScript,
 			"appScript":    urls.AppScript,
@@ -211,6 +212,39 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 	}
 
 	return []byte(rendered), nil
+}
+
+func fieldOrderPayload(metadata map[string]string) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	orders := make(map[string][]string)
+	const prefix = "layout.fieldOrder."
+	for key, raw := range metadata {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		section := strings.TrimSpace(strings.TrimPrefix(key, prefix))
+		if section == "" {
+			continue
+		}
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		var items []string
+		if err := json.Unmarshal([]byte(raw), &items); err != nil {
+			continue
+		}
+		orders[section] = items
+	}
+	if len(orders) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(orders)
+	if err != nil {
+		return ""
+	}
+	return string(payload)
 }
 
 func ensureAssets(store fs.FS, paths assetPaths) error {

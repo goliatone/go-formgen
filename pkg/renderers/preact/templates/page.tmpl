@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="{{ assets.stylesheet }}">
 </head>
 <body>
-  <div id="formgen-preact-root" data-operation="{{ form.operationId }}"></div>
+  <div id="formgen-preact-root" data-operation="{{ form.operationId }}"{% if field_orders %} data-field-order='{{ field_orders|safe }}'{% endif %}></div>
   <script id="formgen-preact-data" type="application/json">{{ form_json|safe }}</script>
   <script src="{{ assets.vendorScript }}" defer></script>
   <script src="/runtime/formgen-relationships.min.js" defer></script>
