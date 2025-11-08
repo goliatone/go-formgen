@@ -56,113 +56,145 @@
         }
       ],
       "fields": {
-        "article.title": {
+        "title": {
           "section": "overview",
           "order": 0,
-          "grid": { "span": 8 },
+          "grid": {
+            "span": 8
+          },
           "label": "Title",
           "placeholder": "Garden maintenance tips",
           "required": true,
           "component": "input"
         },
-        "article.slug": {
+        "slug": {
           "section": "overview",
           "order": 1,
-          "grid": { "span": 4 },
+          "grid": {
+            "span": 4
+          },
           "label": "Slug",
           "placeholder": "garden-maintenance-tips",
           "component": "input",
           "helpText": "Auto generated from the title but editable."
         },
-        "article.status": {
+        "status": {
           "section": "overview",
           "order": 2,
-          "grid": { "span": 4 },
+          "grid": {
+            "span": 4
+          },
           "label": "Status",
           "component": "select",
           "placeholder": "Select status"
         },
-        "article.featured": {
+        "featured": {
           "section": "overview",
           "order": 3,
-          "grid": { "span": 4 },
+          "grid": {
+            "span": 4
+          },
           "label": "Featured",
-          "component": "checkbox",
+          "component": "switch",
           "helpText": "Pins the story to the homepage hero."
         },
-        "article.read_time_minutes": {
+        "read_time_minutes": {
           "section": "overview",
           "order": 4,
-          "grid": { "span": 4 },
+          "grid": {
+            "span": 4
+          },
           "label": "Read time (min)",
           "component": "input",
           "placeholder": "5"
         },
-        "article.tenant_id": {
+        "tenant_id": {
           "section": "overview",
           "order": 5,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Tenant",
           "component": "select",
           "placeholder": "Select tenant",
           "helpText": "Changing tenants refreshes author, category, tags, and related resources.",
           "refresh": {
             "targets": [
-              "article.author_id",
-              "article.category_id",
-              "article.tags",
-              "article.related_article_ids",
-              "article.contributors[].person_id"
+              "author_id",
+              "category_id",
+              "tags",
+              "related_article_ids",
+              "contributors[].person_id"
             ]
           }
         },
-        "article.summary": {
+        "summary": {
           "section": "content",
           "order": 6,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Summary",
           "component": "textarea",
           "rows": 3,
           "placeholder": "Short teaser shown in listings"
         },
-        "article.body": {
+        "body": {
           "section": "content",
           "order": 7,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Body",
-          "component": "textarea",
-          "rows": 8,
-          "placeholder": "Write the full article in Markdown"
+          "component": "wysiwyg",
+          "placeholder": "Write the full article content",
+          "helpText": "Main article content with rich text formatting",
+          "componentOptions": {
+            "toolbar": [
+              ["bold", "italic", "underline"],
+              [{ "header": 1 }, { "header": 2 }],
+              ["link", "blockquote", "code-block"],
+              [{ "list": "ordered" }, { "list": "bullet" }]
+            ]
+          }
         },
-        "article.keywords": {
+        "keywords": {
           "section": "content",
           "order": 8,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Keywords",
           "component": "textarea",
           "rows": 2,
           "helpText": "Comma separated keywords used for SEO."
         },
-        "article.published_at": {
+        "published_at": {
           "section": "content",
           "order": 9,
-          "grid": { "span": 4 },
+          "grid": {
+            "span": 4
+          },
           "label": "Publish at",
           "component": "datetime"
         },
-        "article.workflow_notes": {
+        "workflow_notes": {
           "section": "content",
           "order": 10,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Workflow notes",
           "component": "textarea",
-          "rows": 3,
+          "rows": 5,
           "helpText": "Internal communication for reviewers."
         },
-        "article.author_id": {
+        "author_id": {
           "section": "relationships",
           "order": 11,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Author",
           "component": "relationship",
           "renderer": "typeahead",
@@ -170,13 +202,17 @@
           "required": true,
           "refresh": {
             "mode": "auto",
-            "on": ["article.tenant_id"]
+            "on": [
+              "tenant_id"
+            ]
           }
         },
-        "article.manager_id": {
+        "manager_id": {
           "section": "relationships",
           "order": 12,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Manager",
           "component": "relationship",
           "renderer": "typeahead",
@@ -184,24 +220,32 @@
           "helpText": "Filters by the selected author.",
           "refresh": {
             "mode": "manual",
-            "on": ["article.author_id"],
-            "triggers": ["manager-refresh"]
+            "on": [
+              "author_id"
+            ],
+            "triggers": [
+              "manager-refresh"
+            ]
           }
         },
-        "article.category_id": {
+        "category_id": {
           "section": "relationships",
           "order": 13,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Category",
           "component": "relationship",
           "renderer": "typeahead",
           "placeholder": "Search categories",
           "helpText": "Scoped by tenant."
         },
-        "article.tags": {
+        "tags": {
           "section": "relationships",
           "order": 14,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Tags",
           "component": "relationship",
           "renderer": "chips",
@@ -209,56 +253,72 @@
           "helpText": "Supports free-text search with debounce.",
           "refresh": {
             "mode": "auto",
-            "on": ["article.category_id", "article.tenant_id"]
+            "on": [
+              "category_id",
+              "tenant_id"
+            ]
           }
         },
-        "article.related_article_ids": {
+        "related_article_ids": {
           "section": "relationships",
           "order": 15,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Related articles",
           "component": "relationship",
           "renderer": "chips",
           "placeholder": "Search articles"
         },
-        "article.contributors": {
+        "contributors": {
           "section": "collaboration",
           "order": 16,
-          "grid": { "span": 12 },
+          "grid": {
+            "span": 12
+          },
           "label": "Contributors",
           "component": "array",
           "itemLabel": "Contributor",
           "helpText": "Demonstrates nested arrays with relationship fields.",
           "nested": [
-            "article.contributors[].person_id",
-            "article.contributors[].role",
-            "article.contributors[].notes"
+            "contributors[].person_id",
+            "contributors[].role",
+            "contributors[].notes"
           ]
         },
-        "article.contributors[].person_id": {
+        "contributors[].person_id": {
           "section": "collaboration",
           "order": 17,
-          "grid": { "span": 6 },
+          "grid": {
+            "span": 6
+          },
           "label": "Person",
           "component": "relationship",
           "renderer": "typeahead",
           "placeholder": "Search contributors",
           "refresh": {
             "mode": "auto",
-            "on": ["article.tenant_id", "article.status"]
+            "on": [
+              "tenant_id",
+              "status"
+            ]
           }
         },
-        "article.contributors[].role": {
+        "contributors[].role": {
           "section": "collaboration",
           "order": 18,
-          "grid": { "span": 3 },
+          "grid": {
+            "span": 3
+          },
           "label": "Role",
           "component": "select"
         },
-        "article.contributors[].notes": {
+        "contributors[].notes": {
           "section": "collaboration",
           "order": 19,
-          "grid": { "span": 3 },
+          "grid": {
+            "span": 3
+          },
           "label": "Notes",
           "component": "textarea",
           "rows": 2

@@ -26,209 +26,392 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "description": "Article attributes",
                 "required": [
-                  "article"
+                  "title",
+                  "author_id"
                 ],
-                "properties": {
-                  "article": {
-                    "type": "object",
-                    "description": "Article attributes",
-                    "required": [
-                      "title",
-                      "author_id"
-                    ],
-                    "x-formgen-relations": {
-                      "includes": [
-                        "author",
-                        "author.manager",
-                        "category",
-                        "tags"
-                      ],
-                      "relations": [
+                "x-formgen-relations": {
+                  "includes": [
+                    "author",
+                    "author.manager",
+                    "category",
+                    "contributors",
+                    "contributors.person",
+                    "related_articles",
+                    "tags"
+                  ],
+                  "relations": [
+                    {
+                      "name": "author",
+                      "filters": [
                         {
-                          "name": "author",
-                          "filters": [
-                            {
-                              "field": "full_name",
-                              "operator": "ilike"
-                            }
-                          ]
-                        },
-                        {
-                          "name": "tags",
-                          "filters": [
-                            {
-                              "field": "label",
-                              "operator": "ilike"
-                            }
-                          ]
+                          "field": "full_name",
+                          "operator": "ilike"
                         }
-                      ],
-                      "tree": {
-                        "name": "article",
-                        "children": {
-                          "author": {
-                            "name": "author",
-                            "children": {
-                              "manager": {
-                                "name": "manager"
-                              }
-                            }
-                          },
-                          "tags": {
-                            "name": "tags"
-                          }
-                        }
-                      }
+                      ]
                     },
-                    "properties": {
-                      "title": {
-                        "type": "string",
-                        "description": "Human readable title"
-                      },
-                      "slug": {
-                        "type": "string",
-                        "description": "URL friendly identifier"
-                      },
-                      "tenant_id": {
-                        "type": "string",
-                        "description": "Tenant scope to demonstrate dynamic params"
-                      },
+                    {
+                      "name": "tags",
+                      "filters": [
+                        {
+                          "field": "label",
+                          "operator": "ilike"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "contributors",
+                      "filters": [
+                        {
+                          "field": "role",
+                          "operator": "eq"
+                        },
+                        {
+                          "field": "person.full_name",
+                          "operator": "ilike"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "related_articles",
+                      "filters": [
+                        {
+                          "field": "title",
+                          "operator": "ilike"
+                        },
+                        {
+                          "field": "category_id",
+                          "operator": "eq"
+                        }
+                      ]
+                    }
+                  ],
+                  "tree": {
+                    "name": "article",
+                    "children": {
                       "author": {
-                        "allOf": [
-                          {
-                            "$ref": "#/components/schemas/Author"
-                          }
-                        ],
-                        "type": "object",
-                        "x-relationships": {
-                          "type": "belongsTo",
-                          "target": "#/components/schemas/Author",
-                          "foreignKey": "author_id",
-                          "cardinality": "one",
-                          "sourceField": "author_id"
-                        }
-                      },
-                      "author_id": {
-                        "allOf": [
-                          {
-                            "$ref": "#/components/schemas/UUID"
-                          }
-                        ],
-                        "x-relationships": {
-                          "type": "belongsTo",
-                          "target": "#/components/schemas/Author",
-                          "foreignKey": "author_id",
-                          "cardinality": "one"
-                        },
-                        "x-endpoint": {
-                          "url": "/api/authors",
-                          "method": "GET",
-                          "labelField": "full_name",
-                          "valueField": "id",
-                          "params": {
-                            "include": "profile",
-                            "limit": "50",
-                            "order": "full_name asc",
-                            "select": "id,full_name",
-                            "format": "options"
-                          },
-                          "dynamicParams": {
-                            "tenant_id": "{{field:tenant_id}}"
-                          }
-                        }
-                      },
-                      "category_id": {
-                        "type": "string",
-                        "description": "Select a category",
-                        "x-relationships": {
-                          "type": "belongsTo",
-                          "target": "#/components/schemas/Category",
-                          "cardinality": "one"
-                        },
-                        "x-endpoint": {
-                          "url": "/api/categories",
-                          "method": "GET",
-                          "labelField": "name",
-                          "valueField": "id",
-                          "params": {
-                            "limit": "50",
-                            "order": "name asc",
-                            "select": "id,name",
-                            "format": "options"
-                          }
-                        }
-                      },
-                      "manager": {
-                        "allOf": [
-                          {
-                            "$ref": "#/components/schemas/Manager"
-                          }
-                        ],
-                        "type": "object",
-                        "x-relationships": {
-                          "type": "hasOne",
-                          "target": "#/components/schemas/Manager",
-                          "foreignKey": "manager_id",
-                          "cardinality": "one",
-                          "sourceField": "manager_id"
-                        }
-                      },
-                      "manager_id": {
-                        "type": "string",
-                        "description": "Associate a manager",
-                        "x-relationships": {
-                          "type": "hasOne",
-                          "target": "#/components/schemas/Manager",
-                          "foreignKey": "manager_id",
-                          "cardinality": "one"
-                        },
-                        "x-endpoint": {
-                          "url": "/api/managers",
-                          "method": "GET",
-                          "labelField": "name",
-                          "valueField": "id",
-                          "params": {
-                            "order": "name asc",
-                            "select": "id,name",
-                            "format": "options"
+                        "name": "author",
+                        "children": {
+                          "manager": {
+                            "name": "manager"
                           }
                         }
                       },
                       "tags": {
-                        "type": "array",
-                        "description": "Tags applied to the article",
-                        "items": {
-                          "$ref": "#/components/schemas/Tag"
-                        },
-                        "x-relationships": {
-                          "type": "hasMany",
-                          "target": "#/components/schemas/Tag",
-                          "inverse": "article",
-                          "cardinality": "many"
-                        },
-                        "x-endpoint": {
-                          "url": "/api/tags",
-                          "method": "GET",
-                          "labelField": "label",
-                          "valueField": "id",
-                          "params": {
-                            "limit": "50",
-                            "order": "label asc",
-                            "select": "id,label",
-                            "format": "options"
-                          },
-                          "mode": "search",
-                          "searchParam": "q",
-                          "submitAs": "json"
+                        "name": "tags"
+                      },
+                      "category": {
+                        "name": "category"
+                      },
+                      "contributors": {
+                        "name": "contributors",
+                        "children": {
+                          "person": {
+                            "name": "person"
+                          }
                         }
                       },
-                      "published_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "description": "Optional publication timestamp"
+                      "related_articles": {
+                        "name": "related_articles"
                       }
                     }
+                  }
+                },
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Human readable title"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "description": "URL friendly identifier"
+                  },
+                  "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant scope to demonstrate dynamic params",
+                    "enum": [
+                      "garden",
+                      "archive",
+                      "lumen"
+                    ]
+                  },
+                  "author": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Author"
+                      }
+                    ],
+                    "type": "object",
+                    "x-relationships": {
+                      "type": "belongsTo",
+                      "target": "#/components/schemas/Author",
+                      "foreignKey": "author_id",
+                      "cardinality": "one",
+                      "sourceField": "author_id"
+                    }
+                  },
+                  "author_id": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/UUID"
+                      }
+                    ],
+                    "x-relationships": {
+                      "type": "belongsTo",
+                      "target": "#/components/schemas/Author",
+                      "foreignKey": "author_id",
+                      "cardinality": "one"
+                    },
+                    "x-endpoint": {
+                      "url": "/api/authors",
+                      "method": "GET",
+                      "labelField": "full_name",
+                      "valueField": "id",
+                      "params": {
+                        "include": "profile",
+                        "limit": "50",
+                        "order": "full_name asc",
+                        "select": "id,full_name",
+                        "format": "options"
+                      },
+                      "dynamicParams": {
+                        "tenant_id": "{{field:tenant_id}}"
+                      }
+                    }
+                  },
+                  "category_id": {
+                    "type": "string",
+                    "description": "Select a category",
+                    "x-relationships": {
+                      "type": "belongsTo",
+                      "target": "#/components/schemas/Category",
+                      "cardinality": "one"
+                    },
+                    "x-endpoint": {
+                      "url": "/api/categories",
+                      "method": "GET",
+                      "labelField": "name",
+                      "valueField": "id",
+                      "params": {
+                        "limit": "50",
+                        "order": "name asc",
+                        "select": "id,name",
+                        "format": "options"
+                      },
+                      "dynamicParams": {
+                        "tenant_id": "{{field:tenant_id}}"
+                      },
+                      "mode": "search",
+                      "searchParam": "q"
+                    }
+                  },
+                  "manager": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Manager"
+                      }
+                    ],
+                    "type": "object",
+                    "x-relationships": {
+                      "type": "hasOne",
+                      "target": "#/components/schemas/Manager",
+                      "foreignKey": "manager_id",
+                      "cardinality": "one",
+                      "sourceField": "manager_id"
+                    }
+                  },
+                  "manager_id": {
+                    "type": "string",
+                    "description": "Associate a manager",
+                    "x-relationships": {
+                      "type": "hasOne",
+                      "target": "#/components/schemas/Manager",
+                      "foreignKey": "manager_id",
+                      "cardinality": "one"
+                    },
+                    "x-endpoint": {
+                      "url": "/api/managers",
+                      "method": "GET",
+                      "labelField": "name",
+                      "valueField": "id",
+                      "params": {
+                        "order": "name asc",
+                        "select": "id,name",
+                        "format": "options"
+                      },
+                      "mode": "search",
+                      "searchParam": "q",
+                      "dynamicParams": {
+                        "author_id": "{{field:author_id}}"
+                      }
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "description": "Tags applied to the article",
+                    "items": {
+                      "$ref": "#/components/schemas/Tag"
+                    },
+                    "x-relationships": {
+                      "type": "hasMany",
+                      "target": "#/components/schemas/Tag",
+                      "inverse": "article",
+                      "cardinality": "many"
+                    },
+                    "x-endpoint": {
+                      "url": "/api/tags",
+                      "method": "GET",
+                      "labelField": "label",
+                      "valueField": "id",
+                      "params": {
+                        "limit": "50",
+                        "order": "label asc",
+                        "select": "id,label",
+                        "format": "options"
+                      },
+                      "mode": "search",
+                      "searchParam": "q",
+                      "submitAs": "json",
+                      "dynamicParams": {
+                        "tenant_id": "{{field:tenant_id}}",
+                        "category_id": "{{field:category_id}}"
+                      }
+                    }
+                  },
+                  "published_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional publication timestamp"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "description": "Short teaser shown on index cards",
+                    "maxLength": 280
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Full article content in Markdown",
+                    "format": "markdown"
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "Workflow status used to drive approvals",
+                    "enum": [
+                      "draft",
+                      "in_review",
+                      "scheduled",
+                      "published"
+                    ]
+                  },
+                  "featured": {
+                    "type": "boolean",
+                    "description": "Promote this article on the homepage"
+                  },
+                  "keywords": {
+                    "type": "array",
+                    "description": "SEO keywords used for search discovery",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "read_time_minutes": {
+                    "type": "integer",
+                    "description": "Estimated reading time in minutes",
+                    "minimum": 1
+                  },
+                  "contributors": {
+                    "type": "array",
+                    "description": "Assign supporting editors and reviewers",
+                    "x-relationships": {
+                      "type": "hasMany",
+                      "target": "#/components/schemas/Contributor",
+                      "inverse": "article",
+                      "cardinality": "many"
+                    },
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "person_id",
+                        "role"
+                      ],
+                      "properties": {
+                        "person_id": {
+                          "type": "string",
+                          "description": "Select a contributor",
+                          "x-relationships": {
+                            "type": "belongsTo",
+                            "target": "#/components/schemas/Contributor",
+                            "cardinality": "one"
+                          },
+                          "x-endpoint": {
+                            "url": "/api/contributors",
+                            "method": "GET",
+                            "labelField": "full_name",
+                            "valueField": "id",
+                            "mode": "search",
+                            "searchParam": "q",
+                            "params": {
+                              "format": "options",
+                              "limit": "25",
+                              "order": "full_name asc"
+                            },
+                            "dynamicParams": {
+                              "tenant_id": "{{field:tenant_id}}",
+                              "status": "{{field:status}}"
+                            }
+                          }
+                        },
+                        "role": {
+                          "type": "string",
+                          "description": "Role the contributor performs",
+                          "enum": [
+                            "Reviewer",
+                            "Copy Editor",
+                            "Fact Checker",
+                            "Producer"
+                          ]
+                        },
+                        "notes": {
+                          "type": "string",
+                          "description": "Private editorial notes for this contributor"
+                        }
+                      }
+                    }
+                  },
+                  "related_article_ids": {
+                    "type": "array",
+                    "description": "Link to related articles to surface cross-sell opportunities",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-relationships": {
+                      "type": "hasMany",
+                      "target": "#/components/schemas/ArticleSummary",
+                      "cardinality": "many"
+                    },
+                    "x-endpoint": {
+                      "url": "/api/articles",
+                      "method": "GET",
+                      "labelField": "title",
+                      "valueField": "id",
+                      "mode": "search",
+                      "searchParam": "q",
+                      "params": {
+                        "format": "options",
+                        "limit": "25",
+                        "order": "published_at desc"
+                      },
+                      "dynamicParams": {
+                        "tenant_id": "{{field:tenant_id}}",
+                        "category_id": "{{field:category_id}}"
+                      },
+                      "submitAs": "json"
+                    }
+                  },
+                  "workflow_notes": {
+                    "type": "string",
+                    "description": "Internal workflow notes visible to approvers"
                   }
                 }
               }
@@ -302,6 +485,39 @@
             "$ref": "#/components/schemas/UUID"
           },
           "label": {
+            "type": "string"
+          }
+        }
+      },
+      "Contributor": {
+        "type": "object",
+        "description": "Contributor user that can be assigned to support an article",
+        "x-formgen-label-field": "full_name",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "ArticleSummary": {
+        "type": "object",
+        "description": "Summary view of an article for relationship pickers",
+        "x-formgen-label-field": "title",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
             "type": "string"
           }
         }

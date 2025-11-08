@@ -1,17 +1,22 @@
 {
   "name": "@goliatone/formgen-runtime",
   "private": false,
-  "version": "0.0.9",
+  "version": "0.0.16",
   "type": "module",
   "scripts": {
-    "build": "npm run build:types && npm run build:bundle",
+    "build": "npm run build:types && npm run build:theme && npm run build:bundle",
     "build:bundle": "tsx scripts/build.ts",
+    "build:theme": "node scripts/build-theme.mjs",
     "build:stats": "tsx scripts/build.ts --analyze",
     "build:types": "tsc --project tsconfig.build.json",
-    "watch": "tsx scripts/build.ts --watch",
+    "watch": "tsx scripts/watch.ts",
+    "watch:bundle": "tsx scripts/build.ts --watch",
+    "watch:theme": "node scripts/build-theme.mjs --watch",
     "test": "vitest run",
     "dev": "vite dev",
+    "dev:vanilla": "vite dev --open",
     "dev:preact": "vite dev --open '/preact/'",
+    "dev:theme": "tsx scripts/build-theme.ts --watch --no-minify",
     "preview": "vite preview"
   },
   "module": "./dist/esm/index.js",
@@ -33,12 +38,16 @@
     "./package.json": "./package.json"
   },
   "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
     "@types/node": "^20.11.0",
     "autoprefixer": "^10.4.21",
+    "chokidar": "^3.6.0",
+    "cssnano": "^6.1.2",
     "esbuild": "^0.20.2",
     "happy-dom": "^20.0.10",
     "jsdom": "^27.1.0",
     "postcss": "^8.5.6",
+    "postcss-import": "^16.1.0",
     "preact": "^10.19.2",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.0",
@@ -47,6 +56,12 @@
     "vitest": "^0.34.0"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@tiptap/core": "^2.27.1",
+    "@tiptap/extension-link": "^2.27.1",
+    "@tiptap/extension-placeholder": "^2.27.1",
+    "@tiptap/extension-underline": "^2.27.1",
+    "@tiptap/starter-kit": "^2.27.1",
     "preline": "^3.2.3"
   }
 }
