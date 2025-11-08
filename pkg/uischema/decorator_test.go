@@ -16,6 +16,7 @@ func TestDecorator_Decorate(t *testing.T) {
 		OperationID: "createArticle",
 		Fields: []pkgmodel.Field{
 			{Name: "session_name", Label: "Session Name"},
+			{Name: "slug", Label: "Slug"},
 			{Name: "event_id", Label: "Event"},
 			{Name: "session_time", Label: "Session Time"},
 			{Name: "notes", Label: "Notes"},
@@ -58,6 +59,14 @@ func TestDecorator_Decorate(t *testing.T) {
 		t.Fatalf("session_name section metadata missing: %#v", sessionName.Metadata)
 	}
 
+	slugField := mustField(t, form.Fields, "slug")
+	if got := slugField.Metadata["behavior.names"]; got != "autoSlug" {
+		t.Fatalf("slug behavior metadata mismatch: %#v", slugField.Metadata)
+	}
+	if got := slugField.Metadata["behavior.config"]; got != `{"source":"session_name"}` {
+		t.Fatalf("slug behavior config mismatch: %s", got)
+	}
+
 	eventField := mustField(t, form.Fields, "event_id")
 	if eventField.UIHints["layout.span"] != "6" {
 		t.Fatalf("event_id span mismatch: %#v", eventField.UIHints)
@@ -78,8 +87,14 @@ func TestDecorator_Decorate(t *testing.T) {
 	if notesField.UIHints["cssClass"] != "fg-field--notes" {
 		t.Fatalf("notes css class mismatch: %#v", notesField.UIHints)
 	}
+	if got := notesField.Metadata["behavior.names"]; got != "autoResize" {
+		t.Fatalf("notes behavior metadata mismatch: %#v", notesField.Metadata)
+	}
+	if got := notesField.Metadata["behavior.config"]; got != `{"minRows":5}` {
+		t.Fatalf("notes behavior config mismatch: %s", got)
+	}
 
-	wantOrder := []string{"session_name", "event_id", "session_time", "notes"}
+	wantOrder := []string{"session_name", "slug", "event_id", "session_time", "notes"}
 	for idx, name := range wantOrder {
 		if form.Fields[idx].Name != name {
 			t.Fatalf("field order mismatch at %d: want %s got %s", idx, name, form.Fields[idx].Name)

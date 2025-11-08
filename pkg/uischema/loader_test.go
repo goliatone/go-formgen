@@ -21,8 +21,19 @@ func TestLoadFS_JSON(t *testing.T) {
 		t.Fatalf("operation createArticle not found")
 	}
 
-	if got := len(op.Fields); got != 4 {
-		t.Fatalf("expected 4 fields, got %d", got)
+	if got := len(op.Fields); got != 5 {
+		t.Fatalf("expected 5 fields, got %d", got)
+	}
+
+	slugCfg, ok := op.Fields["slug"]
+	if !ok {
+		t.Fatalf("slug field missing")
+	}
+	if slugCfg.Behaviors == nil {
+		t.Fatalf("slug behaviors not parsed: %#v", slugCfg)
+	}
+	if _, ok := slugCfg.Behaviors["autoSlug"]; !ok {
+		t.Fatalf("slug behaviors missing autoSlug entry: %#v", slugCfg.Behaviors)
 	}
 
 	eventCfg, ok := op.Fields["event_id"]

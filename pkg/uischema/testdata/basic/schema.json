@@ -54,9 +54,23 @@
             "input": "text"
           }
         },
-        "event_id": {
+        "slug": {
           "section": "basic-info",
           "order": 1,
+          "grid": {
+            "span": 12
+          },
+          "placeholder": "garden-maintenance-tips",
+          "helpText": "Auto generated from the title but editable.",
+          "behaviors": {
+            "autoSlug": {
+              "source": "session_name"
+            }
+          }
+        },
+        "event_id": {
+          "section": "basic-info",
+          "order": 2,
           "grid": {
             "span": 6
           },
@@ -67,7 +81,7 @@
         },
         "session_time": {
           "section": "schedule",
-          "order": 2,
+          "order": 3,
           "grid": {
             "span": 6,
             "start": 7
@@ -79,12 +93,19 @@
         },
         "notes": {
           "section": "schedule",
-          "order": 3,
+          "order": 4,
           "grid": {
             "span": 12
           },
           "widget": "textarea",
-          "cssClass": "fg-field--notes"
+          "cssClass": "fg-field--notes",
+          "componentOptions": {
+            "behaviors": {
+              "autoResize": {
+                "minRows": 5
+              }
+            }
+          }
         }
       }
     }

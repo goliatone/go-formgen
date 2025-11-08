@@ -74,7 +74,14 @@
           },
           "label": "Slug",
           "placeholder": "garden-maintenance-tips",
-          "helpText": "Auto generated from the title but editable."
+          "helpText": "Auto generated from the title but editable.",
+          "componentOptions": {
+            "behaviors": {
+              "autoSlug": {
+                "source": "title"
+              }
+            }
+          }
         },
         "status": {
           "section": "overview",

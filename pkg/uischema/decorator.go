@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	layoutSectionKey       = "layout.section"
-	layoutOrderKey         = "layout.order"
-	layoutSpanKey          = "layout.span"
-	layoutStartKey         = "layout.start"
-	layoutRowKey           = "layout.row"
-	layoutSectionsKey      = "layout.sections"
-	layoutFieldOrderPrefix = "layout.fieldOrder."
-	componentConfigKey     = "component.config"
-	actionsMetadataKey     = "actions"
+	layoutSectionKey          = "layout.section"
+	layoutOrderKey            = "layout.order"
+	layoutSpanKey             = "layout.span"
+	layoutStartKey            = "layout.start"
+	layoutRowKey              = "layout.row"
+	layoutSectionsKey         = "layout.sections"
+	layoutFieldOrderPrefix    = "layout.fieldOrder."
+	componentConfigKey        = "component.config"
+	actionsMetadataKey        = "actions"
+	behaviorNamesMetadataKey  = "behavior.names"
+	behaviorConfigMetadataKey = "behavior.config"
 )
 
 // Decorator applies UI schema metadata to a form model.
@@ -195,6 +197,10 @@ func applyFieldConfig(form *pkgmodel.FormModel, op Operation) error {
 
 		applyFieldCopy(field, cfg)
 		mergeFieldMaps(field, cfg)
+
+		if err := applyBehaviorMetadata(field, cfg); err != nil {
+			return fmt.Errorf("uischema: operation %q (file %s) field %q: %w", op.ID, op.Source, cfg.OriginalPath, err)
+		}
 	}
 
 	presetOrders, err := buildSectionFieldOrders(form, op, fieldRefs, originalOrder, explicitOrders)
@@ -516,6 +522,146 @@ func resolveSectionOrder(pattern []string, sectionFields []string, originals map
 
 	appendResidual(false)
 	return resolved, nil
+}
+
+type behaviorMetadataPayload struct {
+	names  string
+	config string
+}
+
+func applyBehaviorMetadata(field *pkgmodel.Field, cfg FieldConfig) error {
+	payload, err := buildBehaviorMetadata(cfg)
+	if err != nil {
+		return err
+	}
+	if payload == nil {
+		return nil
+	}
+	field.Metadata = ensureMetadata(field.Metadata)
+	field.Metadata[behaviorNamesMetadataKey] = payload.names
+	field.Metadata[behaviorConfigMetadataKey] = payload.config
+	return nil
+}
+
+func buildBehaviorMetadata(cfg FieldConfig) (*behaviorMetadataPayload, error) {
+	definitions, err := collectBehaviorDefinitions(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if len(definitions) == 0 {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(definitions))
+	configs := make(map[string]json.RawMessage, len(definitions))
+
+	for key, value := range definitions {
+		payload, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("marshal behavior %q config: %w", key, err)
+		}
+		names = append(names, key)
+		configs[key] = payload
+	}
+
+	sort.Strings(names)
+
+	var configJSON string
+	if len(names) == 1 {
+		configJSON = string(configs[names[0]])
+	} else {
+		ordered := make(map[string]json.RawMessage, len(names))
+		for _, name := range names {
+			ordered[name] = configs[name]
+		}
+		payload, err := json.Marshal(ordered)
+		if err != nil {
+			return nil, fmt.Errorf("marshal behavior configs: %w", err)
+		}
+		configJSON = string(payload)
+	}
+
+	return &behaviorMetadataPayload{
+		names:  strings.Join(names, " "),
+		config: configJSON,
+	}, nil
+}
+
+func collectBehaviorDefinitions(cfg FieldConfig) (map[string]any, error) {
+	var merged map[string]any
+
+	if len(cfg.ComponentOptions) > 0 {
+		if raw, ok := cfg.ComponentOptions["behaviors"]; ok {
+			defs, err := normalizeBehaviorDefinition(raw)
+			if err != nil {
+				return nil, fmt.Errorf("componentOptions.behaviors: %w", err)
+			}
+			merged = mergeBehaviorMaps(merged, defs)
+		}
+	}
+
+	if len(cfg.Behaviors) > 0 {
+		defs, err := normalizeBehaviorDefinition(cfg.Behaviors)
+		if err != nil {
+			return nil, fmt.Errorf("behaviors: %w", err)
+		}
+		merged = mergeBehaviorMaps(merged, defs)
+	}
+
+	return merged, nil
+}
+
+func normalizeBehaviorDefinition(value any) (map[string]any, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneBehaviorMap(typed)
+	case map[string]string:
+		copy := make(map[string]any, len(typed))
+		for key, val := range typed {
+			copy[key] = val
+		}
+		return cloneBehaviorMap(copy)
+	case map[string]json.RawMessage:
+		copy := make(map[string]any, len(typed))
+		for key, val := range typed {
+			copy[key] = val
+		}
+		return cloneBehaviorMap(copy)
+	default:
+		return nil, fmt.Errorf("value of type %T must be an object", value)
+	}
+}
+
+func cloneBehaviorMap(src map[string]any) (map[string]any, error) {
+	if len(src) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			return nil, fmt.Errorf("behavior name cannot be empty")
+		}
+		out[name] = value
+	}
+	return out, nil
+}
+
+func mergeBehaviorMaps(dst, src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]any, len(src))
+	}
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }
 
 func collectFieldRefs(fields []pkgmodel.Field, parentPath string, refs map[string]*pkgmodel.Field, originals map[string]int) {

@@ -73,6 +73,7 @@ type FieldConfig struct {
 	Widget           string            `json:"widget,omitempty" yaml:"widget,omitempty"`
 	Component        string            `json:"component,omitempty" yaml:"component,omitempty"`
 	ComponentOptions map[string]any    `json:"componentOptions,omitempty" yaml:"componentOptions,omitempty"`
+	Behaviors        map[string]any    `json:"behaviors,omitempty" yaml:"behaviors,omitempty"`
 	CSSClass         string            `json:"cssClass,omitempty" yaml:"cssClass,omitempty"`
 	UIHints          map[string]string `json:"uiHints,omitempty" yaml:"uiHints,omitempty"`
 	Metadata         map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`

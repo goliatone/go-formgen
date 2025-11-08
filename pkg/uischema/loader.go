@@ -157,6 +157,12 @@ func cloneFieldConfig(cfg FieldConfig) FieldConfig {
 			out.ComponentOptions[k] = v
 		}
 	}
+	if len(cfg.Behaviors) > 0 {
+		out.Behaviors = make(map[string]any, len(cfg.Behaviors))
+		for k, v := range cfg.Behaviors {
+			out.Behaviors[k] = v
+		}
+	}
 	return out
 }
 
