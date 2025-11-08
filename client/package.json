@@ -35,6 +35,12 @@
       "browser": "./dist/browser/frameworks/preact.min.js",
       "default": "./dist/esm/frameworks/preact.js"
     },
+    "./behaviors": {
+      "types": "./dist/types/behaviors/index.d.ts",
+      "import": "./dist/esm/behaviors/index.js",
+      "browser": "./dist/browser/formgen-behaviors.min.js",
+      "default": "./dist/esm/behaviors/index.js"
+    },
     "./package.json": "./package.json"
   },
   "devDependencies": {
