@@ -304,10 +304,6 @@
                       "published"
                     ]
                   },
-                  "featured": {
-                    "type": "boolean",
-                    "description": "Promote this article on the homepage"
-                  },
                   "keywords": {
                     "type": "array",
                     "description": "SEO keywords used for search discovery",

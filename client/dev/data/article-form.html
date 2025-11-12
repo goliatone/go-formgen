@@ -38,14 +38,20 @@
     <label data-formgen-chrome="label" id="fg-title-label" for="fg-title" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Title<span class="text-red-500 ms-1" aria-hidden="true">*</span>
     </label>
+    <div class="relative">
+        <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+            <span class="inline-flex size-5 text-current" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="M16 16L21 21"/></svg></span>
+        </span>
     <input
         type="text"
         id="fg-title"
         name="title"
-        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
         placeholder="Garden maintenance tips"
         required
+         data-behavior-placeholder="article-title" data-icon="search" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;11&#34; cy=&#34;11&#34; r=&#34;6&#34;/&gt;&lt;path d=&#34;M16 16L21 21&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir"
     >
+    </div>
     <p data-formgen-chrome="description" id="fg-title-description" class="text-xs text-gray-500 dark:text-gray-400">
         Human readable title
     </p>
@@ -58,14 +64,19 @@
     <label data-formgen-chrome="label" id="fg-slug-label" for="fg-slug" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Slug
     </label>
+    <div class="relative">
+        <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+            <span class="inline-flex size-5 text-current" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L8 21"/><path d="M16 3L14 21"/><path d="M4 9h16"/><path d="M3 15h16"/></svg></span>
+        </span>
     <input
         type="text"
         id="fg-slug"
         name="slug"
-        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
         placeholder="garden-maintenance-tips"
-         data-behavior="autoSlug" data-behavior-config="{&#34;source&#34;:&#34;title&#34;}"
+         data-behavior="autoSlug" data-behavior-config="{&#34;source&#34;:&#34;title&#34;}" data-icon="hash" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M10 3L8 21&#34;/&gt;&lt;path d=&#34;M16 3L14 21&#34;/&gt;&lt;path d=&#34;M4 9h16&#34;/&gt;&lt;path d=&#34;M3 15h16&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir"
     >
+    </div>
     <p data-formgen-chrome="description" id="fg-slug-description" class="text-xs text-gray-500 dark:text-gray-400">
         URL friendly identifier
     </p>
@@ -96,41 +107,23 @@
                 </div>
                 
                 <div style="grid-column: span 4 / span 4">
-                    <div class="flex flex-col gap-2" data-component="boolean">
-    <label data-formgen-chrome="label" id="fg-featured-label" for="fg-featured" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
-        Featured
-    </label>
-    <div class="flex items-center">
-        <input
-            type="checkbox"
-            id="fg-featured"
-            name="featured"
-            class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
-        >
-        <label for="fg-featured" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">Featured</label>
-    </div>
-    <p data-formgen-chrome="description" id="fg-featured-description" class="text-xs text-gray-500 dark:text-gray-400">
-        Promote this article on the homepage
-    </p>
-    <p data-formgen-chrome="help" id="fg-featured-help" class="text-xs text-gray-600 dark:text-gray-300">
-        Pins the story to the homepage hero.
-    </p>
-</div>
-
-                </div>
-                
-                <div style="grid-column: span 4 / span 4">
                     <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-read_time_minutes-label" for="fg-read_time_minutes" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Read time (min)
     </label>
+    <div class="relative">
+        <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+            <span class="inline-flex size-5 text-current" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>
+        </span>
     <input
         type="number"
         id="fg-read_time_minutes"
         name="read_time_minutes"
-        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
         placeholder="5"
+         data-icon="clock" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;12&#34; cy=&#34;12&#34; r=&#34;8&#34;/&gt;&lt;path d=&#34;M12 8v5l3 2&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir"
     >
+    </div>
     <p data-formgen-chrome="description" id="fg-read_time_minutes-description" class="text-xs text-gray-500 dark:text-gray-400">
         Estimated reading time in minutes
     </p>
@@ -143,13 +136,19 @@
     <label data-formgen-chrome="label" id="fg-tenant_id-label" for="fg-tenant_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Tenant
     </label>
+    <div class="relative">
+        <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+            <span class="inline-flex size-5 text-current"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/><path d="M9 21v-4h6v4"/><path d="M9 7h.01"/><path d="M9 11h.01"/><path d="M9 15h.01"/><path d="M15 7h.01"/><path d="M15 11h.01"/><path d="M15 15h.01"/></svg></span>
+        </span>
     <select
         id="fg-tenant_id"
         name="tenant_id"
-        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
+         data-icon="building" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16&#34;/&gt;&lt;path d=&#34;M9 21v-4h6v4&#34;/&gt;&lt;path d=&#34;M9 7h.01&#34;/&gt;&lt;path d=&#34;M9 11h.01&#34;/&gt;&lt;path d=&#34;M9 15h.01&#34;/&gt;&lt;path d=&#34;M15 7h.01&#34;/&gt;&lt;path d=&#34;M15 11h.01&#34;/&gt;&lt;path d=&#34;M15 15h.01&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir"
     >
             <option value="garden">garden</option><option value="archive">archive</option><option value="lumen">lumen</option>
     </select>
+    </div>
     <p data-formgen-chrome="description" id="fg-tenant_id-description" class="text-xs text-gray-500 dark:text-gray-400">
         Tenant scope to demonstrate dynamic params
     </p>
@@ -185,13 +184,19 @@
     <label data-formgen-chrome="label" id="fg-summary-label" for="fg-summary" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Summary
     </label>
+    <div class="relative">
+        <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+            <span class="inline-flex size-5 text-current" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h14"/></svg></span>
+        </span>
     <input
         type="text"
         id="fg-summary"
         name="summary"
-        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
         placeholder="Short teaser shown in listings"
+         data-icon="align-left" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M4 6h16&#34;/&gt;&lt;path d=&#34;M4 12h10&#34;/&gt;&lt;path d=&#34;M4 18h14&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir"
     >
+    </div>
     <p data-formgen-chrome="description" id="fg-summary-description" class="text-xs text-gray-500 dark:text-gray-400">
         Short teaser shown on index cards
     </p>
