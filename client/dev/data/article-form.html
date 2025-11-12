@@ -215,9 +215,6 @@
       ></textarea>
       <div id="fg-body-editor" class="wysiwyg-editor"></div>
     </div>
-    <p data-formgen-chrome="description" id="fg-body-description" class="text-xs text-gray-500 dark:text-gray-400">
-        Full article content in Markdown
-    </p>
     <p data-formgen-chrome="help" id="fg-body-help" class="text-xs text-gray-600 dark:text-gray-300">
         Main article content with rich text formatting
     </p>
@@ -499,68 +496,6 @@
         </div></fieldset>
     </div>
     </div><button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">Add Contributors</button></div>
-</div>
-
-            </div>
-            
-            <div style="grid-column: span 6 / span 6">
-                <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="one">
-    <label data-formgen-chrome="label" id="fg-person_id-label" for="fg-person_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
-        Person<span class="text-red-500 ms-1" aria-hidden="true">*</span>
-    </label>
-    <select
-        id="fg-person_id"
-        name="person_id"
-        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-        required
-        data-relationship-type="belongsTo"
-        data-relationship-target="#/components/schemas/Contributor"
-        data-relationship-cardinality="one"
-         data-endpoint-dynamic-params-status="{{field:status}}" data-endpoint-dynamic-params-tenant_id="{{field:tenant_id}}" data-endpoint-field-label="Person Id" data-endpoint-label-field="full_name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="25" data-endpoint-params-order="full_name asc" data-endpoint-placeholder="Select Person Id" data-endpoint-refresh-on="status,tenant_id" data-endpoint-renderer="typeahead" data-endpoint-search-param="q" data-endpoint-search-placeholder="Search Person Id" data-endpoint-url="/api/contributors" data-endpoint-value-field="id"
-    >
-                <option value="">Select Person</option>
-    </select>
-    <p data-formgen-chrome="description" id="fg-person_id-description" class="text-xs text-gray-500 dark:text-gray-400">
-        Select a contributor
-    </p>
-</div>
-
-            </div>
-            
-            <div style="grid-column: span 3 / span 3">
-                <div class="flex flex-col gap-2" data-component="select">
-    <label data-formgen-chrome="label" id="fg-role-label" for="fg-role" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
-        Role<span class="text-red-500 ms-1" aria-hidden="true">*</span>
-    </label>
-    <select
-        id="fg-role"
-        name="role"
-        class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-        required
-    >
-            <option value="Reviewer">Reviewer</option><option value="Copy Editor">Copy Editor</option><option value="Fact Checker">Fact Checker</option><option value="Producer">Producer</option>
-    </select>
-    <p data-formgen-chrome="description" id="fg-role-description" class="text-xs text-gray-500 dark:text-gray-400">
-        Role the contributor performs
-    </p>
-</div>
-
-            </div>
-            
-            <div style="grid-column: span 3 / span 3">
-                <div class="flex flex-col gap-2" data-component="input">
-    <label data-formgen-chrome="label" id="fg-notes-label" for="fg-notes" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
-        Notes
-    </label>
-    <input
-        type="text"
-        id="fg-notes"
-        name="notes"
-        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
-    >
-    <p data-formgen-chrome="description" id="fg-notes-description" class="text-xs text-gray-500 dark:text-gray-400">
-        Private editorial notes for this contributor
-    </p>
 </div>
 
             </div>

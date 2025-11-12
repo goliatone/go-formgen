@@ -11,12 +11,26 @@
 {% set min_value = field.min -%}
 {% set max_value = field.max -%}
 {% set step_value = field.step -%}
+{% set icon_value = field.uiHints.icon -%}
+{% set icon_raw = field.uiHints.iconRaw -%}
+{% set has_icon = icon_value or icon_raw -%}
+
+{% if has_icon %}
+<div class="relative">
+    <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none dark:text-gray-500" aria-hidden="true">
+        {% if icon_raw %}
+        <span class="inline-flex size-5 text-current" aria-hidden="true">{{ icon_raw|safe }}</span>
+        {% else %}
+        <span class="inline-flex size-4 rounded-full bg-gray-200 dark:bg-gray-600"></span>
+        {% endif %}
+    </span>
+{% endif %}
 
 <input
     type="{{ input_type }}"
     id="fg-{{ field.name }}"
     name="{{ field.name }}"
-    class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+    class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600{% if has_icon %} ps-11{% endif %}"
     {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
     {% if field.required %}required{% endif %}
     {% if field.disabled %}disabled{% endif %}
@@ -28,3 +42,6 @@
     {% if field.pattern %}pattern="{{ field.pattern }}"{% endif %}
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >
+{% if has_icon %}
+</div>
+{% endif %}
