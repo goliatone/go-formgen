@@ -82,6 +82,9 @@ export interface FieldConfig {
   renderer?: string;
   cacheKey?: string;
   submitAs?: "default" | "json";
+  icon?: string;
+  iconSource?: string;
+  iconRaw?: string;
 }
 
 export interface ResolverRequest {

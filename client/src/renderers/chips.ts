@@ -17,6 +17,7 @@ import {
   setElementClasses,
   type ChipsClassMap,
 } from "../theme/classes";
+import { createIconElement, readIconConfig, type IconConfig } from "./icons";
 
 interface ChipStore {
   select: HTMLSelectElement;
@@ -34,6 +35,8 @@ interface ChipStore {
   searchInput?: HTMLInputElement;
   searchValue: string;
   theme: ChipsClassMap;
+  icon: IconConfig | null;
+  iconElement: HTMLElement | null;
 }
 
 const CHIP_ROOT_ATTR = "data-fg-chip-root";
@@ -101,6 +104,17 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   setElementClasses(chipsContent, theme.chipsContent);
   chips.appendChild(chipsContent);
 
+  const iconConfig = readIconConfig(select);
+  let renderedIcon: HTMLElement | null = null;
+  if (iconConfig) {
+    renderedIcon = createIconElement(iconConfig, {
+      wrapperClasses: theme.icon,
+    });
+    if (renderedIcon) {
+      chips.insertBefore(renderedIcon, chipsContent);
+    }
+  }
+
   const actions = document.createElement("div");
   setElementClasses(actions, theme.actions);
 
@@ -149,6 +163,8 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     searchMode,
     searchValue: "",
     theme,
+    icon: iconConfig,
+    iconElement: renderedIcon,
   };
 
   if (searchMode) {

@@ -230,6 +230,15 @@ function datasetToFieldConfig(
   if (dataset.relationshipCurrent) {
     field.current = parseCurrent(dataset.relationshipCurrent);
   }
+  if (dataset.icon) {
+    field.icon = dataset.icon;
+  }
+  if (dataset.iconSource) {
+    field.iconSource = dataset.iconSource;
+  }
+  if (dataset.iconRaw) {
+    field.iconRaw = dataset.iconRaw;
+  }
 
   if (!field.refreshMode) {
     field.refreshMode = "auto";

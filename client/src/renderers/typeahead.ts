@@ -15,6 +15,7 @@ import {
   setElementClasses,
   type TypeaheadClassMap,
 } from "../theme/classes";
+import { createIconElement, readIconConfig, type IconConfig } from "./icons";
 
 interface TypeaheadStore {
   select: HTMLSelectElement;
@@ -34,6 +35,8 @@ interface TypeaheadStore {
   searchQuery: string;
   documentHandler: (event: MouseEvent) => void;
   theme: TypeaheadClassMap;
+  icon: IconConfig | null;
+  iconElement: HTMLElement | null;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -146,6 +149,8 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   input.placeholder = placeholder;
   input.setAttribute("aria-label", label ?? "Related record");
 
+  const iconConfig = readIconConfig(select);
+
   const store: TypeaheadStore = {
     select,
     container,
@@ -164,9 +169,21 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     searchQuery: "",
     documentHandler: () => {},
     theme,
+    icon: iconConfig,
+    iconElement: null,
   };
 
   input.placeholder = store.searchMode ? store.searchPlaceholder : store.placeholder;
+
+  const renderedIcon = createIconElement(iconConfig, {
+    wrapperClasses: theme.icon,
+    svgClasses: theme.iconSvg,
+  });
+  if (renderedIcon) {
+    control.insertBefore(renderedIcon, input);
+    store.iconElement = renderedIcon;
+    addElementClasses(input, theme.inputWithIcon);
+  }
 
   bindEvents(store);
 

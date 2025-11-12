@@ -9,6 +9,7 @@ export interface ChipsClassMap {
   inner: ClassToken[];
   chips: ClassToken[];
   chipsContent: ClassToken[];
+  icon: ClassToken[];
   placeholder: ClassToken[];
   search: ClassToken[];
   searchInput: ClassToken[];
@@ -33,12 +34,15 @@ export interface TypeaheadClassMap {
   containerOpen: ClassToken[];
   control: ClassToken[];
   input: ClassToken[];
+  inputWithIcon: ClassToken[];
   clear: ClassToken[];
   dropdown: ClassToken[];
   option: ClassToken[];
   optionActive: ClassToken[];
   highlight: ClassToken[];
   empty: ClassToken[];
+  icon: ClassToken[];
+  iconSvg: ClassToken[];
   nativeSelect: ClassToken[];
 }
 
@@ -95,6 +99,13 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     ],
     chips: ["flex", "flex-wrap", "gap-2", "grow", "items-center"],
     chipsContent: ["flex", "flex-wrap", "items-center", "gap-2"],
+    icon: [
+      "inline-flex",
+      "items-center",
+      "justify-center",
+      "text-slate-400",
+      "dark:text-slate-500",
+    ],
     placeholder: ["text-slate-500"],
     search: ["flex", "items-center", "gap-2", "grow"],
     searchInput: [
@@ -212,6 +223,7 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "flex",
       "items-center",
       "gap-x-2",
+      "relative",
       "rounded-lg",
       "border",
       "border-gray-200",
@@ -236,6 +248,7 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "focus:outline-none",
       "focus:ring-0",
     ],
+    inputWithIcon: ["ps-10"],
     clear: [
       "inline-flex",
       "h-8",
@@ -294,6 +307,19 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     optionActive: ["bg-slate-100"],
     highlight: ["bg-amber-100", "font-semibold"],
     empty: ["px-3", "py-2", "text-sm", "text-slate-500"],
+    icon: [
+      "absolute",
+      "top-1/2",
+      "start-3",
+      "-translate-y-1/2",
+      "pointer-events-none",
+      "text-slate-400",
+      "dark:text-slate-500",
+      "flex",
+      "items-center",
+      "justify-center",
+    ],
+    iconSvg: ["size-5", "text-current"],
     nativeSelect: ["hidden"],
   },
   switch: {
