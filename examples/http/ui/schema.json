@@ -111,9 +111,30 @@
             ]
           }
         },
-        "isbn": {
+        "cover_image": {
           "section": "overview",
           "order": 3,
+          "grid": {
+            "span": 6,
+            "row": 2
+          },
+          "label": "Cover image",
+          "helpText": "Upload a hero image (PNG/JPG/WebP, max 5MB)",
+          "component": "file_uploader",
+          "componentOptions": {
+            "variant": "image",
+            "uploadEndpoint": "/api/uploads/cover",
+            "maxSize": 5242880,
+            "allowedTypes": ["image/png", "image/jpeg", "image/webp"],
+            "preview": true,
+            "headers": {
+              "Authorization": "meta:api-token"
+            }
+          }
+        },
+        "isbn": {
+          "section": "overview",
+          "order": 4,
           "grid": {
             "span": 4,
             "row": 2

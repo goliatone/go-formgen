@@ -60,7 +60,12 @@ window.addEventListener('DOMContentLoaded', function () {
       activate();
     });
   }
-  window.FormgenRelationships.initRelationships().catch(function (error) {
+  var config = {
+    onValidationError: function (ctx, error) {
+      console.warn('[formgen] validation failed', ctx.field.name, error.message);
+    },
+  };
+  window.FormgenRelationships.initRelationships(config).catch(function (error) {
     console.error('initRelationships failed', error);
   });
   if (window.FormgenBehaviors && typeof window.FormgenBehaviors.initBehaviors === 'function') {
@@ -155,6 +160,7 @@ func main() {
 	relationships.register(mux)
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
 	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServer(http.FS(vanilla.AssetsFS()))))
+	mux.HandleFunc("/api/uploads/", uploadHandler)
 	mux.Handle("/form", server.formHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -189,6 +195,32 @@ func main() {
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
+	}
+}
+
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "invalid multipart payload", http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "file field is required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	filename := filepath.Base(header.Filename)
+	payload := map[string]any{
+		"url":          fmt.Sprintf("/uploads/%d_%s", time.Now().Unix(), filename),
+		"name":         filename,
+		"originalName": filename,
+		"size":         header.Size,
+		"contentType":  header.Header.Get("Content-Type"),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("upload encode: %v", err)
 	}
 }
 
@@ -259,10 +291,21 @@ func (s *formServer) formHandler() http.Handler {
 			return
 		}
 
+		renderOptions := render.RenderOptions{}
+		if record := strings.TrimSpace(query.Get("record")); record != "" {
+			if sample, ok := sampleRenderOptionsFor(record); ok {
+				renderOptions = sample
+			}
+		}
+		if methodOverride := strings.TrimSpace(query.Get("method")); methodOverride != "" {
+			renderOptions.Method = methodOverride
+		}
+
 		output, err := s.generator.Generate(r.Context(), orchestrator.Request{
-			Document:    &document,
-			OperationID: operation,
-			Renderer:    rendererName,
+			Document:      &document,
+			OperationID:   operation,
+			Renderer:      rendererName,
+			RenderOptions: renderOptions,
 		})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("generate: %v", err), http.StatusInternalServerError)
