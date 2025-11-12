@@ -35,7 +35,39 @@ client/
 └── tsconfig.build.json
 ```
 
-## Building
+## Development Workflow
+
+### Quick Start: Live Development (Recommended)
+
+**No Go dependencies needed!** Develop features entirely in the browser:
+
+```bash
+npm run dev           # vanilla sandbox (default)
+npm run dev:vanilla   # explicitly open the vanilla sandbox
+npm run dev:preact    # open the Preact sandbox
+npm run dev:theme     # watch Tailwind theme recompiles
+```
+
+This starts a Vite dev server at http://localhost:5173 with:
+- ✅ Hot reload on file changes
+- ✅ TypeScript source imports (no build step)
+- ✅ Mock API responses
+- ✅ Browser DevTools debugging
+- ✅ Instant feedback loop
+
+The sandbox (`dev/index.html`) demonstrates all features. See [dev/README.md](dev/README.md) for details.
+
+### Regenerating the sandbox HTML form
+
+The file `client/dev/data/article-form.html` is generated from the canonical OpenAPI + UI schema so front-end contributors can iterate without running the Go server. Whenever you change `client/data/schema.json` or `client/dev/ui-schema.json`, regenerate the sandbox HTML:
+
+```bash
+./taskfile client:generate:article-form
+```
+
+This task runs `go run ./scripts/generate-article-form`, which uses `client/data/schema.json` and the embedded UI schema to produce fresh markup. Commit the updated HTML so other developers see the same form in the sandbox.
+
+### Building
 
 ```bash
 # Install dependencies
@@ -49,7 +81,18 @@ npm run watch
 
 # Analyze bundle size
 npm run build:stats
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
 ```
+
+## Development Notes
+
+- **Tailwind + Go templates**: The theme build now scans the Go source tree (`../pkg/**/*.{go,tmpl,html}` and `../examples/**/*.{go,html,tmpl}` inside `tailwind.config.js`) so utility classes declared inside Go strings are preserved. Whenever you introduce markup in Go, make sure the file path still matches those globs; if you move code elsewhere, update the config before rebuilding.
+- **Dynamic classes**: Any class names assembled at runtime (for example via `fmt.Sprintf`) cannot be statically detected. Add them to the `safelist` array in `tailwind.config.js` so `npm run build:theme` keeps them in the output. We do not have an automated scanner for Go strings, so this manual safelist is the last resort for patterns Tailwind cannot see.
 
 ## Outputs
 
@@ -57,6 +100,11 @@ npm run build:stats
 - **ESM**: `dist/esm/index.js` (for Vite/webpack)
 - **Preact**: `dist/browser/frameworks/preact.min.js`
 - **Types**: `dist/types/index.d.ts`
+- **Theme CSS**: `dist/themes/formgen.css` (Tailwind build)
+
+### Theme Distribution
+
+Run `npm run build:theme` to compile the Tailwind bundle into `dist/themes/formgen.css`. This file now contains both the utility classes used by the Go templates and the runtime widget styling (chips/typeahead). The Go vanilla renderer embeds its stylesheet from `pkg/renderers/vanilla/assets/formgen-vanilla.css`; replace that file with the generated CSS when you want the library to ship the latest theme. Teams that prefer to self-host can publish `dist/themes/formgen.css` via their CDN or static pipeline and load it alongside the runtime bundle instead of copying it into the Go assets. Custom themes come from editing `client/src/theme/index.css` or extending `tailwind.config.js`, then rerunning `npm run build:theme` (or `npm run dev:theme` for watch mode) to emit the overridden CSS.
 
 ## Usage
 
@@ -116,6 +164,97 @@ function PublisherSelect({ field }) {
 }
 ```
 
+### Typeahead Renderer
+
+Single-cardinality relationships automatically upgrade to the typeahead renderer when the schema exposes endpoint metadata. The runtime looks for the same `data-endpoint-*` attributes used by the chips renderer.
+
+```html
+<select
+  name="article[author_id]"
+  data-relationship-cardinality="one"
+  data-endpoint-renderer="typeahead"
+  data-endpoint-url="/api/authors"
+  data-endpoint-label-field="full_name"
+  data-endpoint-value-field="id"
+  data-endpoint-search-param="q"
+  data-endpoint-mode="search"
+  data-endpoint-placeholder="Select Author"
+  data-endpoint-search-placeholder="Search Author"
+  data-endpoint-field-label="Author"
+></select>
+```
+
+The vanilla bundle hides the `<select>` once the runtime initialises, replaces it with a combobox UI, and keeps the native control synchronised so HTML form submission and non-JS fallbacks continue to work. Keyboard navigation (`ArrowUp/Down`, `Enter`, `Escape`, `Tab`) and clear buttons are handled by the renderer; accessibility attributes (`role="combobox"`, `aria-expanded`, `aria-controls`) are applied automatically.
+
+### Behaviors
+
+Behaviour metadata attaches small progressive-enhancement helpers to rendered controls. Declare behaviours in your UI schema:
+
+```json
+"slug": {
+  "component": "input",
+  "componentOptions": {
+    "behaviors": {
+      "autoSlug": {"source": "title"}
+    }
+  }
+}
+```
+
+The decorator emits `data-behavior="autoSlug"` plus a JSON payload in `data-behavior-config`. Load the runtime bundle and call `initBehaviors()` after the DOM is ready:
+
+```html
+<script src="/runtime/formgen-behaviors.min.js" defer></script>
+<script>
+  window.addEventListener('DOMContentLoaded', function () {
+    window.FormgenBehaviors?.initBehaviors();
+  });
+</script>
+```
+
+ESM consumers can cherry-pick the registry:
+
+```ts
+import { initBehaviors, registerBehavior } from '@goliatone/formgen-runtime/behaviors';
+
+registerBehavior('autoFocus', ({ element }) => element.focus());
+const { dispose } = initBehaviors();
+```
+
+Use `registerBehavior` to add custom factories or override built-ins, and call `dispose()` during teardown/testing to unmount existing instances.
+
+### Component Registry
+
+Custom components can augment form fields without forking the vanilla renderer. Server templates emit `data-component` (and optional `data-component-config`) attributes when the UI schema assigns a component. Register a matching factory before calling `initRelationships`:
+
+```ts
+import {
+  registerComponent,
+  initRelationships,
+} from '@goliatone/formgen-runtime';
+
+registerComponent('status-pill', ({ element }) => {
+  const pills = Array.from(element.querySelectorAll('[data-pill]'));
+  const radios = Array.from(element.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
+
+  const activate = () => {
+    const selected = element.querySelector<HTMLInputElement>('input[type="radio"]:checked');
+    pills.forEach((pill) => {
+      const input = pill.querySelector<HTMLInputElement>('input[type="radio"]');
+      const active = input === selected;
+      pill.classList.toggle('is-active', active);
+    });
+  };
+
+  radios.forEach((input) => input.addEventListener('change', activate));
+  activate();
+});
+
+await initRelationships();
+```
+
+Factories receive the host element, resolved configuration, and form root. During tests you can call `resetComponentRegistryForTests()` to clear registrations between suites.
+
 ## Integration with formgen
 
 The Go HTTP example serves this bundle automatically:
@@ -134,6 +273,48 @@ Start the example server:
 go run examples/http/main.go -source examples/http/schema.json
 # Visit http://localhost:8080/form?operation=author:create
 ```
+
+## UI Schema Decorators
+
+UI schema files let you control layout, grouping, and action bars without editing the OpenAPI document. Place JSON or YAML documents under a `ui/` directory (for example `ui/schema.json`) using the structure:
+
+```json
+{
+  "operations": {
+    "post-book:create": {
+      "form": {
+        "title": "Create Book",
+        "subtitle": "Provide core details",
+        "layout": {"gridColumns": 12, "gutter": "md"},
+        "actions": [
+          {"kind": "secondary", "label": "Cancel", "href": "/books"},
+          {"kind": "primary", "label": "Create", "type": "submit"}
+        ]
+      },
+      "sections": [
+        {"id": "details", "title": "Details", "order": 0, "fieldset": true},
+        {"id": "associations", "title": "Associations", "order": 1}
+      ],
+      "fields": {
+        "title": {"section": "details", "order": 0, "grid": {"span": 12}},
+        "author_id": {"section": "associations", "order": 0, "grid": {"span": 6}},
+        "tags": {"section": "associations", "order": 1, "grid": {"span": 12}}
+      }
+    }
+  }
+}
+```
+
+The decorator merges form-level hints into `FormModel.Metadata`/`UIHints`, attaches `layout.section` metadata to each field, and stores actions for the renderer to consume. Load the schema by wiring an `fs.FS` into the orchestrator:
+
+```go
+uiFS := os.DirFS("examples/http/ui")
+orch := formgen.NewOrchestrator(
+    orchestrator.WithUISchemaFS(uiFS),
+)
+```
+
+When no schema is supplied the decorator is skipped and the vanilla renderer falls back to the linear layout.
 
 ## Features
 
