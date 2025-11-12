@@ -60,21 +60,6 @@
       }
     },
     {
-      "name": "featured",
-      "type": "boolean",
-      "required": false,
-      "label": "Featured",
-      "description": "Promote this article on the homepage",
-      "metadata": {
-        "layout.order": "3",
-        "layout.section": "overview"
-      },
-      "uiHints": {
-        "helpText": "Pins the story to the homepage hero.",
-        "layout.span": "4"
-      }
-    },
-    {
       "name": "read_time_minutes",
       "type": "integer",
       "required": false,
@@ -90,7 +75,7 @@
         }
       ],
       "metadata": {
-        "layout.order": "4",
+        "layout.order": "3",
         "layout.section": "overview"
       },
       "uiHints": {
@@ -110,7 +95,7 @@
         "lumen"
       ],
       "metadata": {
-        "layout.order": "5",
+        "layout.order": "4",
         "layout.section": "overview"
       },
       "uiHints": {
