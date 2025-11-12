@@ -5,8 +5,6 @@ const JSON_INITIALISED_ATTR = "data-relationship-json-initialised";
 const JSON_INPUT_ATTR = "data-relationship-json";
 const SUBMIT_MODE_ATTR = "data-relationship-submit-mode";
 const ORIGINAL_NAME_ATTR = "data-relationship-original-name";
-const ERROR_ATTR = "data-relationship-error";
-const FIELD_CONTAINER_SELECTOR = "[data-relationship-type]";
 
 export function locateRelationshipFields(
   root: Document | HTMLElement = document
@@ -141,33 +139,6 @@ export function syncJsonInput(select: HTMLSelectElement): void {
     const value = values[0] ?? "";
     input.value = value ? JSON.stringify(value) : "null";
   }
-}
-
-export function setFieldError(element: HTMLElement, message: string | null): void {
-  const container =
-    element.closest(FIELD_CONTAINER_SELECTOR) ?? element.parentElement ?? element;
-  let target = container.querySelector<HTMLElement>(`[${ERROR_ATTR}]`);
-
-  if (!message || message.trim() === "") {
-    if (target) {
-      target.remove();
-    }
-    return;
-  }
-
-  if (!target) {
-    target = document.createElement("span");
-    target.setAttribute(ERROR_ATTR, "true");
-    target.className = "formgen-error";
-    target.setAttribute("role", "alert");
-    container.appendChild(target);
-  }
-
-  target.textContent = message;
-}
-
-export function clearFieldError(element: HTMLElement): void {
-  setFieldError(element, null);
 }
 
 export function readElementValue(element: HTMLElement | null): string | string[] | null {

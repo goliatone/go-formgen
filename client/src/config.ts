@@ -65,11 +65,30 @@ export interface EndpointOverride {
   endpoint: EndpointConfig;
 }
 
+export interface FieldValidationRule {
+  kind: string;
+  params?: Record<string, string>;
+}
+
+export interface ValidationError {
+  code: string;
+  message: string;
+  rule?: FieldValidationRule;
+  value?: string | string[] | null;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  messages: string[];
+  errors: ValidationError[];
+}
+
 /**
  * FieldConfig aggregates the relationship metadata harvested from the DOM.
  */
 export interface FieldConfig {
   name?: string;
+  label?: string;
   relationship?: RelationshipKind;
   cardinality?: RelationshipCardinality;
   current?: string | string[] | null;
@@ -85,6 +104,8 @@ export interface FieldConfig {
   icon?: string;
   iconSource?: string;
   iconRaw?: string;
+  required?: boolean;
+  validations?: FieldValidationRule[];
 }
 
 export interface ResolverRequest {
@@ -166,6 +187,11 @@ export interface GlobalConfig {
   ) => Option[] | Promise<Option[]>;
   renderOption?: (context: RendererContext, option: Option) => HTMLOptionElement;
   onError?: (context: ResolverContext, error: ResolverError) => void;
+  validateSelection?: (
+    context: ResolverContext,
+    value: string | string[] | null
+  ) => ValidationResult | Promise<ValidationResult>;
+  onValidationError?: (context: ResolverContext, error: ValidationError) => void;
   cache?: CacheConfig;
   logger?: Logger;
   searchThrottleMs?: number;

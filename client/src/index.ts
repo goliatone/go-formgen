@@ -4,6 +4,7 @@ import type {
   GlobalConfig,
   EndpointConfig,
   FieldConfig,
+  FieldValidationRule,
   RelationshipCardinality,
   RelationshipKind,
 } from "./config";
@@ -104,7 +105,10 @@ export type {
   EndpointMapping,
   EndpointAuth,
   FieldConfig,
+  FieldValidationRule,
   Option,
+  ValidationError,
+  ValidationResult,
 } from "./config";
 export { ResolverRegistry } from "./registry";
 export {
@@ -120,6 +124,7 @@ export {
   initComponents,
   __resetComponentRegistryForTests as resetComponentRegistryForTests,
 } from "./components/registry";
+export { registerErrorRenderer } from "./errors";
 export {
   registerThemeClasses,
   getThemeClasses,
@@ -238,6 +243,31 @@ function datasetToFieldConfig(
   }
   if (dataset.iconRaw) {
     field.iconRaw = dataset.iconRaw;
+  }
+
+  field.required = element.hasAttribute("required") || dataset.validationRequired === "true";
+
+  const label =
+    dataset.validationLabel ||
+    dataset.endpointFieldLabel ||
+    element.getAttribute("aria-label") ||
+    element.getAttribute("placeholder") ||
+    element.getAttribute("name") ||
+    element.id ||
+    undefined;
+  if (label) {
+    field.label = label;
+  }
+
+  if (dataset.validationRules) {
+    try {
+      const parsed = JSON.parse(dataset.validationRules);
+      if (Array.isArray(parsed)) {
+        field.validations = parsed.filter(isValidValidationRule);
+      }
+    } catch (_err) {
+      // Ignore malformed validation metadata to avoid breaking auto-init.
+    }
   }
 
   if (!field.refreshMode) {
@@ -512,6 +542,14 @@ function findDependencyTargets(scope: Document | HTMLElement, reference: string)
   });
 
   return matches;
+}
+
+function isValidValidationRule(candidate: unknown): candidate is FieldValidationRule {
+  if (!candidate || typeof candidate !== "object") {
+    return false;
+  }
+  const rule = candidate as FieldValidationRule;
+  return typeof rule.kind === "string" && rule.kind.length > 0;
 }
 
 function matchesFieldName(candidate: string | undefined, reference: string): boolean {

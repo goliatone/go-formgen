@@ -1,3 +1,5 @@
+import { fileUploaderFactory } from "./file-uploader";
+
 type Teardown = (() => void) | void;
 
 export interface ComponentContext {
@@ -106,6 +108,9 @@ function normalize(name: string): string {
 function registerDefaultComponents(): void {
   if (!factories.has("datetime-range")) {
     factories.set("datetime-range", datetimeRangeFactory);
+  }
+  if (!factories.has("file_uploader")) {
+    factories.set("file_uploader", fileUploaderFactory);
   }
 }
 

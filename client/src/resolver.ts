@@ -9,8 +9,9 @@ import {
   type CacheAdapter,
   type FetchResult,
   type CacheConfig,
+  type ValidationResult,
 } from "./config";
-import { ResolverError, ResolverAbortError } from "./errors";
+import { ResolverError, ResolverAbortError, renderFieldError, clearFieldError } from "./errors";
 import { resolveAuthHeaders } from "./auth";
 import {
   attachHiddenInputSync,
@@ -18,10 +19,9 @@ import {
   isMultiSelect,
   syncHiddenInputs,
   syncJsonInput,
-  setFieldError,
-  clearFieldError,
   readElementValue,
 } from "./dom";
+import { validateFieldValue, mergeValidationResults } from "./validation";
 
 const DYNAMIC_TOKEN_PATTERN = /\{\{\s*([^}]+)\s*\}\}/g;
 const DEFAULT_ERROR_MESSAGE = "Unable to load options.";
@@ -81,7 +81,7 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
-export type ResolverEventName = "loading" | "success" | "error";
+export type ResolverEventName = "loading" | "success" | "error" | "validation";
 
 export interface ResolverEventDetail {
   element: HTMLElement;
@@ -94,6 +94,7 @@ export interface ResolverEventDetail {
   fromCache: boolean;
   durationMs?: number;
   attempt?: number;
+  validation?: ValidationResult;
 }
 
 export type ResolverEventDispatcher = (
@@ -128,6 +129,10 @@ export interface ResolverResult {
   fromCache: boolean;
 }
 
+export interface ResolverState {
+  validation?: ValidationResult;
+}
+
 export class Resolver {
   private readonly element: HTMLElement;
   private readonly field: FieldConfig;
@@ -139,7 +144,10 @@ export class Resolver {
   private readonly renderers: Map<string, Renderer>;
   private readonly defaultRenderer: string;
   private readonly customResolvers: CustomResolver[];
+  readonly state: ResolverState = {};
   private abortController: AbortController | null = null;
+  private lastRequest: ResolverRequest | null = null;
+  private lastContext: ResolverContext | null = null;
 
   constructor(options: ResolverOptions) {
     this.element = options.element;
@@ -228,7 +236,6 @@ export class Resolver {
     }
 
     await this.renderOptions(options, fromCache);
-    clearFieldError(this.element);
 
     const detail: ResolverEventDetail = {
       element: this.element,
@@ -267,7 +274,13 @@ export class Resolver {
 
     this.abortController = null;
 
+    await this.runValidation();
+
     return { options, fromCache };
+  }
+
+  async validate(): Promise<ValidationResult> {
+    return this.runValidation();
   }
 
   private cancelInFlight(): void {
@@ -275,6 +288,55 @@ export class Resolver {
       this.abortController.abort();
       this.abortController = null;
     }
+  }
+
+  private async runValidation(): Promise<ValidationResult> {
+    const value = readElementValue(this.element);
+    let result = validateFieldValue(this.field, value);
+
+    if (this.config.validateSelection) {
+      try {
+        const custom = await this.config.validateSelection(this.getActiveContext(), value);
+        if (custom) {
+          result = mergeValidationResults(result, custom);
+        }
+      } catch (error) {
+        this.config.logger?.warn?.("resolver:validation:hook", error);
+      }
+    }
+
+    this.state.validation = result;
+
+    if (result.valid) {
+      clearFieldError(this.element);
+    } else {
+      const primary = result.errors[0];
+      const message = primary?.message ?? result.messages[0] ?? DEFAULT_ERROR_MESSAGE;
+      renderFieldError(this.element, message, primary?.code);
+      if (result.errors.length > 0) {
+        const context = this.getActiveContext();
+        for (const error of result.errors) {
+          try {
+            this.config.onValidationError?.(context, error);
+          } catch (hookError) {
+            this.config.logger?.warn?.("resolver:onValidationError", hookError);
+          }
+        }
+      }
+    }
+
+    const detail: ResolverEventDetail = {
+      element: this.element,
+      field: this.field,
+      endpoint: this.endpoint,
+      request: this.lastRequest ?? this.buildRequestStub(),
+      response: null,
+      fromCache: false,
+      validation: result,
+    };
+
+    this.dispatchEvent(this.element, "validation", detail);
+    return result;
   }
 
   private async fetchOptions(request: ResolverRequest, startedAt: number): Promise<FetchResult> {
@@ -583,13 +645,35 @@ export class Resolver {
   }
 
   private createContext(request: ResolverRequest, fromCache: boolean): ResolverContext {
-    return {
+    const context: ResolverContext = {
       element: this.element,
       field: this.field,
       endpoint: this.endpoint,
       request,
       fromCache,
       config: this.config,
+    };
+    this.lastRequest = request;
+    this.lastContext = context;
+    return context;
+  }
+
+  private getActiveContext(): ResolverContext {
+    if (this.lastContext) {
+      return this.lastContext;
+    }
+    const stub = this.buildRequestStub();
+    return this.createContext(stub, false);
+  }
+
+  private buildRequestStub(): ResolverRequest {
+    const method = (this.endpoint.method || "GET").toUpperCase();
+    return {
+      url: this.normaliseBaseUrl(this.endpoint.url ?? ""),
+      init: {
+        method,
+        headers: {},
+      },
     };
   }
 
@@ -702,7 +786,7 @@ export class Resolver {
     const resolverError =
       error instanceof ResolverError ? error : new ResolverError(String(error || ""));
 
-    setFieldError(this.element, resolverError.message || DEFAULT_ERROR_MESSAGE);
+    renderFieldError(this.element, resolverError.message || DEFAULT_ERROR_MESSAGE);
 
     const detail: ResolverEventDetail = {
       element: this.element,

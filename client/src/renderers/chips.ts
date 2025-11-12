@@ -37,6 +37,8 @@ interface ChipStore {
   theme: ChipsClassMap;
   icon: IconConfig | null;
   iconElement: HTMLElement | null;
+  validationHandler?: (event: Event) => void;
+  validationObserver?: MutationObserver;
 }
 
 const CHIP_ROOT_ATTR = "data-fg-chip-root";
@@ -145,6 +147,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
 
   select.insertAdjacentElement("beforebegin", container);
   addElementClasses(select, theme.nativeSelect);
+  handleRequiredAttribute(select, container);
 
   const placeholder = derivePlaceholder(select);
   const searchMode = select.dataset.endpointMode === "search";
@@ -225,6 +228,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
 
   document.addEventListener("click", store.documentHandler);
 
+  bindValidationState(store);
   stores.set(select, store);
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
@@ -401,8 +405,50 @@ function toggleMenu(store: ChipStore, open: boolean): void {
   store.isOpen = open;
 }
 
+function bindValidationState(store: ChipStore): void {
+  const syncState = () => {
+    const state = store.select.getAttribute("data-validation-state");
+    if (state === "invalid") {
+      store.container.setAttribute("data-validation-state", "invalid");
+      store.container.setAttribute("aria-invalid", "true");
+    } else {
+      store.container.removeAttribute("data-validation-state");
+      store.container.removeAttribute("aria-invalid");
+    }
+  };
+  store.validationHandler = () => syncState();
+  store.select.addEventListener(
+    "formgen:relationship:validation",
+    store.validationHandler as EventListener
+  );
+  if (typeof MutationObserver !== "undefined") {
+    store.validationObserver = new MutationObserver(() => syncState());
+    store.validationObserver.observe(store.select, {
+      attributes: true,
+      attributeFilter: ["data-validation-state"],
+    });
+  }
+  syncState();
+}
+
 function destroyChipStore(store: ChipStore): void {
   document.removeEventListener("click", store.documentHandler);
+  if (store.validationHandler) {
+    store.select.removeEventListener(
+      "formgen:relationship:validation",
+      store.validationHandler as EventListener
+    );
+  }
+  store.validationObserver?.disconnect();
+}
+
+function handleRequiredAttribute(select: HTMLSelectElement, target: HTMLElement): void {
+  if (!select.hasAttribute("required")) {
+    return;
+  }
+  select.dataset.validationRequiredNative = "true";
+  select.removeAttribute("required");
+  target.setAttribute("aria-required", "true");
 }
 
 registerRendererCleanup("chips", stores, (_select, store) => {

@@ -7,6 +7,7 @@ import {
   type Option,
   type RendererContext,
   type ResolvedGlobalConfig,
+  type ValidationResult,
   getGlobalConfig,
   resolveGlobalConfig,
   setGlobalConfig,
@@ -176,6 +177,14 @@ export class ResolverRegistry {
       return;
     }
     await resolver.resolve();
+  }
+
+  async validate(element: HTMLElement): Promise<ValidationResult | undefined> {
+    const resolver = this.resolvers.get(element);
+    if (!resolver) {
+      return undefined;
+    }
+    return resolver.validate();
   }
 
   registerRenderer(name: string, renderer: Renderer): void {

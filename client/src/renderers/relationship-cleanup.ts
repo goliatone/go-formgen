@@ -8,6 +8,7 @@ interface Registration<T> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const registrations: Registration<any>[] = [];
+const HAS_HTML_ELEMENT = typeof HTMLElement !== "undefined";
 
 let observer: MutationObserver | null = null;
 
@@ -38,7 +39,7 @@ function ensureObserver(): void {
 }
 
 function handleRemovedNode(node: Node): void {
-  if (!(node instanceof HTMLElement)) {
+  if (!HAS_HTML_ELEMENT || !(node instanceof HTMLElement)) {
     return;
   }
 

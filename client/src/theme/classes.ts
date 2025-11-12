@@ -62,11 +62,29 @@ export interface WysiwygClassMap {
   toolbar: ClassToken[];
 }
 
+export interface FileUploaderClassMap {
+  [key: string]: ClassToken[];
+  wrapper: ClassToken[];
+  dropzone: ClassToken[];
+  button: ClassToken[];
+  preview: ClassToken[];
+  fileList: ClassToken[];
+  fileItem: ClassToken[];
+  fileMeta: ClassToken[];
+  fileName: ClassToken[];
+  fileSize: ClassToken[];
+  fileActions: ClassToken[];
+  progress: ClassToken[];
+  status: ClassToken[];
+  error: ClassToken[];
+}
+
 export interface ThemeClassMap {
   chips: ChipsClassMap;
   typeahead: TypeaheadClassMap;
   switch: SwitchClassMap;
   wysiwyg: WysiwygClassMap;
+  fileUploader: FileUploaderClassMap;
 }
 
 export type PartialThemeClassMap = {
@@ -74,6 +92,7 @@ export type PartialThemeClassMap = {
   typeahead?: Partial<{ [K in keyof TypeaheadClassMap]: ClassValue }>;
   switch?: Partial<{ [K in keyof SwitchClassMap]: ClassValue }>;
   wysiwyg?: Partial<{ [K in keyof WysiwygClassMap]: ClassValue }>;
+  fileUploader?: Partial<{ [K in keyof FileUploaderClassMap]: ClassValue }>;
 };
 
 const DEFAULT_THEME_CLASSES: ThemeClassMap = {
@@ -400,6 +419,74 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "dark:bg-neutral-800",
     ],
   },
+  fileUploader: {
+    wrapper: ["space-y-4"],
+    dropzone: [
+      "border-2",
+      "border-dashed",
+      "border-gray-300",
+      "rounded-xl",
+      "px-6",
+      "py-10",
+      "text-center",
+      "text-sm",
+      "text-gray-600",
+      "cursor-pointer",
+      "hover:border-blue-500",
+      "hover:text-blue-600",
+      "transition",
+    ],
+    button: [
+      "inline-flex",
+      "items-center",
+      "justify-center",
+      "gap-2",
+      "rounded-lg",
+      "border",
+      "border-gray-300",
+      "px-4",
+      "py-2.5",
+      "text-sm",
+      "font-medium",
+      "text-gray-700",
+      "hover:bg-gray-50",
+      "focus-visible:outline-none",
+      "focus-visible:ring-2",
+      "focus-visible:ring-blue-500",
+      "dark:text-gray-200",
+      "dark:border-gray-600",
+    ],
+    preview: [
+      "w-full",
+      "h-48",
+      "object-cover",
+      "rounded-lg",
+      "border",
+      "border-gray-200",
+      "bg-gray-50",
+      "dark:border-gray-700",
+    ],
+    fileList: ["space-y-3"],
+    fileItem: [
+      "border",
+      "border-gray-200",
+      "rounded-lg",
+      "p-3",
+      "flex",
+      "flex-col",
+      "gap-2",
+      "bg-white",
+      "dark:border-gray-700",
+      "dark:bg-gray-900",
+    ],
+    fileMeta: ["flex", "items-center", "justify-between", "text-sm", "text-gray-700", "dark:text-gray-300"],
+    fileName: ["font-medium", "truncate"],
+    fileSize: ["text-xs", "text-gray-500"],
+    fileActions: ["flex", "items-center", "justify-between", "text-xs", "text-gray-500"],
+    progress: ["w-full", "h-2", "bg-gray-100", "rounded-full", "overflow-hidden"],
+    status: ["text-sm", "text-gray-600"],
+    error: ["text-sm", "text-red-600"],
+  },
 };
 
 let activeThemeClasses: ThemeClassMap = cloneThemeClasses(DEFAULT_THEME_CLASSES);
@@ -414,6 +501,7 @@ export function registerThemeClasses(overrides: PartialThemeClassMap = {}): Them
     typeahead: mergeSection<TypeaheadClassMap>(activeThemeClasses.typeahead, overrides.typeahead),
     switch: mergeSection<SwitchClassMap>(activeThemeClasses.switch, overrides.switch),
     wysiwyg: mergeSection<WysiwygClassMap>(activeThemeClasses.wysiwyg, overrides.wysiwyg),
+    fileUploader: mergeSection<FileUploaderClassMap>(activeThemeClasses.fileUploader, overrides.fileUploader),
   };
   activeThemeClasses = next;
   return getThemeClasses();
@@ -473,6 +561,7 @@ function cloneThemeClasses(map: ThemeClassMap): ThemeClassMap {
     typeahead: cloneSection<TypeaheadClassMap>(map.typeahead),
     switch: cloneSection<SwitchClassMap>(map.switch),
     wysiwyg: cloneSection<WysiwygClassMap>(map.wysiwyg),
+    fileUploader: cloneSection<FileUploaderClassMap>(map.fileUploader),
   };
 }
 

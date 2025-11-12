@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { Option } from "../config";
+import type { Option, ValidationResult } from "../config";
 import type { ResolverRegistry } from "../registry";
 import type { ResolverEventDetail } from "../resolver";
 import { initRelationships } from "../index";
@@ -8,11 +8,13 @@ interface HookState {
   options: Option[];
   loading: boolean;
   error: Error | null;
+  validation: ValidationResult | null;
 }
 
 const SUCCESS_EVENT = "formgen:relationship:success";
 const ERROR_EVENT = "formgen:relationship:error";
 const LOADING_EVENT = "formgen:relationship:loading";
+const VALIDATION_EVENT = "formgen:relationship:validation";
 
 /**
  * useRelationshipOptions integrates the resolver registry with Preact
@@ -24,6 +26,7 @@ export function useRelationshipOptions(element: HTMLElement | null) {
     options: [],
     loading: false,
     error: null,
+    validation: null,
   });
 
   useEffect(() => {
@@ -92,7 +95,12 @@ export function useRelationshipOptions(element: HTMLElement | null) {
       if (detail.element !== element) {
         return;
       }
-      setState({ options: detail.options ?? [], loading: false, error: null });
+      setState((prev) => ({
+        ...prev,
+        options: detail.options ?? [],
+        loading: false,
+        error: null,
+      }));
     };
 
     const handleError = (event: Event) => {
@@ -103,14 +111,24 @@ export function useRelationshipOptions(element: HTMLElement | null) {
       setState((prev) => ({ ...prev, loading: false, error: detail.error ?? null }));
     };
 
+    const handleValidation = (event: Event) => {
+      const detail = (event as CustomEvent<ResolverEventDetail>).detail;
+      if (detail.element !== element) {
+        return;
+      }
+      setState((prev) => ({ ...prev, validation: detail.validation ?? null }));
+    };
+
     element.addEventListener(LOADING_EVENT, handleLoading as EventListener);
     element.addEventListener(SUCCESS_EVENT, handleSuccess as EventListener);
     element.addEventListener(ERROR_EVENT, handleError as EventListener);
+    element.addEventListener(VALIDATION_EVENT, handleValidation as EventListener);
 
     return () => {
       element.removeEventListener(LOADING_EVENT, handleLoading as EventListener);
       element.removeEventListener(SUCCESS_EVENT, handleSuccess as EventListener);
       element.removeEventListener(ERROR_EVENT, handleError as EventListener);
+      element.removeEventListener(VALIDATION_EVENT, handleValidation as EventListener);
     };
   }, [element, registry]);
 
@@ -118,6 +136,7 @@ export function useRelationshipOptions(element: HTMLElement | null) {
     options: state.options,
     loading: state.loading,
     error: state.error,
+    validation: state.validation,
     refresh: async () => {
       if (!element || !registry) {
         return;

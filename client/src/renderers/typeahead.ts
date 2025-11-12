@@ -37,6 +37,8 @@ interface TypeaheadStore {
   theme: TypeaheadClassMap;
   icon: IconConfig | null;
   iconElement: HTMLElement | null;
+  validationHandler?: (event: Event) => void;
+  validationObserver?: MutationObserver;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -132,6 +134,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
 
   select.insertAdjacentElement("beforebegin", container);
   addElementClasses(select, theme.nativeSelect);
+  handleRequiredAttribute(select, control, input);
 
   const placeholder =
     select.dataset.endpointPlaceholder || derivePlaceholder(select);
@@ -187,6 +190,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
 
   bindEvents(store);
 
+  bindValidationState(store);
   stores.set(select, store);
 
   updateClearState(store);
@@ -530,8 +534,57 @@ function resetInputPlaceholder(store: TypeaheadStore): void {
   }
 }
 
+function bindValidationState(store: TypeaheadStore): void {
+  const syncState = () => {
+    const state = store.select.getAttribute("data-validation-state");
+    if (state === "invalid") {
+      store.container.setAttribute("data-validation-state", "invalid");
+      store.control.setAttribute("aria-invalid", "true");
+      store.input.setAttribute("aria-invalid", "true");
+    } else {
+      store.container.removeAttribute("data-validation-state");
+      store.control.removeAttribute("aria-invalid");
+      store.input.removeAttribute("aria-invalid");
+    }
+  };
+  store.validationHandler = () => syncState();
+  store.select.addEventListener(
+    "formgen:relationship:validation",
+    store.validationHandler as EventListener
+  );
+  if (typeof MutationObserver !== "undefined") {
+    store.validationObserver = new MutationObserver(() => syncState());
+    store.validationObserver.observe(store.select, {
+      attributes: true,
+      attributeFilter: ["data-validation-state"],
+    });
+  }
+  syncState();
+}
+
 function destroyTypeaheadStore(store: TypeaheadStore): void {
   document.removeEventListener("click", store.documentHandler);
+  if (store.validationHandler) {
+    store.select.removeEventListener(
+      "formgen:relationship:validation",
+      store.validationHandler as EventListener
+    );
+  }
+  store.validationObserver?.disconnect();
+}
+
+function handleRequiredAttribute(
+  select: HTMLSelectElement,
+  control: HTMLElement,
+  input: HTMLInputElement
+): void {
+  if (!select.hasAttribute("required")) {
+    return;
+  }
+  select.dataset.validationRequiredNative = "true";
+  select.removeAttribute("required");
+  control.setAttribute("aria-required", "true");
+  input.setAttribute("aria-required", "true");
 }
 
 registerRendererCleanup("typeahead", stores, (_select, store) => {
