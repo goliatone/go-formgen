@@ -6,6 +6,7 @@
 {% set icon_value = field.uiHints.icon -%}
 {% set icon_raw = field.uiHints.iconRaw -%}
 {% set has_icon = icon_value or icon_raw -%}
+{% set validation_state = field.metadata["validation.state"] -%}
 
 {% if has_icon %}
 <div class="relative">
@@ -28,6 +29,7 @@
     {% if field.disabled %}disabled{% endif %}
     {% if field.readonly %}readonly{% endif %}
     {% if field.maxLength or field.maxLength == 0 %}maxlength="{{ field.maxLength }}"{% endif %}
+    {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >{% if field.default %}{{ field.default }}{% endif %}</textarea>
 {% if has_icon %}

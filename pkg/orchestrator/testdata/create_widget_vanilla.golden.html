@@ -4,7 +4,8 @@
 
 
 
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="POST" action="/widgets" data-formgen-auto-init="true">
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="True" action="/widgets" data-formgen-auto-init="true">
+    
     
 
     
@@ -22,6 +23,7 @@
         rows="4"
         placeholder="Give it a friendly name"
         required
+         data-validation-label="Name" data-validation-required="true"
     ></textarea>
     <p data-formgen-chrome="description" id="fg-name-description" class="text-xs text-gray-500 dark:text-gray-400">
         Widget name
@@ -29,6 +31,7 @@
     <p data-formgen-chrome="help" id="fg-name-help" class="text-xs text-gray-600 dark:text-gray-300">
         Shown to customers
     </p>
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
 </div>
 
         </div>
@@ -45,9 +48,11 @@
                 id="fg-enabled"
                 name="enabled"
                 class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
+                 data-validation-label="Enable widget"
             >
             <label for="fg-enabled" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">Enable widget</label>
         </div>
+        <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     <div class="flex flex-col gap-2" data-component="input">
         <label data-formgen-chrome="label" id="fg-threshold-label" for="fg-threshold" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
@@ -58,10 +63,12 @@
             id="fg-threshold"
             name="threshold"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+             data-validation-label="Threshold"
         >
         <p data-formgen-chrome="help" id="fg-threshold-help" class="text-xs text-gray-600 dark:text-gray-300">
             Controls the debounce window
         </p>
+        <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     </div></fieldset>
 </div>
@@ -79,7 +86,9 @@
             id="fg-tagsItem"
             name="tagsItem"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+             data-validation-label="Tags item"
         >
+        <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     </div></div>
 </div>

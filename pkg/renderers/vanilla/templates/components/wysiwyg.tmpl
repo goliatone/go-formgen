@@ -1,5 +1,6 @@
 {% set data_attrs = field.metadata.__data_attrs -%}
 {% set component_config = field.metadata["component.config"] -%}
+{% set validation_state = field.metadata["validation.state"] -%}
 
 <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
   <textarea
@@ -13,6 +14,7 @@
       {% if field.disabled %}disabled{% endif %}
       {% if field.readonly %}readonly{% endif %}
       {% if field.maxLength or field.maxLength == 0 %}data-maxlength="{{ field.maxLength }}"{% endif %}
+      {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
       {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
   >{% if field.default %}{{ field.default }}{% endif %}</textarea>
   <div id="fg-{{ field.name }}-editor" class="wysiwyg-editor"></div>

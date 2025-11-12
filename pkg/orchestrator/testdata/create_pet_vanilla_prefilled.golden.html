@@ -6,6 +6,8 @@
 
 <form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="True" action="/pets" data-formgen-auto-init="true">
     
+    <input type="hidden" name="_method" value="PATCH">
+    
     
 
     
@@ -79,9 +81,11 @@
         name="name"
         class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
         required
-         data-validation-label="Name" data-validation-required="true" data-validation-rules="[{&#34;kind&#34;:&#34;minLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;3&#34;}},{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;50&#34;}},{&#34;kind&#34;:&#34;pattern&#34;,&#34;params&#34;:{&#34;pattern&#34;:&#34;^[A-Za-z ]+$&#34;}}]"
+        value="Captain Whiskers"
+        aria-invalid="true"
+         data-validation-label="Name" data-validation-message="Name cannot be blank" data-validation-required="true" data-validation-rules="[{&#34;kind&#34;:&#34;minLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;3&#34;}},{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;50&#34;}},{&#34;kind&#34;:&#34;pattern&#34;,&#34;params&#34;:{&#34;pattern&#34;:&#34;^[A-Za-z ]+$&#34;}}]" data-validation-state="invalid"
     >
-    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400">Name cannot be blank</p>
 </div>
 
         </div>
@@ -143,6 +147,7 @@
         id="fg-tag"
         name="tag"
         class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+        value="feline"
          data-validation-label="Tag" data-validation-rules="[{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;12&#34;}}]"
     >
     <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>

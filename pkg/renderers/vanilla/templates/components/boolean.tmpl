@@ -1,3 +1,5 @@
+{% set data_attrs = field.metadata.__data_attrs -%}
+{% set validation_state = field.metadata["validation.state"] -%}
 <div class="flex items-center">
     <input
         type="checkbox"
@@ -7,6 +9,8 @@
         {% if field.default %}checked{% endif %}
         {% if field.disabled %}disabled{% endif %}
         {% if field.required %}required{% endif %}
+        {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
+        {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
     >
     {% if field.label %}
     <label for="fg-{{ field.name }}" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">{{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}</label>

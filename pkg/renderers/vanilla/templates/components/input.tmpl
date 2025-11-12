@@ -8,6 +8,7 @@
     {% endif %}
 {% endif %}
 {% set data_attrs = field.metadata.__data_attrs -%}
+{% set validation_state = field.metadata["validation.state"] -%}
 {% set min_value = field.min -%}
 {% set max_value = field.max -%}
 {% set step_value = field.step -%}
@@ -40,6 +41,7 @@
     {% if max_value or max_value == 0 %}max="{{ max_value }}"{% endif %}
     {% if step_value or step_value == 0 %}step="{{ step_value }}"{% endif %}
     {% if field.pattern %}pattern="{{ field.pattern }}"{% endif %}
+    {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >
 {% if has_icon %}

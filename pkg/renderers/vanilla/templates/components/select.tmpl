@@ -1,5 +1,6 @@
 {% set rel = field.relationship -%}
 {% set data_attrs = field.metadata.__data_attrs -%}
+{% set validation_state = field.metadata["validation.state"] -%}
 {% set icon_value = field.uiHints.icon -%}
 {% set icon_raw = field.uiHints.iconRaw -%}
 {% set has_icon = icon_value or icon_raw -%}
@@ -25,10 +26,13 @@
     {% if rel and rel.kind %}data-relationship-type="{{ rel.kind }}"{% endif %}
     {% if rel and rel.target %}data-relationship-target="{{ rel.target }}"{% endif %}
     {% if rel and rel.cardinality %}data-relationship-cardinality="{{ rel.cardinality }}"{% endif %}
+    {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >
     {% if field.enum %}
-        {% for option in field.enum %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+        {% for option in field.enum %}
+            <option value="{{ option }}"{% if field.default and option == field.default %} selected{% endif %}>{{ option }}</option>
+        {% endfor %}
     {% else %}
         {% if field.uiHints.placeholder %}
             <option value="">{{ field.uiHints.placeholder }}</option>
