@@ -58,6 +58,21 @@ func TestDecorator_Decorate(t *testing.T) {
 	if sessionName.Metadata["layout.section"] != "basic-info" {
 		t.Fatalf("session_name section metadata missing: %#v", sessionName.Metadata)
 	}
+	if sessionName.UIHints["icon"] != "search" {
+		t.Fatalf("session_name icon hint mismatch: %#v", sessionName.UIHints)
+	}
+	if sessionName.UIHints["iconSource"] != "iconoir" {
+		t.Fatalf("session_name icon source mismatch: %#v", sessionName.UIHints)
+	}
+	if sessionName.UIHints["iconRaw"] == "" {
+		t.Fatalf("session_name expected sanitized icon raw markup")
+	}
+	if sessionName.Metadata["icon"] != "search" || sessionName.Metadata["icon.source"] != "iconoir" {
+		t.Fatalf("session_name icon metadata missing: %#v", sessionName.Metadata)
+	}
+	if sessionName.Metadata["behavior.placeholder"] != "session" {
+		t.Fatalf("session_name behavior metadata missing: %#v", sessionName.Metadata)
+	}
 
 	slugField := mustField(t, form.Fields, "slug")
 	if got := slugField.Metadata["behavior.names"]; got != "autoSlug" {

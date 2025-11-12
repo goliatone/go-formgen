@@ -80,6 +80,67 @@ func TestBuildLayoutContext_AppliesSectionFieldOrder(t *testing.T) {
 	}
 }
 
+func TestBuildLayoutContext_SkipsNestedFieldsFromSections(t *testing.T) {
+	t.Helper()
+
+	sections := []sectionMeta{
+		{ID: "collaboration", Order: 0},
+	}
+	payload, err := json.Marshal(sections)
+	if err != nil {
+		t.Fatalf("marshal sections: %v", err)
+	}
+
+	form := model.FormModel{
+		OperationID: "nestedForm",
+		Metadata: map[string]string{
+			layoutSectionsMetadataKey: string(payload),
+		},
+		Fields: []model.Field{
+			{
+				Name: "contributors",
+				Type: model.FieldTypeArray,
+				Metadata: map[string]string{
+					layoutSectionFieldKey:      "collaboration",
+					componentChromeMetadataKey: componentChromeSkipKeyword,
+				},
+				Items: &model.Field{
+					Name: "contributorsItem",
+					Type: model.FieldTypeObject,
+					Nested: []model.Field{
+						{
+							Name: "person_id",
+							Metadata: map[string]string{
+								layoutSectionFieldKey:      "collaboration",
+								componentChromeMetadataKey: componentChromeSkipKeyword,
+							},
+						},
+						{
+							Name: "role",
+							Metadata: map[string]string{
+								layoutSectionFieldKey:      "collaboration",
+								componentChromeMetadataKey: componentChromeSkipKeyword,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	renderer := newComponentRenderer(&noopTemplateRenderer{}, simpleComponentRegistry(), nil)
+
+	layout, err := buildLayoutContext(form, renderer)
+	if err != nil {
+		t.Fatalf("build layout: %v", err)
+	}
+
+	section := findSectionByID(t, layout, "collaboration")
+	if got := namesFromRendered(section.Fields); !equalSlice(got, []string{"contributors"}) {
+		t.Fatalf("collaboration section should only contain array field, got %v", got)
+	}
+}
+
 func namesFromRendered(fields []renderedField) []string {
 	out := make([]string, 0, len(fields))
 	for _, field := range fields {
