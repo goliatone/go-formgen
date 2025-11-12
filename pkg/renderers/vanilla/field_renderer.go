@@ -191,7 +191,7 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 
 	writeIndentedBlock(&builder, control)
 
-	if !skipChrome && strings.TrimSpace(field.Description) != "" {
+	if !skipChrome && !componentHandlesDescription(componentName) && strings.TrimSpace(field.Description) != "" {
 		description := renderChromePartial(templates, chromeDescriptionTemplate, field, context, fallbackDescriptionMarkup)
 		writeIndentedBlock(&builder, description)
 	}

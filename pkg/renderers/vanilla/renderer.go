@@ -402,6 +402,10 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 }
 
 func collectSectionedFields(fields []model.Field, parentPath string) []sectionedField {
+	return collectSectionedFieldsInternal(fields, parentPath, parentPath != "")
+}
+
+func collectSectionedFieldsInternal(fields []model.Field, parentPath string, nested bool) []sectionedField {
 	var result []sectionedField
 	for _, field := range fields {
 		path := field.Name
@@ -409,26 +413,31 @@ func collectSectionedFields(fields []model.Field, parentPath string) []sectioned
 			path = parentPath + "." + field.Name
 		}
 
-		// Check if this field has a section assignment
-		if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
-			result = append(result, sectionedField{
-				field:     field,
-				path:      path,
-				sectionID: sectionID,
-			})
+		// Only collect layout entries for top-level fields. Nested fields render
+		// within their parent components (objects/arrays) to avoid duplication.
+		if !nested {
+			if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
+				result = append(result, sectionedField{
+					field:     field,
+					path:      path,
+					sectionID: sectionID,
+				})
+			}
 		}
 
-		// Recursively collect from nested fields
 		if len(field.Nested) > 0 {
-			nested := collectSectionedFields(field.Nested, path)
-			result = append(result, nested...)
+			child := collectSectionedFieldsInternal(field.Nested, path, true)
+			if len(child) > 0 {
+				result = append(result, child...)
+			}
 		}
 
-		// Recursively collect from array item schemas
 		if field.Items != nil && len(field.Items.Nested) > 0 {
 			itemPath := path + ".items"
-			nested := collectSectionedFields(field.Items.Nested, itemPath)
-			result = append(result, nested...)
+			child := collectSectionedFieldsInternal(field.Items.Nested, itemPath, true)
+			if len(child) > 0 {
+				result = append(result, child...)
+			}
 		}
 	}
 	return result
@@ -729,7 +738,8 @@ func buildDataAttributes(metadata map[string]string) string {
 
 	for _, key := range keys {
 		value := metadata[key]
-		if strings.HasPrefix(key, "relationship.endpoint.") {
+		switch {
+		case strings.HasPrefix(key, "relationship.endpoint."):
 			suffix := strings.TrimPrefix(key, "relationship.endpoint.")
 			switch {
 			case strings.HasPrefix(suffix, "auth."):
@@ -745,6 +755,29 @@ func buildDataAttributes(metadata map[string]string) string {
 				attr := "data-endpoint-" + toKebab(suffix)
 				attrs[attr] = value
 			}
+		case key == "icon":
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				attrs["data-icon"] = trimmed
+			}
+		case key == "icon.source":
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				attrs["data-icon-source"] = trimmed
+			}
+		case key == "icon.raw":
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				attrs["data-icon-raw"] = trimmed
+			}
+		case strings.HasPrefix(key, "behavior."):
+			if key == behaviorNamesMetadataKey || key == behaviorConfigMetadataKey {
+				continue
+			}
+			suffix := strings.TrimPrefix(key, "behavior.")
+			suffix = strings.TrimSpace(suffix)
+			if suffix == "" {
+				continue
+			}
+			attr := "data-behavior-" + toKebab(suffix)
+			attrs[attr] = value
 		}
 	}
 

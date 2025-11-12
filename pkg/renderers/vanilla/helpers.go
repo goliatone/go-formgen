@@ -54,3 +54,14 @@ func componentHandlesChrome(componentName string) bool {
 		return false
 	}
 }
+
+// componentHandlesDescription returns true if a component handles its own description
+// (e.g., uses description as placeholder instead of rendering it separately).
+func componentHandlesDescription(componentName string) bool {
+	switch strings.TrimSpace(componentName) {
+	case "wysiwyg":
+		return true
+	default:
+		return false
+	}
+}
