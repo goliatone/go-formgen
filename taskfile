@@ -139,7 +139,7 @@ function dev:goldens {
 }
 
 function dev:ci {
-    dev:test && dev:test:contracts && dev:test:examples && dev:lint
+    dev:test && dev:test:contracts && dev:test:examples && dev:lint && client:ci
 }
 
 ##
@@ -153,11 +153,29 @@ function client:build {
     popd >/dev/null || exit 1
 }
 
+function client:ci {
+    pushd "./client" >/dev/null || exit 1
+
+    if [ ! -f "node_modules/.bin/tsx" ]; then
+        npm ci
+    fi
+
+    npm run build:theme
+    npm test -- tests/theme-build.test.ts
+
+    popd >/dev/null || exit 1
+}
+
 function client:release {
     local level=${1:-patch}
 
     client:version:bump "$level"
     client:build
+}
+
+function client:generate:article-form {
+    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
+    _go:exec "${go_bin}" run ./scripts/generate-article-form
 }
 
 function client:version:bump {
