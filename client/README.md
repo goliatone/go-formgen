@@ -141,7 +141,65 @@ await initRelationships({
   transformOptions: (data) => data.items || data,
   onError: (error, element) => {
     console.error('Failed to load options', error);
+  },
+  validateSelection: (_ctx, value) => {
+    if (Array.isArray(value) && value.length > 5) {
+      return {
+        valid: false,
+        messages: ["Select at most five tags."],
+        errors: [{ code: "maxTags", message: "Select at most five tags." }],
+      };
+    }
+    return { valid: true, messages: [], errors: [] };
+  },
+  onValidationError: (ctx, error) => {
+    analytics.track("relationship-validation", {
+      field: ctx.field.name,
+      code: error.code,
+    });
+  },
+});
+
+// Manual mutations (behaviours, editors, etc.) can trigger validation explicitly.
+const registry = await initRelationships();
+await registry.validate(document.querySelector("#project_owner")!);
+```
+
+### Validation Hooks & Error Rendering
+
+Vanilla templates emit canonical validation metadata so the runtime can remain stateless:
+
+```html
+<select
+  name="article[category_id]"
+  data-validation-label="Category"
+  data-validation-required="true"
+  data-validation-rules='[{"kind":"minLength","params":{"value":"3"}}]'
+  data-validation-renderer="banner"
+  …>
+</select>
+```
+
+- `client/src/validation.ts` evaluates the built-in rules and exposes typed helpers (`ValidationResult`, `ValidationError`, `mergeValidationResults`). Every resolver stores the latest outcome under `resolver.state.validation`.
+- `formgen:relationship:validation` fires after every validation pass (including `registry.validate(element)`), mirroring the existing loading/success/error lifecycle.
+- The default error renderer writes inline copy, toggles `aria-invalid`, and sets `data-validation-state`/`data-validation-message`. `registerErrorRenderer(name, renderer)` lets consumers override the presentation (`data-validation-renderer="name"` on the field picks the renderer).
+
+```ts
+import { registerErrorRenderer } from "@goliatone/formgen-runtime";
+
+registerErrorRenderer("banner", ({ element, message }) => {
+  const host = element.closest("[data-relationship-type]") ?? element.parentElement;
+  if (!host) return;
+  let banner = host.querySelector<HTMLElement>("[data-demo-error-banner]");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.className = "mt-2 flex items-center gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700";
+    banner.setAttribute("data-demo-error-banner", "true");
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    host.appendChild(banner);
   }
+  banner.textContent = message ?? "";
 });
 ```
 
@@ -151,7 +209,7 @@ await initRelationships({
 import { useRelationshipOptions } from '@goliatone/formgen-runtime/frameworks/preact';
 
 function PublisherSelect({ field }) {
-  const { options, loading, error } = useRelationshipOptions(field);
+  const { options, loading, error, validation } = useRelationshipOptions(field);
 
   return (
     <select name={field.name}>
@@ -159,6 +217,9 @@ function PublisherSelect({ field }) {
       {options.map(opt => (
         <option key={opt.value} value={opt.value}>{opt.label}</option>
       ))}
+      {validation?.valid === false ? (
+        <option value="" disabled>{validation.messages[0]}</option>
+      ) : null}
     </select>
   );
 }
@@ -254,6 +315,31 @@ await initRelationships();
 ```
 
 Factories receive the host element, resolved configuration, and form root. During tests you can call `resetComponentRegistryForTests()` to clear registrations between suites.
+
+#### Built-in file uploader
+
+The runtime now ships a first-class file uploader component registered under `file_uploader`. Assign it in your UI schema:
+
+```json
+"avatar": {
+  "label": "Profile Picture",
+  "component": "file_uploader",
+  "componentOptions": {
+    "variant": "image",
+    "uploadEndpoint": "/api/uploads/avatars",
+    "maxSize": 5242880,
+    "allowedTypes": ["image/jpeg", "image/png"],
+    "autoUpload": true,
+    "headers": {
+      "Authorization": "meta:api-token"
+    }
+  }
+}
+```
+
+The vanilla renderer emits the underlying `<input type="text">` and the runtime hides it, renders the selected uploader variant (button/image/dropzone), uploads files to the configured endpoint, and mirrors the returned URLs back into the form as hidden inputs (falling back to standard `field[]` entries when `multiple: true`). To defer uploads until submission, set `autoUpload: false`; the component will intercept the `<form>` submit event, upload sequentially, and re-submit once every file succeeds.
+
+Authentication headers can reference meta or data attributes (e.g., `meta:api-token`, `data:auth-token`). Advanced consumers may override the default hidden-input serialization by supplying a `serialize(context)` hook when registering the component manually.
 
 ## Integration with formgen
 
