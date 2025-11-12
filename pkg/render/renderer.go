@@ -12,5 +12,5 @@ import (
 type Renderer interface {
 	Name() string
 	ContentType() string
-	Render(ctx context.Context, model model.FormModel) ([]byte, error)
+	Render(ctx context.Context, model model.FormModel, options RenderOptions) ([]byte, error)
 }
