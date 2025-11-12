@@ -80,6 +80,9 @@
           },
           "label": "Slug",
           "placeholder": "garden-maintenance-tips",
+          "icon": "hash",
+          "iconSource": "iconoir",
+          "iconRaw": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 3L8 21\"/><path d=\"M16 3L14 21\"/><path d=\"M4 9h16\"/><path d=\"M3 15h16\"/></svg>",
           "helpText": "Auto generated from the title but editable.",
           "componentOptions": {
             "behaviors": {
@@ -98,31 +101,28 @@
           "label": "Status",
           "placeholder": "Select status"
         },
-        "featured": {
+        "read_time_minutes": {
           "section": "overview",
           "order": 3,
           "grid": {
             "span": 4
           },
-          "label": "Featured",
-          "helpText": "Pins the story to the homepage hero."
-        },
-        "read_time_minutes": {
-          "section": "overview",
-          "order": 4,
-          "grid": {
-            "span": 4
-          },
           "label": "Read time (min)",
+          "icon": "clock",
+          "iconSource": "iconoir",
+          "iconRaw": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"8\"/><path d=\"M12 8v5l3 2\"/></svg>",
           "placeholder": "5"
         },
         "tenant_id": {
           "section": "overview",
-          "order": 5,
+          "order": 4,
           "grid": {
             "span": 6
           },
           "label": "Tenant",
+          "icon": "building",
+          "iconSource": "iconoir",
+          "iconRaw": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16\"/><path d=\"M9 21v-4h6v4\"/><path d=\"M9 7h.01\"/><path d=\"M9 11h.01\"/><path d=\"M9 15h.01\"/><path d=\"M15 7h.01\"/><path d=\"M15 11h.01\"/><path d=\"M15 15h.01\"/></svg>",
           "placeholder": "Select tenant",
           "helpText": "Changing tenants refreshes author, category, tags, and related resources.",
           "refresh": {
@@ -142,6 +142,9 @@
             "span": 12
           },
           "label": "Summary",
+          "icon": "align-left",
+          "iconSource": "iconoir",
+          "iconRaw": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 6h16\"/><path d=\"M4 12h10\"/><path d=\"M4 18h14\"/></svg>",
           "rows": 3,
           "placeholder": "Short teaser shown in listings"
         },
