@@ -126,6 +126,32 @@ func TestBuildFieldMarkupHonoursChromeSkipMetadata(t *testing.T) {
 	}
 }
 
+func TestBuildFieldMarkupIncludesErrorPlaceholder(t *testing.T) {
+	field := model.Field{
+		Name:  "title",
+		Label: "Title",
+	}
+	html := buildFieldMarkup(nil, field, "input", `<input id="fg-title">`)
+	if !strings.Contains(html, `data-relationship-error="true"`) {
+		t.Fatalf("expected error placeholder markup, got:\n%s", html)
+	}
+	if !strings.Contains(html, `aria-live="polite"`) {
+		t.Fatalf("expected aria-live attribute on error placeholder, got:\n%s", html)
+	}
+}
+
+func TestBuildFieldMarkupRendersInlineErrorMessage(t *testing.T) {
+	field := model.Field{
+		Name:     "title",
+		Label:    "Title",
+		Metadata: map[string]string{"validation.message": "Title is required"},
+	}
+	html := buildFieldMarkup(nil, field, "input", `<input id="fg-title">`)
+	if !strings.Contains(html, "Title is required") {
+		t.Fatalf("expected inline error message, got:\n%s", html)
+	}
+}
+
 type stubChromeTemplateRenderer struct {
 	responses map[string]stubChromeResponse
 	calls     map[string]int

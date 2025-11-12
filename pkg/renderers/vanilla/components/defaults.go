@@ -42,6 +42,9 @@ func NewDefaultRegistry() *Registry {
 	registry.MustRegister("wysiwyg", Descriptor{
 		Renderer: templateComponentRenderer(templatePrefix + "wysiwyg.tmpl"),
 	})
+	registry.MustRegister("file_uploader", Descriptor{
+		Renderer: templateComponentRenderer(templatePrefix + "file_uploader.tmpl"),
+	})
 
 	return registry
 }

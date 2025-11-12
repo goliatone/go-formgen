@@ -12,10 +12,17 @@
       "placeholder": "Garden maintenance tips",
       "description": "Human readable title",
       "metadata": {
+        "behavior.placeholder": "article-title",
+        "icon": "search",
+        "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003ccircle cx=\"11\" cy=\"11\" r=\"6\"/\u003e\u003cpath d=\"M16 16L21 21\"/\u003e\u003c/svg\u003e",
+        "icon.source": "iconoir",
         "layout.order": "0",
         "layout.section": "overview"
       },
       "uiHints": {
+        "icon": "search",
+        "iconRaw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003ccircle cx=\"11\" cy=\"11\" r=\"6\"/\u003e\u003cpath d=\"M16 16L21 21\"/\u003e\u003c/svg\u003e",
+        "iconSource": "iconoir",
         "layout.span": "8"
       }
     },
@@ -30,11 +37,17 @@
         "behavior.config": "{\"source\":\"title\"}",
         "behavior.names": "autoSlug",
         "component.config": "{\"behaviors\":{\"autoSlug\":{\"source\":\"title\"}}}",
+        "icon": "hash",
+        "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M10 3L8 21\"/\u003e\u003cpath d=\"M16 3L14 21\"/\u003e\u003cpath d=\"M4 9h16\"/\u003e\u003cpath d=\"M3 15h16\"/\u003e\u003c/svg\u003e",
+        "icon.source": "iconoir",
         "layout.order": "1",
         "layout.section": "overview"
       },
       "uiHints": {
         "helpText": "Auto generated from the title but editable.",
+        "icon": "hash",
+        "iconRaw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M10 3L8 21\"/\u003e\u003cpath d=\"M16 3L14 21\"/\u003e\u003cpath d=\"M4 9h16\"/\u003e\u003cpath d=\"M3 15h16\"/\u003e\u003c/svg\u003e",
+        "iconSource": "iconoir",
         "layout.span": "4"
       }
     },
@@ -75,10 +88,16 @@
         }
       ],
       "metadata": {
+        "icon": "clock",
+        "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003ccircle cx=\"12\" cy=\"12\" r=\"8\"/\u003e\u003cpath d=\"M12 8v5l3 2\"/\u003e\u003c/svg\u003e",
+        "icon.source": "iconoir",
         "layout.order": "3",
         "layout.section": "overview"
       },
       "uiHints": {
+        "icon": "clock",
+        "iconRaw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003ccircle cx=\"12\" cy=\"12\" r=\"8\"/\u003e\u003cpath d=\"M12 8v5l3 2\"/\u003e\u003c/svg\u003e",
+        "iconSource": "iconoir",
         "layout.span": "4"
       }
     },
@@ -95,11 +114,17 @@
         "lumen"
       ],
       "metadata": {
+        "icon": "building",
+        "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16\"/\u003e\u003cpath d=\"M9 21v-4h6v4\"/\u003e\u003cpath d=\"M9 7h.01\"/\u003e\u003cpath d=\"M9 11h.01\"/\u003e\u003cpath d=\"M9 15h.01\"/\u003e\u003cpath d=\"M15 7h.01\"/\u003e\u003cpath d=\"M15 11h.01\"/\u003e\u003cpath d=\"M15 15h.01\"/\u003e\u003c/svg\u003e",
+        "icon.source": "iconoir",
         "layout.order": "4",
         "layout.section": "overview"
       },
       "uiHints": {
         "helpText": "Changing tenants refreshes author, category, tags, and related resources.",
+        "icon": "building",
+        "iconRaw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16\"/\u003e\u003cpath d=\"M9 21v-4h6v4\"/\u003e\u003cpath d=\"M9 7h.01\"/\u003e\u003cpath d=\"M9 11h.01\"/\u003e\u003cpath d=\"M9 15h.01\"/\u003e\u003cpath d=\"M15 7h.01\"/\u003e\u003cpath d=\"M15 11h.01\"/\u003e\u003cpath d=\"M15 15h.01\"/\u003e\u003c/svg\u003e",
+        "iconSource": "iconoir",
         "layout.span": "6"
       }
     },
@@ -119,10 +144,16 @@
         }
       ],
       "metadata": {
+        "icon": "align-left",
+        "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M4 6h16\"/\u003e\u003cpath d=\"M4 12h10\"/\u003e\u003cpath d=\"M4 18h14\"/\u003e\u003c/svg\u003e",
+        "icon.source": "iconoir",
         "layout.order": "6",
         "layout.section": "content"
       },
       "uiHints": {
+        "icon": "align-left",
+        "iconRaw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M4 6h16\"/\u003e\u003cpath d=\"M4 12h10\"/\u003e\u003cpath d=\"M4 18h14\"/\u003e\u003c/svg\u003e",
+        "iconSource": "iconoir",
         "layout.span": "12"
       }
     },
@@ -303,7 +334,8 @@
         "relationship.endpoint.searchParam": "q",
         "relationship.endpoint.searchPlaceholder": "Search Category Id",
         "relationship.endpoint.url": "/api/categories",
-        "relationship.endpoint.valueField": "id"
+        "relationship.endpoint.valueField": "id",
+        "validation.renderer": "banner"
       },
       "uiHints": {
         "cardinality": "one",

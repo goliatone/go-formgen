@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/formgen/pkg/render"
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
@@ -132,6 +133,11 @@ type Renderer struct {
 	stylesheets []string
 	components  *components.Registry
 	overrides   map[string]string
+}
+
+type templateRenderOptions struct {
+	MethodAttr     string
+	MethodOverride string
 }
 
 const (
@@ -254,11 +260,12 @@ func (r *Renderer) ContentType() string {
 	return "text/html; charset=utf-8"
 }
 
-func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, error) {
+func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions render.RenderOptions) ([]byte, error) {
 	if r.templates == nil {
 		return nil, fmt.Errorf("vanilla renderer: template renderer is nil")
 	}
 
+	templateOptions := prepareRenderContext(&form, renderOptions)
 	decorated := decorateFormModel(form)
 	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides)
 	layout, err := buildLayoutContext(decorated, componentRenderer)
@@ -280,11 +287,375 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, erro
 		"stylesheets":       stylesheets,
 		"inline_styles":     r.inlineStyle,
 		"component_scripts": componentScripts,
+		"render_options": map[string]any{
+			"method_attr":     templateOptions.MethodAttr,
+			"method_override": templateOptions.MethodOverride,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("vanilla renderer: render template: %w", err)
 	}
 	return []byte(result), nil
+}
+
+func prepareRenderContext(form *model.FormModel, options render.RenderOptions) templateRenderOptions {
+	ctx := templateRenderOptions{
+		MethodAttr:     "post",
+		MethodOverride: "",
+	}
+	if form == nil {
+		return ctx
+	}
+
+	applyMethodOverride(form, &ctx, options.Method)
+	applyPrefillValues(form, options.Values)
+	applyServerErrors(form, options.Errors)
+
+	return ctx
+}
+
+func applyMethodOverride(form *model.FormModel, ctx *templateRenderOptions, override string) {
+	target := strings.TrimSpace(override)
+	if target == "" && form != nil {
+		target = strings.TrimSpace(form.Method)
+	}
+	if target == "" {
+		target = "POST"
+	}
+
+	canonical := strings.ToUpper(target)
+	methodAttr := strings.ToLower(canonical)
+	methodOverride := ""
+
+	if canonical != "GET" && canonical != "POST" {
+		methodAttr = "post"
+		methodOverride = canonical
+	}
+
+	if ctx != nil {
+		ctx.MethodAttr = methodAttr
+		ctx.MethodOverride = methodOverride
+	}
+	if form != nil {
+		form.Method = canonical
+	}
+}
+
+func applyPrefillValues(form *model.FormModel, values map[string]any) {
+	if form == nil || len(values) == 0 {
+		return
+	}
+
+	flattened := flattenPrefillValues(values)
+	if len(flattened) == 0 {
+		return
+	}
+
+	form.Fields = applyValuesToFields(form.Fields, flattened, "")
+}
+
+func flattenPrefillValues(values map[string]any) map[string]any {
+	result := make(map[string]any)
+	var walk func(prefix string, value any)
+
+	walk = func(prefix string, value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for key, val := range typed {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					continue
+				}
+				next := joinPath(prefix, key)
+				walk(next, val)
+			}
+		case map[string]string:
+			for key, val := range typed {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					continue
+				}
+				next := joinPath(prefix, key)
+				result[next] = val
+			}
+		default:
+			if prefix != "" {
+				result[prefix] = typed
+			}
+		}
+	}
+
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		walk(key, value)
+	}
+	return result
+}
+
+func applyValuesToFields(fields []model.Field, values map[string]any, parentPath string) []model.Field {
+	if len(fields) == 0 {
+		return fields
+	}
+
+	for i := range fields {
+		path := joinPath(parentPath, fields[i].Name)
+		if value, ok := values[path]; ok {
+			assignFieldValue(&fields[i], value)
+		}
+		if len(fields[i].Nested) > 0 {
+			fields[i].Nested = applyValuesToFields(fields[i].Nested, values, path)
+		}
+		if fields[i].Items != nil && len(fields[i].Nested) == 0 {
+			// Array items render inside specialised components. Carry values for
+			// relationship-backed arrays via metadata on the parent field.
+			if _, ok := values[path]; ok {
+				continue
+			}
+		}
+	}
+
+	return fields
+}
+
+func assignFieldValue(field *model.Field, value any) {
+	if field == nil || value == nil {
+		return
+	}
+
+	switch {
+	case field.Relationship != nil:
+		applyRelationshipCurrent(field, value)
+	case field.Type == model.FieldTypeBoolean:
+		if boolValue, ok := toBool(value); ok {
+			field.Default = boolValue
+		}
+	case len(field.Enum) > 0:
+		if scalar, ok := stringifyScalar(value); ok {
+			field.Default = scalar
+		}
+	case field.Type == model.FieldTypeString || field.Type == model.FieldTypeInteger || field.Type == model.FieldTypeNumber || field.Type == model.FieldTypeArray:
+		if scalar, ok := stringifyScalar(value); ok {
+			field.Default = scalar
+		}
+	default:
+		if scalar, ok := stringifyScalar(value); ok {
+			field.Default = scalar
+		}
+	}
+}
+
+func applyRelationshipCurrent(field *model.Field, value any) {
+	payload := relationshipCurrentPayload(value)
+	if payload == "" {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 1)
+	}
+	field.Metadata["relationship.current"] = payload
+}
+
+func relationshipCurrentPayload(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	case json.Number:
+		return typed.String()
+	case []string:
+		return marshalStringSlice(typed)
+	case []any:
+		coll := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if str, ok := stringifyScalar(item); ok && str != "" {
+				coll = append(coll, str)
+				continue
+			}
+			if str := extractRelationshipValue(item); str != "" {
+				coll = append(coll, str)
+			}
+		}
+		return marshalStringSlice(coll)
+	case map[string]any:
+		return extractRelationshipValue(typed)
+	case map[string]string:
+		return extractRelationshipValue(typed)
+	default:
+		if str, ok := stringifyScalar(value); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func extractRelationshipValue(value any) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, key := range []string{"value", "id", "slug"} {
+			if raw, ok := typed[key]; ok {
+				if str, ok := stringifyScalar(raw); ok {
+					return str
+				}
+			}
+		}
+	case map[string]string:
+		for _, key := range []string{"value", "id", "slug"} {
+			if raw, ok := typed[key]; ok && raw != "" {
+				return raw
+			}
+		}
+	}
+	return ""
+}
+
+func marshalStringSlice(values []string) string {
+	clean := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		clean = append(clean, value)
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(clean)
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+func stringifyScalar(value any) (string, bool) {
+	switch typed := value.(type) {
+	case nil:
+		return "", false
+	case string:
+		return typed, true
+	case json.Number:
+		return typed.String(), true
+	case fmt.Stringer:
+		return typed.String(), true
+	case int:
+		return strconv.Itoa(typed), true
+	case int8:
+		return strconv.FormatInt(int64(typed), 10), true
+	case int16:
+		return strconv.FormatInt(int64(typed), 10), true
+	case int32:
+		return strconv.FormatInt(int64(typed), 10), true
+	case int64:
+		return strconv.FormatInt(typed, 10), true
+	case uint:
+		return strconv.FormatUint(uint64(typed), 10), true
+	case uint8:
+		return strconv.FormatUint(uint64(typed), 10), true
+	case uint16:
+		return strconv.FormatUint(uint64(typed), 10), true
+	case uint32:
+		return strconv.FormatUint(uint64(typed), 10), true
+	case uint64:
+		return strconv.FormatUint(typed, 10), true
+	case float32:
+		return strconv.FormatFloat(float64(typed), 'f', -1, 32), true
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64), true
+	case bool:
+		if typed {
+			return "true", true
+		}
+		return "false", true
+	default:
+		return fmt.Sprintf("%v", value), true
+	}
+}
+
+func toBool(value any) (bool, bool) {
+	switch typed := value.(type) {
+	case bool:
+		return typed, true
+	case string:
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "true", "1", "yes", "on":
+			return true, true
+		case "false", "0", "no", "off":
+			return false, true
+		}
+	case int:
+		return typed != 0, true
+	case int64:
+		return typed != 0, true
+	case uint:
+		return typed != 0, true
+	case uint64:
+		return typed != 0, true
+	}
+	return false, false
+}
+
+func applyServerErrors(form *model.FormModel, errors map[string][]string) {
+	if form == nil || len(errors) == 0 {
+		return
+	}
+
+	trimmed := make(map[string][]string, len(errors))
+	for key, values := range errors {
+		key = strings.TrimSpace(key)
+		if key == "" || len(values) == 0 {
+			continue
+		}
+		filtered := make([]string, 0, len(values))
+		for _, message := range values {
+			message = strings.TrimSpace(message)
+			if message != "" {
+				filtered = append(filtered, message)
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		trimmed[key] = filtered
+	}
+	if len(trimmed) == 0 {
+		return
+	}
+
+	form.Fields = applyErrorsToFields(form.Fields, trimmed, "")
+}
+
+func applyErrorsToFields(fields []model.Field, errors map[string][]string, parentPath string) []model.Field {
+	if len(fields) == 0 {
+		return fields
+	}
+
+	for i := range fields {
+		path := joinPath(parentPath, fields[i].Name)
+		if messages, ok := errors[path]; ok {
+			setFieldError(&fields[i], messages)
+		}
+		if len(fields[i].Nested) > 0 {
+			fields[i].Nested = applyErrorsToFields(fields[i].Nested, errors, path)
+		}
+	}
+	return fields
+}
+
+func setFieldError(field *model.Field, messages []string) {
+	if field == nil || len(messages) == 0 {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 2)
+	}
+	field.Metadata["validation.state"] = "invalid"
+	field.Metadata["validation.message"] = strings.Join(messages, "; ")
 }
 
 func decorateFormModel(form model.FormModel) model.FormModel {
@@ -676,6 +1047,8 @@ func decorateFields(fields []model.Field) []model.Field {
 func decorateField(field model.Field) model.Field {
 	metadata := cloneMetadata(field.Metadata)
 
+	metadata = appendValidationMetadata(field, metadata)
+
 	if attrs := buildDataAttributes(metadata); attrs != "" {
 		if metadata == nil {
 			metadata = make(map[string]string, 1)
@@ -778,6 +1151,14 @@ func buildDataAttributes(metadata map[string]string) string {
 			}
 			attr := "data-behavior-" + toKebab(suffix)
 			attrs[attr] = value
+		case strings.HasPrefix(key, "validation."):
+			suffix := strings.TrimPrefix(key, "validation.")
+			suffix = strings.TrimSpace(suffix)
+			if suffix == "" || value == "" {
+				continue
+			}
+			attr := "data-validation-" + toKebab(suffix)
+			attrs[attr] = value
 		}
 	}
 
@@ -831,4 +1212,33 @@ func toKebab(input string) string {
 		}
 	}
 	return builder.String()
+}
+
+func appendValidationMetadata(field model.Field, metadata map[string]string) map[string]string {
+	hasValidations := len(field.Validations) > 0
+	label := strings.TrimSpace(field.Label)
+
+	if !hasValidations && !field.Required && label == "" {
+		return metadata
+	}
+
+	if metadata == nil {
+		metadata = make(map[string]string)
+	}
+
+	if hasValidations {
+		if payload, err := json.Marshal(field.Validations); err == nil && len(payload) > 0 {
+			metadata["validation.rules"] = string(payload)
+		}
+	}
+
+	if field.Required {
+		metadata["validation.required"] = "true"
+	}
+
+	if label != "" {
+		metadata["validation.label"] = label
+	}
+
+	return metadata
 }

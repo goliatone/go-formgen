@@ -201,6 +201,15 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 		writeIndentedBlock(&builder, help)
 	}
 
+	if !skipChrome {
+		builder.WriteString(`    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400">`)
+		if message := fieldErrorMessage(field); message != "" {
+			builder.WriteString(html.EscapeString(message))
+		}
+		builder.WriteString(`</p>`)
+		builder.WriteByte('\n')
+	}
+
 	builder.WriteString("</div>\n")
 	return builder.String()
 }
@@ -414,4 +423,11 @@ func joinPath(parent, child string) string {
 		return parent
 	}
 	return parent + "." + child
+}
+
+func fieldErrorMessage(field model.Field) string {
+	if len(field.Metadata) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(field.Metadata["validation.message"])
 }
