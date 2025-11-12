@@ -275,6 +275,27 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 			field.Metadata[componentConfigKey] = string(payload)
 		}
 	}
+
+	if icon := strings.TrimSpace(cfg.Icon); icon != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["icon"] = icon
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["icon"] = icon
+	}
+
+	if source := strings.TrimSpace(cfg.IconSource); source != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["iconSource"] = source
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["icon.source"] = source
+	}
+
+	if raw := sanitizeIconMarkup(cfg.IconRaw); raw != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["iconRaw"] = raw
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["icon.raw"] = raw
+	}
 }
 
 func mergeFieldMaps(field *pkgmodel.Field, cfg FieldConfig) {
