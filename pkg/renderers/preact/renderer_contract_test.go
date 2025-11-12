@@ -7,6 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/preact"
 	"github.com/goliatone/formgen/pkg/testsupport"
 )
@@ -19,7 +20,7 @@ func TestRenderer_RenderContract(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form)
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -47,7 +48,7 @@ func TestRenderer_RenderWithAssetURLPrefix(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form)
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestRenderer_RenderWithCustomAssetBundle(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form)
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestRenderer_WithTemplateRenderer(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	out, err := renderer.Render(testsupport.Context(), testsupport.MustLoadFormModel(t, filepath.Join("testdata", "form_model.json")))
+	out, err := renderer.Render(testsupport.Context(), testsupport.MustLoadFormModel(t, filepath.Join("testdata", "form_model.json")), render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}

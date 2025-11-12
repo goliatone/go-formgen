@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/formgen/pkg/render"
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 )
@@ -185,7 +186,7 @@ func (r *Renderer) ContentType() string {
 }
 
 // Render produces hydrated HTML ready for delivery.
-func (r *Renderer) Render(_ context.Context, form model.FormModel) ([]byte, error) {
+func (r *Renderer) Render(_ context.Context, form model.FormModel, _ render.RenderOptions) ([]byte, error) {
 	payload, err := json.Marshal(form)
 	if err != nil {
 		return nil, fmt.Errorf("preact renderer: marshal form model: %w", err)
