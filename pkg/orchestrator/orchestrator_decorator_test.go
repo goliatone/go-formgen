@@ -83,7 +83,7 @@ func (s *stubRenderer) ContentType() string {
 	return "text/plain"
 }
 
-func (s *stubRenderer) Render(_ context.Context, form model.FormModel) ([]byte, error) {
+func (s *stubRenderer) Render(_ context.Context, form model.FormModel, _ render.RenderOptions) ([]byte, error) {
 	s.last = form
 	return []byte("ok"), nil
 }

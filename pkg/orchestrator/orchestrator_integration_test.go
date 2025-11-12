@@ -36,12 +36,13 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 	)
 
 	type goldenCase struct {
-		name        string
-		renderer    string
-		sourcePath  string
-		operationID string
-		golden      string
-		formGolden  string
+		name          string
+		renderer      string
+		sourcePath    string
+		operationID   string
+		golden        string
+		formGolden    string
+		renderOptions render.RenderOptions
 	}
 
 	cases := []goldenCase{
@@ -82,6 +83,23 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 			golden:      "create_widget_preact.golden.html",
 			formGolden:  "create_widget_formmodel.golden.json",
 		},
+		{
+			name:        "VanillaPrefilled",
+			renderer:    "vanilla",
+			operationID: "createPet",
+			golden:      "create_pet_vanilla_prefilled.golden.html",
+			formGolden:  "create_pet_formmodel.golden.json",
+			renderOptions: render.RenderOptions{
+				Method: "PATCH",
+				Values: map[string]any{
+					"name": "Captain Whiskers",
+					"tag":  "feline",
+				},
+				Errors: map[string][]string{
+					"name": {"Name cannot be blank"},
+				},
+			},
+		},
 	}
 
 	collected := make(map[string][]byte)
@@ -95,9 +113,10 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 			}
 
 			output, err := orch.Generate(ctx, orchestrator.Request{
-				Source:      src,
-				OperationID: tc.operationID,
-				Renderer:    tc.renderer,
+				Source:        src,
+				OperationID:   tc.operationID,
+				Renderer:      tc.renderer,
+				RenderOptions: tc.renderOptions,
 			})
 			if err != nil {
 				t.Fatalf("generate (%s): %v", tc.name, err)

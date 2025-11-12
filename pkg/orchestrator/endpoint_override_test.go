@@ -257,7 +257,7 @@ func (r *captureRenderer) ContentType() string {
 	return "application/json"
 }
 
-func (r *captureRenderer) Render(_ context.Context, form pkgmodel.FormModel) ([]byte, error) {
+func (r *captureRenderer) Render(_ context.Context, form pkgmodel.FormModel, _ render.RenderOptions) ([]byte, error) {
 	return json.Marshal(form)
 }
 

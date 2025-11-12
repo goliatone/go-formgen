@@ -238,7 +238,10 @@
           },
           "label": "Category",
           "placeholder": "Search categories",
-          "helpText": "Scoped by tenant."
+          "helpText": "Scoped by tenant.",
+          "metadata": {
+            "validation.renderer": "banner"
+          }
         },
         "tags": {
           "section": "relationships",
