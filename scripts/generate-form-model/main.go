@@ -31,7 +31,7 @@ func (r *snapshotRenderer) ContentType() string {
 	return "application/json"
 }
 
-func (r *snapshotRenderer) Render(_ context.Context, form model.FormModel) ([]byte, error) {
+func (r *snapshotRenderer) Render(_ context.Context, form model.FormModel, _ render.RenderOptions) ([]byte, error) {
 	payload, err := json.MarshalIndent(form, "", "  ")
 	if err != nil {
 		return nil, err
