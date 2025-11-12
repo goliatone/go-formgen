@@ -137,6 +137,11 @@ type Request struct {
 	// Renderer names the renderer to use. If empty, the orchestrator falls back
 	// to the configured default renderer.
 	Renderer string
+
+	// RenderOptions carries per-request instructions such as method overrides,
+	// prefilled values, or server-side errors that renderers can surface. When
+	// omitted, renderers receive the zero-value struct.
+	RenderOptions render.RenderOptions
 }
 
 // Generate executes the loader → parser → model builder → renderer sequence and
@@ -195,7 +200,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 		return nil, err
 	}
 
-	output, err := renderer.Render(ctx, form)
+	output, err := renderer.Render(ctx, form, req.RenderOptions)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: render output: %w", err)
 	}
