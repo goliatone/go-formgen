@@ -5,6 +5,7 @@ import (
 
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
 	"github.com/goliatone/formgen/pkg/orchestrator"
+	"github.com/goliatone/formgen/pkg/render"
 )
 
 // EndpointConfig mirrors the x-endpoint contract; alias exported via the root
@@ -19,6 +20,10 @@ type EndpointAuth = orchestrator.EndpointAuth
 
 // EndpointOverride configures manual endpoint metadata for a form field.
 type EndpointOverride = orchestrator.EndpointOverride
+
+// RenderOptions describes per-request overrides that renderers can use to
+// prefill values or surface server-side validation errors.
+type RenderOptions = render.RenderOptions
 
 // NewOrchestrator exposes the orchestrator constructor from the top-level
 // module, mirroring the quick start guidance in go-form-gen.md:223-258.
