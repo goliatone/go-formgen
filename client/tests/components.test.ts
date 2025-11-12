@@ -49,4 +49,18 @@ describe("component registry", () => {
     document.body.innerHTML = `<div data-component="missing"></div>`;
     expect(() => initComponents(document)).not.toThrow();
   });
+
+  it("boots file uploader component via registry", () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init>
+        <div data-component="file_uploader" data-component-config='{"uploadEndpoint":"/api/uploads"}'>
+          <input type="text" name="avatar" id="avatar">
+        </div>
+      </form>
+    `;
+
+    expect(() => initComponents(document)).not.toThrow();
+    const hidden = document.querySelector("[data-fg-uploader-hidden]");
+    expect(hidden).not.toBeNull();
+  });
 });

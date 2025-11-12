@@ -12,6 +12,7 @@ import {
   resetComponentRegistryForTests,
   type ResolverEventDetail,
   type ResolverRegistry,
+  registerErrorRenderer,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
@@ -55,7 +56,9 @@ function createMarkup(extra?: string): HTMLSelectElement {
     <form data-formgen-auto-init="true">
       <select id="project_owner" name="project[owner_id]" data-endpoint-url="/api/users" data-endpoint-method="GET" data-endpoint-label-field="full_name" data-endpoint-value-field="id" data-relationship-cardinality="one" ${
         extra ?? ""
-      }></select>
+      }>
+        <option value="">Select an option</option>
+      </select>
     </form>
   `;
   return document.getElementById("project_owner") as HTMLSelectElement;
@@ -728,7 +731,7 @@ describe("runtime resolver", () => {
     expect(attempts).toBeGreaterThanOrEqual(2);
     expect(attempts).toBeLessThanOrEqual((getGlobalConfig().retryAttempts ?? 0) + 1);
     const errorNode = document.querySelector("[data-relationship-error]");
-    expect(errorNode).toBeNull();
+    expect(errorNode?.textContent?.trim()).toBe("");
   });
 
   it("renders error UI when retries are exhausted", async () => {
@@ -769,5 +772,90 @@ describe("runtime resolver", () => {
     await flush();
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates required relationships and surfaces errors", async () => {
+    const field = createMarkup('required data-validation-label="Project owner"');
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+
+    const registry = await initRelationships();
+    await flush();
+
+    field.innerHTML = "";
+    await registry.validate(field);
+
+    const resolver = registry.get(field);
+    expect(resolver?.state.validation?.valid).toBe(false);
+    expect(field.getAttribute("data-validation-state")).toBe("invalid");
+    const errorNode = document.querySelector<HTMLElement>("[data-relationship-error]");
+    expect(errorNode?.textContent).toContain("Project owner is required.");
+  });
+
+  it("supports custom validation hooks via registry.validate", async () => {
+    const field = createMarkup('required data-validation-label="Project owner"');
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+
+    const registry = await initRelationships({
+      validateSelection: (_ctx, value) => {
+        if (value === "2") {
+          return {
+            valid: false,
+            messages: ["Select a different owner."],
+            errors: [{ code: "custom", message: "Select a different owner." }],
+          };
+        }
+        return { valid: true, messages: [], errors: [] };
+      },
+    });
+
+    field.value = "2";
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const result = await registry.validate(field);
+    expect(result?.valid).toBe(false);
+    const errorNode = document.querySelector<HTMLElement>("[data-relationship-error]");
+    expect(errorNode?.textContent).toContain("Select a different owner.");
+  });
+
+  it("invokes onValidationError when validation fails", async () => {
+    const field = createMarkup('required data-validation-label="Project owner"');
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+    const onValidationError = vi.fn();
+
+    const registry = await initRelationships({ onValidationError });
+    await flush();
+
+    field.innerHTML = "";
+    await registry.validate(field);
+
+    expect(onValidationError).toHaveBeenCalled();
+    const [, error] = onValidationError.mock.calls[0];
+    expect(error?.code).toBe("required");
+  });
+
+  it("uses custom error renderer when configured via data attributes", async () => {
+    const field = createMarkup(
+      'required data-validation-label="Project owner" data-validation-renderer="toast"'
+    );
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+
+    registerErrorRenderer("toast", ({ element, message }) => {
+      let toast = document.querySelector<HTMLElement>(`[data-toast="${element.id}"]`);
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.setAttribute("data-toast", element.id);
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message ?? "";
+    });
+
+    const registry = await initRelationships();
+    await flush();
+
+    field.innerHTML = "";
+    await registry.validate(field);
+
+    const toast = document.querySelector<HTMLElement>(`[data-toast="${field.id}"]`);
+    expect(toast?.textContent).toContain("Project owner is required.");
   });
 });

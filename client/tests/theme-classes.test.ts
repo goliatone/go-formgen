@@ -1,5 +1,11 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { initRelationships, resetGlobalRegistry, registerThemeClasses } from "../src/index";
+import {
+  initRelationships,
+  initComponents,
+  resetGlobalRegistry,
+  registerThemeClasses,
+  resetComponentRegistryForTests,
+} from "../src/index";
 import { __resetThemeClassesForTests } from "../src/theme/classes";
 
 const originalFetch = globalThis.fetch;
@@ -14,6 +20,7 @@ function mockResponse(options: Array<{ value: string; label: string }>): Respons
 beforeEach(() => {
   document.body.innerHTML = "";
   resetGlobalRegistry();
+  resetComponentRegistryForTests();
   __resetThemeClassesForTests();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -30,6 +37,7 @@ afterEach(() => {
   }
   document.body.innerHTML = "";
   resetGlobalRegistry();
+  resetComponentRegistryForTests();
   __resetThemeClassesForTests();
 });
 
@@ -105,5 +113,27 @@ describe("theme classes", () => {
     await registry.resolve(select);
 
     expect(container!.classList.contains("bg-slate-50")).toBe(true);
+  });
+
+  it("applies file uploader theme overrides", () => {
+    registerThemeClasses({
+      fileUploader: {
+        dropzone: ["bg-red-100"],
+      },
+    });
+
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <div data-component="file_uploader" data-component-config='{"variant":"dropzone","uploadEndpoint":"/api/files"}'>
+          <input type="text" name="attachments">
+        </div>
+      </form>
+    `;
+
+    initComponents(document);
+
+    const dropzone = document.querySelector<HTMLElement>('[data-component="file_uploader"] [role="button"]');
+    expect(dropzone).not.toBeNull();
+    expect(dropzone!.classList.contains("bg-red-100")).toBe(true);
   });
 });
