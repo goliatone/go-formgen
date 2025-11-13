@@ -11,11 +11,14 @@ import type {
 import {
   locateRelationshipFields,
   readDataset,
+  syncHiddenInputs,
+  syncJsonInput,
 } from "./dom";
 import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
 import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
 import { initComponents } from "./components/registry";
+import { clearFieldError, renderFieldError } from "./errors";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -52,6 +55,7 @@ export async function initRelationships(
       const dataset = readDataset(element);
       const endpoint = datasetToEndpoint(dataset);
       const field = datasetToFieldConfig(element, dataset);
+      applyInitialSelection(element, field);
 
       if (!registry.get(element)) {
         registry.register(element, { field, endpoint });
@@ -280,6 +284,93 @@ function datasetToFieldConfig(
   return field;
 }
 
+function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
+  if (!field || field.current == null) {
+    return;
+  }
+  if (element.dataset.relationshipCurrentApplied === "true") {
+    return;
+  }
+  if (element instanceof HTMLSelectElement) {
+    const values = normalizeCurrentValues(field.current, element.multiple);
+    const changed = applySelectValues(element, values);
+    if (changed) {
+      syncRelationshipMirrors(element, field.submitAs);
+      element.dataset.relationshipCurrentApplied = "true";
+    }
+    return;
+  }
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    const values = normalizeCurrentValues(field.current, false);
+    if (values.length > 0) {
+      element.value = values[0] ?? "";
+      element.dataset.relationshipCurrentApplied = "true";
+    }
+  }
+}
+
+function normalizeCurrentValues(
+  current: string | string[] | null,
+  allowMultiple: boolean
+): string[] {
+  if (current == null) {
+    return [];
+  }
+  if (Array.isArray(current)) {
+    return allowMultiple ? current.filter(Boolean).map(String) : [String(current[0] ?? "")].filter(Boolean);
+  }
+  const value = String(current);
+  return value ? [value] : [];
+}
+
+function applySelectValues(select: HTMLSelectElement, values: string[]): boolean {
+  const unique = select.multiple ? Array.from(new Set(values)) : values.slice(0, 1);
+  const targetValues = new Set(unique.filter(Boolean));
+  let changed = false;
+
+  Array.from(select.options).forEach((option) => {
+    const shouldSelect = targetValues.has(option.value);
+    if (option.selected !== shouldSelect) {
+      option.selected = shouldSelect;
+      changed = true;
+    }
+    if (shouldSelect) {
+      targetValues.delete(option.value);
+    }
+  });
+
+  targetValues.forEach((value) => {
+    if (!value) {
+      return;
+    }
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    option.selected = true;
+    select.appendChild(option);
+    changed = true;
+  });
+
+  if (!select.multiple && unique.length === 0) {
+    if (select.value !== "") {
+      select.value = "";
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function syncRelationshipMirrors(select: HTMLSelectElement, submitAs?: FieldConfig["submitAs"]): void {
+  if (submitAs === "json") {
+    syncJsonInput(select);
+    return;
+  }
+  if (select.multiple) {
+    syncHiddenInputs(select);
+  }
+}
+
 function parseCurrent(value: string): string | string[] | null {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -362,6 +453,333 @@ function shouldAutoResolve(field: FieldConfig): boolean {
     return false;
   }
   return true;
+}
+
+export interface HydrationPayload {
+  values?: Record<string, unknown>;
+  errors?: Record<string, string | string[]>;
+}
+
+export function hydrateFormValues(
+  root: Document | HTMLElement = document,
+  payload: HydrationPayload = {}
+): void {
+  const scope = root instanceof Document ? root : root ?? document;
+  const fields = locateRelationshipFields(scope);
+  if (fields.length === 0) {
+    return;
+  }
+
+  const valueIndex = buildPayloadIndex(payload.values);
+  const errorIndex = buildPayloadIndex(payload.errors);
+
+  fields.forEach((element) => {
+    applyHydratedValue(element, valueIndex);
+    applyHydratedErrors(element, errorIndex);
+  });
+}
+
+function buildPayloadIndex(
+  source?: Record<string, unknown>
+): Map<string, unknown> {
+  const index = new Map<string, unknown>();
+  if (!source) {
+    return index;
+  }
+  const flattened = new Map<string, unknown>();
+  flattenPayload(source, flattened, "");
+  flattened.forEach((value, key) => {
+    addKeyVariants(index, key, value);
+  });
+  return index;
+}
+
+function flattenPayload(
+  input: Record<string, unknown>,
+  target: Map<string, unknown>,
+  prefix: string
+): void {
+  Object.entries(input).forEach(([key, value]) => {
+    const trimmedKey = key.trim();
+    if (!trimmedKey) {
+      return;
+    }
+    const nextKey = prefix ? `${prefix}.${trimmedKey}` : trimmedKey;
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
+      flattenPayload(value as Record<string, unknown>, target, nextKey);
+      return;
+    }
+    target.set(nextKey, value);
+  });
+}
+
+function addKeyVariants(
+  index: Map<string, unknown>,
+  key: string,
+  value: unknown
+): void {
+  const variants = new Set<string>();
+  const canonical = key.trim();
+  if (!canonical) {
+    return;
+  }
+  const stripped = stripArraySuffix(canonical);
+  const dotted = toDotKey(stripped);
+  const bracket = toBracketKey(dotted);
+
+  [canonical, stripped, dotted, bracket].forEach((entry) => {
+    if (entry) {
+      variants.add(entry);
+    }
+  });
+
+  if (Array.isArray(value)) {
+    [canonical, stripped, dotted, bracket].forEach((entry) => {
+      if (entry) {
+        variants.add(`${entry}[]`);
+      }
+    });
+  }
+
+  variants.forEach((variant) => {
+    if (variant) {
+      index.set(variant, value);
+    }
+  });
+}
+
+function stripArraySuffix(value: string): string {
+  return value.endsWith("[]") ? value.slice(0, -2) : value;
+}
+
+function toDotKey(value: string): string {
+  if (!value.includes("[")) {
+    return value.replace(/\[\]/g, "");
+  }
+  return value
+    .replace(/\[\]/g, "")
+    .replace(/\[([^\]]+)\]/g, ".$1")
+    .replace(/^\./, "");
+}
+
+function toBracketKey(value: string): string {
+  if (!value.includes(".")) {
+    return value;
+  }
+  const segments = value.split(".").filter(Boolean);
+  if (segments.length === 0) {
+    return value;
+  }
+  const [first, ...rest] = segments;
+  return `${first}${rest.map((segment) => `[${segment}]`).join("")}`;
+}
+
+function collectFieldKeys(element: HTMLElement): string[] {
+  const keys = new Set<string>();
+  const candidates = [
+    element.getAttribute("name"),
+    element.dataset.fieldName,
+    element.getAttribute("data-field-path"),
+    element.id,
+  ];
+
+  candidates.forEach((value) => {
+    if (!value) {
+      return;
+    }
+    keys.add(value);
+    keys.add(stripArraySuffix(value));
+    const dotted = toDotKey(value);
+    keys.add(dotted);
+    keys.add(stripArraySuffix(dotted));
+    keys.add(toBracketKey(dotted));
+  });
+
+  return Array.from(keys).filter(Boolean);
+}
+
+function resolvePayloadEntry(
+  index: Map<string, unknown>,
+  element: HTMLElement
+): { found: boolean; value: unknown } {
+  const keys = collectFieldKeys(element);
+  for (const key of keys) {
+    if (index.has(key)) {
+      return { found: true, value: index.get(key) };
+    }
+  }
+  return { found: false, value: undefined };
+}
+
+function applyHydratedValue(
+  element: HTMLElement,
+  index: Map<string, unknown>
+): void {
+  const entry = resolvePayloadEntry(index, element);
+  if (!entry.found) {
+    return;
+  }
+  const normalized = normalizeHydratedSelection(entry.value, element);
+  if (element instanceof HTMLSelectElement) {
+    const values = Array.isArray(normalized)
+      ? normalized
+      : normalized != null
+        ? [normalized]
+        : [];
+    const changed = applySelectValues(element, values);
+    const submitMode =
+      element.getAttribute("data-relationship-submit-mode") === "json" ||
+      element.dataset.endpointSubmitAs === "json"
+        ? "json"
+        : undefined;
+    if (changed) {
+      syncRelationshipMirrors(element, submitMode as FieldConfig["submitAs"]);
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  } else if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    if (Array.isArray(normalized)) {
+      element.value = normalized[0] ?? "";
+    } else if (normalized == null) {
+      element.value = "";
+    } else {
+      element.value = normalized;
+    }
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  updateRelationshipCurrentAttribute(element, normalized);
+
+  const resolver = activeRegistry?.get(element);
+  if (resolver) {
+    resolver.setCurrentValue(normalized);
+  }
+}
+
+function applyHydratedErrors(
+  element: HTMLElement,
+  index: Map<string, unknown>
+): void {
+  const entry = resolvePayloadEntry(index, element);
+  if (!entry.found) {
+    return;
+  }
+  const messages = normalizeErrorMessages(entry.value);
+  const resolver = activeRegistry?.get(element);
+
+  if (messages.length === 0) {
+    clearFieldError(element);
+    element.removeAttribute("data-validation-state");
+    element.removeAttribute("data-validation-message");
+    resolver?.setServerValidation(undefined);
+    return;
+  }
+
+  const message = messages[0];
+  renderFieldError(element, message);
+  element.setAttribute("data-validation-state", "invalid");
+  element.setAttribute("data-validation-message", messages.join("; "));
+  resolver?.setServerValidation({
+    valid: false,
+    messages,
+    errors: messages.map((text) => ({
+      code: "server",
+      message: text,
+    })),
+  });
+}
+
+function normalizeHydratedSelection(
+  value: unknown,
+  element: HTMLElement
+): string | string[] | null {
+  if (value == null) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    const tokens = value
+      .map((item) => coerceHydratedValue(item))
+      .filter((token): token is string => typeof token === "string" && token !== "");
+    if (element instanceof HTMLSelectElement && element.multiple) {
+      return tokens;
+    }
+    return tokens[0] ?? null;
+  }
+  const token = coerceHydratedValue(value);
+  return token ?? null;
+}
+
+function coerceHydratedValue(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["value", "id", "slug"]) {
+      const candidate = record[key];
+      if (candidate != null) {
+        return String(candidate);
+      }
+    }
+    return null;
+  }
+  return String(value);
+}
+
+function updateRelationshipCurrentAttribute(
+  element: HTMLElement,
+  value: string | string[] | null
+): void {
+  if (value == null || (Array.isArray(value) && value.length === 0)) {
+    element.removeAttribute("data-relationship-current");
+    return;
+  }
+  const payload = serializeCurrentValue(value);
+  if (payload) {
+    element.setAttribute("data-relationship-current", payload);
+  }
+}
+
+function serializeCurrentValue(
+  value: string | string[] | null
+): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return undefined;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (_err) {
+      return undefined;
+    }
+  }
+  const trimmed = String(value).trim();
+  return trimmed || undefined;
+}
+
+function normalizeErrorMessages(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+  }
+  if (typeof value === "string") {
+    const direct = value.trim();
+    if (direct.includes(";")) {
+      return direct
+        .split(";")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+    return direct ? [direct] : [];
+  }
+  return [];
 }
 
 function setupDependentRefresh(
