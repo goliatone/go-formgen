@@ -10,6 +10,7 @@ var articleSample = render.RenderOptions{
 		"summary":             "Updated teaser copy for the story.",
 		"tenant_id":           "garden",
 		"status":              "scheduled",
+		"hero_image":          "https://placehold.co/1200x800.png?text=Existing+Hero",
 		"read_time_minutes":   7,
 		"author_id":           "11111111-1111-4111-8111-111111111111",
 		"manager_id":          "88888888-8888-4888-8888-888888888888",

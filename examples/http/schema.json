@@ -1346,6 +1346,11 @@
           "status": {
             "type": "string"
           },
+          "cover_image": {
+            "type": "string",
+            "description": "Cover image asset URL",
+            "format": "uri"
+          },
           "tags": {
             "items": {
               "$ref": "#/components/schemas/tag"
