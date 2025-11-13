@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   initRelationships,
+  hydrateFormValues,
   resetGlobalRegistry,
   resetComponentRegistryForTests,
   type ResolverEventDetail,
@@ -379,6 +380,37 @@ describe("runtime resolver", () => {
     expect(menu?.hidden).toBe(true);
   });
 
+  it("respects chips defaults before fetching options", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="tags"
+          name="article[tags][]"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-renderer="chips"
+          data-relationship-cardinality="many"
+          data-relationship-current="[&quot;design&quot;,&quot;ai&quot;]"
+          data-endpoint-refresh="manual"
+        >
+          <option value="">Select tags</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("tags") as HTMLSelectElement;
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const chips = Array.from(
+      select.previousElementSibling?.querySelectorAll<HTMLElement>("[data-fg-chip-value]") ?? []
+    ).map((chip) => chip.getAttribute("data-fg-chip-value"));
+    expect(chips).toEqual(["design", "ai"]);
+  });
+
   it("renders typeahead UI for has-one relationships", async () => {
     document.body.innerHTML = `
       <form data-formgen-auto-init="true">
@@ -435,6 +467,34 @@ describe("runtime resolver", () => {
 
     expect(select.value).toBe("culture");
     expect(input!.value).toBe("Culture");
+  });
+
+  it("prefills typeahead controls before fetching options", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager_id"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-renderer="typeahead"
+          data-relationship-cardinality="one"
+          data-relationship-current="manager-1"
+          data-endpoint-refresh="manual"
+        >
+          <option value="">Select manager</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("manager_id") as HTMLSelectElement;
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const input = select.previousElementSibling?.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(input?.value).toBe("manager-1");
   });
 
   it("preserves typed queries while relationship options resolve", async () => {
@@ -791,6 +851,27 @@ describe("runtime resolver", () => {
     expect(errorNode?.textContent).toContain("Project owner is required.");
   });
 
+  it("preserves server validation errors until manual validation clears them", async () => {
+    const field = createMarkup(
+      'required data-validation-label="Project owner" data-validation-state="invalid" data-validation-message="Server rejected this value"'
+    );
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+
+    const registry = await initRelationships();
+    await flush();
+
+    const resolver = registry.get(field);
+    expect(resolver?.state.validation?.valid).toBe(false);
+    expect(field.getAttribute("data-validation-state")).toBe("invalid");
+
+    field.value = "1";
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const result = await registry.validate(field);
+    expect(result?.valid).toBe(true);
+    expect(field.getAttribute("data-validation-state")).toBeNull();
+  });
+
   it("supports custom validation hooks via registry.validate", async () => {
     const field = createMarkup('required data-validation-label="Project owner"');
     fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
@@ -857,5 +938,63 @@ describe("runtime resolver", () => {
 
     const toast = document.querySelector<HTMLElement>(`[data-toast="${field.id}"]`);
     expect(toast?.textContent).toContain("Project owner is required.");
+  });
+
+  describe("hydrateFormValues", () => {
+    it("applies relationship values from dotted paths", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="tags"
+            name="article[tags][]"
+            multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-relationship-cardinality="many"
+            data-endpoint-refresh="manual"
+          ></select>
+        </form>
+      `;
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      fetchSpy.mockResolvedValue(mockResponse([]));
+
+      await initRelationships();
+      hydrateFormValues(document, {
+        values: {
+          "article.tags": [{ value: "design" }, "ai"],
+        },
+      });
+      await flush();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const values = Array.from(select.selectedOptions).map((option) => option.value);
+      expect(values).toEqual(["design", "ai"]);
+    });
+
+    it("applies server validation errors and clears them", async () => {
+      const field = createMarkup('required data-validation-label="Project owner"');
+      fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+      const registry = await initRelationships();
+
+      hydrateFormValues(document, {
+        errors: {
+          "project.owner_id": ["Server rejected"],
+        },
+      });
+
+      const resolver = registry.get(field);
+      expect(field.getAttribute("data-validation-state")).toBe("invalid");
+      expect(resolver?.state.validation?.valid).toBe(false);
+
+      hydrateFormValues(document, {
+        errors: {
+          "project.owner_id": [],
+        },
+      });
+
+      expect(field.getAttribute("data-validation-state")).toBeNull();
+      expect(resolver?.state.validation).toBeUndefined();
+    });
   });
 });
