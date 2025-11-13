@@ -996,5 +996,65 @@ describe("runtime resolver", () => {
       expect(field.getAttribute("data-validation-state")).toBeNull();
       expect(resolver?.state.validation).toBeUndefined();
     });
+
+    it("hydrates primitive inputs and selects without relationship metadata", () => {
+      document.body.innerHTML = `
+        <form>
+          <input type="text" name="title" />
+          <textarea name="summary"></textarea>
+          <select name="status">
+            <option value="">Select status</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+        </form>
+      `;
+
+      hydrateFormValues(document, {
+        values: {
+          title: "Existing article title",
+          summary: "Prefilled summary",
+          status: "published",
+        },
+      });
+
+      const title = document.querySelector<HTMLInputElement>('input[name="title"]')!;
+      const summary = document.querySelector<HTMLTextAreaElement>('textarea[name="summary"]')!;
+      const status = document.querySelector<HTMLSelectElement>('select[name="status"]')!;
+
+      expect(title.value).toBe("Existing article title");
+      expect(summary.value).toBe("Prefilled summary");
+      expect(status.value).toBe("published");
+    });
+
+    it("applies server errors to primitive inputs", () => {
+      document.body.innerHTML = `
+        <form>
+          <div class="field-wrapper">
+            <label for="slug">Slug</label>
+            <input id="slug" name="slug" type="text" />
+          </div>
+        </form>
+      `;
+
+      hydrateFormValues(document, {
+        errors: {
+          slug: ["Slug already taken"],
+        },
+      });
+
+      const slug = document.getElementById("slug") as HTMLInputElement;
+      expect(slug.getAttribute("data-validation-state")).toBe("invalid");
+      const inlineError = document.querySelector('[data-relationship-error="true"]');
+      expect(inlineError?.textContent).toContain("Slug already taken");
+
+      hydrateFormValues(document, {
+        errors: {
+          slug: [],
+        },
+      });
+
+      expect(slug.getAttribute("data-validation-state")).toBeNull();
+    });
   });
 });
