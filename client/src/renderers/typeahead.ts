@@ -5,6 +5,7 @@ import {
   derivePlaceholder,
   deriveSearchPlaceholder,
   buildHighlightedFragment,
+  getSelectedValues,
 } from "./relationship-utils";
 import { registerRendererCleanup } from "./relationship-cleanup";
 import {
@@ -39,6 +40,8 @@ interface TypeaheadStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
+  changeHandler?: (event: Event) => void;
+  syncingFromSelect?: boolean;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -191,6 +194,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   bindEvents(store);
 
   bindValidationState(store);
+  bindSelectionListener(store);
   stores.set(select, store);
 
   updateClearState(store);
@@ -364,7 +368,12 @@ function selectOption(store: TypeaheadStore, option: Option): void {
   }
   input.value = option.label ?? option.value;
   resetInputPlaceholder(store);
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+  store.syncingFromSelect = true;
+  try {
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  } finally {
+    store.syncingFromSelect = false;
+  }
   closeDropdown(store);
   store.highlightedIndex = -1;
   store.searchQuery = "";
@@ -379,7 +388,12 @@ function clearSelection(store: TypeaheadStore): void {
   }
   input.value = "";
   resetInputPlaceholder(store);
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+  store.syncingFromSelect = true;
+  try {
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  } finally {
+    store.syncingFromSelect = false;
+  }
   store.highlightedIndex = -1;
   store.searchQuery = "";
   select.setAttribute("data-endpoint-search-value", "");
@@ -562,6 +576,19 @@ function bindValidationState(store: TypeaheadStore): void {
   syncState();
 }
 
+function bindSelectionListener(store: TypeaheadStore): void {
+  const handler = () => {
+    if (store.syncingFromSelect) {
+      return;
+    }
+    const selected = getSelectedValues(store.select);
+    updateInputFromSelection(store, selected);
+    updateClearState(store, selected);
+  };
+  store.changeHandler = handler;
+  store.select.addEventListener("change", handler);
+}
+
 function destroyTypeaheadStore(store: TypeaheadStore): void {
   document.removeEventListener("click", store.documentHandler);
   if (store.validationHandler) {
@@ -571,6 +598,9 @@ function destroyTypeaheadStore(store: TypeaheadStore): void {
     );
   }
   store.validationObserver?.disconnect();
+  if (store.changeHandler) {
+    store.select.removeEventListener("change", store.changeHandler);
+  }
 }
 
 function handleRequiredAttribute(
