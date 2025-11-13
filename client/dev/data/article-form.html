@@ -2,7 +2,8 @@
 
 
 
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="POST" action="/articles" data-formgen-auto-init="true">
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="True" action="/articles" data-formgen-auto-init="true">
+    
     
     <header class="space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700">
         
@@ -100,10 +101,36 @@
         class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
          data-validation-label="Status"
     >
-            <option value="draft">draft</option><option value="in_review">in_review</option><option value="scheduled">scheduled</option><option value="published">published</option>
+                <option value="draft">draft</option>
+                <option value="in_review">in_review</option>
+                <option value="scheduled">scheduled</option>
+                <option value="published">published</option>
     </select>
     <p data-formgen-chrome="description" id="fg-status-description" class="text-xs text-gray-500 dark:text-gray-400">
         Workflow status used to drive approvals
+    </p>
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+</div>
+
+                </div>
+                
+                <div style="grid-column: span 6 / span 6">
+                    <div class="flex flex-col gap-2" data-component="file_uploader" data-component-config='{&#34;allowedTypes&#34;:[&#34;image/jpeg&#34;,&#34;image/png&#34;,&#34;image/webp&#34;],&#34;maxSize&#34;:5242880,&#34;preview&#34;:true,&#34;uploadEndpoint&#34;:&#34;/api/uploads/hero&#34;,&#34;variant&#34;:&#34;image&#34;}'>
+    <label data-formgen-chrome="label" id="fg-hero_image-label" for="fg-hero_image" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Hero image
+    </label>
+    <input
+      type="text"
+      id="fg-hero_image"
+      name="hero_image"
+      class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+       data-validation-label="Hero image"
+    >
+    <p data-formgen-chrome="description" id="fg-hero_image-description" class="text-xs text-gray-500 dark:text-gray-400">
+        Hero image asset URL
+    </p>
+    <p data-formgen-chrome="help" id="fg-hero_image-help" class="text-xs text-gray-600 dark:text-gray-300">
+        Upload a lead image (JPG/PNG/WebP, max 5MB).
     </p>
     <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
 </div>
@@ -151,7 +178,9 @@
         class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600 ps-11"
          data-icon="building" data-icon-raw="&lt;svg xmlns=&#34;http://www.w3.org/2000/svg&#34; viewbox=&#34;0 0 24 24&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.5&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16&#34;/&gt;&lt;path d=&#34;M9 21v-4h6v4&#34;/&gt;&lt;path d=&#34;M9 7h.01&#34;/&gt;&lt;path d=&#34;M9 11h.01&#34;/&gt;&lt;path d=&#34;M9 15h.01&#34;/&gt;&lt;path d=&#34;M15 7h.01&#34;/&gt;&lt;path d=&#34;M15 11h.01&#34;/&gt;&lt;path d=&#34;M15 15h.01&#34;/&gt;&lt;/svg&gt;" data-icon-source="iconoir" data-validation-label="Tenant"
     >
-            <option value="garden">garden</option><option value="archive">archive</option><option value="lumen">lumen</option>
+                <option value="garden">garden</option>
+                <option value="archive">archive</option>
+                <option value="lumen">lumen</option>
     </select>
     </div>
     <p data-formgen-chrome="description" id="fg-tenant_id-description" class="text-xs text-gray-500 dark:text-gray-400">
@@ -500,7 +529,10 @@
                 required
                  data-validation-label="Role" data-validation-required="true"
             >
-                    <option value="Reviewer">Reviewer</option><option value="Copy Editor">Copy Editor</option><option value="Fact Checker">Fact Checker</option><option value="Producer">Producer</option>
+                        <option value="Reviewer">Reviewer</option>
+                        <option value="Copy Editor">Copy Editor</option>
+                        <option value="Fact Checker">Fact Checker</option>
+                        <option value="Producer">Producer</option>
             </select>
             <p data-formgen-chrome="description" id="fg-role-description" class="text-xs text-gray-500 dark:text-gray-400">
                 Role the contributor performs

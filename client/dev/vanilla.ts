@@ -163,7 +163,11 @@ function createToolbar(): HTMLElement {
   return toolbar;
 }
 
-function wireToolbarActions(toolbar: HTMLElement, registry: ResolverRegistry): void {
+function wireToolbarActions(
+  toolbar: HTMLElement,
+  registry: ResolverRegistry,
+  form?: HTMLFormElement | null
+): void {
   toolbar.addEventListener("click", async (event) => {
     const trigger = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
       "[data-sandbox-action]"
@@ -182,12 +186,12 @@ function wireToolbarActions(toolbar: HTMLElement, registry: ResolverRegistry): v
       } else if (action === "clear-errors") {
         clearValidationState(toolbar);
       } else if (action === "load-record") {
-        if (!toggleState.recordLoaded) {
-          hydrateFormValues(document, { values: SAMPLE_RECORD_VALUES });
-        } else {
-          hydrateFormValues(document, { values: RESET_RECORD_VALUES });
-        }
-        toggleState.recordLoaded = !toggleState.recordLoaded;
+        const nextState = !toggleState.recordLoaded;
+        hydrateFormValues(document, {
+          values: nextState ? SAMPLE_RECORD_VALUES : RESET_RECORD_VALUES,
+        });
+        toggleState.recordLoaded = nextState;
+        toggleSampleRecordMethod(form, nextState);
         updateToggleLabel(toolbar, "load-record", toggleState.recordLoaded);
       } else if (action === "inject-errors") {
         if (!toggleState.errorsInjected) {
@@ -281,6 +285,98 @@ function getFieldLabel(element: HTMLElement): string {
   );
 }
 
+function toggleSampleRecordMethod(form: HTMLFormElement | null | undefined, active: boolean): void {
+  if (!form) {
+    return;
+  }
+  rememberOriginalFormState(form);
+  if (active) {
+    applyFormMethod(form, "PATCH");
+    form.dataset.sandboxMode = "edit";
+  } else {
+    restoreOriginalFormMethod(form);
+    delete form.dataset.sandboxMode;
+  }
+}
+
+function rememberOriginalFormState(form: HTMLFormElement): void {
+  if (!form.dataset.sandboxOriginalMethod) {
+    const declared = form.getAttribute("method");
+    form.dataset.sandboxOriginalMethod = normalizeMethod(declared);
+  }
+  if (!form.dataset.sandboxOriginalOverride) {
+    const override = form.querySelector<HTMLInputElement>('input[name="_method"]')?.value;
+    if (override) {
+      form.dataset.sandboxOriginalOverride = normalizeMethod(override, "POST");
+    }
+  }
+}
+
+function restoreOriginalFormMethod(form: HTMLFormElement): void {
+  const originalOverride = form.dataset.sandboxOriginalOverride;
+  if (originalOverride) {
+    applyFormMethod(form, originalOverride);
+    return;
+  }
+  const originalMethod = form.dataset.sandboxOriginalMethod ?? "POST";
+  applyFormMethod(form, originalMethod);
+}
+
+function applyFormMethod(form: HTMLFormElement, method: string): void {
+  const normalized = normalizeMethod(method, "POST");
+  if (!normalized || normalized === "GET") {
+    form.setAttribute("method", "get");
+    removeMethodOverride(form);
+    return;
+  }
+  if (normalized === "POST") {
+    form.setAttribute("method", "post");
+    removeMethodOverride(form);
+    return;
+  }
+
+  form.setAttribute("method", "post");
+  let hidden = form.querySelector<HTMLInputElement>('input[name="_method"]');
+  if (!hidden) {
+    hidden = document.createElement("input");
+    hidden.type = "hidden";
+    hidden.name = "_method";
+    form.prepend(hidden);
+  }
+  hidden.value = normalized;
+}
+
+function removeMethodOverride(form: HTMLFormElement): void {
+  const hidden = form.querySelector<HTMLInputElement>('input[name="_method"]');
+  if (!hidden) {
+    return;
+  }
+  if (form.dataset.sandboxOriginalOverride) {
+    hidden.value = form.dataset.sandboxOriginalOverride;
+    return;
+  }
+  hidden.remove();
+}
+
+function normalizeMethod(value: string | null | undefined, fallback: string = "POST"): string {
+  if (!value) {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const normalized = trimmed.toUpperCase();
+  const allowed = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+  if (allowed.has(normalized)) {
+    return normalized;
+  }
+  if (normalized === "TRUE") {
+    return "POST";
+  }
+  return fallback;
+}
+
 function renderVanillaMarkup(container: HTMLElement): HTMLElement {
   const layout = document.createElement("div");
   layout.className = "space-y-4";
@@ -323,12 +419,13 @@ async function bootstrap(): Promise<void> {
   registerDemoErrorRenderer();
 
   const toolbar = renderVanillaMarkup(host);
+  const form = host.querySelector("form");
 
   const registry = await initRelationships({
     searchThrottleMs: 150,
     searchDebounceMs: 150,
   });
-  wireToolbarActions(toolbar, registry);
+  wireToolbarActions(toolbar, registry, form);
   initBehaviors();
 
   // Auto-initialize WYSIWYG editors

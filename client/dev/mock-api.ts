@@ -240,6 +240,24 @@ export function installMockApi(): void {
       return respondWithOptions(applySearch(records, searchValue), url);
     }
 
+    if (url.pathname.includes("/api/uploads")) {
+      const now = Date.now();
+      const imageUrl = `https://placehold.co/1200x800.png?text=Uploaded+${now}`;
+      const thumbUrl = `https://placehold.co/600x400.png?text=Preview+${now}`;
+      const responseBody = {
+        url: imageUrl,
+        name: `upload-${now}.png`,
+        originalName: `upload-${now}.png`,
+        size: 512000,
+        contentType: "image/png",
+        thumbnail: thumbUrl,
+      };
+      return new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: RESPONSE_HEADERS,
+      });
+    }
+
     if (url.pathname.includes("/api/relationships")) {
       return new Response(JSON.stringify([]), {
         status: 200,
