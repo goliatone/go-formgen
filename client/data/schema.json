@@ -304,6 +304,11 @@
                       "published"
                     ]
                   },
+                  "hero_image": {
+                    "type": "string",
+                    "description": "Hero image asset URL",
+                    "format": "uri"
+                  },
                   "keywords": {
                     "type": "array",
                     "description": "SEO keywords used for search discovery",
