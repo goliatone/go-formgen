@@ -292,8 +292,12 @@ func (s *formServer) formHandler() http.Handler {
 		}
 
 		renderOptions := render.RenderOptions{}
-		if record := strings.TrimSpace(query.Get("record")); record != "" {
-			if sample, ok := sampleRenderOptionsFor(record); ok {
+		sampleKey := strings.TrimSpace(query.Get("id"))
+		if sampleKey == "" {
+			sampleKey = strings.TrimSpace(query.Get("record"))
+		}
+		if sampleKey != "" {
+			if sample, ok := sampleRenderOptionsFor(sampleKey); ok {
 				renderOptions = sample
 			}
 		}
