@@ -39,6 +39,8 @@ interface ChipStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
+  changeHandler?: (event: Event) => void;
+  syncingFromSelect?: boolean;
 }
 
 const CHIP_ROOT_ATTR = "data-fg-chip-root";
@@ -229,6 +231,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   document.addEventListener("click", store.documentHandler);
 
   bindValidationState(store);
+  bindSelectionListener(store);
   stores.set(select, store);
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
@@ -367,7 +370,12 @@ function updateSelected(store: ChipStore, values: Set<string>): void {
   for (const option of Array.from(select.options)) {
     option.selected = values.has(option.value);
   }
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+  store.syncingFromSelect = true;
+  try {
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  } finally {
+    store.syncingFromSelect = false;
+  }
   const selectedValues = getSelectedValues(select);
   renderChips(store, selectedValues);
 
@@ -431,6 +439,20 @@ function bindValidationState(store: ChipStore): void {
   syncState();
 }
 
+function bindSelectionListener(store: ChipStore): void {
+  const handler = () => {
+    if (store.syncingFromSelect) {
+      return;
+    }
+    const selected = getSelectedValues(store.select);
+    renderChips(store, selected);
+    renderMenu(store, selected);
+    updateClearState(store, selected);
+  };
+  store.changeHandler = handler;
+  store.select.addEventListener("change", handler);
+}
+
 function destroyChipStore(store: ChipStore): void {
   document.removeEventListener("click", store.documentHandler);
   if (store.validationHandler) {
@@ -440,6 +462,9 @@ function destroyChipStore(store: ChipStore): void {
     );
   }
   store.validationObserver?.disconnect();
+  if (store.changeHandler) {
+    store.select.removeEventListener("change", store.changeHandler);
+  }
 }
 
 function handleRequiredAttribute(select: HTMLSelectElement, target: HTMLElement): void {
