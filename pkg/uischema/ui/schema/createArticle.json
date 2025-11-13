@@ -101,9 +101,26 @@
           "label": "Status",
           "placeholder": "Select status"
         },
-        "read_time_minutes": {
+        "hero_image": {
           "section": "overview",
           "order": 3,
+          "grid": {
+            "span": 6
+          },
+          "label": "Hero image",
+          "helpText": "Upload a lead image (JPG/PNG/WebP, max 5MB).",
+          "component": "file_uploader",
+          "componentOptions": {
+            "variant": "image",
+            "uploadEndpoint": "/api/uploads/hero",
+            "maxSize": 5242880,
+            "allowedTypes": ["image/jpeg", "image/png", "image/webp"],
+            "preview": true
+          }
+        },
+        "read_time_minutes": {
+          "section": "overview",
+          "order": 4,
           "grid": {
             "span": 4
           },
@@ -115,7 +132,7 @@
         },
         "tenant_id": {
           "section": "overview",
-          "order": 4,
+          "order": 5,
           "grid": {
             "span": 6
           },
