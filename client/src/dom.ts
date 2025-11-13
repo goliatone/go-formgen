@@ -9,14 +9,8 @@ const ORIGINAL_NAME_ATTR = "data-relationship-original-name";
 export function locateRelationshipFields(
   root: Document | HTMLElement = document
 ): HTMLElement[] {
-  const scope =
-    root instanceof Document
-      ? root
-      : (root.ownerDocument ?? document);
-
-  const candidates = Array.from(
-    (root instanceof Document ? root : scope).querySelectorAll<HTMLElement>(FIELD_SELECTOR)
-  );
+  const scope = root instanceof Document ? root : root;
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(FIELD_SELECTOR));
 
   if (root instanceof HTMLElement && root.matches(FIELD_SELECTOR)) {
     candidates.unshift(root);

@@ -57,6 +57,7 @@ export function clearFieldError(element: HTMLElement): void {
 }
 
 function inlineErrorRenderer(context: FieldErrorRenderContext): void {
+  // Find the appropriate container for the error message
   const container =
     context.element.closest(FIELD_CONTAINER_SELECTOR) ??
     context.element.parentElement ??
@@ -65,15 +66,28 @@ function inlineErrorRenderer(context: FieldErrorRenderContext): void {
     return;
   }
 
-  let target = container.querySelector<HTMLElement>(`[${ERROR_ATTR}]`);
+  // If the container is a "relative" wrapper (for icons), insert error after it
+  // to prevent icon shifting when error message appears/disappears
+  let errorParent = container;
+  if (container.classList.contains('relative') && container.parentElement) {
+    errorParent = container.parentElement;
+  }
+
+  let target = errorParent.querySelector<HTMLElement>(`[${ERROR_ATTR}]`);
   if (!target) {
     target = document.createElement("p");
     target.setAttribute(ERROR_ATTR, "true");
-    target.className = "formgen-error text-sm text-red-600 dark:text-red-400";
+    target.className = "formgen-error text-xs text-red-600 mt-2 dark:text-red-400";
     target.setAttribute("role", "status");
     target.setAttribute("aria-live", "polite");
     target.setAttribute("aria-atomic", "true");
-    container.appendChild(target);
+
+    // Insert after the icon wrapper if it exists, or append to container
+    if (container.classList.contains('relative') && container.parentElement) {
+      container.parentElement.insertBefore(target, container.nextSibling);
+    } else {
+      errorParent.appendChild(target);
+    }
   }
 
   if (context.message && context.message.trim() !== "") {
@@ -91,10 +105,47 @@ function markElementInvalid(element: HTMLElement, message: string): void {
   element.setAttribute("aria-invalid", "true");
   element.setAttribute("data-validation-state", "invalid");
   element.setAttribute("data-validation-message", message);
+
+  // Add Preline validation border classes dynamically
+  addValidationClasses(element, true);
 }
 
 function clearInvalidState(element: HTMLElement): void {
   element.removeAttribute("aria-invalid");
   element.removeAttribute("data-validation-state");
   element.removeAttribute("data-validation-message");
+
+  // Remove Preline validation border classes
+  addValidationClasses(element, false);
+}
+
+function addValidationClasses(element: HTMLElement, isInvalid: boolean): void {
+  // Find the actual input/textarea/select element
+  let target: HTMLElement | null = element;
+
+  if (!(element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement)) {
+    // If element is a container, find the input inside
+    target = element.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+      'input, textarea, select'
+    );
+  }
+
+  if (!target) {
+    return;
+  }
+
+  const invalidClasses = ['border-red-500', 'focus:border-red-500', 'focus:ring-red-500', 'dark:border-red-500'];
+  const validClasses = ['border-gray-200', 'focus:border-blue-500', 'focus:ring-blue-500', 'dark:border-gray-700', 'dark:focus:ring-gray-600'];
+
+  if (isInvalid) {
+    // Remove valid classes, add invalid classes
+    validClasses.forEach(cls => target!.classList.remove(cls));
+    invalidClasses.forEach(cls => target!.classList.add(cls));
+  } else {
+    // Remove invalid classes, add valid classes
+    invalidClasses.forEach(cls => target!.classList.remove(cls));
+    validClasses.forEach(cls => target!.classList.add(cls));
+  }
 }

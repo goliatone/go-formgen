@@ -464,8 +464,8 @@ export function hydrateFormValues(
   root: Document | HTMLElement = document,
   payload: HydrationPayload = {}
 ): void {
-  const scope = root instanceof Document ? root : root ?? document;
-  const fields = locateRelationshipFields(scope);
+  const scope = root ?? document;
+  const fields = locateHydratableFields(scope);
   if (fields.length === 0) {
     return;
   }
@@ -477,6 +477,37 @@ export function hydrateFormValues(
     applyHydratedValue(element, valueIndex);
     applyHydratedErrors(element, errorIndex);
   });
+}
+
+function locateHydratableFields(root: Document | HTMLElement): HTMLElement[] {
+  const nodes = new Set<HTMLElement>();
+  const scope = root instanceof Document ? root : root;
+  if (root instanceof HTMLElement && isHydratableElement(root)) {
+    nodes.add(root);
+  }
+
+  const selector = "input, select, textarea, [data-field-name], [data-field-path]";
+  scope.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+    if (isHydratableElement(element)) {
+      nodes.add(element);
+    }
+  });
+
+  locateRelationshipFields(scope).forEach((element) => nodes.add(element));
+  return Array.from(nodes);
+}
+
+function isHydratableElement(element: Element): element is HTMLElement {
+  if (element instanceof HTMLInputElement) {
+    if (element.type === "hidden") {
+      if (element.hasAttribute("data-relationship-hidden") || element.hasAttribute("data-relationship-json")) {
+        return false;
+      }
+      return Boolean(element.dataset.fieldName || element.dataset.fieldPath);
+    }
+    return true;
+  }
+  return element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement;
 }
 
 function buildPayloadIndex(
