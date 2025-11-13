@@ -73,6 +73,25 @@
       }
     },
     {
+      "name": "hero_image",
+      "type": "string",
+      "format": "uri",
+      "required": false,
+      "label": "Hero image",
+      "description": "Hero image asset URL",
+      "metadata": {
+        "component.config": "{\"allowedTypes\":[\"image/jpeg\",\"image/png\",\"image/webp\"],\"maxSize\":5242880,\"preview\":true,\"uploadEndpoint\":\"/api/uploads/hero\",\"variant\":\"image\"}",
+        "layout.order": "3",
+        "layout.section": "overview"
+      },
+      "uiHints": {
+        "component": "file_uploader",
+        "helpText": "Upload a lead image (JPG/PNG/WebP, max 5MB).",
+        "inputType": "url",
+        "layout.span": "6"
+      }
+    },
+    {
       "name": "read_time_minutes",
       "type": "integer",
       "required": false,
@@ -91,7 +110,7 @@
         "icon": "clock",
         "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003ccircle cx=\"12\" cy=\"12\" r=\"8\"/\u003e\u003cpath d=\"M12 8v5l3 2\"/\u003e\u003c/svg\u003e",
         "icon.source": "iconoir",
-        "layout.order": "3",
+        "layout.order": "4",
         "layout.section": "overview"
       },
       "uiHints": {
@@ -117,7 +136,7 @@
         "icon": "building",
         "icon.raw": "\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewbox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"\u003e\u003cpath d=\"M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16\"/\u003e\u003cpath d=\"M9 21v-4h6v4\"/\u003e\u003cpath d=\"M9 7h.01\"/\u003e\u003cpath d=\"M9 11h.01\"/\u003e\u003cpath d=\"M9 15h.01\"/\u003e\u003cpath d=\"M15 7h.01\"/\u003e\u003cpath d=\"M15 11h.01\"/\u003e\u003cpath d=\"M15 15h.01\"/\u003e\u003c/svg\u003e",
         "icon.source": "iconoir",
-        "layout.order": "4",
+        "layout.order": "5",
         "layout.section": "overview"
       },
       "uiHints": {

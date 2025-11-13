@@ -114,6 +114,29 @@
 
                 </div>
                 
+                <div style="grid-column: span 6 / span 6">
+                    <div class="flex flex-col gap-2" data-component="file_uploader" data-component-config='{&#34;allowedTypes&#34;:[&#34;image/jpeg&#34;,&#34;image/png&#34;,&#34;image/webp&#34;],&#34;maxSize&#34;:5242880,&#34;preview&#34;:true,&#34;uploadEndpoint&#34;:&#34;/api/uploads/hero&#34;,&#34;variant&#34;:&#34;image&#34;}'>
+    <label data-formgen-chrome="label" id="fg-hero_image-label" for="fg-hero_image" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Hero image
+    </label>
+    <input
+      type="text"
+      id="fg-hero_image"
+      name="hero_image"
+      class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+       data-validation-label="Hero image"
+    >
+    <p data-formgen-chrome="description" id="fg-hero_image-description" class="text-xs text-gray-500 dark:text-gray-400">
+        Hero image asset URL
+    </p>
+    <p data-formgen-chrome="help" id="fg-hero_image-help" class="text-xs text-gray-600 dark:text-gray-300">
+        Upload a lead image (JPG/PNG/WebP, max 5MB).
+    </p>
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+</div>
+
+                </div>
+                
                 <div style="grid-column: span 4 / span 4">
                     <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-read_time_minutes-label" for="fg-read_time_minutes" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
