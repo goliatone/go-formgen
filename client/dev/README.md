@@ -106,6 +106,7 @@ The sandbox demonstrates:
 - **Mock API**: In-memory fetch interceptor that honours pagination, tenant scopes, and dynamic params
 - **Live Form Generation**: Preact view renders directly from `dev/schema.json` + UI schema
 - **Production CSS Preview**: Loads exact CSS that ships with Go package
+- **Toolbar Toggles**: Buttons to load a sample record or inject server errors via the `hydrateFormValues` helper, mirroring edit-mode flows
 
 ## CSS Development - Exact Production Preview
 

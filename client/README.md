@@ -203,6 +203,32 @@ registerErrorRenderer("banner", ({ element, message }) => {
 });
 ```
 
+### Hydrating Values After Partial Updates
+
+The runtime now exposes `hydrateFormValues(root, payload)` so HTMX/LiveView style updates can keep existing DOM in sync without rerendering entire forms. The helper understands both dotted keys (`cta.headline`) and bracket syntax (`cta[headline]`), plus array semantics for has-many relationships.
+
+```ts
+import { hydrateFormValues } from "@goliatone/formgen-runtime";
+
+// Apply server defaults after a partial fetch
+hydrateFormValues(document, {
+  values: {
+    title: "Existing title",
+    "cta.headline": "Ready to dig deeper?",
+    tags: ["design", "ai"],
+  },
+  errors: {
+    slug: ["Slug already taken"],
+    tags: ["Select at least one tag"],
+  },
+});
+```
+
+- Passing `null` (or an empty array for multi-selects) clears the corresponding field.
+- `errors` writes inline chrome plus `data-validation-state="invalid"` attributes, keeping assistive tech and custom renderers in sync.
+- Relationship defaults are reused immediately: selects, chips, and typeahead controls render the preloaded selection before the resolver issues a fetch.
+- Server-seeded errors remain visible until the user changes the field or you call `registry.validate(element)`—automatic resolver refreshes no longer wipe backend feedback.
+
 ### Preact
 
 ```typescript
