@@ -135,7 +135,7 @@ export interface ResolverState {
 
 export class Resolver {
   private readonly element: HTMLElement;
-  private readonly field: FieldConfig;
+  private field: FieldConfig;
   private readonly endpoint: EndpointConfig;
   private readonly config: ResolvedGlobalConfig;
   private readonly cacheAdapter?: CacheAdapter;
@@ -148,6 +148,8 @@ export class Resolver {
   private abortController: AbortController | null = null;
   private lastRequest: ResolverRequest | null = null;
   private lastContext: ResolverContext | null = null;
+  private preserveServerValidation = false;
+  private userInteracted = false;
 
   constructor(options: ResolverOptions) {
     this.element = options.element;
@@ -168,6 +170,9 @@ export class Resolver {
         attachHiddenInputSync(this.element);
       }
     }
+
+    this.captureServerValidationFromDom();
+    this.bindInteractionHandlers();
   }
 
   async resolve(): Promise<ResolverResult> {
@@ -237,6 +242,10 @@ export class Resolver {
 
     await this.renderOptions(options, fromCache);
 
+    if (this.field.current != null) {
+      this.field.current = null;
+    }
+
     const detail: ResolverEventDetail = {
       element: this.element,
       field: this.field,
@@ -274,13 +283,61 @@ export class Resolver {
 
     this.abortController = null;
 
-    await this.runValidation();
+    await this.runValidation("auto");
 
     return { options, fromCache };
   }
 
   async validate(): Promise<ValidationResult> {
-    return this.runValidation();
+    return this.runValidation("manual");
+  }
+
+  setCurrentValue(value: string | string[] | null): void {
+    this.field.current = value ?? null;
+  }
+
+  setServerValidation(result?: ValidationResult): void {
+    if (!result) {
+      this.state.validation = undefined;
+      this.preserveServerValidation = false;
+      return;
+    }
+    this.state.validation = result;
+    this.preserveServerValidation = !result.valid;
+    if (result.valid) {
+      return;
+    }
+    this.userInteracted = false;
+  }
+
+  private captureServerValidationFromDom(): void {
+    if (this.element.getAttribute("data-validation-state") !== "invalid") {
+      return;
+    }
+    const attr = this.element.getAttribute("data-validation-message") ?? "";
+    const messages = attr
+      .split(";")
+      .map((message) => message.trim())
+      .filter((message) => message.length > 0);
+    if (messages.length === 0) {
+      const label = this.field.label ?? this.field.name ?? "This field";
+      messages.push(`${label} is invalid.`);
+    }
+    this.state.validation = this.buildServerValidationResult(messages);
+    this.preserveServerValidation = true;
+  }
+
+  private bindInteractionHandlers(): void {
+    const handler = () => this.handleUserInteraction();
+    this.element.addEventListener("input", handler);
+    this.element.addEventListener("change", handler);
+  }
+
+  private handleUserInteraction(): void {
+    if (this.preserveServerValidation) {
+      this.preserveServerValidation = false;
+    }
+    this.userInteracted = true;
   }
 
   private cancelInFlight(): void {
@@ -290,7 +347,20 @@ export class Resolver {
     }
   }
 
-  private async runValidation(): Promise<ValidationResult> {
+  private async runValidation(
+    origin: "auto" | "manual" = "manual"
+  ): Promise<ValidationResult> {
+    if (origin === "manual") {
+      this.preserveServerValidation = false;
+    } else if (origin === "auto" && this.preserveServerValidation) {
+      return (
+        this.state.validation ??
+        this.buildServerValidationResult([
+          this.field.label ?? this.field.name ?? "This field is invalid.",
+        ])
+      );
+    }
+
     const value = readElementValue(this.element);
     let result = validateFieldValue(this.field, value);
 
@@ -337,6 +407,20 @@ export class Resolver {
 
     this.dispatchEvent(this.element, "validation", detail);
     return result;
+  }
+
+  private buildServerValidationResult(messages: string[]): ValidationResult {
+    if (messages.length === 0) {
+      return { valid: true, messages: [], errors: [] };
+    }
+    return {
+      valid: false,
+      messages,
+      errors: messages.map((message) => ({
+        code: "server",
+        message,
+      })),
+    };
   }
 
   private async fetchOptions(request: ResolverRequest, startedAt: number): Promise<FetchResult> {
