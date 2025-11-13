@@ -2,6 +2,7 @@ import "preline/preline";
 import "../src/theme/index.css";
 import {
   initRelationships,
+  hydrateFormValues,
   autoInitWysiwyg,
   getThemeClasses,
   registerErrorRenderer,
@@ -12,6 +13,59 @@ import { installMockApi } from "./mock-api";
 import { vanillaFormHtml } from "./templates";
 import { locateRelationshipFields } from "../src/dom";
 import { clearFieldError } from "../src/errors";
+
+const SAMPLE_RECORD_VALUES: Record<string, unknown> = {
+  title: "Existing article title",
+  slug: "existing-article-title",
+  summary: "Updated teaser copy for the story.",
+  tenant_id: "garden",
+  status: "scheduled",
+  read_time_minutes: 7,
+  author_id: "1",
+  manager_id: "m1",
+  category_id: "news",
+  tags: ["design", "ai"],
+  related_article_ids: ["a1"],
+  published_at: "2024-03-01T10:00:00Z",
+  "cta.headline": "Ready to dig deeper?",
+  "cta.url": "https://example.com/cta",
+  "cta.button_text": "Explore guides",
+  "seo.title": "Existing article title | Northwind Editorial",
+  "seo.description": "Updated description for SEO block.",
+};
+
+const RESET_RECORD_VALUES: Record<string, unknown> = deriveResetValues(SAMPLE_RECORD_VALUES);
+
+const SAMPLE_SERVER_ERRORS: Record<string, string[]> = {
+  slug: ["Slug already taken"],
+  manager_id: ["Manager must belong to the selected author"],
+  tags: ["Select at least one tag", "Tags must match the tenant"],
+  title: ["Title cannot be empty"],
+  related_article_ids: ["Replace duplicate related articles"],
+};
+
+const CLEAR_SERVER_ERRORS: Record<string, string[]> = deriveClearErrors(SAMPLE_SERVER_ERRORS);
+
+const toggleState = {
+  recordLoaded: false,
+  errorsInjected: false,
+};
+
+function deriveResetValues(values: Record<string, unknown>): Record<string, unknown> {
+  const reset: Record<string, unknown> = {};
+  Object.entries(values).forEach(([key, value]) => {
+    reset[key] = Array.isArray(value) ? [] : null;
+  });
+  return reset;
+}
+
+function deriveClearErrors(errors: Record<string, string[]>): Record<string, string[]> {
+  const cleared: Record<string, string[]> = {};
+  Object.keys(errors).forEach((key) => {
+    cleared[key] = [];
+  });
+  return cleared;
+}
 
 function registerDemoErrorRenderer(): void {
   registerErrorRenderer("banner", ({ element, message }) => {
@@ -84,6 +138,22 @@ function createToolbar(): HTMLElement {
             Clear validation state
           </button>
         </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-sandbox-action="load-record"
+            class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 shadow-sm transition hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:border-indigo-500/50 dark:bg-slate-800 dark:text-indigo-100"
+          >
+            Load sample record
+          </button>
+          <button
+            type="button"
+            data-sandbox-action="inject-errors"
+            class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 dark:border-amber-500/50 dark:bg-slate-800 dark:text-amber-100"
+          >
+            Inject server errors
+          </button>
+        </div>
       </div>
       <div data-sandbox-validation-summary class="rounded-md border border-dashed border-gray-300 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-slate-800/70 dark:text-gray-300">
         Click “Show validation errors” to preview the current invalid fields.
@@ -111,6 +181,22 @@ function wireToolbarActions(toolbar: HTMLElement, registry: ResolverRegistry): v
         await showValidationErrors(toolbar, registry);
       } else if (action === "clear-errors") {
         clearValidationState(toolbar);
+      } else if (action === "load-record") {
+        if (!toggleState.recordLoaded) {
+          hydrateFormValues(document, { values: SAMPLE_RECORD_VALUES });
+        } else {
+          hydrateFormValues(document, { values: RESET_RECORD_VALUES });
+        }
+        toggleState.recordLoaded = !toggleState.recordLoaded;
+        updateToggleLabel(toolbar, "load-record", toggleState.recordLoaded);
+      } else if (action === "inject-errors") {
+        if (!toggleState.errorsInjected) {
+          hydrateFormValues(document, { errors: SAMPLE_SERVER_ERRORS });
+        } else {
+          hydrateFormValues(document, { errors: CLEAR_SERVER_ERRORS });
+        }
+        toggleState.errorsInjected = !toggleState.errorsInjected;
+        updateToggleLabel(toolbar, "inject-errors", toggleState.errorsInjected);
       }
     } finally {
       trigger.disabled = false;
@@ -128,6 +214,8 @@ function clearValidationState(toolbar: HTMLElement): void {
   const fields = locateRelationshipFields();
   fields.forEach((field) => clearFieldError(field));
   renderValidationSummary(toolbar, [], []);
+  toggleState.errorsInjected = false;
+  updateToggleLabel(toolbar, "inject-errors", false);
 }
 
 function renderValidationSummary(
@@ -167,6 +255,20 @@ function renderValidationSummary(
     <p class="mb-1 font-semibold text-gray-900 dark:text-white">Validation summary (${invalid.length})</p>
     <ul class="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-200">${list}</ul>
   `;
+}
+
+function updateToggleLabel(toolbar: HTMLElement, action: string, active: boolean): void {
+  const button = toolbar.querySelector<HTMLButtonElement>(`[data-sandbox-action="${action}"]`);
+  if (!button) {
+    return;
+  }
+  if (action === "load-record") {
+    button.textContent = active ? "Clear sample record" : "Load sample record";
+    return;
+  }
+  if (action === "inject-errors") {
+    button.textContent = active ? "Clear server errors" : "Inject server errors";
+  }
 }
 
 function getFieldLabel(element: HTMLElement): string {
