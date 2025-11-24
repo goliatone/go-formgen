@@ -67,6 +67,13 @@ The file `client/dev/data/article-form.html` is generated from the canonical Ope
 
 This task runs `go run ./scripts/generate-article-form`, which uses `client/data/schema.json` and the embedded UI schema to produce fresh markup. Commit the updated HTML so other developers see the same form in the sandbox.
 
+### TUI renderer quick notes
+
+- The Go side exposes a TUI renderer (`renderer: "tui"`) for interactive terminal sessions. It runs offline by default; relationship fetches only occur when you supply an HTTP client (omit `--tui-no-fetch` in `cmd/formgen-cli` or pass `tui.WithHTTPClient`).
+- Output formats: JSON (default), form-url-encoded (`--tui-format form`), and PrettyText for inspection.
+- CLI flags: `--renderer tui --tui-format json|form|pretty --tui-no-fetch`.
+- Regenerate goldens after renderer changes with `./scripts/update_goldens.sh` (root) or `client/scripts/update_goldens.sh`.
+
 ### Building
 
 ```bash
