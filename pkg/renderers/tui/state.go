@@ -168,6 +168,12 @@ func setPath(root map[string]any, path string, value any) error {
 				} else if len(child) <= idx {
 					child = append(child, make([]any, idx+1-len(child))...)
 				}
+				// If the next segment is the last, write directly into the slice and return.
+				if i+2 == len(segments) {
+					child[idx] = value
+					node[segment] = child
+					return nil
+				}
 				node[segment] = child
 				parentMap, parentSlice, parentKey, parentIndex = node, nil, segment, -1
 				if last {
@@ -218,7 +224,7 @@ func setPath(root map[string]any, path string, value any) error {
 			}
 
 			nextSegment := segments[i+1]
-			if nextIdx, err := strconv.Atoi(nextSegment); err == nil {
+			if _, err := strconv.Atoi(nextSegment); err == nil {
 				child, ok := node[idx].([]any)
 				if !ok {
 					child = []any{}

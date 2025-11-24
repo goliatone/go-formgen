@@ -277,3 +277,83 @@ func TestRender_FormURLEncodedOutput(t *testing.T) {
 		t.Fatalf("expected form output, got %s", string(out))
 	}
 }
+
+func TestRender_ArrayAndObject(t *testing.T) {
+	driver := &stubDriver{
+		inputs:  []string{"first", "user@example.com"},
+		confirm: []bool{false}, // add another? -> no
+	}
+	r, err := New(WithPromptDriver(driver))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name:     "tags",
+				Type:     model.FieldTypeArray,
+				Required: true,
+				Items: &model.Field{
+					Type:  model.FieldTypeString,
+					Label: "Tag",
+				},
+			},
+			{
+				Name:  "author",
+				Type:  model.FieldTypeObject,
+				Label: "Author",
+				Nested: []model.Field{
+					{Name: "email", Type: model.FieldTypeString, Label: "Email"},
+				},
+			},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	tags, ok := payload["tags"].([]any)
+	if !ok || len(tags) != 1 || tags[0] != "first" {
+		t.Fatalf("unexpected tags: %#v", payload["tags"])
+	}
+	author, _ := payload["author"].(map[string]any)
+	if author["email"] != "user@example.com" {
+		t.Fatalf("unexpected author: %#v", payload["author"])
+	}
+}
+
+func TestRender_Abort(t *testing.T) {
+	r, err := New(WithPromptDriver(abortDriver{}))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{Name: "title", Type: model.FieldTypeString},
+		},
+	}
+
+	if _, err := r.Render(context.Background(), form, render.RenderOptions{}); !errors.Is(err, ErrAborted) {
+		t.Fatalf("expected ErrAborted, got %v", err)
+	}
+}
+
+// abortDriver short-circuits prompts to simulate user abort.
+type abortDriver struct{}
+
+func (abortDriver) Input(context.Context, InputConfig) (string, error)       { return "", ErrAborted }
+func (abortDriver) Password(context.Context, InputConfig) (string, error)    { return "", ErrAborted }
+func (abortDriver) Confirm(context.Context, ConfirmConfig) (bool, error)     { return false, ErrAborted }
+func (abortDriver) Select(context.Context, SelectConfig) (int, error)        { return -1, ErrAborted }
+func (abortDriver) MultiSelect(context.Context, SelectConfig) ([]int, error) { return nil, ErrAborted }
+func (abortDriver) TextArea(context.Context, TextAreaConfig) (string, error) { return "", ErrAborted }
+func (abortDriver) Repeat(context.Context, RepeatConfig) ([][]byte, error)   { return nil, ErrAborted }
+func (abortDriver) Info(context.Context, string) error                       { return ErrAborted }

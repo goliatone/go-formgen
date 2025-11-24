@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
-	"sort"
 
 	"github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/render"
@@ -319,7 +319,7 @@ func (r *Renderer) promptArray(ctx context.Context, field model.Field, path stri
 				return err
 			}
 			selected := valuesFromIndices(options, indices)
-			if err := rules.validateArray(selected); err != nil {
+			if err := rules.validateArray(toAnySlice(selected)); err != nil {
 				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
 				continue
 			}
@@ -557,7 +557,7 @@ func (r *Renderer) promptRelationship(ctx context.Context, field model.Field, pa
 	help := displayHelp(field)
 	rules := collectValidationRules(field, rulesCache)
 
-	cfg, hasEndpoint := parseRelConfig(field.Metadata)
+	cfg, _ := parseRelConfig(field.Metadata)
 	options := r.relationshipOptions(ctx, cfg, relCache)
 
 	// apply relationship.current when state lacks value

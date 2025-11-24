@@ -80,7 +80,7 @@ func (d *surveyDriver) Input(ctx context.Context, cfg InputConfig) (string, erro
 	}
 	var opts []survey.AskOpt
 	if cfg.Validator != nil {
-		opts = append(opts, survey.WithValidator(cfg.Validator))
+		opts = append(opts, survey.WithValidator(wrapStringValidator(cfg.Validator)))
 	}
 	if err := survey.AskOne(prompt, &out, opts...); err != nil {
 		return "", translateSurveyErr(err)
@@ -96,11 +96,10 @@ func (d *surveyDriver) Password(ctx context.Context, cfg InputConfig) (string, e
 	prompt := &survey.Password{
 		Message: cfg.Message,
 		Help:    cfg.Help,
-		Default: cfg.Default,
 	}
 	var opts []survey.AskOpt
 	if cfg.Validator != nil {
-		opts = append(opts, survey.WithValidator(cfg.Validator))
+		opts = append(opts, survey.WithValidator(wrapStringValidator(cfg.Validator)))
 	}
 	if err := survey.AskOne(prompt, &out, opts...); err != nil {
 		return "", translateSurveyErr(err)
@@ -202,6 +201,16 @@ func translateSurveyErr(err error) error {
 		return ErrAborted
 	}
 	return err
+}
+
+func wrapStringValidator(fn func(string) error) survey.Validator {
+	if fn == nil {
+		return nil
+	}
+	return func(ans interface{}) error {
+		str, _ := ans.(string)
+		return fn(str)
+	}
 }
 
 func indexOf(options []string, value string) int {
