@@ -19,7 +19,7 @@
 <select
     id="fg-{{ field.name }}"
     name="{{ field.name }}"
-    class="py-3 px-4 pe-9 block w-full border rounded-lg text-sm disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400{% if has_icon %} ps-11{% endif %}{% if validation_state == "invalid" %} border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500{% else %} border-gray-200 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:focus:ring-gray-600{% endif %}"
+    class="py-3 px-4 pe-9 block w-full border {% if validation_state == "invalid" %}border-red-500{% else %}border-gray-200{% endif %} rounded-lg text-sm {% if validation_state == "invalid" %}focus:border-red-500 focus:ring-red-500{% else %}focus:border-blue-500 focus:ring-blue-500{% endif %} disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 {% if validation_state == "invalid" %}dark:border-red-500 dark:focus:ring-red-500{% else %}dark:border-gray-700 dark:focus:ring-gray-600{% endif %}{% if has_icon %} ps-11{% endif %}"
     {% if field.required %}required{% endif %}
     {% if field.disabled %}disabled{% endif %}
     {% if rel and rel.cardinality == "many" %}multiple data-relationship-collection="many"{% endif %}
