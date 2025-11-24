@@ -2,26 +2,30 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/formgen/pkg/render"
 )
 
 type stubDriver struct {
-	inputs      []string
-	selectIdx   []int
-	multiIdx    [][]int
-	confirm     []bool
-	textAreas   []string
-	passwords   []string
+	inputs       []string
+	selectIdx    []int
+	multiIdx     [][]int
+	confirm      []bool
+	textAreas    []string
+	passwords    []string
 	infoMessages []string
-	inputPos    int
-	selectPos   int
-	multiPos    int
-	confirmPos  int
-	textPos     int
-	passPos     int
+	inputPos     int
+	selectPos    int
+	multiPos     int
+	confirmPos   int
+	textPos      int
+	passPos      int
 }
 
 func (s *stubDriver) Input(_ context.Context, _ InputConfig) (string, error) {
@@ -113,17 +117,17 @@ func TestRender_StringAndEnum(t *testing.T) {
 		},
 	}
 
-	out, err := r.Render(context.Background(), form, modelRenderOpts())
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
-	got := string(out)
-	if got == "" {
-		t.Fatalf("expected output, got empty")
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
 	}
-	if driver.inputPos != 1 || driver.selectPos != 1 {
-		t.Fatalf("prompts not consumed as expected")
+	if payload["title"] != "hello" || payload["status"] != "published" {
+		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
 
@@ -151,7 +155,7 @@ func TestRender_NumberValidation(t *testing.T) {
 		},
 	}
 
-	_, err = r.Render(context.Background(), form, modelRenderOpts())
+	_, err = r.Render(context.Background(), form, render.RenderOptions{})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -160,10 +164,116 @@ func TestRender_NumberValidation(t *testing.T) {
 	}
 }
 
-func modelRenderOpts() renderOptionsWrapper {
-	return renderOptionsWrapper{}
+func TestRender_RelationshipOptionsFetch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"id":"1","label":"One"},{"id":"2","label":"Two"}]`))
+	}))
+	defer server.Close()
+
+	driver := &stubDriver{
+		selectIdx: []int{1}, // pick "Two"
+	}
+	r, err := New(
+		WithPromptDriver(driver),
+		WithHTTPClient(server.Client()),
+	)
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name:  "author_id",
+				Label: "Author",
+				Type:  model.FieldTypeString,
+				Relationship: &model.Relationship{
+					Kind:        model.RelationshipBelongsTo,
+					Cardinality: "one",
+				},
+				Metadata: map[string]string{
+					"relationship.endpoint.url":        server.URL,
+					"relationship.endpoint.labelField": "label",
+					"relationship.endpoint.valueField": "id",
+				},
+			},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload["author_id"] != "2" {
+		t.Fatalf("expected author_id 2, got %+v", payload)
+	}
 }
 
-// renderOptionsWrapper exists to avoid importing pkg/render directly in tests.
-type renderOptionsWrapper struct{}
+func TestRender_RelationshipManualFallback(t *testing.T) {
+	driver := &stubDriver{
+		inputs: []string{"abc-123"},
+	}
+	r, err := New(WithPromptDriver(driver))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
 
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name:  "tag_id",
+				Label: "Tag",
+				Type:  model.FieldTypeString,
+				Relationship: &model.Relationship{
+					Kind:        model.RelationshipBelongsTo,
+					Cardinality: "one",
+				},
+			},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload["tag_id"] != "abc-123" {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestRender_FormURLEncodedOutput(t *testing.T) {
+	driver := &stubDriver{
+		inputs: []string{"hello"},
+	}
+	r, err := New(
+		WithPromptDriver(driver),
+		WithOutputFormat(OutputFormatFormURLEncoded),
+	)
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{Name: "title", Type: model.FieldTypeString, Label: "Title"},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if string(out) != "title=hello" {
+		t.Fatalf("expected form output, got %s", string(out))
+	}
+}

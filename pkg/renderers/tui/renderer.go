@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sort"
 
 	"github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/render"
