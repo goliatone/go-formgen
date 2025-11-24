@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/goliatone/formgen"
@@ -19,6 +20,7 @@ import (
 	"github.com/goliatone/formgen/pkg/orchestrator"
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/preact"
+	"github.com/goliatone/formgen/pkg/renderers/tui"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 )
 
@@ -28,10 +30,14 @@ func main() {
 	var (
 		sourceFlag    = flag.String("source", defaultSource, "Path or URL to an OpenAPI document")
 		operationFlag = flag.String("operation", "createPet", "Operation ID to render")
-		rendererFlag  = flag.String("renderer", "vanilla", "Renderer to use (vanilla, preact)")
+		rendererFlag  = flag.String("renderer", "vanilla", "Renderer to use (vanilla, preact, tui)")
 		outputFlag    = flag.String("output", "", "Optional file path for the generated markup (stdout when empty)")
 		timeoutFlag   = flag.Duration("timeout", 15*time.Second, "Generation timeout")
 		inspectFlag   = flag.Bool("inspect", false, "Print form metadata/UI hints as JSON (stderr)")
+		tuiFormatFlag = flag.String("tui-format", "json", "TUI output format (json, form, pretty)")
+		tuiNoFetch    = flag.Bool("tui-no-fetch", false, "Disable relationship HTTP fetches for TUI")
+		tuiTheme      = flag.String("tui-theme", "", "Optional TUI theme preset (unused placeholder)")
+		tuiNonTTY     = flag.Bool("tui-non-interactive", false, "Fail fast if TUI cannot attach to a TTY (placeholder)")
 	)
 	flag.Parse()
 
@@ -41,6 +47,20 @@ func main() {
 	registry := render.NewRegistry()
 	registry.MustRegister(mustVanilla())
 	registry.MustRegister(mustPreact())
+
+	tuiOpts := []tui.Option{tui.WithOutputFormat(parseTUIFormat(*tuiFormatFlag))}
+	if !*tuiNoFetch {
+		tuiOpts = append(tuiOpts, tui.WithHTTPClient(http.DefaultClient))
+	}
+	if *tuiTheme != "" {
+		// Placeholder: theme wiring can be added when themes are supported.
+	}
+	if *tuiNonTTY {
+		// Placeholder: non-interactive guard to be implemented alongside driver detection.
+	}
+	if tuiRenderer, err := tui.New(tuiOpts...); err == nil {
+		registry.MustRegister(tuiRenderer)
+	}
 
 	loader := formgen.NewLoader(
 		pkgopenapi.WithDefaultSources(),
@@ -101,6 +121,17 @@ func main() {
 		log.Fatalf("write output: %v", err)
 	}
 	log.Printf("wrote %d bytes to %s", len(html), *outputFlag)
+}
+
+func parseTUIFormat(raw string) tui.OutputFormat {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "form", "url", "urlencoded":
+		return tui.OutputFormatFormURLEncoded
+	case "pretty", "text":
+		return tui.OutputFormatPrettyText
+	default:
+		return tui.OutputFormatJSON
+	}
 }
 
 func writeFile(path string, data []byte) error {
