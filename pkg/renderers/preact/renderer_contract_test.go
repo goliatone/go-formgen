@@ -10,6 +10,7 @@ import (
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/preact"
 	"github.com/goliatone/formgen/pkg/testsupport"
+	theme "github.com/goliatone/go-theme"
 )
 
 func TestRenderer_RenderContract(t *testing.T) {
@@ -20,7 +21,9 @@ func TestRenderer_RenderContract(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -48,7 +51,9 @@ func TestRenderer_RenderWithAssetURLPrefix(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -90,7 +95,9 @@ func TestRenderer_RenderWithCustomAssetBundle(t *testing.T) {
 		t.Fatalf("preact.New: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -206,4 +213,29 @@ func (s *stubTemplateRenderer) RegisterFilter(name string, fn func(input any, pa
 
 func (s *stubTemplateRenderer) GlobalContext(data any) error {
 	return nil
+}
+
+func testThemeConfig() *theme.RendererConfig {
+	return &theme.RendererConfig{
+		Theme:   "acme",
+		Variant: "dark",
+		Tokens: map[string]string{
+			"brand": "#123456",
+		},
+		CSSVars: map[string]string{
+			"--brand": "#123456",
+		},
+		AssetURL: func(key string) string {
+			switch key {
+			case "preact.vendor":
+				return "theme/vendor.js"
+			case "preact.app":
+				return "theme/app.js"
+			case "preact.stylesheet":
+				return "theme/theme.css"
+			default:
+				return ""
+			}
+		},
+	}
 }

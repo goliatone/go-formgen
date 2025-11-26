@@ -62,7 +62,7 @@ func TestBuildLayoutContext_AppliesSectionFieldOrder(t *testing.T) {
 		},
 	}
 
-	renderer := newComponentRenderer(&noopTemplateRenderer{}, simpleComponentRegistry(), nil)
+	renderer := newComponentRenderer(&noopTemplateRenderer{}, simpleComponentRegistry(), nil, rendererTheme{}, nil)
 
 	layout, err := buildLayoutContext(form, renderer)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestBuildLayoutContext_SkipsNestedFieldsFromSections(t *testing.T) {
 		},
 	}
 
-	renderer := newComponentRenderer(&noopTemplateRenderer{}, simpleComponentRegistry(), nil)
+	renderer := newComponentRenderer(&noopTemplateRenderer{}, simpleComponentRegistry(), nil, rendererTheme{}, nil)
 
 	layout, err := buildLayoutContext(form, renderer)
 	if err != nil {

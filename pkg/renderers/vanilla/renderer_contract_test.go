@@ -8,6 +8,7 @@ import (
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/formgen/pkg/testsupport"
+	theme "github.com/goliatone/go-theme"
 )
 
 func TestRenderer_RenderContract(t *testing.T) {
@@ -18,7 +19,9 @@ func TestRenderer_RenderContract(t *testing.T) {
 		t.Fatalf("new renderer: %v", err)
 	}
 
-	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -167,5 +170,24 @@ func TestRenderer_RenderPrefilledForm(t *testing.T) {
 	want := testsupport.MustReadGolden(t, goldenPath)
 	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
 		t.Fatalf("prefilled output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func testThemeConfig() *theme.RendererConfig {
+	return &theme.RendererConfig{
+		Theme:   "acme",
+		Variant: "dark",
+		Tokens: map[string]string{
+			"brand": "#123456",
+		},
+		CSSVars: map[string]string{
+			"--brand": "#123456",
+		},
+		AssetURL: func(key string) string {
+			if key == "" {
+				return ""
+			}
+			return "/themes/acme/" + key
+		},
 	}
 }
