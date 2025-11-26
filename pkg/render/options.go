@@ -1,5 +1,10 @@
 package render
 
+import (
+	"github.com/goliatone/formgen/pkg/visibility"
+	"github.com/goliatone/go-theme"
+)
+
 // RenderOptions describe per-request data that renderers can use to customise
 // their output without mutating the form model pipeline.
 type RenderOptions struct {
@@ -16,4 +21,14 @@ type RenderOptions struct {
 	// attributes so the runtime and assistive tech can reflect the state without
 	// waiting for client-side validation.
 	Errors map[string][]string
+	// Theme passes renderer configuration derived from a go-theme Selection so
+	// renderers can resolve partials, assets, and tokens consistently.
+	Theme *theme.RendererConfig
+	// VisibilityContext carries evaluator-specific inputs such as current form
+	// values or feature flags used to decide whether a field should render.
+	VisibilityContext visibility.Context
+	// TopPadding controls how many leading newlines renderers emit before the
+	// root form markup when no external stylesheets or inline styles are
+	// present. A zero value allows the renderer to apply its default.
+	TopPadding int
 }
