@@ -14,7 +14,9 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 - Offline-first loaders (file, `fs.FS`, optional HTTP) and wrapper types instead of raw `kin-openapi`
 - Pluggable renderers: vanilla HTML, Preact (with embedded assets), and a TUI/CLI renderer
 - Renderer registry + orchestrator helpers for one-shot HTML generation or custom wiring
-- UI schema + extension metadata passed through to renderers for layout, chrome, and behaviours
+- UI schema + extension metadata passed through to renderers for layout, chrome, behaviours, and theming overrides
+- Render options for subsets, prefill/provenance, disabled/readonly flags, and server errors (go-errors compatible)
+- Theme provider/partials + widget registry so adapters (settings/media/export) can inject templates and evaluators at runtime
 - Contract-tested goldens for parser, builder, and renderer outputs
 
 ## Installation
@@ -80,6 +82,7 @@ registry.MustRegister(preact.New())
 gen := formgen.NewOrchestrator(
 	orchestrator.WithRegistry(registry),
 	orchestrator.WithDefaultRenderer("vanilla"),
+	orchestrator.WithWidgetRegistry(widgets.NewRegistry()), // adapters can RegisterWidget later
 )
 ```
 
@@ -109,8 +112,15 @@ output, err := gen.Generate(ctx, orchestrator.Request{
 	OperationID: "createPet",
 	RenderOptions: render.RenderOptions{
 		Method: "PATCH",
-		Values: map[string]any{"name": "Fido"},          // prefill values
-		Errors: map[string][]string{"slug": {"Taken"}}, // surface server errors
+		Subset: render.FieldSubset{Groups: []string{"notifications"}}, // render a tab/section subset
+		Values: map[string]any{
+			"name": render.ValueWithProvenance{
+				Value:      "Fido",
+				Provenance: "tenant default",
+				Disabled:   true,
+			},
+		},
+		Errors: map[string][]string{"slug": {"Taken"}}, // surface server errors (go-errors compatible)
 	},
 })
 ```
@@ -121,7 +131,7 @@ UI schema files can also be injected (`orchestrator.WithUISchemaFS`) to control 
 
 - `go run ./examples/basic` – minimal end-to-end HTML generation
 - `go run ./examples/multi-renderer` – emit outputs for each registered renderer (copies Preact assets)
-- `go run ./examples/http` – tiny HTTP server serving rendered forms and assets
+- `go run ./examples/http` – tiny HTTP server serving rendered forms and assets; supports subsets (`?groups=notifications`), renderer switches, prefill/errors, and theme overrides
 - `go run ./cmd/formgen-cli --renderer tui --operation createPet --source examples/fixtures/petstore.json --tui-format json`
 
 ## Templates & Assets
