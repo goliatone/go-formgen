@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 
 	internalLoader "github.com/goliatone/formgen/internal/openapi/loader"
 	internalParser "github.com/goliatone/formgen/internal/openapi/parser"
@@ -59,6 +60,22 @@ func WithThemeSelector(selector theme.ThemeSelector) Option {
 	}
 }
 
+// WithThemeProvider builds a go-theme selector from a ThemeProvider and configures
+// the orchestrator to resolve renderer configuration (partials, tokens, assets)
+// using the supplied defaults when theme inputs are omitted.
+func WithThemeProvider(provider theme.ThemeProvider, defaultTheme, defaultVariant string) Option {
+	return func(o *Orchestrator) {
+		if provider == nil {
+			return
+		}
+		o.themeSelector = theme.Selector{
+			Registry:       provider,
+			DefaultTheme:   strings.TrimSpace(defaultTheme),
+			DefaultVariant: strings.TrimSpace(defaultVariant),
+		}
+	}
+}
+
 // WithThemeFallbacks supplies fallback partial paths passed to
 // Selection.RendererTheme so renderers receive a resolved partial map even when
 // the manifest omits a template key.
@@ -79,6 +96,7 @@ func defaultThemeFallbacks() map[string]string {
 		"forms.radio":         "templates/components/boolean.tmpl",
 		"forms.textarea":      "templates/components/textarea.tmpl",
 		"forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
+		"forms.json-editor":   "templates/components/json_editor.tmpl",
 		"forms.file-uploader": "templates/components/file_uploader.tmpl",
 	}
 }
@@ -176,6 +194,37 @@ func New(options ...Option) *Orchestrator {
 	return o
 }
 
+// WidgetRegistry returns the widget registry used to decorate form models
+// before rendering. Adapters can call this at runtime to register custom
+// widgets without rebuilding the orchestrator.
+func (o *Orchestrator) WidgetRegistry() *widgets.Registry {
+	if o == nil {
+		return nil
+	}
+	if !o.defaultsApplied {
+		o.applyDefaults()
+	}
+	return o.widgetRegistry
+}
+
+// RegisterWidget registers a widget matcher on the orchestrator's registry,
+// enabling adapters to extend the built-in set without overriding defaults.
+func (o *Orchestrator) RegisterWidget(name string, priority int, matcher widgets.Matcher) {
+	if reg := o.WidgetRegistry(); reg != nil {
+		reg.Register(name, priority, matcher)
+	}
+}
+
+// SetVisibilityEvaluator replaces the configured visibility evaluator. This is
+// useful for adapters that need to attach evaluators after orchestrator
+// construction.
+func (o *Orchestrator) SetVisibilityEvaluator(evaluator visibility.Evaluator) {
+	if o == nil {
+		return
+	}
+	o.visibilityEvaluator = evaluator
+}
+
 // Request describes the inputs required to render a form from an OpenAPI
 // operation.
 type Request struct {
@@ -258,11 +307,15 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	if err := o.applyDecorators(&form); err != nil {
 		return nil, err
 	}
+	render.ApplySubset(&form, req.RenderOptions.Subset)
 	if err := applyVisibility(&form, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
 		return nil, err
 	}
 
 	renderOptions := req.RenderOptions
+	mappedErrors := render.MapErrorPayload(form, renderOptions.Errors)
+	renderOptions.Errors = mappedErrors.Fields
+	renderOptions.FormErrors = render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)
 	if renderOptions.Theme == nil {
 		themeConfig, err := o.resolveTheme(req.ThemeName, req.ThemeVariant)
 		if err != nil {

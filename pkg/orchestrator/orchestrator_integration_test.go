@@ -84,6 +84,32 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 			formGolden:  "create_widget_formmodel.golden.json",
 		},
 		{
+			name:        "WidgetVanillaGroupSubset",
+			renderer:    "vanilla",
+			sourcePath:  "extensions.yaml",
+			operationID: "createWidget",
+			golden:      "create_widget_vanilla_partial_taxonomy.golden.html",
+			formGolden:  "create_widget_formmodel.golden.json",
+			renderOptions: render.RenderOptions{
+				Subset: render.FieldSubset{
+					Groups: []string{"taxonomy"},
+				},
+			},
+		},
+		{
+			name:        "WidgetPreactTagSubset",
+			renderer:    "preact",
+			sourcePath:  "extensions.yaml",
+			operationID: "createWidget",
+			golden:      "create_widget_preact_partial_display.golden.html",
+			formGolden:  "create_widget_formmodel_partial_display.golden.json",
+			renderOptions: render.RenderOptions{
+				Subset: render.FieldSubset{
+					Tags: []string{"display", "behavior"},
+				},
+			},
+		},
+		{
 			name:        "VanillaPrefilled",
 			renderer:    "vanilla",
 			operationID: "createPet",
@@ -96,7 +122,7 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 					"tag":  "feline",
 				},
 				Errors: map[string][]string{
-					"name": {"Name cannot be blank"},
+					"/body/name": {"Name cannot be blank"},
 				},
 			},
 		},

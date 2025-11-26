@@ -86,6 +86,107 @@ func TestOrchestrator_PassesThemeConfigToRenderer(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_WithThemeProviderUsesDefaults(t *testing.T) {
+	t.Helper()
+
+	manifest := &theme.Manifest{
+		Name:    "acme",
+		Version: "1.0.0",
+		Tokens: map[string]string{
+			"brand": "#123456",
+		},
+		Templates: map[string]string{
+			"forms.input": "themes/acme/input.tmpl",
+		},
+		Assets: theme.Assets{
+			Prefix: "/assets/themes/acme",
+			Files: map[string]string{
+				"preact.stylesheet": "theme.css",
+			},
+		},
+		Variants: map[string]theme.Variant{
+			"dark": {
+				Tokens: map[string]string{
+					"brand": "#654321",
+				},
+				Templates: map[string]string{
+					"forms.checkbox": "themes/acme/dark/checkbox.tmpl",
+				},
+				Assets: theme.Assets{
+					Files: map[string]string{
+						"preact.vendor": "vendor.dark.js",
+					},
+				},
+			},
+		},
+	}
+
+	provider := theme.NewRegistry()
+	if err := provider.Register(manifest); err != nil {
+		t.Fatalf("register manifest: %v", err)
+	}
+
+	renderer := &captureRenderer{}
+	registry := render.NewRegistry()
+	registry.MustRegister(renderer)
+
+	orch := New(
+		WithParser(stubParser{operations: map[string]pkgopenapi.Operation{
+			"create": pkgopenapi.MustNewOperation("create", "POST", "/items", pkgopenapi.Schema{}, nil),
+		}}),
+		WithModelBuilder(stubBuilder{form: pkgmodel.FormModel{OperationID: "create"}}),
+		WithRegistry(registry),
+		WithDefaultRenderer(renderer.Name()),
+		WithThemeProvider(provider, "acme", "dark"),
+		WithUISchemaFS(nil),
+	)
+
+	doc := pkgopenapi.MustNewDocument(stubSource{}, []byte("{}"))
+	_, err := orch.Generate(context.Background(), Request{
+		Document:    &doc,
+		OperationID: "create",
+		Renderer:    renderer.Name(),
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	cfg := renderer.options.Theme
+	if cfg == nil {
+		t.Fatalf("expected theme config passed to renderer")
+	}
+	if cfg.Theme != "acme" {
+		t.Fatalf("theme name mismatch: want acme, got %s", cfg.Theme)
+	}
+	if cfg.Variant != "dark" {
+		t.Fatalf("theme variant mismatch: want dark, got %s", cfg.Variant)
+	}
+	if cfg.Partials["forms.input"] != "themes/acme/input.tmpl" {
+		t.Fatalf("expected base template override, got %s", cfg.Partials["forms.input"])
+	}
+	if cfg.Partials["forms.checkbox"] != "themes/acme/dark/checkbox.tmpl" {
+		t.Fatalf("expected variant template override, got %s", cfg.Partials["forms.checkbox"])
+	}
+	if cfg.Partials["forms.textarea"] != defaultThemeFallbacks()["forms.textarea"] {
+		t.Fatalf("fallback partial not applied for textarea")
+	}
+	if cfg.Tokens["brand"] != "#654321" {
+		t.Fatalf("tokens not merged with variant override, got %s", cfg.Tokens["brand"])
+	}
+	if cfg.CSSVars["--brand"] != "#654321" {
+		t.Fatalf("css vars not derived from variant tokens, got %s", cfg.CSSVars["--brand"])
+	}
+	if cfg.AssetURL == nil {
+		t.Fatalf("expected AssetURL resolver present")
+	}
+	if got := cfg.AssetURL("preact.vendor"); got != "/assets/themes/acme/vendor.dark.js" {
+		t.Fatalf("unexpected vendor asset url: %s", got)
+	}
+	if got := cfg.AssetURL("preact.stylesheet"); got != "/assets/themes/acme/theme.css" {
+		t.Fatalf("unexpected stylesheet asset url: %s", got)
+	}
+}
+
 type stubSource struct{}
 
 func (stubSource) Kind() pkgopenapi.SourceKind { return pkgopenapi.SourceKindFile }
