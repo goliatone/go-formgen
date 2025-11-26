@@ -267,6 +267,7 @@ func firstSchemaType(types *openapi3.Types) string {
 
 const (
 	extensionNamespace       = "x-formgen"
+	adminExtensionNamespace  = "x-admin"
 	endpointExtensionKey     = "x-endpoint"
 	currentValueExtensionKey = "x-current-value"
 )
@@ -284,6 +285,12 @@ func extractExtensions(raw map[string]any) map[string]any {
 				result[key] = mapped
 			}
 		case strings.HasPrefix(key, extensionNamespace+"-"):
+			result[key] = value
+		case key == adminExtensionNamespace:
+			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
+				result[key] = mapped
+			}
+		case strings.HasPrefix(key, adminExtensionNamespace+"-"):
 			result[key] = value
 		case key == relationshipExtensionKey:
 			if metadata := normaliseRelationshipExtension(value); len(metadata) > 0 {
