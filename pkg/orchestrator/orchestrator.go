@@ -13,6 +13,7 @@ import (
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/formgen/pkg/uischema"
+	"github.com/goliatone/formgen/pkg/visibility"
 	"github.com/goliatone/formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
@@ -126,6 +127,15 @@ func WithUISchemaFS(fsys fs.FS) Option {
 	}
 }
 
+// WithVisibilityEvaluator injects a visibility evaluator to decide whether
+// fields guarded by visibility rules should render. When unset, visibility
+// rules are ignored.
+func WithVisibilityEvaluator(evaluator visibility.Evaluator) Option {
+	return func(o *Orchestrator) {
+		o.visibilityEvaluator = evaluator
+	}
+}
+
 // Orchestrator coordinates the full pipeline from OpenAPI document to rendered
 // output. It applies sensible defaults (vanilla renderer, embedded templates)
 // while remaining open to dependency injection for advanced callers.
@@ -146,6 +156,7 @@ type Orchestrator struct {
 	uiSchemaSpecified     bool
 	uiDecoratorConfigured bool
 	transformer           Transformer
+	visibilityEvaluator   visibility.Evaluator
 }
 
 // New constructs an Orchestrator applying any provided options. Missing
@@ -245,6 +256,9 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 		return nil, err
 	}
 	if err := o.applyDecorators(&form); err != nil {
+		return nil, err
+	}
+	if err := applyVisibility(&form, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
 		return nil, err
 	}
 
