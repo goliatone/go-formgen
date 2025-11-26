@@ -1,17 +1,20 @@
 package preact
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/render"
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
+	theme "github.com/goliatone/go-theme"
 )
 
 const (
@@ -20,6 +23,10 @@ const (
 	defaultVendorScript = "assets/vendor/preact.production.min.js"
 	defaultAppScript    = "assets/formgen-preact.min.js"
 	defaultStylesheet   = "assets/formgen-preact.min.css"
+
+	themeAssetVendorScript = "preact.vendor"
+	themeAssetAppScript    = "preact.app"
+	themeAssetStylesheet   = "preact.stylesheet"
 )
 
 // Option customises the renderer configuration.
@@ -37,6 +44,16 @@ type assetPaths struct {
 	vendorScript string
 	appScript    string
 	stylesheet   string
+}
+
+type rendererTheme struct {
+	Name         string            `json:"name"`
+	Variant      string            `json:"variant"`
+	Partials     map[string]string `json:"partials,omitempty"`
+	Tokens       map[string]string `json:"tokens,omitempty"`
+	CSSVars      map[string]string `json:"cssVars,omitempty"`
+	CSSVarsStyle string            `json:"css_vars_style,omitempty"`
+	JSON         string            `json:"json,omitempty"`
 }
 
 var defaultAssetPaths = assetPaths{
@@ -186,8 +203,9 @@ func (r *Renderer) ContentType() string {
 }
 
 // Render produces hydrated HTML ready for delivery.
-func (r *Renderer) Render(_ context.Context, form model.FormModel, _ render.RenderOptions) ([]byte, error) {
-	payload, err := json.Marshal(form)
+func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions render.RenderOptions) ([]byte, error) {
+	ordered := toOrderedFormModel(form)
+	payload, err := json.Marshal(ordered)
 	if err != nil {
 		return nil, fmt.Errorf("preact renderer: marshal form model: %w", err)
 	}
@@ -195,7 +213,10 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, _ render.Rend
 		return nil, fmt.Errorf("preact renderer: template renderer is nil")
 	}
 
-	urls := r.assetURLs()
+	themeCtx := buildThemeContext(renderOptions.Theme)
+	assetResolver := themeAssetResolver(renderOptions.Theme)
+	urls := r.assetURLs(assetResolver)
+	cleanTheme := themeCtx
 	data := map[string]any{
 		"form":         form,
 		"form_json":    string(payload),
@@ -205,6 +226,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, _ render.Rend
 			"appScript":    urls.AppScript,
 			"stylesheet":   urls.Stylesheet,
 		},
+		"theme": cleanTheme,
 	}
 
 	rendered, err := r.templates.RenderTemplate(templateName, data)
@@ -212,7 +234,173 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, _ render.Rend
 		return nil, fmt.Errorf("preact renderer: render template: %w", err)
 	}
 
+	if themeCtx.JSON == "" {
+		rendered = strings.Replace(rendered, "\n\n  <script id=\"formgen-preact-data\"", "\n  <script id=\"formgen-preact-data\"", 1)
+	}
+
 	return []byte(rendered), nil
+}
+
+type orderedFormModel struct {
+	OperationID string         `json:"operationId"`
+	Endpoint    string         `json:"endpoint"`
+	Method      string         `json:"method"`
+	Summary     string         `json:"summary,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Fields      []orderedField `json:"fields"`
+	Metadata    orderedMap     `json:"metadata,omitempty"`
+	UIHints     orderedMap     `json:"uiHints,omitempty"`
+}
+
+type orderedField struct {
+	Name         string              `json:"name"`
+	Type         model.FieldType     `json:"type"`
+	Format       string              `json:"format,omitempty"`
+	Required     bool                `json:"required"`
+	Label        string              `json:"label,omitempty"`
+	Placeholder  string              `json:"placeholder,omitempty"`
+	Description  string              `json:"description,omitempty"`
+	Default      any                 `json:"default,omitempty"`
+	Enum         []any               `json:"enum,omitempty"`
+	Nested       []orderedField      `json:"nested,omitempty"`
+	Items        *orderedField       `json:"items,omitempty"`
+	Validations  []orderedRule       `json:"validations,omitempty"`
+	Metadata     orderedMap          `json:"metadata,omitempty"`
+	UIHints      orderedMap          `json:"uiHints,omitempty"`
+	Relationship *model.Relationship `json:"relationship,omitempty"`
+}
+
+type orderedRule struct {
+	Kind   string     `json:"kind"`
+	Params orderedMap `json:"params,omitempty"`
+}
+
+func toOrderedFormModel(form model.FormModel) orderedFormModel {
+	fields := make([]orderedField, len(form.Fields))
+	for i, field := range form.Fields {
+		fields[i] = toOrderedField(field)
+	}
+
+	return orderedFormModel{
+		OperationID: form.OperationID,
+		Endpoint:    form.Endpoint,
+		Method:      form.Method,
+		Summary:     form.Summary,
+		Description: form.Description,
+		Fields:      fields,
+		Metadata:    newOrderedMap(form.Metadata),
+		UIHints:     newOrderedMap(form.UIHints),
+	}
+}
+
+func toOrderedField(field model.Field) orderedField {
+	nested := make([]orderedField, len(field.Nested))
+	for i, f := range field.Nested {
+		nested[i] = toOrderedField(f)
+	}
+
+	var items *orderedField
+	if field.Items != nil {
+		v := toOrderedField(*field.Items)
+		items = &v
+	}
+
+	var rules []orderedRule
+	if len(field.Validations) > 0 {
+		rules = make([]orderedRule, len(field.Validations))
+		for i, rule := range field.Validations {
+			rules[i] = orderedRule{
+				Kind:   rule.Kind,
+				Params: newOrderedMap(rule.Params),
+			}
+		}
+	}
+
+	return orderedField{
+		Name:         field.Name,
+		Type:         field.Type,
+		Format:       field.Format,
+		Required:     field.Required,
+		Label:        field.Label,
+		Placeholder:  field.Placeholder,
+		Description:  field.Description,
+		Default:      field.Default,
+		Enum:         field.Enum,
+		Nested:       nested,
+		Items:        items,
+		Validations:  rules,
+		Metadata:     newOrderedMap(field.Metadata),
+		UIHints:      newOrderedMap(field.UIHints),
+		Relationship: field.Relationship,
+	}
+}
+
+type orderedMap map[string]string
+
+func newOrderedMap(values map[string]string) orderedMap {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		result[key] = value
+	}
+	return orderedMap(result)
+}
+
+func (m orderedMap) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return []byte("null"), nil
+	}
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return metadataLess(keys[i], keys[j])
+	})
+
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, key := range keys {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		keyPayload, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+		valuePayload, err := json.Marshal(m[key])
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(keyPayload)
+		buf.WriteByte(':')
+		buf.Write(valuePayload)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+var metadataSpecialOrder = map[string]int{
+	"widget":    0,
+	"hideLabel": 1,
+	"label":     2,
+}
+
+func metadataLess(a, b string) bool {
+	aAdmin := strings.HasPrefix(a, "admin.")
+	bAdmin := strings.HasPrefix(b, "admin.")
+	if aAdmin != bAdmin {
+		return aAdmin
+	}
+
+	aRank, aSpecial := metadataSpecialOrder[a]
+	bRank, bSpecial := metadataSpecialOrder[b]
+	if aSpecial && bSpecial && aRank != bRank {
+		return aRank < bRank
+	}
+	return a < b
 }
 
 func fieldOrderPayload(metadata map[string]string) string {
@@ -246,6 +434,81 @@ func fieldOrderPayload(metadata map[string]string) string {
 		return ""
 	}
 	return string(payload)
+}
+
+func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
+	if cfg == nil {
+		return rendererTheme{}
+	}
+	ctx := rendererTheme{
+		Name:     cfg.Theme,
+		Variant:  cfg.Variant,
+		Partials: copyStringMap(cfg.Partials),
+		Tokens:   copyStringMap(cfg.Tokens),
+		CSSVars:  copyStringMap(cfg.CSSVars),
+	}
+	ctx.CSSVarsStyle = cssVarsStyle(ctx.CSSVars)
+	ctx.JSON = themeJSON(ctx)
+	return ctx
+}
+
+func themeAssetResolver(cfg *theme.RendererConfig) func(string) string {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.AssetURL
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cssVarsStyle(vars map[string]string) string {
+	if len(vars) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(vars))
+	for key := range vars {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString(":root {\n")
+	for _, key := range keys {
+		b.WriteString(key)
+		b.WriteString(": ")
+		b.WriteString(vars[key])
+		b.WriteString(";\n")
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
+func themeJSON(cfg rendererTheme) string {
+	payload := struct {
+		Name    string            `json:"name,omitempty"`
+		Variant string            `json:"variant,omitempty"`
+		Tokens  map[string]string `json:"tokens,omitempty"`
+		CSSVars map[string]string `json:"cssVars,omitempty"`
+	}{
+		Name:    cfg.Name,
+		Variant: cfg.Variant,
+		Tokens:  cfg.Tokens,
+		CSSVars: cfg.CSSVars,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func ensureAssets(store fs.FS, paths assetPaths) error {
@@ -311,11 +574,27 @@ type assetURLs struct {
 	Stylesheet   string
 }
 
-func (r *Renderer) assetURLs() assetURLs {
+func (r *Renderer) assetURLs(resolver func(string) string) assetURLs {
+	vendor := r.assetPaths.vendorScript
+	app := r.assetPaths.appScript
+	css := r.assetPaths.stylesheet
+
+	if resolver != nil {
+		if resolved := resolver(themeAssetVendorScript); strings.TrimSpace(resolved) != "" {
+			vendor = resolved
+		}
+		if resolved := resolver(themeAssetAppScript); strings.TrimSpace(resolved) != "" {
+			app = resolved
+		}
+		if resolved := resolver(themeAssetStylesheet); strings.TrimSpace(resolved) != "" {
+			css = resolved
+		}
+	}
+
 	return assetURLs{
-		VendorScript: expandAssetURL(r.assetURLPrefix, r.assetPaths.vendorScript),
-		AppScript:    expandAssetURL(r.assetURLPrefix, r.assetPaths.appScript),
-		Stylesheet:   expandAssetURL(r.assetURLPrefix, r.assetPaths.stylesheet),
+		VendorScript: expandAssetURL(r.assetURLPrefix, vendor),
+		AppScript:    expandAssetURL(r.assetURLPrefix, app),
+		Stylesheet:   expandAssetURL(r.assetURLPrefix, css),
 	}
 }
 
