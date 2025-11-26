@@ -17,6 +17,7 @@ import (
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
+	theme "github.com/goliatone/go-theme"
 )
 
 type Option func(*config)
@@ -138,6 +139,16 @@ type Renderer struct {
 type templateRenderOptions struct {
 	MethodAttr     string
 	MethodOverride string
+}
+
+type rendererTheme struct {
+	Name         string            `json:"name"`
+	Variant      string            `json:"variant"`
+	Partials     map[string]string `json:"partials,omitempty"`
+	Tokens       map[string]string `json:"tokens,omitempty"`
+	CSSVars      map[string]string `json:"cssVars,omitempty"`
+	CSSVarsStyle string            `json:"css_vars_style,omitempty"`
+	JSON         string            `json:"json,omitempty"`
 }
 
 const (
@@ -265,9 +276,17 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		return nil, fmt.Errorf("vanilla renderer: template renderer is nil")
 	}
 
+	topPadding := renderOptions.TopPadding
+	if topPadding == 0 {
+		topPadding = 3
+	}
+
 	templateOptions := prepareRenderContext(&form, renderOptions)
 	decorated := decorateFormModel(form)
-	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides)
+	themeCtx := buildThemeContext(renderOptions.Theme)
+	assetResolver := themeAssetResolver(renderOptions.Theme)
+
+	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides, themeCtx, assetResolver)
 	layout, err := buildLayoutContext(decorated, componentRenderer)
 	if err != nil {
 		return nil, fmt.Errorf("vanilla renderer: build layout: %w", err)
@@ -279,6 +298,12 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	if len(componentStyles) > 0 {
 		stylesheets = append(stylesheets, componentStyles...)
 	}
+	stylesheets = resolveAssets(stylesheets, assetResolver)
+	for idx := range componentScripts {
+		componentScripts[idx] = resolveScriptAsset(componentScripts[idx], assetResolver)
+	}
+
+	cleanTheme := themeCtx
 
 	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
 		"form":              decorated,
@@ -287,6 +312,8 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"stylesheets":       stylesheets,
 		"inline_styles":     r.inlineStyle,
 		"component_scripts": componentScripts,
+		"theme":             cleanTheme,
+		"top_padding":       strings.Repeat("\n", topPadding),
 		"render_options": map[string]any{
 			"method_attr":     templateOptions.MethodAttr,
 			"method_override": templateOptions.MethodOverride,
@@ -295,7 +322,113 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	if err != nil {
 		return nil, fmt.Errorf("vanilla renderer: render template: %w", err)
 	}
+	if (renderOptions.Theme == nil || strings.TrimSpace(renderOptions.Theme.Theme) == "") && strings.Contains(result, "<form") {
+		result += "\n\n"
+	}
 	return []byte(result), nil
+}
+
+func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
+	if cfg == nil {
+		return rendererTheme{}
+	}
+	ctx := rendererTheme{
+		Name:     cfg.Theme,
+		Variant:  cfg.Variant,
+		Partials: copyStringMap(cfg.Partials),
+		Tokens:   copyStringMap(cfg.Tokens),
+		CSSVars:  copyStringMap(cfg.CSSVars),
+	}
+	ctx.CSSVarsStyle = cssVarsStyle(ctx.CSSVars)
+	ctx.JSON = themeJSON(ctx)
+	return ctx
+}
+
+func themeAssetResolver(cfg *theme.RendererConfig) func(string) string {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.AssetURL
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cssVarsStyle(vars map[string]string) string {
+	if len(vars) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(vars))
+	for key := range vars {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString(":root {\n")
+	for _, key := range keys {
+		b.WriteString(key)
+		b.WriteString(": ")
+		b.WriteString(vars[key])
+		b.WriteString(";\n")
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
+func themeJSON(cfg rendererTheme) string {
+	payload := struct {
+		Name    string            `json:"name,omitempty"`
+		Variant string            `json:"variant,omitempty"`
+		Tokens  map[string]string `json:"tokens,omitempty"`
+		CSSVars map[string]string `json:"cssVars,omitempty"`
+	}{
+		Name:    cfg.Name,
+		Variant: cfg.Variant,
+		Tokens:  cfg.Tokens,
+		CSSVars: cfg.CSSVars,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func resolveAssets(paths []string, resolver func(string) string) []string {
+	if resolver == nil || len(paths) == 0 {
+		return paths
+	}
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		resolved := strings.TrimSpace(resolver(path))
+		if resolved == "" {
+			resolved = path
+		}
+		out = append(out, resolved)
+	}
+	return out
+}
+
+func resolveScriptAsset(script components.Script, resolver func(string) string) components.Script {
+	if resolver == nil {
+		return script
+	}
+	if resolved := strings.TrimSpace(resolver(script.Src)); resolved != "" {
+		script.Src = resolved
+	}
+	return script
 }
 
 func prepareRenderContext(form *model.FormModel, options render.RenderOptions) templateRenderOptions {

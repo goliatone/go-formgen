@@ -19,6 +19,8 @@ type componentRenderer struct {
 	overrides map[string]string
 
 	usedComponents map[string]struct{}
+	theme          rendererTheme
+	assetResolver  func(string) string
 }
 
 const (
@@ -32,7 +34,7 @@ const (
 	componentChromeSkipKeyword = "skip"
 )
 
-func newComponentRenderer(templates template.TemplateRenderer, registry *components.Registry, overrides map[string]string) *componentRenderer {
+func newComponentRenderer(templates template.TemplateRenderer, registry *components.Registry, overrides map[string]string, theme rendererTheme, assetResolver func(string) string) *componentRenderer {
 	if registry == nil {
 		registry = components.NewDefaultRegistry()
 	}
@@ -41,6 +43,8 @@ func newComponentRenderer(templates template.TemplateRenderer, registry *compone
 		registry:       registry,
 		overrides:      cloneStringMap(overrides),
 		usedComponents: make(map[string]struct{}),
+		theme:          theme,
+		assetResolver:  assetResolver,
 	}
 }
 
@@ -68,9 +72,10 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 	}
 
 	data := components.ComponentData{
-		Template:    r.templates,
-		Config:      config,
-		RenderChild: r.childRenderer(path),
+		Template:      r.templates,
+		Config:        config,
+		RenderChild:   r.childRenderer(path),
+		ThemePartials: r.theme.Partials,
 	}
 
 	var control bytes.Buffer
@@ -103,7 +108,20 @@ func (r *componentRenderer) assets() (stylesheets []string, scripts []components
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	return r.registry.Assets(names)
+	styles, scripts := r.registry.Assets(names)
+	return resolveAssetDependencies(styles, scripts, r.assetResolver)
+}
+
+func resolveAssetDependencies(styles []string, scripts []components.Script, resolver func(string) string) ([]string, []components.Script) {
+	if resolver == nil {
+		return styles, scripts
+	}
+	resolvedStyles := resolveAssets(styles, resolver)
+	resolvedScripts := make([]components.Script, len(scripts))
+	for i, script := range scripts {
+		resolvedScripts[i] = resolveScriptAsset(script, resolver)
+	}
+	return resolvedStyles, resolvedScripts
 }
 
 func (r *componentRenderer) overrideFor(path, name string) string {

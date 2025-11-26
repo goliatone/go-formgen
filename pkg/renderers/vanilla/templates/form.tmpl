@@ -1,25 +1,34 @@
-{%- if stylesheets -%}
-{%- for href in stylesheets -%}
+{%- if not stylesheets and not inline_styles -%}
+{{ top_padding|safe }}
+{%- endif -%}
+{% if stylesheets -%}
+{% for href in stylesheets -%}
 <link rel="stylesheet" href="{{ href }}">
 {%- endfor -%}
 {%- endif -%}
+{% if theme.css_vars_style %}
+<style data-formgen-theme-vars>{{ theme.css_vars_style|safe }}</style>
+{% endif -%}
 {%- if inline_styles -%}
 <style data-formgen-default-style>{{ inline_styles|safe }}</style>
-{%- endif -%}
 
+
+{% endif -%}
+{% if theme.json -%}
+<script id="formgen-theme" type="application/json">{{ theme.json|safe }}</script>
+{% endif -%}
 {% set grid_columns = layout.gridColumnsValue -%}
-{% if not grid_columns %}
+{% if not grid_columns -%}
 {% set grid_columns = layout.gridColumns -%}
-{% endif %}
-{% if not grid_columns %}
-{% set grid_columns = 12 %}
-{% endif %}
+{% endif -%}
+{% if not grid_columns -%}
+{% set grid_columns = 12 -%}
+{% endif -%}
 {% set grid_gutter = layout.gutter -%}
-{% if not grid_gutter %}
-{% set grid_gutter = 'md' %}
+{% if not grid_gutter -%}
+{% set grid_gutter = 'md' -%}
 {% endif %}
-
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ render_options.method_attr or form.method|lower }}" action="{{ form.endpoint }}" data-formgen-auto-init="true">
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ render_options.method_attr or form.method|lower }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
     {% if render_options.method_override %}
     <input type="hidden" name="_method" value="{{ render_options.method_override }}">
     {% endif %}
@@ -94,13 +103,12 @@
         {% endif %}
     </div>
 </form>
-
-{% if component_scripts and component_scripts|length > 0 %}
-{% for script in component_scripts %}
-{% if script.inline %}
+{%- if component_scripts and component_scripts|length > 0 -%}
+{%- for script in component_scripts -%}
+{%- if script.inline -%}
 <script{% if script.type %} type="{{ script.type }}"{% elif script.module %} type="module"{% endif %}{% if script.defer %} defer{% endif %}{% if script.async %} async{% endif %}{% if script.attrs %}{% for key, value in script.attrs.items() %} {{ key }}="{{ value }}"{% endfor %}{% endif %}>{{ script.inline|safe }}</script>
-{% else %}
+{%- else -%}
 <script src="{{ script.src }}"{% if script.type %} type="{{ script.type }}"{% elif script.module %} type="module"{% endif %}{% if script.defer %} defer{% endif %}{% if script.async %} async{% endif %}{% if script.attrs %}{% for key, value in script.attrs.items() %} {{ key }}="{{ value }}"{% endfor %}{% endif %}></script>
-{% endif %}
-{% endfor %}
-{% endif %}
+{%- endif -%}
+{%- endfor -%}
+{%- endif %}

@@ -18,9 +18,10 @@ type Renderer func(buf *bytes.Buffer, field model.Field, data ComponentData) err
 
 // ComponentData carries helpers and configuration for component renderers.
 type ComponentData struct {
-	Template    rendertemplate.TemplateRenderer
-	RenderChild func(value any) (string, error)
-	Config      map[string]any
+	Template      rendertemplate.TemplateRenderer
+	RenderChild   func(value any) (string, error)
+	Config        map[string]any
+	ThemePartials map[string]string
 }
 
 // Script describes JavaScript dependencies a component needs to emit once per

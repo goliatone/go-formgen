@@ -19,16 +19,16 @@ func NewDefaultRegistry() *Registry {
 	registry := New()
 
 	registry.MustRegister("input", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "input.tmpl"),
+		Renderer: templateComponentRenderer("forms.input", templatePrefix+"input.tmpl"),
 	})
 	registry.MustRegister("textarea", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "textarea.tmpl"),
+		Renderer: templateComponentRenderer("forms.textarea", templatePrefix+"textarea.tmpl"),
 	})
 	registry.MustRegister("select", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "select.tmpl"),
+		Renderer: templateComponentRenderer("forms.select", templatePrefix+"select.tmpl"),
 	})
 	registry.MustRegister("boolean", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "boolean.tmpl"),
+		Renderer: templateComponentRenderer("forms.checkbox", templatePrefix+"boolean.tmpl"),
 	})
 	registry.MustRegister("object", Descriptor{
 		Renderer: objectRenderer,
@@ -40,26 +40,33 @@ func NewDefaultRegistry() *Registry {
 		Renderer: datetimeRangeRenderer,
 	})
 	registry.MustRegister("wysiwyg", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "wysiwyg.tmpl"),
+		Renderer: templateComponentRenderer("forms.wysiwyg", templatePrefix+"wysiwyg.tmpl"),
 	})
 	registry.MustRegister("file_uploader", Descriptor{
-		Renderer: templateComponentRenderer(templatePrefix + "file_uploader.tmpl"),
+		Renderer: templateComponentRenderer("forms.file-uploader", templatePrefix+"file_uploader.tmpl"),
 	})
 
 	return registry
 }
 
-func templateComponentRenderer(templateName string) Renderer {
+func templateComponentRenderer(partialKey, templateName string) Renderer {
 	return func(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 		if data.Template == nil {
 			return fmt.Errorf("components: template renderer not configured for %q", templateName)
+		}
+
+		resolvedTemplate := templateName
+		if data.ThemePartials != nil {
+			if candidate := strings.TrimSpace(data.ThemePartials[partialKey]); candidate != "" {
+				resolvedTemplate = candidate
+			}
 		}
 
 		payload := map[string]any{
 			"field":  field,
 			"config": data.Config,
 		}
-		rendered, err := data.Template.RenderTemplate(templateName, payload)
+		rendered, err := data.Template.RenderTemplate(resolvedTemplate, payload)
 		if err != nil {
 			return fmt.Errorf("components: render template %q: %w", templateName, err)
 		}
