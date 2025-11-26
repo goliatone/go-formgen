@@ -1,5 +1,11 @@
 # Changelog
 
+# Unreleased (Phase 10)
+
+- Docs updated with render options (subsets, provenance, readonly/disabled), widget registry hooks, go-theme integration, and adapter notes.
+- Examples: HTTP demo documents subsets, renderer switches, and edit/prefill flows; README reflects new render option inputs.
+- Release/migration guidance added (`docs/RELEASE_NOTES.md`) covering adapter wiring, snapshot refresh, and defaults.
+
 # [0.1.0](https://github.com/goliatone/go-formgen/tree/v0.1.0) - (2025-11-24)
 
 ## <!-- 1 -->🐛 Bug Fixes
@@ -111,5 +117,4 @@
 - Update docs ([c739a07](https://github.com/goliatone/go-formgen/commit/c739a070a3d676177d4bea247ad8ae3759749491))  - (goliatone)
 - Add examples ([5a70dcf](https://github.com/goliatone/go-formgen/commit/5a70dcf2f24911eac8568a492d102d98e3cf043a))  - (goliatone)
 - Initial commit ([2f71c45](https://github.com/goliatone/go-formgen/commit/2f71c459a7a959c9890c21cc43ec9fec88eb161a))  - (goliatone)
-
 
