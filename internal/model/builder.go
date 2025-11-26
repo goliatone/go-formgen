@@ -13,6 +13,7 @@ import (
 
 const (
 	extensionNamespace       = "x-formgen"
+	adminExtensionNamespace  = "x-admin"
 	endpointExtensionKey     = "x-endpoint"
 	currentValueExtensionKey = "x-current-value"
 )
@@ -366,6 +367,9 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 		}
 	}
 
+	adminMeta := adminMetadataFromExtensions(ext)
+	mergeMetadata(result, adminMeta)
+
 	if endpointMeta := endpointMetadataFromExtensions(ext); len(endpointMeta) > 0 {
 		if len(result) == 0 {
 			result = make(map[string]string, len(endpointMeta))
@@ -391,6 +395,80 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 		return nil
 	}
 	return result
+}
+
+func adminMetadataFromExtensions(ext map[string]any) map[string]string {
+	if len(ext) == 0 {
+		return nil
+	}
+
+	result := make(map[string]string)
+	add := func(key string, value any) {
+		if key == "" {
+			return
+		}
+		str, ok := CanonicalizeExtensionValue(value)
+		if !ok {
+			return
+		}
+
+		switch key {
+		case "group":
+			result["admin.group"] = str
+			result["group"] = str
+		case "tags":
+			result["admin.tags"] = str
+			result["tags"] = str
+		case "widget":
+			result["admin.widget"] = str
+			result["widget"] = str
+		case "visibilityrule":
+			result["admin.visibilityRule"] = str
+			result["visibilityRule"] = str
+		case "help":
+			result["admin.help"] = str
+			result["helpText"] = str
+		case "placeholder":
+			result["admin.placeholder"] = str
+			result["placeholder"] = str
+		case "readonly":
+			result["admin.readonly"] = str
+			result["readonly"] = str
+		case "order":
+			result["admin.order"] = str
+			result["order"] = str
+		}
+	}
+
+	if nested, ok := ext[adminExtensionNamespace]; ok {
+		if mapped, ok := nested.(map[string]any); ok {
+			for key, value := range mapped {
+				add(normaliseAdminKey(key), value)
+			}
+		}
+	}
+
+	for key, value := range ext {
+		if !strings.HasPrefix(key, adminExtensionNamespace+"-") {
+			continue
+		}
+		trimmed := strings.TrimPrefix(key, adminExtensionNamespace+"-")
+		add(normaliseAdminKey(trimmed), value)
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func normaliseAdminKey(key string) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("-", "", "_", "", " ", "")
+	return strings.ToLower(replacer.Replace(trimmed))
 }
 
 func mergeMetadata(target map[string]string, updates map[string]string) {
