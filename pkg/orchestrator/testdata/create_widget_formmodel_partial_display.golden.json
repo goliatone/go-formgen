@@ -104,53 +104,6 @@
         "order": "2",
         "tags": "[\"behavior\"]"
       }
-    },
-    {
-      "name": "tags",
-      "type": "array",
-      "required": false,
-      "label": "Tags",
-      "placeholder": "Add tag",
-      "items": {
-        "name": "tagsItem",
-        "type": "string",
-        "required": false,
-        "label": "Tags item",
-        "metadata": {
-          "badge": "info",
-          "cssClass": "fg-array__item"
-        },
-        "uiHints": {
-          "badge": "info",
-          "cssClass": "fg-array__item"
-        }
-      },
-      "metadata": {
-        "admin.group": "taxonomy",
-        "admin.order": "3",
-        "admin.placeholder": "Add tag",
-        "admin.readonly": "true",
-        "admin.tags": "[\"list\"]",
-        "admin.widget": "chips",
-        "cssClass": "fg-array--tags",
-        "group": "taxonomy",
-        "order": "3",
-        "placeholder": "Add tag",
-        "readonly": "true",
-        "repeaterLabel": "Tag",
-        "tags": "[\"list\"]",
-        "widget": "chips"
-      },
-      "uiHints": {
-        "cssClass": "fg-array--tags",
-        "group": "taxonomy",
-        "order": "3",
-        "placeholder": "Add tag",
-        "readonly": "true",
-        "repeaterLabel": "Tag",
-        "tags": "[\"list\"]",
-        "widget": "chips"
-      }
     }
   ],
   "metadata": {
