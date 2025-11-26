@@ -31,6 +31,17 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
+            "x-admin": {
+              "group": "core",
+              "order": 1,
+              "placeholder": "Give it a friendly name",
+              "readonly": false,
+              "tags": [
+                "display"
+              ],
+              "widget": "textarea",
+              "help": "Shown to customers"
+            },
             "x-formgen": {
               "cssClass": "fg-field--name",
               "helpText": "Shown to customers",
@@ -85,6 +96,10 @@
               "MaxLength": null,
               "Pattern": "",
               "Extensions": {
+                "x-admin": {
+                  "order": 2,
+                  "visibility-rule": "enabled == true"
+                },
                 "x-formgen": {
                   "helpText": "Controls the debounce window",
                   "inputType": "range",
@@ -106,6 +121,13 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
+            "x-admin": {
+              "group": "advanced",
+              "order": 2,
+              "tags": [
+                "behavior"
+              ]
+            },
             "x-formgen": {
               "accordion": true,
               "cssClass": "fg-fieldset--settings"
@@ -153,6 +175,16 @@
           "MaxLength": null,
           "Pattern": "",
           "Extensions": {
+            "x-admin": {
+              "group": "taxonomy",
+              "order": 3,
+              "placeholder": "Add tag",
+              "readonly": true,
+              "tags": [
+                "list"
+              ],
+              "widget": "chips"
+            },
             "x-formgen": {
               "cssClass": "fg-array--tags",
               "repeaterLabel": "Tag"
@@ -173,6 +205,10 @@
       "MaxLength": null,
       "Pattern": "",
       "Extensions": {
+        "x-admin": {
+          "group": "details",
+          "order": 1
+        },
         "x-formgen": {
           "section": "details"
         }
@@ -199,6 +235,14 @@
       }
     },
     "Extensions": {
+      "x-admin": {
+        "group": "inventory",
+        "order": 5,
+        "tags": [
+          "admin",
+          "settings"
+        ]
+      },
       "x-formgen": {
         "category": "inventory",
         "priority": 1,

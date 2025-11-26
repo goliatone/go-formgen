@@ -13,6 +13,10 @@ paths:
         category: "inventory"
         priority: 1
       x-formgen-success-message: "Widget saved"
+      x-admin:
+        group: "inventory"
+        tags: ["admin", "settings"]
+        order: 5
       requestBody:
         required: true
         content:
@@ -23,6 +27,9 @@ paths:
                 - name
               x-formgen:
                 section: "details"
+              x-admin:
+                group: "details"
+                order: 1
               properties:
                 name:
                   type: string
@@ -32,12 +39,27 @@ paths:
                     helpText: "Shown to customers"
                     placeholder: "Give it a friendly name"
                     cssClass: "fg-field--name"
+                  x-admin:
+                    group: "core"
+                    tags: ["display"]
+                    widget: "textarea"
+                    help: "Shown to customers"
+                    placeholder: "Give it a friendly name"
+                    readonly: false
+                    order: 1
                 tags:
                   type: array
                   x-formgen-placeholder: "Add tag"
                   x-formgen:
                     repeaterLabel: "Tag"
                     cssClass: "fg-array--tags"
+                  x-admin:
+                    group: "taxonomy"
+                    tags: ["list"]
+                    widget: "chips"
+                    placeholder: "Add tag"
+                    readonly: true
+                    order: 3
                   items:
                     type: string
                     x-formgen:
@@ -48,6 +70,10 @@ paths:
                   x-formgen:
                     accordion: true
                     cssClass: "fg-fieldset--settings"
+                  x-admin:
+                    group: "advanced"
+                    tags: ["behavior"]
+                    order: 2
                   properties:
                     enabled:
                       type: boolean
@@ -60,6 +86,9 @@ paths:
                         precision: 2
                         helpText: "Controls the debounce window"
                         inputType: "range"
+                      x-admin:
+                        visibility-rule: "enabled == true"
+                        order: 2
       responses:
         '200':
           description: OK

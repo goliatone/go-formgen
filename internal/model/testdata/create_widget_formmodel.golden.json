@@ -13,15 +13,30 @@
       "placeholder": "Give it a friendly name",
       "description": "Widget name",
       "metadata": {
+        "admin.group": "core",
+        "admin.help": "Shown to customers",
+        "admin.order": "1",
+        "admin.placeholder": "Give it a friendly name",
+        "admin.readonly": "false",
+        "admin.tags": "[\"display\"]",
+        "admin.widget": "textarea",
         "cssClass": "fg-field--name",
+        "group": "core",
         "helpText": "Shown to customers",
+        "order": "1",
         "placeholder": "Give it a friendly name",
+        "readonly": "false",
+        "tags": "[\"display\"]",
         "widget": "textarea"
       },
       "uiHints": {
         "cssClass": "fg-field--name",
+        "group": "core",
         "helpText": "Shown to customers",
+        "order": "1",
         "placeholder": "Give it a friendly name",
+        "readonly": "false",
+        "tags": "[\"display\"]",
         "widget": "textarea"
       }
     },
@@ -51,26 +66,41 @@
           "required": false,
           "label": "Threshold",
           "metadata": {
+            "admin.order": "2",
+            "admin.visibilityRule": "enabled == true",
             "helpText": "Controls the debounce window",
             "inputType": "range",
+            "order": "2",
             "precision": "2",
-            "unit": "ms"
+            "unit": "ms",
+            "visibilityRule": "enabled == true"
           },
           "uiHints": {
             "helpText": "Controls the debounce window",
             "inputType": "range",
+            "order": "2",
             "precision": "2",
-            "unit": "ms"
+            "unit": "ms",
+            "visibilityRule": "enabled == true"
           }
         }
       ],
       "metadata": {
+        "admin.group": "advanced",
+        "admin.order": "2",
+        "admin.tags": "[\"behavior\"]",
         "accordion": "true",
-        "cssClass": "fg-fieldset--settings"
+        "cssClass": "fg-fieldset--settings",
+        "group": "advanced",
+        "order": "2",
+        "tags": "[\"behavior\"]"
       },
       "uiHints": {
         "accordion": "true",
-        "cssClass": "fg-fieldset--settings"
+        "cssClass": "fg-fieldset--settings",
+        "group": "advanced",
+        "order": "2",
+        "tags": "[\"behavior\"]"
       }
     },
     {
@@ -94,31 +124,56 @@
         }
       },
       "metadata": {
+        "admin.group": "taxonomy",
+        "admin.order": "3",
+        "admin.placeholder": "Add tag",
+        "admin.readonly": "true",
+        "admin.tags": "[\"list\"]",
+        "admin.widget": "chips",
         "cssClass": "fg-array--tags",
+        "group": "taxonomy",
+        "order": "3",
         "placeholder": "Add tag",
-        "repeaterLabel": "Tag"
+        "readonly": "true",
+        "repeaterLabel": "Tag",
+        "tags": "[\"list\"]",
+        "widget": "chips"
       },
       "uiHints": {
         "cssClass": "fg-array--tags",
+        "group": "taxonomy",
+        "order": "3",
         "placeholder": "Add tag",
-        "repeaterLabel": "Tag"
+        "readonly": "true",
+        "repeaterLabel": "Tag",
+        "tags": "[\"list\"]",
+        "widget": "chips"
       }
     }
   ],
   "metadata": {
+    "admin.group": "details",
+    "admin.order": "1",
+    "admin.tags": "[\"admin\",\"settings\"]",
     "category": "inventory",
     "description": "Capture metadata for a widget.",
+    "group": "details",
+    "order": "1",
     "priority": "1",
     "section": "details",
     "submitLabel": "Create widget",
     "success-message": "Widget saved",
-    "summary": "Create widget"
+    "summary": "Create widget",
+    "tags": "[\"admin\",\"settings\"]"
   },
   "uiHints": {
     "category": "inventory",
+    "group": "details",
+    "order": "1",
     "priority": "1",
     "section": "details",
     "submitLabel": "Create widget",
-    "success-message": "Widget saved"
+    "success-message": "Widget saved",
+    "tags": "[\"admin\",\"settings\"]"
   }
 }
