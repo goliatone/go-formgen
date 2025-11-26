@@ -13,6 +13,8 @@ import (
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/formgen/pkg/uischema"
+	"github.com/goliatone/formgen/pkg/widgets"
+	theme "github.com/goliatone/go-theme"
 )
 
 const defaultRendererName = "vanilla"
@@ -45,6 +47,46 @@ func WithModelBuilder(builder model.Builder) Option {
 func WithRegistry(registry *render.Registry) Option {
 	return func(o *Orchestrator) {
 		o.registry = registry
+	}
+}
+
+// WithThemeSelector injects a go-theme selector used to resolve theme/variant
+// combinations into renderer-friendly configuration.
+func WithThemeSelector(selector theme.ThemeSelector) Option {
+	return func(o *Orchestrator) {
+		o.themeSelector = selector
+	}
+}
+
+// WithThemeFallbacks supplies fallback partial paths passed to
+// Selection.RendererTheme so renderers receive a resolved partial map even when
+// the manifest omits a template key.
+func WithThemeFallbacks(fallbacks map[string]string) Option {
+	return func(o *Orchestrator) {
+		if len(fallbacks) == 0 {
+			return
+		}
+		o.themeFallbacks = cloneStringMap(fallbacks)
+	}
+}
+
+func defaultThemeFallbacks() map[string]string {
+	return map[string]string{
+		"forms.input":         "templates/components/input.tmpl",
+		"forms.select":        "templates/components/select.tmpl",
+		"forms.checkbox":      "templates/components/boolean.tmpl",
+		"forms.radio":         "templates/components/boolean.tmpl",
+		"forms.textarea":      "templates/components/textarea.tmpl",
+		"forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
+		"forms.file-uploader": "templates/components/file_uploader.tmpl",
+	}
+}
+
+// WithWidgetRegistry injects a custom widget registry used to resolve widgets
+// before rendering.
+func WithWidgetRegistry(registry *widgets.Registry) Option {
+	return func(o *Orchestrator) {
+		o.widgetRegistry = registry
 	}
 }
 
@@ -93,6 +135,9 @@ type Orchestrator struct {
 	builder               model.Builder
 	registry              *render.Registry
 	defaultRenderer       string
+	themeSelector         theme.ThemeSelector
+	themeFallbacks        map[string]string
+	widgetRegistry        *widgets.Registry
 	initialiseErr         error
 	defaultsApplied       bool
 	endpointOverrides     map[string][]EndpointOverride
@@ -137,6 +182,14 @@ type Request struct {
 	// Renderer names the renderer to use. If empty, the orchestrator falls back
 	// to the configured default renderer.
 	Renderer string
+
+	// ThemeName optionally selects a theme by name. When empty, the configured
+	// ThemeSelector decides the default.
+	ThemeName string
+
+	// ThemeVariant optionally selects a variant (e.g., light/dark). When empty,
+	// the ThemeSelector default is used.
+	ThemeVariant string
 
 	// RenderOptions carries per-request instructions such as method overrides,
 	// prefilled values, or server-side errors that renderers can surface. When
@@ -195,17 +248,45 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 		return nil, err
 	}
 
+	renderOptions := req.RenderOptions
+	if renderOptions.Theme == nil {
+		themeConfig, err := o.resolveTheme(req.ThemeName, req.ThemeVariant)
+		if err != nil {
+			return nil, err
+		}
+		renderOptions.Theme = themeConfig
+	}
+
 	renderer, err := o.rendererFor(req.Renderer)
 	if err != nil {
 		return nil, err
 	}
 
-	output, err := renderer.Render(ctx, form, req.RenderOptions)
+	if renderOptions.TopPadding == 0 && renderer.Name() == "vanilla" {
+		renderOptions.TopPadding = 5
+	}
+
+	output, err := renderer.Render(ctx, form, renderOptions)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: render output: %w", err)
 	}
 
 	return output, nil
+}
+
+func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererConfig, error) {
+	if o.themeSelector == nil {
+		return nil, nil
+	}
+	selection, err := o.themeSelector.Select(themeName, variant)
+	if err != nil {
+		return nil, fmt.Errorf("orchestrator: select theme: %w", err)
+	}
+	if selection == nil {
+		return nil, fmt.Errorf("orchestrator: theme selector returned nil selection")
+	}
+	cfg := selection.RendererTheme(o.themeFallbacks)
+	return &cfg, nil
 }
 
 func (o *Orchestrator) resolveDocument(ctx context.Context, req Request) (pkgopenapi.Document, error) {
@@ -293,6 +374,9 @@ func (o *Orchestrator) applyDefaults() {
 	if o.builder == nil {
 		o.builder = model.NewBuilder()
 	}
+	if o.widgetRegistry == nil {
+		o.widgetRegistry = widgets.NewRegistry()
+	}
 	if o.registry == nil {
 		o.registry = render.NewRegistry()
 		renderer, err := vanilla.New()
@@ -304,6 +388,14 @@ func (o *Orchestrator) applyDefaults() {
 	}
 	if o.defaultRenderer == "" {
 		o.defaultRenderer = defaultRendererName
+	}
+
+	if o.themeSelector != nil && len(o.themeFallbacks) == 0 {
+		o.themeFallbacks = defaultThemeFallbacks()
+	}
+
+	if o.widgetRegistry != nil {
+		o.decorators = append([]model.Decorator{o.widgetRegistry}, o.decorators...)
 	}
 
 	o.ensureUIDecorator()
