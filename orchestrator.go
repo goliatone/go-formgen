@@ -6,6 +6,7 @@ import (
 	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
 	"github.com/goliatone/formgen/pkg/orchestrator"
 	"github.com/goliatone/formgen/pkg/render"
+	theme "github.com/goliatone/go-theme"
 )
 
 // EndpointConfig mirrors the x-endpoint contract; alias exported via the root
@@ -58,4 +59,16 @@ func GenerateHTMLFromDocument(ctx context.Context, doc pkgopenapi.Document, oper
 // GenerateHTML alongside other orchestrator options.
 func WithEndpointOverrides(overrides []EndpointOverride) orchestrator.Option {
 	return orchestrator.WithEndpointOverrides(overrides)
+}
+
+// WithThemeSelector passes a go-theme selector through to the orchestrator so
+// theme/variant choices can be resolved ahead of rendering.
+func WithThemeSelector(selector theme.ThemeSelector) orchestrator.Option {
+	return orchestrator.WithThemeSelector(selector)
+}
+
+// WithThemeFallbacks forwards fallback partials used when deriving renderer
+// configuration from a theme selection.
+func WithThemeFallbacks(fallbacks map[string]string) orchestrator.Option {
+	return orchestrator.WithThemeFallbacks(fallbacks)
 }
