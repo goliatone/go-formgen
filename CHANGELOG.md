@@ -1,10 +1,44 @@
 # Changelog
 
-# Unreleased (Phase 10)
+# [0.2.0](https://github.com/goliatone/go-formgen/compare/v0.1.0...v0.2.0) - (2025-11-26)
 
-- Docs updated with render options (subsets, provenance, readonly/disabled), widget registry hooks, go-theme integration, and adapter notes.
-- Examples: HTTP demo documents subsets, renderer switches, and edit/prefill flows; README reflects new render option inputs.
-- Release/migration guidance added (`docs/RELEASE_NOTES.md`) covering adapter wiring, snapshot refresh, and defaults.
+## <!-- 1 -->🐛 Bug Fixes
+
+- Race condition ([e079974](https://github.com/goliatone/go-formgen/commit/e07997453b340726f85477d92d396a2fe88d1f86))  - (goliatone)
+- Update templates ([6dfa1fa](https://github.com/goliatone/go-formgen/commit/6dfa1faa90b634fefc093fc71f6f7cd00f8cc344))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.2.0 ([a13304f](https://github.com/goliatone/go-formgen/commit/a13304fb75a5d83745af0f435a75d6bb3a178074))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Theme provider orchestrator ([53f84db](https://github.com/goliatone/go-formgen/commit/53f84db4a4eb6776fa5d5befd8a28ad0afd6edea))  - (goliatone)
+- Vanilla renderer partials and visibility ([5e51e14](https://github.com/goliatone/go-formgen/commit/5e51e146eb4a7226e224a508bcb61d0a73246f2f))  - (goliatone)
+- Render submision and subsets ([781a2c1](https://github.com/goliatone/go-formgen/commit/781a2c1897fab70f57afb49ca567ced29bcae9fd))  - (goliatone)
+- Preact render ([05d7b30](https://github.com/goliatone/go-formgen/commit/05d7b305c07535ccc26e12bd7e29025ef71aa551))  - (goliatone)
+- Orchestrator theme integration ([8b87181](https://github.com/goliatone/go-formgen/commit/8b87181c279b31b62ff31b6a51c239ced80fd767))  - (goliatone)
+- Visibility management ([0f3f730](https://github.com/goliatone/go-formgen/commit/0f3f730d4d48a5ab907cd6b623c0ab378c79d5e4))  - (goliatone)
+- New templates for partial output ([61f68dd](https://github.com/goliatone/go-formgen/commit/61f68dd1a55d2e521ae3264830408bafa3b57472))  - (goliatone)
+- Vanilla renderer ([9d480f3](https://github.com/goliatone/go-formgen/commit/9d480f34a0157393a159fa798a7d853a77b53e95))  - (goliatone)
+- Theme support ([f599e9b](https://github.com/goliatone/go-formgen/commit/f599e9b8f98842d0228740de578b80862a0d1c26))  - (goliatone)
+- Visibility manager ([caa1e8f](https://github.com/goliatone/go-formgen/commit/caa1e8f227f3368efd6cdfcdc09b606ffe23d236))  - (goliatone)
+- Orchestrator theme support ([5979224](https://github.com/goliatone/go-formgen/commit/5979224a69fa4088c4bbd661cc01d68ea3a854e5))  - (goliatone)
+- Admin extension ([59e0cb5](https://github.com/goliatone/go-formgen/commit/59e0cb5ccd050958b250af6b677a8f6a3b774f02))  - (goliatone)
+- Widget registry ([97567b8](https://github.com/goliatone/go-formgen/commit/97567b837af82b5a2857f490af6154f48ee1321d))  - (goliatone)
+- Orchestrator theme ([f38f61b](https://github.com/goliatone/go-formgen/commit/f38f61b8c966a6b2fed9848d777e3e31b22b75fc))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.1.0 ([cbeb6e9](https://github.com/goliatone/go-formgen/commit/cbeb6e9d8716cfa95540529395e3bec551fb5587))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update readme ([43e35c5](https://github.com/goliatone/go-formgen/commit/43e35c5b3a75ba0580d4697dae9c0c78afb6a9c9))  - (goliatone)
+- Update deps ([4b82ec4](https://github.com/goliatone/go-formgen/commit/4b82ec468331246d33c2ad9c186770d9612ffe9a))  - (goliatone)
+- Update test data ([fa22f11](https://github.com/goliatone/go-formgen/commit/fa22f11f43db062633a838d879a3966d08181342))  - (goliatone)
+- Linting ([42b3538](https://github.com/goliatone/go-formgen/commit/42b353830d4adcf0f465801e136bd436c3c10454))  - (goliatone)
+- Update tests ([56d095c](https://github.com/goliatone/go-formgen/commit/56d095ce53f9671aee11ec58d93dd40155067004))  - (goliatone)
 
 # [0.1.0](https://github.com/goliatone/go-formgen/tree/v0.1.0) - (2025-11-24)
 
@@ -117,4 +151,5 @@
 - Update docs ([c739a07](https://github.com/goliatone/go-formgen/commit/c739a070a3d676177d4bea247ad8ae3759749491))  - (goliatone)
 - Add examples ([5a70dcf](https://github.com/goliatone/go-formgen/commit/5a70dcf2f24911eac8568a492d102d98e3cf043a))  - (goliatone)
 - Initial commit ([2f71c45](https://github.com/goliatone/go-formgen/commit/2f71c459a7a959c9890c21cc43ec9fec88eb161a))  - (goliatone)
+
 
