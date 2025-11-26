@@ -28,9 +28,23 @@
 {% if not grid_gutter -%}
 {% set grid_gutter = 'md' -%}
 {% endif %}
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ render_options.method_attr or form.method|lower }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
     {% if render_options.method_override %}
     <input type="hidden" name="_method" value="{{ render_options.method_override }}">
+    {% endif %}
+    {% if render_options.hidden_fields %}
+    {% for field in render_options.hidden_fields %}
+    <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+    {% endfor %}
+    {% endif %}
+    {% if render_options.form_errors %}
+    <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+        <ul class="list-disc space-y-1 pl-4">
+        {% for message in render_options.form_errors %}
+            <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+    </div>
     {% endif %}
     {% if form.uiHints and (form.uiHints['layout.title'] or form.uiHints['layout.subtitle']) %}
     <header class="space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700">

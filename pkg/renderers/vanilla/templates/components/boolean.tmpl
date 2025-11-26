@@ -1,5 +1,8 @@
 {% set data_attrs = field.metadata.__data_attrs -%}
 {% set validation_state = field.metadata["validation.state"] -%}
+{% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
+{% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
+{% set provenance = field.metadata["prefill.provenance"] -%}
 <div class="flex items-center">
     <input
         type="checkbox"
@@ -7,9 +10,10 @@
         name="{{ field.name }}"
         class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
         {% if field.default %}checked{% endif %}
-        {% if field.disabled %}disabled{% endif %}
+        {% if disabled_value or readonly_value %}disabled{% endif %}
         {% if field.required %}required{% endif %}
         {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
+        {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
         {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
     >
     {% if field.label %}

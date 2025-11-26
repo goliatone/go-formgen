@@ -1,5 +1,8 @@
 {% set data_attrs = field.metadata.__data_attrs -%}
 {% set validation_state = field.metadata["validation.state"] -%}
+{% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
+{% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
+{% set provenance = field.metadata["prefill.provenance"] -%}
 <input
   type="text"
   id="fg-{{ field.name }}"
@@ -7,9 +10,11 @@
   class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
   {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
   {% if field.required %}required{% endif %}
-  {% if field.disabled %}disabled{% endif %}
-  {% if field.readonly %}readonly{% endif %}
+  {% if disabled_value %}disabled{% endif %}
+  {% if readonly_value %}readonly{% endif %}
+  {% if readonly_value %}aria-readonly="true"{% endif %}
   {% if field.default %}value="{{ field.default }}"{% endif %}
   {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
+  {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
   {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >

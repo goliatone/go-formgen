@@ -7,6 +7,9 @@
 {% set icon_raw = field.uiHints.iconRaw -%}
 {% set has_icon = icon_value or icon_raw -%}
 {% set validation_state = field.metadata["validation.state"] -%}
+{% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
+{% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
+{% set provenance = field.metadata["prefill.provenance"] -%}
 
 {% if has_icon %}
 <div class="relative">
@@ -26,10 +29,12 @@
     rows="{{ row_count }}"
     {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
     {% if field.required %}required{% endif %}
-    {% if field.disabled %}disabled{% endif %}
-    {% if field.readonly %}readonly{% endif %}
+    {% if disabled_value %}disabled{% endif %}
+    {% if readonly_value %}readonly{% endif %}
+    {% if readonly_value %}aria-readonly="true"{% endif %}
     {% if field.maxLength or field.maxLength == 0 %}maxlength="{{ field.maxLength }}"{% endif %}
     {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
+    {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >{% if field.default %}{{ field.default }}{% endif %}</textarea>
 {% if has_icon %}

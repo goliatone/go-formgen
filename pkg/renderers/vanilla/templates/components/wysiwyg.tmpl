@@ -1,6 +1,9 @@
 {% set data_attrs = field.metadata.__data_attrs -%}
 {% set component_config = field.metadata["component.config"] -%}
 {% set validation_state = field.metadata["validation.state"] -%}
+{% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
+{% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
+{% set provenance = field.metadata["prefill.provenance"] -%}
 
 <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
   <textarea
@@ -11,10 +14,12 @@
       {% if component_config %}data-component-config='{{ component_config|safe }}'{% endif %}
       {% if field.placeholder %}data-placeholder="{{ field.placeholder }}"{% endif %}
       {% if field.required %}required{% endif %}
-      {% if field.disabled %}disabled{% endif %}
-      {% if field.readonly %}readonly{% endif %}
+      {% if disabled_value %}disabled{% endif %}
+      {% if readonly_value %}readonly{% endif %}
+      {% if readonly_value %}aria-readonly="true"{% endif %}
       {% if field.maxLength or field.maxLength == 0 %}data-maxlength="{{ field.maxLength }}"{% endif %}
       {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
+      {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
       {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
   >{% if field.default %}{{ field.default }}{% endif %}</textarea>
   <div id="fg-{{ field.name }}-editor" class="wysiwyg-editor"></div>

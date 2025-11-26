@@ -1,5 +1,15 @@
 {% if field.label %}
+{% set provenance = field.metadata["prefill.provenance"] %}
 <label data-formgen-chrome="label"{% if context.labelID %} id="{{ context.labelID }}"{% endif %}{% if context.labelTarget %} for="{{ context.labelTarget }}"{% endif %} class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300{% if context.visuallyHiddenLabel %} sr-only{% endif %}">
+    {% if provenance %}
+    <span class="inline-flex items-center gap-2">
+        <span>{{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}</span>
+        <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-slate-800 dark:text-gray-200" data-formgen-provenance="true">
+            {{ provenance }}
+        </span>
+    </span>
+    {% else %}
     {{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}
+    {% endif %}
 </label>
 {% endif %}
