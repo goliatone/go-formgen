@@ -195,6 +195,17 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 			builder.WriteString(`"`)
 		}
 	}
+	if prov := strings.TrimSpace(stringFromMap(field.Metadata, "prefill.provenance")); prov != "" {
+		builder.WriteString(` data-prefill-provenance="`)
+		builder.WriteString(html.EscapeString(prov))
+		builder.WriteString(`"`)
+	}
+	if strings.TrimSpace(stringFromMap(field.Metadata, "prefill.readonly")) == "true" {
+		builder.WriteString(` data-prefill-readonly="true"`)
+	}
+	if strings.TrimSpace(stringFromMap(field.Metadata, "prefill.disabled")) == "true" {
+		builder.WriteString(` data-prefill-disabled="true"`)
+	}
 
 	builder.WriteString(">\n")
 

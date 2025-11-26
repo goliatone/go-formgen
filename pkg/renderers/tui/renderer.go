@@ -85,9 +85,14 @@ func (r *Renderer) Render(ctx context.Context, form model.FormModel, opts render
 		return nil, errors.New("tui: prompt driver is nil")
 	}
 
+	render.ApplySubset(&form, opts.Subset)
+
 	state := NewState(opts.Values, opts.Errors)
 	rulesCache := make(map[string]validationRules)
 	relCache := make(map[string][]relOption)
+	for _, field := range render.SortedHiddenFields(opts.HiddenFields) {
+		_ = state.SetValue(field.Name, field.Value)
+	}
 
 	for _, field := range form.Fields {
 		if err := r.promptField(ctx, field, field.Name, state, rulesCache, relCache); err != nil {

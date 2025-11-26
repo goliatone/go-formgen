@@ -3,8 +3,10 @@ package vanilla_test
 import (
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/formgen/pkg/testsupport"
@@ -155,6 +157,12 @@ func TestRenderer_RenderPrefilledForm(t *testing.T) {
 			"title":               {"Title cannot be empty"},
 			"related_article_ids": {"Replace duplicate related articles"},
 		},
+		FormErrors: []string{"Unable to save article", "Please fix the errors below"},
+		HiddenFields: render.MergeHiddenFields(nil,
+			render.CSRFToken("_csrf", "csrf-token"),
+			render.AuthToken("auth_token", "auth-token"),
+			render.VersionField("version", 3),
+		),
 	}
 
 	output, err := renderer.Render(testsupport.Context(), form, options)
@@ -167,9 +175,60 @@ func TestRenderer_RenderPrefilledForm(t *testing.T) {
 		return
 	}
 
-	want := testsupport.MustReadGolden(t, goldenPath)
-	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
+	want := strings.TrimSpace(string(testsupport.MustReadGolden(t, goldenPath)))
+	got := strings.TrimSpace(string(output))
+	if diff := testsupport.CompareGolden(want, got); diff != "" {
 		t.Fatalf("prefilled output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRenderer_RenderWithProvenance(t *testing.T) {
+	t.Helper()
+
+	form := model.FormModel{
+		OperationID: "article",
+		Endpoint:    "/articles",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "title", Type: model.FieldTypeString, Label: "Title"},
+			{Name: "scope", Type: model.FieldTypeString, Label: "Scope"},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	options := render.RenderOptions{
+		Values: map[string]any{
+			"title": render.ValueWithProvenance{
+				Value:      "Existing title",
+				Provenance: "tenant default",
+				Disabled:   true,
+			},
+			"scope": render.ValueWithProvenance{
+				Value:      "tenant",
+				Provenance: "org policy",
+				Readonly:   true,
+			},
+		},
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, options)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "form_output_provenance.golden.html")
+	if testsupport.WriteMaybeGolden(t, goldenPath, output) {
+		return
+	}
+
+	want := strings.TrimSpace(string(testsupport.MustReadGolden(t, goldenPath)))
+	got := strings.TrimSpace(string(output))
+	if diff := testsupport.CompareGolden(want, got); diff != "" {
+		t.Fatalf("provenance output mismatch (-want +got):\n%s", diff)
 	}
 }
 

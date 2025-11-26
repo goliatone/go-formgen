@@ -45,6 +45,7 @@ func NewDefaultRegistry() *Registry {
 	registry.MustRegister("file_uploader", Descriptor{
 		Renderer: templateComponentRenderer("forms.file-uploader", templatePrefix+"file_uploader.tmpl"),
 	})
+	registry.MustRegister("json_editor", jsonEditorDescriptor())
 
 	return registry
 }

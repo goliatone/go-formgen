@@ -17,6 +17,7 @@ import (
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
 
@@ -139,6 +140,8 @@ type Renderer struct {
 type templateRenderOptions struct {
 	MethodAttr     string
 	MethodOverride string
+	FormErrors     []string
+	HiddenFields   []render.HiddenField
 }
 
 type rendererTheme struct {
@@ -276,6 +279,8 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		return nil, fmt.Errorf("vanilla renderer: template renderer is nil")
 	}
 
+	render.ApplySubset(&form, renderOptions.Subset)
+
 	topPadding := renderOptions.TopPadding
 	if topPadding == 0 {
 		topPadding = 3
@@ -317,6 +322,8 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"render_options": map[string]any{
 			"method_attr":     templateOptions.MethodAttr,
 			"method_override": templateOptions.MethodOverride,
+			"form_errors":     templateOptions.FormErrors,
+			"hidden_fields":   templateOptions.HiddenFields,
 		},
 	})
 	if err != nil {
@@ -437,12 +444,18 @@ func prepareRenderContext(form *model.FormModel, options render.RenderOptions) t
 		MethodOverride: "",
 	}
 	if form == nil {
+		ctx.FormErrors = render.MergeFormErrors(options.FormErrors)
+		ctx.HiddenFields = render.SortedHiddenFields(options.HiddenFields)
 		return ctx
 	}
 
 	applyMethodOverride(form, &ctx, options.Method)
 	applyPrefillValues(form, options.Values)
-	applyServerErrors(form, options.Errors)
+
+	mapped := render.MapErrorPayload(*form, options.Errors)
+	applyServerErrors(form, mapped.Fields)
+	ctx.FormErrors = render.MergeFormErrors(options.FormErrors, mapped.Form...)
+	ctx.HiddenFields = render.SortedHiddenFields(options.HiddenFields)
 
 	return ctx
 }
@@ -487,11 +500,18 @@ func applyPrefillValues(form *model.FormModel, values map[string]any) {
 	form.Fields = applyValuesToFields(form.Fields, flattened, "")
 }
 
-func flattenPrefillValues(values map[string]any) map[string]any {
-	result := make(map[string]any)
-	var walk func(prefix string, value any)
+type prefillValue struct {
+	value      any
+	provenance string
+	readonly   bool
+	disabled   bool
+}
 
-	walk = func(prefix string, value any) {
+func flattenPrefillValues(values map[string]any) map[string]prefillValue {
+	result := make(map[string]prefillValue)
+	var walk func(prefix string, value any, meta prefillValue)
+
+	walk = func(prefix string, value any, meta prefillValue) {
 		switch typed := value.(type) {
 		case map[string]any:
 			for key, val := range typed {
@@ -500,7 +520,12 @@ func flattenPrefillValues(values map[string]any) map[string]any {
 					continue
 				}
 				next := joinPath(prefix, key)
-				walk(next, val)
+				walk(next, val, meta)
+			}
+			if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
+				if _, exists := result[prefix]; !exists {
+					result[prefix] = meta
+				}
 			}
 		case map[string]string:
 			for key, val := range typed {
@@ -509,11 +534,27 @@ func flattenPrefillValues(values map[string]any) map[string]any {
 					continue
 				}
 				next := joinPath(prefix, key)
-				result[next] = val
+				result[next] = prefillValue{
+					value:      val,
+					provenance: meta.provenance,
+					readonly:   meta.readonly,
+					disabled:   meta.disabled,
+				}
 			}
+		case render.ValueWithProvenance:
+			meta.provenance = typed.Provenance
+			meta.readonly = typed.Readonly
+			meta.disabled = typed.Disabled
+			walk(prefix, typed.Value, meta)
+		case *render.ValueWithProvenance:
+			meta.provenance = typed.Provenance
+			meta.readonly = typed.Readonly
+			meta.disabled = typed.Disabled
+			walk(prefix, typed.Value, meta)
 		default:
 			if prefix != "" {
-				result[prefix] = typed
+				meta.value = typed
+				result[prefix] = meta
 			}
 		}
 	}
@@ -523,12 +564,12 @@ func flattenPrefillValues(values map[string]any) map[string]any {
 		if key == "" {
 			continue
 		}
-		walk(key, value)
+		walk(key, value, prefillValue{})
 	}
 	return result
 }
 
-func applyValuesToFields(fields []model.Field, values map[string]any, parentPath string) []model.Field {
+func applyValuesToFields(fields []model.Field, values map[string]prefillValue, parentPath string) []model.Field {
 	if len(fields) == 0 {
 		return fields
 	}
@@ -536,7 +577,10 @@ func applyValuesToFields(fields []model.Field, values map[string]any, parentPath
 	for i := range fields {
 		path := joinPath(parentPath, fields[i].Name)
 		if value, ok := values[path]; ok {
-			assignFieldValue(&fields[i], value)
+			if value.value != nil {
+				assignFieldValue(&fields[i], value.value)
+			}
+			applyValueProvenance(&fields[i], value)
 		}
 		if len(fields[i].Nested) > 0 {
 			fields[i].Nested = applyValuesToFields(fields[i].Nested, values, path)
@@ -551,6 +595,39 @@ func applyValuesToFields(fields []model.Field, values map[string]any, parentPath
 	}
 
 	return fields
+}
+
+func applyValueProvenance(field *model.Field, value prefillValue) {
+	if field == nil {
+		return
+	}
+
+	if value.provenance != "" {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 2)
+		}
+		field.Metadata["prefill.provenance"] = value.provenance
+	}
+	if value.readonly {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 1)
+		}
+		field.Metadata["readonly"] = "true"
+		field.Metadata["prefill.readonly"] = "true"
+		if field.UIHints == nil {
+			field.UIHints = make(map[string]string, 1)
+		}
+		field.UIHints["readonly"] = "true"
+		field.Readonly = true
+	}
+	if value.disabled {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 1)
+		}
+		field.Metadata["disabled"] = "true"
+		field.Metadata["prefill.disabled"] = "true"
+		field.Disabled = true
+	}
 }
 
 func assignFieldValue(field *model.Field, value any) {
@@ -1128,6 +1205,11 @@ func resolveComponentName(field model.Field) string {
 		}
 	}
 
+	switch widgetHint(field) {
+	case widgets.WidgetJSONEditor:
+		return "json_editor"
+	}
+
 	hint := func(key string) string {
 		if field.UIHints == nil {
 			return ""
@@ -1164,6 +1246,23 @@ func stringFromMap(values map[string]string, key string) string {
 		return ""
 	}
 	return values[key]
+}
+
+func widgetHint(field model.Field) string {
+	if field.Metadata != nil {
+		if widget := strings.TrimSpace(field.Metadata["admin.widget"]); widget != "" {
+			return widget
+		}
+		if widget := strings.TrimSpace(field.Metadata["widget"]); widget != "" {
+			return widget
+		}
+	}
+	if field.UIHints != nil {
+		if widget := strings.TrimSpace(field.UIHints["widget"]); widget != "" {
+			return widget
+		}
+	}
+	return ""
 }
 
 func decorateFields(fields []model.Field) []model.Field {

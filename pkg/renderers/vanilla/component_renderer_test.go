@@ -2,10 +2,15 @@ package vanilla
 
 import (
 	"io"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/formgen/pkg/testsupport"
+	"github.com/goliatone/formgen/pkg/widgets"
 )
 
 func TestComponentRendererUnknownComponent(t *testing.T) {
@@ -46,6 +51,62 @@ func TestComponentRendererUsesThemePartial(t *testing.T) {
 	if got := template.calls[0]; got != "themes/custom/input.tmpl" {
 		t.Fatalf("theme partial not applied, got %q", got)
 	}
+}
+
+func TestJSONEditorComponentRendersPrettyValue(t *testing.T) {
+	engine, err := gotemplate.New(
+		gotemplate.WithFS(TemplatesFS()),
+		gotemplate.WithExtension(".tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("configure template renderer: %v", err)
+	}
+
+	renderer := newComponentRenderer(engine, components.NewDefaultRegistry(), nil, rendererTheme{}, nil)
+
+	field := model.Field{
+		Name:        "settings",
+		Type:        model.FieldTypeObject,
+		Description: "Runtime feature flags",
+		Default: map[string]any{
+			"enabled": true,
+			"count":   2,
+		},
+		Metadata: map[string]string{
+			"widget":                   widgets.WidgetJSONEditor,
+			componentChromeMetadataKey: componentChromeSkipKeyword,
+		},
+		UIHints: map[string]string{
+			"schemaHint": "Advanced settings",
+			"collapsed":  "true",
+		},
+	}
+
+	html, err := renderer.render(field, "settings")
+	if err != nil {
+		t.Fatalf("render json editor: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "json_editor_component.golden.html")
+	if testsupport.WriteMaybeGolden(t, goldenPath, []byte(html)) {
+		return
+	}
+
+	want := normalizeHTML(string(testsupport.MustReadGolden(t, goldenPath)))
+	if diff := testsupport.CompareGolden(want, normalizeHTML(html)); diff != "" {
+		t.Fatalf("json editor output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func normalizeHTML(input string) string {
+	lines := strings.Split(input, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 type recordingTemplateRenderer struct {
