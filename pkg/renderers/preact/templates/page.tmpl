@@ -10,9 +10,12 @@
   <title>{{ form.operationId }}</title>
   {% endif %}
   <link rel="stylesheet" href="{{ assets.stylesheet }}">
+{% if theme.css_vars_style %}  <style data-formgen-theme-vars>{{ theme.css_vars_style|safe }}</style>
+{% endif -%}
 </head>
 <body>
-  <div id="formgen-preact-root" data-operation="{{ form.operationId }}"{% if field_orders %} data-field-order='{{ field_orders|safe }}'{% endif %}></div>
+  <div id="formgen-preact-root" data-operation="{{ form.operationId }}"{% if field_orders %} data-field-order='{{ field_orders|safe }}'{% endif %}{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}></div>
+{% if theme.json %}  <script id="formgen-theme" type="application/json">{{ theme.json|safe }}</script>{% endif %}
   <script id="formgen-preact-data" type="application/json">{{ form_json|safe }}</script>
   <script src="{{ assets.vendorScript }}" defer></script>
   <script src="/runtime/formgen-relationships.min.js" defer></script>
