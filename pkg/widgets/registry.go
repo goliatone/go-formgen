@@ -3,6 +3,7 @@ package widgets
 import (
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/goliatone/formgen/pkg/model"
 )
@@ -31,6 +32,7 @@ type rule struct {
 // registered matchers. Higher priority wins; ties fall back to registration
 // order. An empty registry never resolves a widget.
 type Registry struct {
+	mu    sync.RWMutex
 	rules []rule
 }
 
@@ -53,6 +55,9 @@ func (r *Registry) Register(name string, priority int, matcher Matcher) {
 	if trimmed == "" {
 		return
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.rules = append(r.rules, rule{
 		name:     trimmed,
 		priority: priority,
@@ -67,10 +72,16 @@ func (r *Registry) Resolve(field model.Field) (string, bool) {
 	if explicit := explicitWidget(field); explicit != "" {
 		return explicit, true
 	}
-	if r == nil || len(r.rules) == 0 {
+	if r == nil {
+		return "", false
+	}
+	r.mu.RLock()
+	if len(r.rules) == 0 {
+		r.mu.RUnlock()
 		return "", false
 	}
 	rules := append([]rule(nil), r.rules...)
+	r.mu.RUnlock()
 	sort.SliceStable(rules, func(i, j int) bool {
 		if rules[i].priority == rules[j].priority {
 			return rules[i].order < rules[j].order
@@ -192,6 +203,9 @@ func (r *Registry) registerBuiltins() {
 
 	r.Register(WidgetJSONEditor, 50, func(field model.Field) bool {
 		if field.Type != model.FieldTypeObject {
+			return false
+		}
+		if field.Relationship != nil {
 			return false
 		}
 		return len(field.Nested) == 0
