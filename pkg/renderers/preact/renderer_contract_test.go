@@ -1,15 +1,18 @@
 package preact_test
 
 import (
+	"encoding/json"
 	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
+	"github.com/goliatone/formgen/pkg/model"
 	"github.com/goliatone/formgen/pkg/render"
 	"github.com/goliatone/formgen/pkg/renderers/preact"
 	"github.com/goliatone/formgen/pkg/testsupport"
+	"github.com/goliatone/formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
 
@@ -117,6 +120,64 @@ func TestRenderer_RenderWithCustomAssetBundle(t *testing.T) {
 	}
 }
 
+func TestRenderer_JSONEditorPayload(t *testing.T) {
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	form := model.FormModel{
+		OperationID: "jsonEditor",
+		Endpoint:    "/json",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:        "settings",
+				Type:        model.FieldTypeObject,
+				Description: "Runtime configuration",
+				Default: map[string]any{
+					"alpha": "beta",
+				},
+				Metadata: map[string]string{
+					"widget": widgets.WidgetJSONEditor,
+				},
+				UIHints: map[string]string{
+					"widget":     widgets.WidgetJSONEditor,
+					"schemaHint": "Runtime config",
+				},
+			},
+		},
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	payload := extractPreactPayload(t, output)
+	var parsed struct {
+		Fields []struct {
+			Name     string            `json:"name"`
+			Metadata map[string]string `json:"metadata"`
+			UIHints  map[string]string `json:"uiHints"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(payload, &parsed); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if len(parsed.Fields) != 1 {
+		t.Fatalf("expected single field, got %d", len(parsed.Fields))
+	}
+
+	field := parsed.Fields[0]
+	if field.Metadata["component.name"] != "json_editor" {
+		t.Fatalf("component metadata not applied, got %q", field.Metadata["component.name"])
+	}
+	if field.UIHints["widget"] != widgets.WidgetJSONEditor {
+		t.Fatalf("widget hint not preserved, got %q", field.UIHints["widget"])
+	}
+}
+
 func TestRenderer_WithTemplateRenderer(t *testing.T) {
 	t.Helper()
 
@@ -153,6 +214,76 @@ func TestRenderer_WithTemplateRenderer(t *testing.T) {
 	}
 	if !stub.called {
 		t.Fatalf("expected render template to be called")
+	}
+}
+
+func TestRenderer_RenderWithProvenance(t *testing.T) {
+	t.Helper()
+
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	form := model.FormModel{
+		OperationID: "withProvenance",
+		Endpoint:    "/items",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "name",
+				Type:  model.FieldTypeString,
+				Label: "Name",
+			},
+		},
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Values: map[string]any{
+			"name": render.ValueWithProvenance{
+				Value:      "prefilled",
+				Provenance: "tenant default",
+				Readonly:   true,
+				Disabled:   true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	payload := extractPreactPayload(t, output)
+	var got model.FormModel
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.Fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(got.Fields))
+	}
+	field := got.Fields[0]
+	if field.Default != "prefilled" {
+		t.Fatalf("expected default value to be prefilled, got %v", field.Default)
+	}
+	if field.Metadata["prefill.provenance"] != "tenant default" {
+		t.Fatalf("expected provenance metadata, got %q", field.Metadata["prefill.provenance"])
+	}
+	if field.Metadata["prefill.readonly"] != "true" {
+		t.Fatalf("expected readonly metadata, got %q", field.Metadata["prefill.readonly"])
+	}
+	if !field.Readonly {
+		t.Fatalf("expected readonly flag to be set")
+	}
+	if field.UIHints["readonly"] != "true" {
+		t.Fatalf("expected readonly uiHint to be set")
+	}
+	if !field.Disabled {
+		t.Fatalf("expected field to be disabled")
+	}
+	if field.Metadata["prefill.disabled"] != "true" {
+		t.Fatalf("expected disabled metadata, got %q", field.Metadata["prefill.disabled"])
+	}
+	if field.Metadata["disabled"] != "true" {
+		t.Fatalf("expected disabled flag to be set, got %q", field.Metadata["disabled"])
 	}
 }
 
@@ -213,6 +344,23 @@ func (s *stubTemplateRenderer) RegisterFilter(name string, fn func(input any, pa
 
 func (s *stubTemplateRenderer) GlobalContext(data any) error {
 	return nil
+}
+
+func extractPreactPayload(t *testing.T, html []byte) []byte {
+	t.Helper()
+
+	const scriptPrefix = `<script id="formgen-preact-data" type="application/json">`
+
+	start := strings.Index(string(html), scriptPrefix)
+	if start == -1 {
+		t.Fatalf("payload script not found")
+	}
+	start += len(scriptPrefix)
+	end := strings.Index(string(html[start:]), "</script>")
+	if end == -1 {
+		t.Fatalf("payload script closing tag not found")
+	}
+	return []byte(strings.TrimSpace(string(html[start : start+end])))
 }
 
 func testThemeConfig() *theme.RendererConfig {

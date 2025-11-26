@@ -14,6 +14,7 @@ import (
 	"github.com/goliatone/formgen/pkg/render"
 	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
+	"github.com/goliatone/formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
 
@@ -204,7 +205,16 @@ func (r *Renderer) ContentType() string {
 
 // Render produces hydrated HTML ready for delivery.
 func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions render.RenderOptions) ([]byte, error) {
-	ordered := toOrderedFormModel(form)
+	formWithPrefill := form
+	render.ApplySubset(&formWithPrefill, renderOptions.Subset)
+	applyPrefillValues(&formWithPrefill, renderOptions.Values)
+	ensureComponentMetadata(&formWithPrefill)
+
+	mappedErrors := render.MapErrorPayload(formWithPrefill, renderOptions.Errors)
+	formErrors := render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)
+	hiddenFields := render.SortedHiddenFields(renderOptions.HiddenFields)
+
+	ordered := toOrderedFormModel(formWithPrefill, mappedErrors.Fields, formErrors, hiddenFields)
 	payload, err := json.Marshal(ordered)
 	if err != nil {
 		return nil, fmt.Errorf("preact renderer: marshal form model: %w", err)
@@ -218,15 +228,16 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	urls := r.assetURLs(assetResolver)
 	cleanTheme := themeCtx
 	data := map[string]any{
-		"form":         form,
+		"form":         formWithPrefill,
 		"form_json":    string(payload),
-		"field_orders": fieldOrderPayload(form.Metadata),
+		"field_orders": fieldOrderPayload(formWithPrefill.Metadata),
 		"assets": map[string]string{
 			"vendorScript": urls.VendorScript,
 			"appScript":    urls.AppScript,
 			"stylesheet":   urls.Stylesheet,
 		},
-		"theme": cleanTheme,
+		"form_errors": formErrors,
+		"theme":       cleanTheme,
 	}
 
 	rendered, err := r.templates.RenderTemplate(templateName, data)
@@ -242,14 +253,17 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 }
 
 type orderedFormModel struct {
-	OperationID string         `json:"operationId"`
-	Endpoint    string         `json:"endpoint"`
-	Method      string         `json:"method"`
-	Summary     string         `json:"summary,omitempty"`
-	Description string         `json:"description,omitempty"`
-	Fields      []orderedField `json:"fields"`
-	Metadata    orderedMap     `json:"metadata,omitempty"`
-	UIHints     orderedMap     `json:"uiHints,omitempty"`
+	OperationID  string               `json:"operationId"`
+	Endpoint     string               `json:"endpoint"`
+	Method       string               `json:"method"`
+	Summary      string               `json:"summary,omitempty"`
+	Description  string               `json:"description,omitempty"`
+	Fields       []orderedField       `json:"fields"`
+	Metadata     orderedMap           `json:"metadata,omitempty"`
+	UIHints      orderedMap           `json:"uiHints,omitempty"`
+	Errors       map[string][]string  `json:"errors,omitempty"`
+	FormErrors   []string             `json:"formErrors,omitempty"`
+	HiddenFields []render.HiddenField `json:"hiddenFields,omitempty"`
 }
 
 type orderedField struct {
@@ -257,6 +271,8 @@ type orderedField struct {
 	Type         model.FieldType     `json:"type"`
 	Format       string              `json:"format,omitempty"`
 	Required     bool                `json:"required"`
+	Disabled     bool                `json:"disabled,omitempty"`
+	Readonly     bool                `json:"readonly,omitempty"`
 	Label        string              `json:"label,omitempty"`
 	Placeholder  string              `json:"placeholder,omitempty"`
 	Description  string              `json:"description,omitempty"`
@@ -275,13 +291,13 @@ type orderedRule struct {
 	Params orderedMap `json:"params,omitempty"`
 }
 
-func toOrderedFormModel(form model.FormModel) orderedFormModel {
+func toOrderedFormModel(form model.FormModel, errors map[string][]string, formErrors []string, hidden []render.HiddenField) orderedFormModel {
 	fields := make([]orderedField, len(form.Fields))
 	for i, field := range form.Fields {
 		fields[i] = toOrderedField(field)
 	}
 
-	return orderedFormModel{
+	ordered := orderedFormModel{
 		OperationID: form.OperationID,
 		Endpoint:    form.Endpoint,
 		Method:      form.Method,
@@ -291,6 +307,16 @@ func toOrderedFormModel(form model.FormModel) orderedFormModel {
 		Metadata:    newOrderedMap(form.Metadata),
 		UIHints:     newOrderedMap(form.UIHints),
 	}
+	if len(errors) > 0 {
+		ordered.Errors = errors
+	}
+	if len(formErrors) > 0 {
+		ordered.FormErrors = formErrors
+	}
+	if len(hidden) > 0 {
+		ordered.HiddenFields = hidden
+	}
+	return ordered
 }
 
 func toOrderedField(field model.Field) orderedField {
@@ -321,6 +347,8 @@ func toOrderedField(field model.Field) orderedField {
 		Type:         field.Type,
 		Format:       field.Format,
 		Required:     field.Required,
+		Disabled:     field.Disabled,
+		Readonly:     field.Readonly,
 		Label:        field.Label,
 		Placeholder:  field.Placeholder,
 		Description:  field.Description,
@@ -617,4 +645,217 @@ func expandAssetURL(prefix, name string) string {
 		return n
 	}
 	return p + "/" + n
+}
+
+func ensureComponentMetadata(form *model.FormModel) {
+	if form == nil {
+		return
+	}
+	form.Fields = ensureComponentMetadataFields(form.Fields)
+}
+
+func ensureComponentMetadataFields(fields []model.Field) []model.Field {
+	if len(fields) == 0 {
+		return fields
+	}
+	out := make([]model.Field, len(fields))
+	for i, field := range fields {
+		out[i] = ensureComponentMetadataField(field)
+	}
+	return out
+}
+
+func ensureComponentMetadataField(field model.Field) model.Field {
+	name := ""
+	if field.Metadata != nil {
+		name = strings.TrimSpace(field.Metadata["component.name"])
+	}
+	if name == "" {
+		if widget := widgetHint(field); widget == widgets.WidgetJSONEditor {
+			if field.Metadata == nil {
+				field.Metadata = make(map[string]string, 1)
+			}
+			field.Metadata["component.name"] = "json_editor"
+		}
+	}
+
+	if field.Items != nil {
+		item := ensureComponentMetadataField(*field.Items)
+		field.Items = &item
+	}
+	if len(field.Nested) > 0 {
+		field.Nested = ensureComponentMetadataFields(field.Nested)
+	}
+	return field
+}
+
+func widgetHint(field model.Field) string {
+	if field.Metadata != nil {
+		if widget := strings.TrimSpace(field.Metadata["admin.widget"]); widget != "" {
+			return widget
+		}
+		if widget := strings.TrimSpace(field.Metadata["widget"]); widget != "" {
+			return widget
+		}
+	}
+	if field.UIHints != nil {
+		if widget := strings.TrimSpace(field.UIHints["widget"]); widget != "" {
+			return widget
+		}
+	}
+	return ""
+}
+
+type prefillValue struct {
+	value      any
+	provenance string
+	readonly   bool
+	disabled   bool
+}
+
+func applyPrefillValues(form *model.FormModel, values map[string]any) {
+	if form == nil || len(values) == 0 {
+		return
+	}
+
+	flattened := flattenPrefillValues(values)
+	if len(flattened) == 0 {
+		return
+	}
+
+	form.Fields = applyPrefillToFields(form.Fields, flattened, "")
+}
+
+func flattenPrefillValues(values map[string]any) map[string]prefillValue {
+	result := make(map[string]prefillValue)
+	var walk func(prefix string, value any, meta prefillValue)
+
+	walk = func(prefix string, value any, meta prefillValue) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for key, val := range typed {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					continue
+				}
+				next := joinPath(prefix, key)
+				walk(next, val, meta)
+			}
+			if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
+				if _, exists := result[prefix]; !exists {
+					result[prefix] = meta
+				}
+			}
+		case map[string]string:
+			for key, val := range typed {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					continue
+				}
+				next := joinPath(prefix, key)
+				result[next] = prefillValue{
+					value:      val,
+					provenance: meta.provenance,
+					readonly:   meta.readonly,
+					disabled:   meta.disabled,
+				}
+			}
+		case render.ValueWithProvenance:
+			meta.provenance = typed.Provenance
+			meta.readonly = typed.Readonly
+			meta.disabled = typed.Disabled
+			walk(prefix, typed.Value, meta)
+		case *render.ValueWithProvenance:
+			meta.provenance = typed.Provenance
+			meta.readonly = typed.Readonly
+			meta.disabled = typed.Disabled
+			walk(prefix, typed.Value, meta)
+		default:
+			if prefix != "" {
+				meta.value = typed
+				result[prefix] = meta
+			}
+		}
+	}
+
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		walk(key, value, prefillValue{})
+	}
+	return result
+}
+
+func applyPrefillToFields(fields []model.Field, values map[string]prefillValue, parentPath string) []model.Field {
+	if len(fields) == 0 {
+		return fields
+	}
+
+	for i := range fields {
+		path := joinPath(parentPath, fields[i].Name)
+		if value, ok := values[path]; ok {
+			if value.value != nil {
+				assignPrefillValue(&fields[i], value.value)
+			}
+			applyPrefillMetadata(&fields[i], value)
+		}
+		if len(fields[i].Nested) > 0 {
+			fields[i].Nested = applyPrefillToFields(fields[i].Nested, values, path)
+		}
+		if fields[i].Items != nil && len(fields[i].Nested) == 0 {
+			if _, ok := values[path]; ok {
+				continue
+			}
+		}
+	}
+
+	return fields
+}
+
+func assignPrefillValue(field *model.Field, value any) {
+	if field == nil || value == nil {
+		return
+	}
+	field.Default = value
+}
+
+func applyPrefillMetadata(field *model.Field, value prefillValue) {
+	if field == nil {
+		return
+	}
+	if value.provenance != "" {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 2)
+		}
+		field.Metadata["prefill.provenance"] = value.provenance
+	}
+	if value.readonly {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 1)
+		}
+		field.Metadata["readonly"] = "true"
+		field.Metadata["prefill.readonly"] = "true"
+		if field.UIHints == nil {
+			field.UIHints = make(map[string]string, 1)
+		}
+		field.UIHints["readonly"] = "true"
+		field.Readonly = true
+	}
+	if value.disabled {
+		if field.Metadata == nil {
+			field.Metadata = make(map[string]string, 1)
+		}
+		field.Metadata["disabled"] = "true"
+		field.Metadata["prefill.disabled"] = "true"
+		field.Disabled = true
+	}
+}
+
+func joinPath(parent, child string) string {
+	if parent == "" {
+		return child
+	}
+	return parent + "." + child
 }
