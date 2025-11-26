@@ -60,6 +60,8 @@ type Field struct {
 	Type         FieldType         `json:"type"`
 	Format       string            `json:"format,omitempty"`
 	Required     bool              `json:"required"`
+	Disabled     bool              `json:"disabled,omitempty"`
+	Readonly     bool              `json:"readonly,omitempty"`
 	Label        string            `json:"label,omitempty"`
 	Placeholder  string            `json:"placeholder,omitempty"`
 	Description  string            `json:"description,omitempty"`
