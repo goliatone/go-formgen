@@ -26,6 +26,10 @@ type EndpointOverride = orchestrator.EndpointOverride
 // prefill values or surface server-side validation errors.
 type RenderOptions = render.RenderOptions
 
+// FieldSubset aliases render.FieldSubset for callers configuring partial
+// rendering by group/tag/section.
+type FieldSubset = render.FieldSubset
+
 // NewOrchestrator exposes the orchestrator constructor from the top-level
 // module, mirroring the quick start guidance in go-form-gen.md:223-258.
 func NewOrchestrator(options ...orchestrator.Option) *orchestrator.Orchestrator {
@@ -65,6 +69,13 @@ func WithEndpointOverrides(overrides []EndpointOverride) orchestrator.Option {
 // theme/variant choices can be resolved ahead of rendering.
 func WithThemeSelector(selector theme.ThemeSelector) orchestrator.Option {
 	return orchestrator.WithThemeSelector(selector)
+}
+
+// WithThemeProvider constructs a go-theme selector from a ThemeProvider and
+// registers it with the orchestrator so renderers receive resolved partials,
+// tokens, and assets.
+func WithThemeProvider(provider theme.ThemeProvider, defaultTheme, defaultVariant string) orchestrator.Option {
+	return orchestrator.WithThemeProvider(provider, defaultTheme, defaultVariant)
 }
 
 // WithThemeFallbacks forwards fallback partials used when deriving renderer
