@@ -96,10 +96,17 @@ func mapErrorPath(raw string, fieldPaths map[string]struct{}) (string, bool) {
 		return "", true
 	}
 
+	best := ""
 	for _, variant := range buildSegmentVariants(segments) {
 		if path := longestMatchingPath(variant, fieldPaths); path != "" {
-			return path, false
+			if len(pathSegments(path)) > len(pathSegments(best)) {
+				best = path
+			}
 		}
+	}
+
+	if best != "" {
+		return best, false
 	}
 
 	return "", true
@@ -226,6 +233,13 @@ func longestMatchingPath(segments []string, fieldPaths map[string]struct{}) stri
 	return ""
 }
 
+func pathSegments(path string) []string {
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, ".")
+}
+
 func collectFieldPaths(fields []model.Field, prefix string, dest map[string]struct{}) {
 	for _, field := range fields {
 		name := strings.TrimSpace(field.Name)
@@ -238,6 +252,25 @@ func collectFieldPaths(fields []model.Field, prefix string, dest map[string]stru
 		if len(field.Nested) > 0 {
 			collectFieldPaths(field.Nested, path, dest)
 		}
+		if field.Items != nil {
+			collectItemPaths(field.Items, path, dest)
+		}
+	}
+}
+
+func collectItemPaths(item *model.Field, prefix string, dest map[string]struct{}) {
+	if item == nil {
+		return
+	}
+	if name := strings.TrimSpace(item.Name); name != "" {
+		itemPath := joinPath(prefix, name)
+		dest[itemPath] = struct{}{}
+	}
+	if len(item.Nested) > 0 {
+		collectFieldPaths(item.Nested, prefix, dest)
+	}
+	if item.Items != nil {
+		collectItemPaths(item.Items, prefix, dest)
 	}
 }
 
