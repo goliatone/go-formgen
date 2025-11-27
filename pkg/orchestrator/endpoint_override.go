@@ -167,6 +167,12 @@ func locateField(fields []pkgmodel.Field, segments []string) *pkgmodel.Field {
 		if len(segments) == 1 {
 			return field
 		}
+		next := segments[1]
+		if next == "items" {
+			if located := locateFieldInItem(field.Items, segments[2:]); located != nil {
+				return located
+			}
+		}
 		if nested := locateField(field.Nested, segments[1:]); nested != nil {
 			return nested
 		}
@@ -183,6 +189,9 @@ func locateFieldInItem(item *pkgmodel.Field, segments []string) *pkgmodel.Field 
 	}
 	if len(segments) == 0 {
 		return item
+	}
+	if segments[0] == "items" {
+		return locateFieldInItem(item.Items, segments[1:])
 	}
 	if item.Name == segments[0] {
 		if len(segments) == 1 {
