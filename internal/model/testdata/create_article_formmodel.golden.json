@@ -8,6 +8,21 @@
       "type": "object",
       "required": false,
       "label": "Author",
+      "nested": [
+        {
+          "name": "full_name",
+          "type": "string",
+          "required": false,
+          "label": "Full Name"
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "label": "Id"
+        }
+      ],
       "metadata": {
         "label-field": "full_name",
         "relationship.endpoint.labelField": "full_name"

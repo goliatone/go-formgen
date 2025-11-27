@@ -86,10 +86,10 @@
         }
       ],
       "metadata": {
+        "accordion": "true",
         "admin.group": "advanced",
         "admin.order": "2",
         "admin.tags": "[\"behavior\"]",
-        "accordion": "true",
         "cssClass": "fg-fieldset--settings",
         "group": "advanced",
         "order": "2",
