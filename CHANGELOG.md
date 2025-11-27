@@ -1,5 +1,24 @@
 # Changelog
 
+# [0.3.0](https://github.com/goliatone/go-formgen/compare/v0.2.0...v0.3.0) - (2025-11-27)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- How we collect item paths for errors ([82781a5](https://github.com/goliatone/go-formgen/commit/82781a5b2e8d7a78cbbaba9838b0b19b4b2f6a91))  - (goliatone)
+- Merge allOf ([f055049](https://github.com/goliatone/go-formgen/commit/f055049cd914cb89a6a8bc8c55f5ca276c5a7e16))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.3.0 ([d23f06b](https://github.com/goliatone/go-formgen/commit/d23f06bdc164c89f5550829bed99383e371f6d38))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.2.0 ([172aa49](https://github.com/goliatone/go-formgen/commit/172aa496bef1b5e55fcd60818c81621db9aa8ac3))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([89d2ae7](https://github.com/goliatone/go-formgen/commit/89d2ae7f127fba9f1746c971e4bc00e7458c9124))  - (goliatone)
+
 # [0.2.0](https://github.com/goliatone/go-formgen/compare/v0.1.0...v0.2.0) - (2025-11-26)
 
 ## <!-- 1 -->🐛 Bug Fixes
