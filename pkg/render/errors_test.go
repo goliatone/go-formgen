@@ -56,6 +56,40 @@ func TestMapErrorPayload_GoErrorsCompatibility(t *testing.T) {
 	}
 }
 
+func TestMapErrorPayload_ArrayItemsNestedFields(t *testing.T) {
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name: "addresses",
+				Type: model.FieldTypeArray,
+				Items: &model.Field{
+					Name: "addressItem",
+					Type: model.FieldTypeObject,
+					Nested: []model.Field{
+						{Name: "city", Type: model.FieldTypeString},
+					},
+				},
+			},
+		},
+	}
+
+	payload := map[string][]string{
+		"addresses[0].city": {"City is required"},
+	}
+
+	mapped := render.MapErrorPayload(form, payload)
+
+	wantFields := map[string][]string{
+		"addresses.city": {"City is required"},
+	}
+	if diff := cmp.Diff(wantFields, mapped.Fields); diff != "" {
+		t.Fatalf("field errors mismatch (-want +got):\n%s", diff)
+	}
+	if len(mapped.Form) != 0 {
+		t.Fatalf("expected no form errors, got %v", mapped.Form)
+	}
+}
+
 func TestMergeFormErrors(t *testing.T) {
 	merged := render.MergeFormErrors([]string{" First ", "Second"}, "Second", "third", "  ")
 	want := []string{"First", "Second", "third"}

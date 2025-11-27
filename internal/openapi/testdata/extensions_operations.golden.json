@@ -33,14 +33,14 @@
           "Extensions": {
             "x-admin": {
               "group": "core",
+              "help": "Shown to customers",
               "order": 1,
               "placeholder": "Give it a friendly name",
               "readonly": false,
               "tags": [
                 "display"
               ],
-              "widget": "textarea",
-              "help": "Shown to customers"
+              "widget": "textarea"
             },
             "x-formgen": {
               "cssClass": "fg-field--name",
