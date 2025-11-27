@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -243,11 +244,121 @@ func convertSchemaWithState(
 		schema.Pattern = src.Pattern
 	}
 	schema.Extensions = extractExtensions(src.Extensions)
+	mergeAllOfSchemas(&schema, src.AllOf, cache, active)
 	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
 
 	delete(active, src)
 	cache[src] = schema
 	return schema
+}
+
+func mergeAllOfSchemas(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}) {
+	if target == nil || len(refs) == 0 {
+		return
+	}
+
+	for _, ref := range refs {
+		if ref == nil {
+			continue
+		}
+		merged := convertSchemaWithState(ref, cache, active)
+		mergeSchema(target, merged)
+	}
+}
+
+func mergeSchema(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
+	if target == nil {
+		return
+	}
+
+	if target.Type == "" {
+		target.Type = source.Type
+	}
+	if target.Format == "" {
+		target.Format = source.Format
+	}
+	if target.Description == "" {
+		target.Description = source.Description
+	}
+	if target.Default == nil && source.Default != nil {
+		target.Default = source.Default
+	}
+
+	if len(source.Required) > 0 {
+		required := make(map[string]struct{}, len(target.Required)+len(source.Required))
+		for _, name := range target.Required {
+			required[name] = struct{}{}
+		}
+		for _, name := range source.Required {
+			required[name] = struct{}{}
+		}
+		if len(required) > 0 {
+			keys := make([]string, 0, len(required))
+			for name := range required {
+				keys = append(keys, name)
+			}
+			sort.Strings(keys)
+			target.Required = target.Required[:0]
+			target.Required = append(target.Required, keys...)
+		}
+	}
+
+	if len(source.Properties) > 0 {
+		if target.Properties == nil {
+			target.Properties = make(map[string]pkgopenapi.Schema, len(source.Properties))
+		}
+		for name, schema := range source.Properties {
+			if _, exists := target.Properties[name]; !exists {
+				target.Properties[name] = schema
+			}
+		}
+	}
+
+	if target.Items == nil && source.Items != nil {
+		items := source.Items.Clone()
+		target.Items = &items
+	}
+
+	if len(target.Enum) == 0 && len(source.Enum) > 0 {
+		target.Enum = append([]any(nil), source.Enum...)
+	}
+
+	if target.Minimum == nil && source.Minimum != nil {
+		value := *source.Minimum
+		target.Minimum = &value
+	}
+	if target.Maximum == nil && source.Maximum != nil {
+		value := *source.Maximum
+		target.Maximum = &value
+	}
+	if !target.ExclusiveMinimum && source.ExclusiveMinimum {
+		target.ExclusiveMinimum = true
+	}
+	if !target.ExclusiveMaximum && source.ExclusiveMaximum {
+		target.ExclusiveMaximum = true
+	}
+	if target.MinLength == nil && source.MinLength != nil {
+		value := *source.MinLength
+		target.MinLength = &value
+	}
+	if target.MaxLength == nil && source.MaxLength != nil {
+		value := *source.MaxLength
+		target.MaxLength = &value
+	}
+	if target.Pattern == "" {
+		target.Pattern = source.Pattern
+	}
+
+	if len(source.Extensions) > 0 {
+		if target.Extensions == nil {
+			target.Extensions = make(map[string]any, len(source.Extensions))
+		}
+		for key, value := range source.Extensions {
+			if _, exists := target.Extensions[key]; !exists {
+				target.Extensions[key] = value
+			}
+		}
+	}
 }
 
 func firstSchemaType(types *openapi3.Types) string {
