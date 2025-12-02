@@ -5,7 +5,7 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 ## Documentation
 
 - [Architecture & Guides](go-form-gen.md)
-- [API Reference](https://pkg.go.dev/github.com/goliatone/formgen)
+- [API Reference](https://pkg.go.dev/github.com/goliatone/go-formgen)
 - [Task & Roadmap Notes](TODO.md)
 
 ## Features
@@ -23,7 +23,7 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 ## Installation
 
 ```bash
-go get github.com/goliatone/formgen
+go get github.com/goliatone/go-formgen
 ```
 
 Requires Go 1.23+.
@@ -38,8 +38,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/goliatone/formgen"
-	"github.com/goliatone/formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func main() {
