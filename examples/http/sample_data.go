@@ -1,6 +1,6 @@
 package main
 
-import "github.com/goliatone/formgen/pkg/render"
+import "github.com/goliatone/go-formgen/pkg/render"
 
 var articleSample = render.RenderOptions{
 	Method: "PATCH",

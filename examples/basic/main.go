@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/goliatone/formgen"
-	"github.com/goliatone/formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func main() {

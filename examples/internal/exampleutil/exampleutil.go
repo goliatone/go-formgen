@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 // FixturePath returns the absolute path to a fixture located under
