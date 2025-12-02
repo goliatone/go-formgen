@@ -9,12 +9,12 @@ import (
 	"os"
 	"strings"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/orchestrator"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/renderers/preact"
-	"github.com/goliatone/formgen/pkg/renderers/tui"
-	"github.com/goliatone/formgen/pkg/renderers/vanilla"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/renderers/preact"
+	"github.com/goliatone/go-formgen/pkg/renderers/tui"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 )
 
 func main() {

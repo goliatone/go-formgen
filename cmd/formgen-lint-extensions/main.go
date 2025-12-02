@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/goliatone/formgen"
-	internalmodel "github.com/goliatone/formgen/internal/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen"
+	internalmodel "github.com/goliatone/go-formgen/internal/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 const extensionNamespace = "x-formgen"
