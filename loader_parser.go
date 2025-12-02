@@ -1,9 +1,9 @@
 package formgen
 
 import (
-	internalLoader "github.com/goliatone/formgen/internal/openapi/loader"
-	internalParser "github.com/goliatone/formgen/internal/openapi/parser"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	internalLoader "github.com/goliatone/go-formgen/internal/openapi/loader"
+	internalParser "github.com/goliatone/go-formgen/internal/openapi/parser"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 // NewLoader constructs a loader using the internal implementation while keeping

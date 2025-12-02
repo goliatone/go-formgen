@@ -3,9 +3,9 @@ package formgen
 import (
 	"context"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/orchestrator"
-	"github.com/goliatone/formgen/pkg/render"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	"github.com/goliatone/go-formgen/pkg/render"
 	theme "github.com/goliatone/go-theme"
 )
 
