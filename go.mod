@@ -1,4 +1,4 @@
-module github.com/goliatone/formgen
+module github.com/goliatone/go-formgen
 
 go 1.23.4
 
