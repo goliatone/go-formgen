@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	formgen "github.com/goliatone/formgen"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	formgen "github.com/goliatone/go-formgen"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func main() {

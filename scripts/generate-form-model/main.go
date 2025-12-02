@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"testing/fstest"
 
-	formgen "github.com/goliatone/formgen"
-	"github.com/goliatone/formgen/pkg/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/orchestrator"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/uischema"
+	formgen "github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/uischema"
 )
 
 const snapshotRendererName = "form-model-snapshot"
