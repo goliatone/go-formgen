@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 const (

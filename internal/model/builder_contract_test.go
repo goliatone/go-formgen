@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/testsupport"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
 func assertNoRelationshipMetadata(t *testing.T, fields []pkgmodel.Field) {

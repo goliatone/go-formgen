@@ -6,7 +6,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func TestConvertSchemaHandlesRecursiveReferences(t *testing.T) {

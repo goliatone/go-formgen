@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/goliatone/formgen"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func TestLoaderParserIntegration(t *testing.T) {

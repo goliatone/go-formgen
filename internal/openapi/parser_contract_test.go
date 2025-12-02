@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/goliatone/formgen"
-	"github.com/goliatone/formgen/pkg/testsupport"
+	"github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
 func TestParser_Operations_Petstore(t *testing.T) {

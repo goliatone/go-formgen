@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 // Loader implements pkgopenapi.Loader by delegating to file, fs.FS, or HTTP
