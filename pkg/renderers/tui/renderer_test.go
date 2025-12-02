@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
 )
 
 type stubDriver struct {

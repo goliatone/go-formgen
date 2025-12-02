@@ -6,7 +6,7 @@ import (
 
 	gotemplatepkg "github.com/goliatone/go-template"
 
-	"github.com/goliatone/formgen/pkg/render/template"
+	"github.com/goliatone/go-formgen/pkg/render/template"
 )
 
 // Option configures the go-template adapter before construction.

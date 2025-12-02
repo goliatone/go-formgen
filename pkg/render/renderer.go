@@ -5,7 +5,7 @@ package render
 import (
 	"context"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 // Renderer converts a FormModel into a byte representation (HTML, JSX, etc.).

@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 // LoadDocument reads a fixture and builds an openapi.Document using a file

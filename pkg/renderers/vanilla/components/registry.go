@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/goliatone/formgen/pkg/model"
-	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
+	"github.com/goliatone/go-formgen/pkg/model"
+	rendertemplate "github.com/goliatone/go-formgen/pkg/render/template"
 )
 
 // Renderer defines the contract component renderers must satisfy. Implementations

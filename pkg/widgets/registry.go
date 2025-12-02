@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 // Built-in widget identifiers exposed by the registry.

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 )
 
 // EndpointConfig mirrors the x-endpoint extension contract documented in

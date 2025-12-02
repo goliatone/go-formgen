@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
-	rendertemplate "github.com/goliatone/formgen/pkg/render/template"
-	gotemplate "github.com/goliatone/formgen/pkg/render/template/gotemplate"
-	"github.com/goliatone/formgen/pkg/widgets"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
+	rendertemplate "github.com/goliatone/go-formgen/pkg/render/template"
+	gotemplate "github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
+	"github.com/goliatone/go-formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
 

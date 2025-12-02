@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 )
 
 const (

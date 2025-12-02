@@ -3,7 +3,7 @@ package formgen
 import (
 	"io/fs"
 
-	vanilla "github.com/goliatone/formgen/pkg/renderers/vanilla"
+	vanilla "github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 )
 
 // EmbeddedTemplates exposes the built-in vanilla renderer templates so callers

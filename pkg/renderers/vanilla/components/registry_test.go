@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 func TestRegistryDescriptorClone(t *testing.T) {

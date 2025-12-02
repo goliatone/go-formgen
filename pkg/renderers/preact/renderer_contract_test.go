@@ -8,11 +8,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/renderers/preact"
-	"github.com/goliatone/formgen/pkg/testsupport"
-	"github.com/goliatone/formgen/pkg/widgets"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/renderers/preact"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
+	"github.com/goliatone/go-formgen/pkg/widgets"
 	theme "github.com/goliatone/go-theme"
 )
 

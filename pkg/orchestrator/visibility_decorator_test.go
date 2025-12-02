@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/visibility"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/visibility"
 )
 
 type stubEvaluator struct {

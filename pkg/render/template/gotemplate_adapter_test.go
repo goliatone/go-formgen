@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/render/template/gotemplate"
-	"github.com/goliatone/formgen/pkg/testsupport"
+	"github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
 //go:embed testdata/templates/*.tpl

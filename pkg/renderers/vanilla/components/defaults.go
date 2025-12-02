@@ -6,7 +6,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 const (

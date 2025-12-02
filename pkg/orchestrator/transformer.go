@@ -9,7 +9,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 // Transformer mutates a FormModel before UI schema decorators run. Implementations

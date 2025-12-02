@@ -3,8 +3,8 @@ package model
 import (
 	"errors"
 
-	internalmodel "github.com/goliatone/formgen/internal/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
+	internalmodel "github.com/goliatone/go-formgen/internal/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 // Builder converts OpenAPI operations into form models and applies optional

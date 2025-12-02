@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/visibility"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/visibility"
 )
 
 func applyVisibility(form *model.FormModel, evaluator visibility.Evaluator, ctx visibility.Context) error {

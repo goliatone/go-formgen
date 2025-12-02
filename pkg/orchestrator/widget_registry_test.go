@@ -3,7 +3,7 @@ package orchestrator
 import (
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 func TestRegisterWidget_AllowsRuntimeAdapters(t *testing.T) {

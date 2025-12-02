@@ -3,7 +3,7 @@ package orchestrator
 import (
 	"testing"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 )
 
 func TestApplyEndpointOverridesHandlesItemsPath(t *testing.T) {

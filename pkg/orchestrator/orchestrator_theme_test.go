@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/render"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/render"
 	theme "github.com/goliatone/go-theme"
 )
 

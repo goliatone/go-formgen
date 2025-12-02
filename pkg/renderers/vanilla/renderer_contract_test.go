@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/renderers/vanilla"
-	"github.com/goliatone/formgen/pkg/testsupport"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
 	theme "github.com/goliatone/go-theme"
 )
 

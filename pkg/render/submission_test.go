@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/goliatone/formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/render"
 )
 
 func TestMergeAndSortHiddenFields(t *testing.T) {

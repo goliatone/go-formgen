@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/uischema"
+	"github.com/goliatone/go-formgen/pkg/uischema"
 )
 
 func TestLoadFS_JSON(t *testing.T) {

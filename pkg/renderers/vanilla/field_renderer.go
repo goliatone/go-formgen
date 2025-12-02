@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render/template"
-	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render/template"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 )
 
 type componentRenderer struct {

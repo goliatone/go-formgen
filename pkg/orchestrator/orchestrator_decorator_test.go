@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/orchestrator"
-	"github.com/goliatone/formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	"github.com/goliatone/go-formgen/pkg/render"
 )
 
 func TestOrchestrator_AppliesUIDecorators(t *testing.T) {

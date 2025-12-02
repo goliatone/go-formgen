@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/uischema"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/uischema"
 )
 
 func TestDecorator_Decorate(t *testing.T) {

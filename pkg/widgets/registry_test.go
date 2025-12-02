@@ -3,7 +3,7 @@ package widgets
 import (
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 func TestResolve_ExplicitWidgetWins(t *testing.T) {

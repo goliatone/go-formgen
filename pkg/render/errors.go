@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 // ErrorMapping splits a go-errors compatible payload into field-level and

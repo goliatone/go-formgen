@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 func TestApplySubset_ByGroup(t *testing.T) {

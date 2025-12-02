@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	pkgmodel "github.com/goliatone/formgen/pkg/model"
-	pkgopenapi "github.com/goliatone/formgen/pkg/openapi"
-	"github.com/goliatone/formgen/pkg/orchestrator"
-	"github.com/goliatone/formgen/pkg/render"
-	"github.com/goliatone/formgen/pkg/renderers/preact"
-	"github.com/goliatone/formgen/pkg/renderers/vanilla"
-	"github.com/goliatone/formgen/pkg/testsupport"
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/renderers/preact"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
 func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {

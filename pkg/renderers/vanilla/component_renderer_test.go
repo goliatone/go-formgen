@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render/template/gotemplate"
-	"github.com/goliatone/formgen/pkg/renderers/vanilla/components"
-	"github.com/goliatone/formgen/pkg/testsupport"
-	"github.com/goliatone/formgen/pkg/widgets"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/go-formgen/pkg/testsupport"
+	"github.com/goliatone/go-formgen/pkg/widgets"
 )
 
 func TestComponentRendererUnknownComponent(t *testing.T) {

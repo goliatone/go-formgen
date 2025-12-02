@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/goliatone/formgen/pkg/model"
-	"github.com/goliatone/formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/render"
 )
 
 // Renderer implements render.Renderer for terminal-driven sessions. It is

@@ -1,6 +1,6 @@
 package model
 
-import internalmodel "github.com/goliatone/formgen/internal/model"
+import internalmodel "github.com/goliatone/go-formgen/internal/model"
 
 // FieldType re-exports the internal FieldType enumeration.
 type FieldType = internalmodel.FieldType

@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/goliatone/formgen/pkg/visibility"
+	"github.com/goliatone/go-formgen/pkg/visibility"
 	"github.com/goliatone/go-theme"
 )
 
