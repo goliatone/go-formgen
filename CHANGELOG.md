@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.4.0](https://github.com/goliatone/go-formgen/compare/v0.3.0...v0.4.0) - (2025-12-02)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Rename package to match repo ([6537c1e](https://github.com/goliatone/go-formgen/commit/6537c1e636966de1cd8a9f1a723f71a1a6f620e3))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.4.0 ([8b78c1f](https://github.com/goliatone/go-formgen/commit/8b78c1fab4e736089548f1c0a160f9d574fad843))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.3.0 ([331d19d](https://github.com/goliatone/go-formgen/commit/331d19d5d7ffd582aaa78184c93c0dbc8bb25c53))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update readme ([d0432a8](https://github.com/goliatone/go-formgen/commit/d0432a8fff3f762175b346c6629cbd0f360a3184))  - (goliatone)
+
 # [0.3.0](https://github.com/goliatone/go-formgen/compare/v0.2.0...v0.3.0) - (2025-11-27)
 
 ## <!-- 1 -->🐛 Bug Fixes
