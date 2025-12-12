@@ -5,6 +5,7 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 ## Documentation
 
 - [Architecture & Guides](go-form-gen.md)
+- [Styling & Customization Guide](docs/GUIDE_STYLING.md)
 - [API Reference](https://pkg.go.dev/github.com/goliatone/go-formgen)
 - [Task & Roadmap Notes](TODO.md)
 
@@ -162,6 +163,190 @@ When serving HTML, remember to register and set a default renderer, and ensure t
 - Preact ships embedded assets (`preact.AssetsFS()`); copy them to your static host or set `WithAssetURLPrefix` to point at a CDN/handler.
 - Component overrides and UI schema metadata (`placeholder`, `helpText`, `layout.*`, icons, actions, behaviors) flow through to renderers for fine-grained control.
 - Theme selection is resolved via `WithThemeProvider/WithThemeSelector`, providing partials/tokens/assets to renderers; set `WithThemeFallbacks` to ensure template keys always resolve.
+
+## Styling & Customization
+
+Formgen provides multiple layers of styling customization, from default Tailwind styles to fully custom themes.
+
+### Quick Styling Options
+
+**Use default styles:**
+```go
+renderer, _ := vanilla.New(
+    vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()),
+    vanilla.WithDefaultStyles(),  // Bundled Tailwind CSS
+)
+```
+
+**Inject custom CSS:**
+```go
+renderer, _ := vanilla.New(
+    vanilla.WithInlineStyles(`
+        form[data-formgen-auto-init] { width: 100%; max-width: none; }
+    `),
+)
+```
+
+**Add external stylesheet:**
+```go
+renderer, _ := vanilla.New(
+    vanilla.WithStylesheet("/static/custom-forms.css"),
+)
+```
+
+**Disable all styles:**
+```go
+renderer, _ := vanilla.New(vanilla.WithoutStyles())
+```
+
+### Theme Integration with `go-theme`
+
+Formgen integrates with [`go-theme`](https://github.com/goliatone/go-theme) to provide theme management:
+
+**Key Features:**
+- Multi theme support with runtime switching
+- Theme variants (light/dark, compact/spacious, etc.)
+- Design tokens auto converted to CSS variables
+- Template overrides per theme
+- Asset management with URL resolution
+
+**Basic Example:**
+
+```go
+import theme "github.com/goliatone/go-theme"
+
+manifest := &theme.Manifest{
+    Name:    "acme",
+    Version: "1.0.0",
+
+    // Design tokens (auto converted to CSS vars)
+    Tokens: map[string]string{
+        "primary-color":       "#3b82f6",
+        "container-max-width": "100%",
+        "border-radius":       "0.5rem",
+    },
+
+    // Theme variants
+    Variants: map[string]theme.Variant{
+        "dark": {
+            Tokens: map[string]string{
+                "primary-color": "#60a5fa",
+                "bg-primary":    "#1f2937",
+            },
+        },
+        "two-column": {
+            Tokens: map[string]string{
+                "grid-columns-desktop": "2",
+            },
+        },
+    },
+
+    // Template overrides
+    Templates: map[string]string{
+        "forms.input": "themes/acme/input.tmpl",
+    },
+
+    // Asset bundle
+    Assets: theme.Assets{
+        Prefix: "/static/themes/acme",
+        Files: map[string]string{
+            "logo":       "logo.svg",
+            "stylesheet": "acme.css",
+        },
+    },
+}
+
+provider := theme.NewRegistry()
+provider.Register(manifest)
+
+gen := formgen.NewOrchestrator(
+    orchestrator.WithThemeProvider(provider, "acme", "dark"),
+    orchestrator.WithThemeFallbacks(map[string]string{
+        "forms.select": "templates/components/select.tmpl",
+    }),
+)
+
+// Use default theme
+output, _ := gen.Generate(ctx, orchestrator.Request{
+    OperationID: "createPet",
+})
+
+// Override variant per request
+output, _ := gen.Generate(ctx, orchestrator.Request{
+    OperationID:  "createPet",
+    ThemeVariant: "two-column",
+})
+```
+
+**What gets rendered:**
+
+```html
+<!-- CSS variables from theme tokens -->
+<style data-formgen-theme-vars>
+:root {
+  --bg-primary: #1f2937;
+  --border-radius: 0.5rem;
+  --container-max-width: 100%;
+  --primary-color: #60a5fa;
+}
+</style>
+
+<!-- Theme metadata for JavaScript -->
+<script id="formgen-theme" type="application/json">
+{"name":"acme","variant":"dark","tokens":{...},"cssVars":{...}}
+</script>
+
+<form data-formgen-theme="acme" data-formgen-theme-variant="dark">
+  <!-- form fields -->
+</form>
+```
+
+**See the [Styling Guide](docs/GUIDE_STYLING.md#4-theme-integration-go-theme) for:**
+- Complete theme manifest structure
+- Token merging and precedence
+- Template lookup order
+- Asset URL resolution
+- Custom theme selectors
+
+### Responsive Layouts
+
+Control grid layout via UI schema metadata:
+
+```json
+{
+  "uiHints": {
+    "layout.gridColumns": "12"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "uiHints": { "layout.span": "12" }  // full width
+    },
+    {
+      "name": "email",
+      "uiHints": { "layout.span": "6" }   // half width
+    }
+  ]
+}
+```
+
+Or use responsive CSS:
+
+```css
+@media (min-width: 1024px) {
+  form[data-formgen-auto-init] .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+```
+
+**See the complete [Styling & Customization Guide](docs/GUIDE_STYLING.md) for:**
+- Custom template bundles
+- Fluid vs. fixed-width containers
+- Responsive two-column layouts
+- Theme variants and CSS variables
+- Component-level customization
+- Complete working examples
 
 ## Testing & Tooling
 
