@@ -313,6 +313,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	}
 
 	renderOptions := req.RenderOptions
+	render.LocalizeFormModel(&form, renderOptions)
 	mappedErrors := render.MapErrorPayload(form, renderOptions.Errors)
 	renderOptions.Errors = mappedErrors.Fields
 	renderOptions.FormErrors = render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)

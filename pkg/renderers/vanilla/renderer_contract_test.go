@@ -1,10 +1,12 @@
 package vanilla_test
 
 import (
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/render"
@@ -89,6 +91,35 @@ func TestRenderer_WithTemplateRenderer(t *testing.T) {
 	}
 	if !stub.called {
 		t.Fatalf("expected render template to be called")
+	}
+}
+
+func TestRenderer_WithTemplateFuncs(t *testing.T) {
+	templates := fstest.MapFS{
+		"templates/form.tmpl": &fstest.MapFile{
+			Data: []byte(`{{ shout(form.operationId) }}`),
+		},
+	}
+
+	renderer, err := vanilla.New(
+		vanilla.WithTemplatesFS(templates),
+		vanilla.WithTemplateFuncs(map[string]any{
+			"shout": func(value any) string {
+				return strings.ToUpper(strings.TrimSpace(fmt.Sprint(value)))
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{OperationID: "demo"}
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "DEMO" {
+		t.Fatalf("unexpected output: %s", out)
 	}
 }
 

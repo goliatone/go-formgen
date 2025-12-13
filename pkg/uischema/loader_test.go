@@ -117,6 +117,36 @@ func TestLoadFS_FieldOrderPresets(t *testing.T) {
 	}
 }
 
+func TestLoadFS_I18nKeys(t *testing.T) {
+	store := loadStore(t, "i18n_keys")
+	op, ok := store.Operation("createThing")
+	if !ok {
+		t.Fatalf("operation createThing not found")
+	}
+
+	if op.Form.TitleKey != "forms.createThing.title" {
+		t.Fatalf("expected form titleKey, got %q", op.Form.TitleKey)
+	}
+	if op.Form.SubtitleKey != "forms.createThing.subtitle" {
+		t.Fatalf("expected form subtitleKey, got %q", op.Form.SubtitleKey)
+	}
+	if len(op.Form.Actions) != 1 || op.Form.Actions[0].LabelKey != "actions.save" {
+		t.Fatalf("expected action labelKey, got %#v", op.Form.Actions)
+	}
+
+	if len(op.Sections) != 1 || op.Sections[0].TitleKey != "sections.main.title" || op.Sections[0].DescriptionKey != "sections.main.description" {
+		t.Fatalf("expected section i18n keys, got %#v", op.Sections)
+	}
+
+	nameCfg, ok := op.Fields["name"]
+	if !ok {
+		t.Fatalf("name field missing")
+	}
+	if nameCfg.LabelKey != "fields.thing.name" || nameCfg.PlaceholderKey != "fields.thing.name.placeholder" || nameCfg.HelpTextKey != "fields.thing.name.help" {
+		t.Fatalf("expected field i18n keys, got %#v", nameCfg)
+	}
+}
+
 func TestNormalizeFieldPath(t *testing.T) {
 	cases := map[string]string{
 		"tags[].id":           "tags.items.id",

@@ -117,6 +117,64 @@ func TestDecorator_Decorate(t *testing.T) {
 	}
 }
 
+func TestDecorator_I18nKeys(t *testing.T) {
+	store := loadStore(t, "i18n_keys")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "createThing",
+		Fields: []pkgmodel.Field{
+			{Name: "name", Label: "Name"},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	if got := form.UIHints["layout.titleKey"]; got != "forms.createThing.title" {
+		t.Fatalf("expected layout.titleKey hint, got %q", got)
+	}
+	if got := form.UIHints["layout.subtitleKey"]; got != "forms.createThing.subtitle" {
+		t.Fatalf("expected layout.subtitleKey hint, got %q", got)
+	}
+
+	actionsJSON := form.Metadata["actions"]
+	if actionsJSON == "" {
+		t.Fatalf("metadata actions missing")
+	}
+	var actions []map[string]any
+	if err := json.Unmarshal([]byte(actionsJSON), &actions); err != nil {
+		t.Fatalf("unmarshal actions: %v", err)
+	}
+	if len(actions) != 1 || actions[0]["labelKey"] != "actions.save" {
+		t.Fatalf("unexpected action payload: %#v", actions)
+	}
+
+	sectionsJSON := form.Metadata["layout.sections"]
+	if sectionsJSON == "" {
+		t.Fatalf("layout.sections metadata missing")
+	}
+	var sections []map[string]any
+	if err := json.Unmarshal([]byte(sectionsJSON), &sections); err != nil {
+		t.Fatalf("unmarshal sections: %v", err)
+	}
+	if len(sections) != 1 || sections[0]["titleKey"] != "sections.main.title" || sections[0]["descriptionKey"] != "sections.main.description" {
+		t.Fatalf("unexpected sections payload: %#v", sections)
+	}
+
+	nameField := mustField(t, form.Fields, "name")
+	if got := nameField.UIHints["labelKey"]; got != "fields.thing.name" {
+		t.Fatalf("labelKey mismatch: %q", got)
+	}
+	if got := nameField.UIHints["placeholderKey"]; got != "fields.thing.name.placeholder" {
+		t.Fatalf("placeholderKey mismatch: %q", got)
+	}
+	if got := nameField.UIHints["helpTextKey"]; got != "fields.thing.name.help" {
+		t.Fatalf("helpTextKey mismatch: %q", got)
+	}
+}
+
 func TestDecorator_FieldOrderPresets(t *testing.T) {
 	store := loadStore(t, "ordering")
 	decorator := uischema.NewDecorator(store)

@@ -1,0 +1,41 @@
+{
+  "operations": {
+    "createThing": {
+      "form": {
+        "title": "Create Thing",
+        "titleKey": "forms.createThing.title",
+        "subtitle": "Fill the form",
+        "subtitleKey": "forms.createThing.subtitle",
+        "actions": [
+          {
+            "kind": "primary",
+            "label": "Save",
+            "labelKey": "actions.save",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Main",
+          "titleKey": "sections.main.title",
+          "description": "Main fields",
+          "descriptionKey": "sections.main.description"
+        }
+      ],
+      "fields": {
+        "name": {
+          "section": "main",
+          "label": "Name",
+          "labelKey": "fields.thing.name",
+          "placeholder": "Enter name",
+          "placeholderKey": "fields.thing.name.placeholder",
+          "helpText": "Used for display",
+          "helpTextKey": "fields.thing.name.help"
+        }
+      }
+    }
+  }
+}
+

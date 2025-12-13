@@ -26,12 +26,14 @@ type Operation struct {
 
 // FormConfig captures high-level layout instructions plus action buttons.
 type FormConfig struct {
-	Title    string            `json:"title" yaml:"title"`
-	Subtitle string            `json:"subtitle" yaml:"subtitle"`
-	Layout   LayoutConfig      `json:"layout" yaml:"layout"`
-	Actions  []ActionConfig    `json:"actions" yaml:"actions"`
-	Metadata map[string]string `json:"metadata" yaml:"metadata"`
-	UIHints  map[string]string `json:"uiHints" yaml:"uiHints"`
+	Title       string            `json:"title" yaml:"title"`
+	TitleKey    string            `json:"titleKey,omitempty" yaml:"titleKey,omitempty"`
+	Subtitle    string            `json:"subtitle" yaml:"subtitle"`
+	SubtitleKey string            `json:"subtitleKey,omitempty" yaml:"subtitleKey,omitempty"`
+	Layout      LayoutConfig      `json:"layout" yaml:"layout"`
+	Actions     []ActionConfig    `json:"actions" yaml:"actions"`
+	Metadata    map[string]string `json:"metadata" yaml:"metadata"`
+	UIHints     map[string]string `json:"uiHints" yaml:"uiHints"`
 }
 
 // LayoutConfig defines the grid used by the renderer.
@@ -42,23 +44,26 @@ type LayoutConfig struct {
 
 // ActionConfig serialises call-to-action buttons rendered alongside the form.
 type ActionConfig struct {
-	Kind  string `json:"kind" yaml:"kind"`
-	Label string `json:"label" yaml:"label"`
-	Href  string `json:"href,omitempty" yaml:"href,omitempty"`
-	Type  string `json:"type,omitempty" yaml:"type,omitempty"`
-	Icon  string `json:"icon,omitempty" yaml:"icon,omitempty"`
+	Kind     string `json:"kind" yaml:"kind"`
+	Label    string `json:"label" yaml:"label"`
+	LabelKey string `json:"labelKey,omitempty" yaml:"labelKey,omitempty"`
+	Href     string `json:"href,omitempty" yaml:"href,omitempty"`
+	Type     string `json:"type,omitempty" yaml:"type,omitempty"`
+	Icon     string `json:"icon,omitempty" yaml:"icon,omitempty"`
 }
 
 // SectionConfig groups related fields into cards/fieldsets.
 type SectionConfig struct {
-	ID          string            `json:"id" yaml:"id"`
-	Title       string            `json:"title" yaml:"title"`
-	Description string            `json:"description" yaml:"description"`
-	Order       *int              `json:"order,omitempty" yaml:"order,omitempty"`
-	Fieldset    *bool             `json:"fieldset,omitempty" yaml:"fieldset,omitempty"`
-	OrderPreset OrderPreset       `json:"orderPreset,omitempty" yaml:"orderPreset,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
-	UIHints     map[string]string `json:"uiHints,omitempty" yaml:"uiHints,omitempty"`
+	ID             string            `json:"id" yaml:"id"`
+	Title          string            `json:"title" yaml:"title"`
+	TitleKey       string            `json:"titleKey,omitempty" yaml:"titleKey,omitempty"`
+	Description    string            `json:"description" yaml:"description"`
+	DescriptionKey string            `json:"descriptionKey,omitempty" yaml:"descriptionKey,omitempty"`
+	Order          *int              `json:"order,omitempty" yaml:"order,omitempty"`
+	Fieldset       *bool             `json:"fieldset,omitempty" yaml:"fieldset,omitempty"`
+	OrderPreset    OrderPreset       `json:"orderPreset,omitempty" yaml:"orderPreset,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	UIHints        map[string]string `json:"uiHints,omitempty" yaml:"uiHints,omitempty"`
 }
 
 // FieldConfig customises how a field is rendered within a section/grid.
@@ -67,9 +72,13 @@ type FieldConfig struct {
 	Order            *int              `json:"order,omitempty" yaml:"order,omitempty"`
 	Grid             *GridConfig       `json:"grid,omitempty" yaml:"grid,omitempty"`
 	Label            string            `json:"label,omitempty" yaml:"label,omitempty"`
+	LabelKey         string            `json:"labelKey,omitempty" yaml:"labelKey,omitempty"`
 	Description      string            `json:"description,omitempty" yaml:"description,omitempty"`
+	DescriptionKey   string            `json:"descriptionKey,omitempty" yaml:"descriptionKey,omitempty"`
 	HelpText         string            `json:"helpText,omitempty" yaml:"helpText,omitempty"`
+	HelpTextKey      string            `json:"helpTextKey,omitempty" yaml:"helpTextKey,omitempty"`
 	Placeholder      string            `json:"placeholder,omitempty" yaml:"placeholder,omitempty"`
+	PlaceholderKey   string            `json:"placeholderKey,omitempty" yaml:"placeholderKey,omitempty"`
 	Widget           string            `json:"widget,omitempty" yaml:"widget,omitempty"`
 	Component        string            `json:"component,omitempty" yaml:"component,omitempty"`
 	ComponentOptions map[string]any    `json:"componentOptions,omitempty" yaml:"componentOptions,omitempty"`

@@ -26,6 +26,7 @@ type Option func(*config)
 type config struct {
 	templateFS         fs.FS
 	templateRenderer   rendertemplate.TemplateRenderer
+	templateFuncs      map[string]any
 	inlineStyles       string
 	stylesheets        []string
 	componentRegistry  *components.Registry
@@ -54,6 +55,26 @@ func WithTemplateRenderer(renderer rendertemplate.TemplateRenderer) Option {
 	return func(cfg *config) {
 		if renderer != nil {
 			cfg.templateRenderer = renderer
+		}
+	}
+}
+
+// WithTemplateFuncs registers template helper functions on the built-in
+// go-template engine. It is a generic injection point for helpers such as i18n
+// translation, formatting, or other UI utilities.
+func WithTemplateFuncs(funcs map[string]any) Option {
+	return func(cfg *config) {
+		if len(funcs) == 0 {
+			return
+		}
+		if cfg.templateFuncs == nil {
+			cfg.templateFuncs = make(map[string]any, len(funcs))
+		}
+		for name, fn := range funcs {
+			if strings.TrimSpace(name) == "" || fn == nil {
+				continue
+			}
+			cfg.templateFuncs[name] = fn
 		}
 	}
 }
@@ -182,11 +203,13 @@ type layoutContext struct {
 }
 
 type sectionGroup struct {
-	ID          string          `json:"id"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Fieldset    bool            `json:"fieldset"`
-	Fields      []renderedField `json:"fields"`
+	ID             string          `json:"id"`
+	Title          string          `json:"title"`
+	TitleKey       string          `json:"titleKey,omitempty"`
+	Description    string          `json:"description"`
+	DescriptionKey string          `json:"descriptionKey,omitempty"`
+	Fieldset       bool            `json:"fieldset"`
+	Fields         []renderedField `json:"fields"`
 }
 
 type renderedField struct {
@@ -207,21 +230,24 @@ type sectionedField struct {
 }
 
 type sectionMeta struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Description string            `json:"description"`
-	Order       int               `json:"order"`
-	Fieldset    bool              `json:"fieldset"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	UIHints     map[string]string `json:"uiHints,omitempty"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	TitleKey       string            `json:"titleKey,omitempty"`
+	Description    string            `json:"description"`
+	DescriptionKey string            `json:"descriptionKey,omitempty"`
+	Order          int               `json:"order"`
+	Fieldset       bool              `json:"fieldset"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	UIHints        map[string]string `json:"uiHints,omitempty"`
 }
 
 type actionButton struct {
-	Kind  string `json:"kind"`
-	Label string `json:"label"`
-	Href  string `json:"href,omitempty"`
-	Type  string `json:"type,omitempty"`
-	Icon  string `json:"icon,omitempty"`
+	Kind     string `json:"kind"`
+	Label    string `json:"label"`
+	LabelKey string `json:"labelKey,omitempty"`
+	Href     string `json:"href,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Icon     string `json:"icon,omitempty"`
 }
 
 // New constructs the vanilla renderer applying any provided options.
@@ -240,9 +266,24 @@ func New(options ...Option) (*Renderer, error) {
 
 	renderer := cfg.templateRenderer
 	if renderer == nil {
-		engine, err := gotemplate.New(
+		var templateFuncs map[string]any
+		if len(cfg.templateFuncs) > 0 {
+			templateFuncs = make(map[string]any, len(cfg.templateFuncs))
+			for key, fn := range cfg.templateFuncs {
+				templateFuncs[key] = fn
+			}
+		}
+
+		options := []gotemplate.Option{
 			gotemplate.WithFS(cfg.templateFS),
 			gotemplate.WithExtension(".tmpl"),
+		}
+		if len(templateFuncs) > 0 {
+			options = append(options, gotemplate.WithTemplateFunc(templateFuncs))
+		}
+
+		engine, err := gotemplate.New(
+			options...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("vanilla renderer: configure template renderer: %w", err)
@@ -280,6 +321,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	}
 
 	render.ApplySubset(&form, renderOptions.Subset)
+	render.LocalizeFormModel(&form, renderOptions)
 
 	topPadding := renderOptions.TopPadding
 	if topPadding == 0 {
@@ -311,6 +353,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	cleanTheme := themeCtx
 
 	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
+		"locale":            renderOptions.Locale,
 		"form":              decorated,
 		"layout":            layout,
 		"actions":           actions,
@@ -324,6 +367,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 			"method_override": templateOptions.MethodOverride,
 			"form_errors":     templateOptions.FormErrors,
 			"hidden_fields":   templateOptions.HiddenFields,
+			"locale":          renderOptions.Locale,
 		},
 	})
 	if err != nil {
@@ -906,10 +950,12 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 	index := make(map[string]*sectionGroup, len(metas))
 	for i, meta := range metas {
 		ctx.Sections[i] = sectionGroup{
-			ID:          meta.ID,
-			Title:       meta.Title,
-			Description: meta.Description,
-			Fieldset:    meta.Fieldset,
+			ID:             meta.ID,
+			Title:          meta.Title,
+			TitleKey:       meta.TitleKey,
+			Description:    meta.Description,
+			DescriptionKey: meta.DescriptionKey,
+			Fieldset:       meta.Fieldset,
 		}
 		index[meta.ID] = &ctx.Sections[i]
 	}

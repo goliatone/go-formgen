@@ -61,9 +61,17 @@ func applyFormConfig(form *pkgmodel.FormModel, op Operation) error {
 		form.UIHints = ensureUIHints(form.UIHints)
 		form.UIHints["layout.title"] = op.Form.Title
 	}
+	if op.Form.TitleKey != "" {
+		form.UIHints = ensureUIHints(form.UIHints)
+		form.UIHints["layout.titleKey"] = op.Form.TitleKey
+	}
 	if op.Form.Subtitle != "" {
 		form.UIHints = ensureUIHints(form.UIHints)
 		form.UIHints["layout.subtitle"] = op.Form.Subtitle
+	}
+	if op.Form.SubtitleKey != "" {
+		form.UIHints = ensureUIHints(form.UIHints)
+		form.UIHints["layout.subtitleKey"] = op.Form.SubtitleKey
 	}
 	if op.Form.Layout.GridColumns > 0 {
 		form.UIHints = ensureUIHints(form.UIHints)
@@ -118,13 +126,15 @@ func buildSectionsMetadata(op Operation) (string, error) {
 		}
 
 		entry := sectionMetadata{
-			ID:          id,
-			Title:       section.Title,
-			Description: section.Description,
-			Order:       order,
-			Fieldset:    fieldset,
-			Metadata:    cloneStringMap(section.Metadata),
-			UIHints:     cloneStringMap(section.UIHints),
+			ID:             id,
+			Title:          section.Title,
+			TitleKey:       section.TitleKey,
+			Description:    section.Description,
+			DescriptionKey: section.DescriptionKey,
+			Order:          order,
+			Fieldset:       fieldset,
+			Metadata:       cloneStringMap(section.Metadata),
+			UIHints:        cloneStringMap(section.UIHints),
 		}
 		sections = append(sections, entry)
 	}
@@ -144,13 +154,15 @@ func buildSectionsMetadata(op Operation) (string, error) {
 }
 
 type sectionMetadata struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Order       int               `json:"order"`
-	Fieldset    bool              `json:"fieldset,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	UIHints     map[string]string `json:"uiHints,omitempty"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title,omitempty"`
+	TitleKey       string            `json:"titleKey,omitempty"`
+	Description    string            `json:"description,omitempty"`
+	DescriptionKey string            `json:"descriptionKey,omitempty"`
+	Order          int               `json:"order"`
+	Fieldset       bool              `json:"fieldset,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	UIHints        map[string]string `json:"uiHints,omitempty"`
 }
 
 func applyFieldConfig(form *pkgmodel.FormModel, op Operation) error {
@@ -246,15 +258,31 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if cfg.Label != "" {
 		field.Label = cfg.Label
 	}
+	if cfg.LabelKey != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["labelKey"] = cfg.LabelKey
+	}
 	if cfg.Description != "" {
 		field.Description = cfg.Description
+	}
+	if cfg.DescriptionKey != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["descriptionKey"] = cfg.DescriptionKey
 	}
 	if cfg.Placeholder != "" {
 		field.Placeholder = cfg.Placeholder
 	}
+	if cfg.PlaceholderKey != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["placeholderKey"] = cfg.PlaceholderKey
+	}
 	if cfg.HelpText != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
 		field.UIHints["helpText"] = cfg.HelpText
+	}
+	if cfg.HelpTextKey != "" {
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["helpTextKey"] = cfg.HelpTextKey
 	}
 	if cfg.Widget != "" {
 		field.UIHints = ensureUIHints(field.UIHints)

@@ -345,11 +345,13 @@ func pruneFieldOrders(metadata map[string]string, allowed map[string]struct{}) {
 }
 
 type sectionMetadata struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Order       int               `json:"order"`
-	Fieldset    bool              `json:"fieldset,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	UIHints     map[string]string `json:"uiHints,omitempty"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title,omitempty"`
+	TitleKey       string            `json:"titleKey,omitempty"`
+	Description    string            `json:"description,omitempty"`
+	DescriptionKey string            `json:"descriptionKey,omitempty"`
+	Order          int               `json:"order"`
+	Fieldset       bool              `json:"fieldset,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	UIHints        map[string]string `json:"uiHints,omitempty"`
 }

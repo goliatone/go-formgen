@@ -1,9 +1,28 @@
 package render
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/goliatone/go-formgen/pkg/visibility"
 	"github.com/goliatone/go-theme"
 )
+
+// Translator resolves a string for a given locale and message key.
+// It matches github.com/goliatone/go-i18n's Translator interface so downstream
+// projects can pass that implementation without introducing a hard dependency.
+type Translator interface {
+	Translate(locale, key string, args ...any) (string, error)
+}
+
+// MissingTranslationHandler decides what string should be emitted when a
+// translation cannot be resolved.
+//
+// Convention: when go-formgen performs model localization it passes a single
+// map argument in args containing { "default": <existing text> }.
+type MissingTranslationHandler func(locale, key string, args []any, err error) string
+
+var ErrMissingTranslator = errors.New("render: missing translator")
 
 // RenderOptions describe per-request data that renderers can use to customise
 // their output without mutating the form model pipeline.
@@ -35,6 +54,12 @@ type RenderOptions struct {
 	// submission metadata that should travel with the form without showing up in
 	// the visible schema.
 	HiddenFields map[string]string
+	// Locale selects the locale used by render-time localization helpers.
+	Locale string
+	// Translator enables model and template-level localization.
+	Translator Translator
+	// OnMissing customizes what string is used when a translation is missing.
+	OnMissing MissingTranslationHandler
 	// Theme passes renderer configuration derived from a go-theme Selection so
 	// renderers can resolve partials, assets, and tokens consistently.
 	Theme *theme.RendererConfig
@@ -45,6 +70,21 @@ type RenderOptions struct {
 	// root form markup when no external stylesheets or inline styles are
 	// present. A zero value allows the renderer to apply its default.
 	TopPadding int
+}
+
+func missingTranslationDefault(locale, key string, args []any, err error) string {
+	def := ""
+	if len(args) > 0 {
+		if meta, ok := args[0].(map[string]any); ok {
+			if v, ok := meta["default"]; ok {
+				def = strings.TrimSpace(anyToString(v))
+			}
+		}
+	}
+	if def != "" {
+		return def
+	}
+	return key
 }
 
 // FieldSubset describes the allowed groups, tags, or sections for partial

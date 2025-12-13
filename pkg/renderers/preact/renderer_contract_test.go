@@ -2,6 +2,7 @@ package preact_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -214,6 +215,34 @@ func TestRenderer_WithTemplateRenderer(t *testing.T) {
 	}
 	if !stub.called {
 		t.Fatalf("expected render template to be called")
+	}
+}
+
+func TestRenderer_WithTemplateFuncs(t *testing.T) {
+	templates := fstest.MapFS{
+		"templates/page.tmpl": &fstest.MapFile{
+			Data: []byte(`{{ shout(form.operationId) }}|{{ locale }}`),
+		},
+	}
+
+	renderer, err := preact.New(
+		preact.WithTemplatesFS(templates),
+		preact.WithTemplateFuncs(map[string]any{
+			"shout": func(value any) string {
+				return strings.ToUpper(strings.TrimSpace(fmt.Sprint(value)))
+			},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	out, err := renderer.Render(testsupport.Context(), model.FormModel{OperationID: "demo"}, render.RenderOptions{Locale: "en"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "DEMO|en" {
+		t.Fatalf("unexpected output: %s", out)
 	}
 }
 

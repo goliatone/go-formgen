@@ -36,6 +36,7 @@ type Option func(*config)
 type config struct {
 	templateFS       fs.FS
 	templateRenderer rendertemplate.TemplateRenderer
+	templateFuncs    map[string]any
 	assetsFS         fs.FS
 	assetPaths       assetPaths
 	assetURLPrefix   string
@@ -95,6 +96,26 @@ func WithTemplateRenderer(renderer rendertemplate.TemplateRenderer) Option {
 	return func(cfg *config) {
 		if renderer != nil {
 			cfg.templateRenderer = renderer
+		}
+	}
+}
+
+// WithTemplateFuncs registers template helper functions on the built-in
+// go-template engine. It is a generic injection point for helpers such as i18n
+// translation, formatting, or other UI utilities.
+func WithTemplateFuncs(funcs map[string]any) Option {
+	return func(cfg *config) {
+		if len(funcs) == 0 {
+			return
+		}
+		if cfg.templateFuncs == nil {
+			cfg.templateFuncs = make(map[string]any, len(funcs))
+		}
+		for name, fn := range funcs {
+			if strings.TrimSpace(name) == "" || fn == nil {
+				continue
+			}
+			cfg.templateFuncs[name] = fn
 		}
 	}
 }
@@ -171,9 +192,24 @@ func New(options ...Option) (*Renderer, error) {
 
 	templateRenderer := cfg.templateRenderer
 	if templateRenderer == nil {
-		engine, err := gotemplate.New(
+		var templateFuncs map[string]any
+		if len(cfg.templateFuncs) > 0 {
+			templateFuncs = make(map[string]any, len(cfg.templateFuncs))
+			for key, fn := range cfg.templateFuncs {
+				templateFuncs[key] = fn
+			}
+		}
+
+		options := []gotemplate.Option{
 			gotemplate.WithFS(cfg.templateFS),
 			gotemplate.WithExtension(".tmpl"),
+		}
+		if len(templateFuncs) > 0 {
+			options = append(options, gotemplate.WithTemplateFunc(templateFuncs))
+		}
+
+		engine, err := gotemplate.New(
+			options...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("preact renderer: configure template renderer: %w", err)
@@ -208,6 +244,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	formWithPrefill := form
 	render.ApplySubset(&formWithPrefill, renderOptions.Subset)
 	applyPrefillValues(&formWithPrefill, renderOptions.Values)
+	render.LocalizeFormModel(&formWithPrefill, renderOptions)
 	ensureComponentMetadata(&formWithPrefill)
 
 	mappedErrors := render.MapErrorPayload(formWithPrefill, renderOptions.Errors)
@@ -228,6 +265,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	urls := r.assetURLs(assetResolver)
 	cleanTheme := themeCtx
 	data := map[string]any{
+		"locale":       renderOptions.Locale,
 		"form":         formWithPrefill,
 		"form_json":    string(payload),
 		"field_orders": fieldOrderPayload(formWithPrefill.Metadata),
