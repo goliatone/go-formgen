@@ -6,6 +6,7 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 
 - [Architecture & Guides](go-form-gen.md)
 - [Styling & Customization Guide](docs/GUIDE_STYLING.md)
+- [Form Customization Guide](docs/GUIDE_CUSTOMIZATION.md) — Action buttons, sections, widgets, behaviors
 - [API Reference](https://pkg.go.dev/github.com/goliatone/go-formgen)
 - [Task & Roadmap Notes](TODO.md)
 
@@ -16,6 +17,7 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 - Pluggable renderers: vanilla (Go templates), Preact (hydrated, embedded assets), and TUI/CLI
 - Orchestrator wiring with renderer registry, widget registry, endpoint overrides, and visibility evaluators
 - UI schema overlays (JSON/YAML) for sections, layout, icons, actions, and component overrides without touching templates
+- Optional i18n: UI schema `*Key` fields + render-time localization and template helpers
 - Render options: subsets (groups/tags/sections), prefill + provenance/readonly/disabled, hidden fields, server errors, visibility context
 - Theme integration via `go-theme` selectors/providers + partial fallbacks; reuse or override embedded templates/assets
 - Transformers (JSON presets or JS runner seam) to mutate form models before decoration
@@ -72,7 +74,7 @@ Use the orchestrator when you want all stages wired for you, or inject your own 
 
 ## Renderers
 
-- `vanilla`: Server-rendered HTML using Go templates. Accepts `WithTemplatesFS`/`WithTemplatesDir` for custom bundles.
+- `vanilla`: Server-rendered HTML using Go templates. Accepts `WithTemplatesFS`/`WithTemplatesDir` and `WithTemplateFuncs` for custom bundles/helpers.
 - `preact`: Hydrate-able markup plus embedded JS/CSS (`preact.AssetsFS()`); `WithAssetURLPrefix` rewrites asset URLs for HTTP servers or CDNs.
 - `tui`: Interactive terminal prompts (JSON/form-url-encoded/pretty output). Run with `--renderer tui` in the CLI example or register it in the renderer registry.
 
@@ -161,8 +163,61 @@ When serving HTML, remember to register and set a default renderer, and ensure t
 
 - Reuse `formgen.EmbeddedTemplates()` for vanilla or supply your own via `WithTemplatesFS/Dir`.
 - Preact ships embedded assets (`preact.AssetsFS()`); copy them to your static host or set `WithAssetURLPrefix` to point at a CDN/handler.
-- Component overrides and UI schema metadata (`placeholder`, `helpText`, `layout.*`, icons, actions, behaviors) flow through to renderers for fine-grained control.
+- Component overrides and UI schema metadata (`placeholder`, `helpText`, `layout.*`, icons, actions, behaviors) flow through to renderers for fine grained control.
 - Theme selection is resolved via `WithThemeProvider/WithThemeSelector`, providing partials/tokens/assets to renderers; set `WithThemeFallbacks` to ensure template keys always resolve.
+
+## Localization (i18n)
+
+Formgen supports localization without depending on a specific i18n package: supply any implementation of `render.Translator` (compatible with `github.com/goliatone/go-i18n`).
+
+### How To
+
+1) Add explicit translation keys in your UI schema while keeping human readable fallbacks:
+
+```json
+{
+  "operations": {
+    "createPet": {
+      "form": { "title": "Create Pet", "titleKey": "forms.createPet.title" },
+      "sections": [{ "id": "main", "title": "Main", "titleKey": "forms.createPet.sections.main.title" }],
+      "fields": { "name": { "label": "Name", "labelKey": "fields.pet.name" } },
+      "actions": [{ "label": "Save", "labelKey": "actions.save", "type": "submit" }]
+    }
+  }
+}
+```
+
+2) Provide locale + translator at render time (missing translations go through `OnMissing`):
+
+```go
+output, err := gen.Generate(ctx, orchestrator.Request{
+  Source:      openapi.SourceFromFile("openapi.json"),
+  OperationID: "createPet",
+  RenderOptions: render.RenderOptions{
+    Locale:     "es-MX",
+    Translator: myTranslator, // implements: Translate(locale, key string, args ...any) (string, error)
+    OnMissing: func(locale, key string, args []any, err error) string {
+      return key // or inspect args[0].(map[string]any)["default"]
+    },
+  },
+})
+```
+
+3) (Optional) Use template level translation helpers in custom templates:
+
+```go
+funcs := render.TemplateI18nFuncs(myTranslator, render.TemplateI18nConfig{
+  FuncName:  "translate",
+  LocaleKey: "locale",
+})
+
+renderer, _ := vanilla.New(
+  vanilla.WithTemplatesFS(myTemplates),
+  vanilla.WithTemplateFuncs(funcs),
+)
+```
+
+In templates you can call `{{ translate(locale, "forms.createPet.title") }}` (formgen also passes `render_options.locale`).
 
 ## Styling & Customization
 
@@ -342,11 +397,163 @@ Or use responsive CSS:
 
 **See the complete [Styling & Customization Guide](docs/GUIDE_STYLING.md) for:**
 - Custom template bundles
-- Fluid vs. fixed-width containers
-- Responsive two-column layouts
+- Fluid vs. fixed width containers
+- Responsive two column layouts
 - Theme variants and CSS variables
-- Component-level customization
+- Component level customization
 - Complete working examples
+
+## Form Customization
+
+Beyond styling, formgen supports extensive form behavior customization through **UI Schemas** - JSON/YAML files that configure forms without modifying OpenAPI specs or templates.
+
+### Custom Action Buttons
+
+Add submit, reset, cancel, or custom buttons via UI schema:
+
+```json
+{
+  "operations": {
+    "createArticle": {
+      "form": {
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Clear Form",
+            "type": "reset"
+          },
+          {
+            "kind": "secondary",
+            "label": "Save Draft",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Publish",
+            "type": "submit"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### Sections and Layout
+
+Organize fields into logical sections with custom grid layouts:
+
+```json
+{
+  "operations": {
+    "createPet": {
+      "form": {
+        "title": "Add New Pet",
+        "layout": {
+          "gridColumns": 12,
+          "gutter": "md"
+        }
+      },
+      "sections": [
+        {
+          "id": "basic-info",
+          "title": "Basic Information",
+          "fieldset": true,
+          "order": 0
+        },
+        {
+          "id": "health",
+          "title": "Health Records",
+          "order": 1
+        }
+      ],
+      "fields": {
+        "name": {
+          "section": "basic-info",
+          "grid": { "span": 8 },
+          "helpText": "Your pet's name"
+        },
+        "age": {
+          "section": "basic-info",
+          "grid": { "span": 4 }
+        }
+      }
+    }
+  }
+}
+```
+
+### Widgets and Components
+
+Use built-in widgets or register custom components:
+
+```json
+{
+  "fields": {
+    "description": {
+      "widget": "wysiwyg",
+      "componentOptions": {
+        "toolbar": ["bold", "italic", "link"]
+      }
+    },
+    "category": {
+      "component": "custom-select",
+      "componentOptions": {
+        "endpoint": "/api/categories"
+      }
+    }
+  }
+}
+```
+
+### Behaviors
+
+Add client side behaviors like auto slug or auto resize:
+
+```json
+{
+  "fields": {
+    "title": {
+      "label": "Article Title"
+    },
+    "slug": {
+      "helpText": "Auto-generated from title",
+      "behaviors": {
+        "autoSlug": {
+          "source": "title"
+        }
+      }
+    }
+  }
+}
+```
+
+### Loading UI Schemas
+
+```go
+//go:embed ui-schemas
+var uiSchemas embed.FS
+
+gen := formgen.NewOrchestrator(
+    orchestrator.WithUISchemaFS(uiSchemas),
+)
+
+// UI schemas are automatically loaded by operation ID
+output, _ := gen.Generate(ctx, orchestrator.Request{
+    OperationID: "createArticle",  // Loads ui-schemas/create-article.json
+})
+```
+
+**See the complete [Form Customization Guide](docs/GUIDE_CUSTOMIZATION.md) for:**
+- Action button configuration (submit, reset, cancel, custom)
+- Section and fieldset organization
+- Field-level customization (labels, help text, grid positioning)
+- Built in widgets (wysiwyg, file uploader, datetime, etc.)
+- Custom component registration
+- Icons and visual enhancements
+- Behaviors (auto slug, auto resize, custom)
+- Field ordering and presets
+- Three complete working examples (blog, registration, e-commerce)
 
 ## Testing & Tooling
 
