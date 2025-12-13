@@ -43,7 +43,9 @@ A UI Schema is a JSON or YAML file that describes how to render a form without m
     "operationId": {
       "form": {
         "title": "Form Title",
+        "titleKey": "forms.operationId.title",
         "subtitle": "Form subtitle",
+        "subtitleKey": "forms.operationId.subtitle",
         "layout": { ... },
         "actions": [ ... ],
         "metadata": { ... },
@@ -98,6 +100,29 @@ UI schema files are discovered by operation ID or a general schema file:
 
 ---
 
+## Localization (i18n)
+
+UI schema strings can be localized by pairing a `*Key` field with its fallback value.
+
+- **Form**: `form.titleKey` / `form.subtitleKey`
+- **Sections**: `sections[].titleKey` / `sections[].descriptionKey`
+- **Fields**: `fields.<name>.labelKey`, `descriptionKey`, `placeholderKey`, `helpTextKey`
+- **Actions**: `form.actions[].labelKey`
+
+At render time, supply a `render.Translator` and `render.RenderOptions.Locale`. Missing translations can be customized with `render.RenderOptions.OnMissing`.
+
+For template-level i18n (custom templates), inject a translate helper into template funcs:
+
+```go
+funcs := render.TemplateI18nFuncs(translator, render.TemplateI18nConfig{
+  FuncName:  "translate",
+  LocaleKey: "locale",
+})
+
+renderer, _ := vanilla.New(vanilla.WithTemplateFuncs(funcs))
+// preact.New(preact.WithTemplateFuncs(funcs))
+```
+
 ## 2. Custom Action Buttons
 
 ### Default Behavior
@@ -116,6 +141,7 @@ From [types.go:43-50](../pkg/uischema/types.go#L43-50):
 type ActionConfig struct {
     Kind  string  // "primary" or "secondary" (styling)
     Label string  // Button text
+    LabelKey string // Optional i18n key for Label
     Href  string  // For link buttons (optional)
     Type  string  // "submit", "reset", "button" (optional)
     Icon  string  // Icon identifier (optional)
