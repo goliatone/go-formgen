@@ -349,6 +349,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	for idx := range componentScripts {
 		componentScripts[idx] = resolveScriptAsset(componentScripts[idx], assetResolver)
 	}
+	componentScriptPayload := scriptPayloads(componentScripts)
 
 	cleanTheme := themeCtx
 
@@ -359,7 +360,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"actions":           actions,
 		"stylesheets":       stylesheets,
 		"inline_styles":     r.inlineStyle,
-		"component_scripts": componentScripts,
+		"component_scripts": componentScriptPayload,
 		"theme":             cleanTheme,
 		"top_padding":       strings.Repeat("\n", topPadding),
 		"render_options": map[string]any{
@@ -460,12 +461,17 @@ func resolveAssets(paths []string, resolver func(string) string) []string {
 	}
 	out := make([]string, 0, len(paths))
 	for _, path := range paths {
-		if strings.TrimSpace(path) == "" {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
 			continue
 		}
-		resolved := strings.TrimSpace(resolver(path))
+		if isAbsoluteAsset(trimmed) {
+			out = append(out, trimmed)
+			continue
+		}
+		resolved := strings.TrimSpace(resolver(trimmed))
 		if resolved == "" {
-			resolved = path
+			resolved = trimmed
 		}
 		out = append(out, resolved)
 	}
@@ -476,10 +482,40 @@ func resolveScriptAsset(script components.Script, resolver func(string) string) 
 	if resolver == nil {
 		return script
 	}
+	if strings.TrimSpace(script.Src) == "" || isAbsoluteAsset(script.Src) {
+		return script
+	}
 	if resolved := strings.TrimSpace(resolver(script.Src)); resolved != "" {
 		script.Src = resolved
 	}
 	return script
+}
+
+func isAbsoluteAsset(path string) bool {
+	trimmed := strings.TrimSpace(path)
+	return strings.HasPrefix(trimmed, "/") ||
+		strings.HasPrefix(trimmed, "http://") ||
+		strings.HasPrefix(trimmed, "https://") ||
+		strings.HasPrefix(trimmed, "//")
+}
+
+func scriptPayloads(scripts []components.Script) []map[string]any {
+	if len(scripts) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(scripts))
+	for _, script := range scripts {
+		out = append(out, map[string]any{
+			"src":    script.Src,
+			"type":   script.Type,
+			"inline": script.Inline,
+			"async":  script.Async,
+			"defer":  script.Defer,
+			"module": script.Module,
+			"attrs":  script.Attrs,
+		})
+	}
+	return out
 }
 
 func prepareRenderContext(form *model.FormModel, options render.RenderOptions) templateRenderOptions {

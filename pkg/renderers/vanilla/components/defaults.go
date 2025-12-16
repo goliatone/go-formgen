@@ -11,6 +11,8 @@ import (
 
 const (
 	templatePrefix = "templates/components/"
+	runtimeScript  = "/runtime/formgen-relationships.min.js"
+	runtimeInit    = `(function(){function init(){var api=window.FormgenRelationships;if(api&&typeof api.initRelationships==="function"){try{api.initRelationships();}catch(e){}}}if(typeof document==="undefined"){return;}if(document.readyState==="loading"){window.addEventListener("DOMContentLoaded",init);}else{init();}})();`
 )
 
 // NewDefaultRegistry constructs a registry pre-populated with the built-in
@@ -44,6 +46,10 @@ func NewDefaultRegistry() *Registry {
 	})
 	registry.MustRegister("file_uploader", Descriptor{
 		Renderer: templateComponentRenderer("forms.file-uploader", templatePrefix+"file_uploader.tmpl"),
+		Scripts: []Script{
+			{Src: runtimeScript, Defer: true},
+			{Inline: runtimeInit},
+		},
 	})
 	registry.MustRegister("json_editor", jsonEditorDescriptor())
 
