@@ -34,7 +34,7 @@ const vanillaRuntimeBootstrap = `
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   if (!window.FormgenRelationships || typeof window.FormgenRelationships.initRelationships !== 'function') {
-    console.warn('formgen runtime bundle not loaded; run "npm run build" in the repo root to generate dist/browser assets');
+    console.warn('formgen runtime bundle not loaded; ensure /runtime/ is served from formgen.RuntimeAssetsFS()');
     return;
   }
   if (typeof window.FormgenRelationships.registerComponent === 'function') {
@@ -71,7 +71,7 @@ window.addEventListener('DOMContentLoaded', function () {
   if (window.FormgenBehaviors && typeof window.FormgenBehaviors.initBehaviors === 'function') {
     window.FormgenBehaviors.initBehaviors();
   } else {
-    console.warn('formgen behaviors bundle not loaded; run "npm run build" to generate dist/browser assets');
+    console.warn('formgen behaviors bundle not loaded; ensure /runtime/ is served from formgen.RuntimeAssetsFS()');
   }
 });
 </script>
@@ -159,7 +159,7 @@ func main() {
 	mux := http.NewServeMux()
 	relationships.register(mux)
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
-	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServer(http.FS(vanilla.AssetsFS()))))
+	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServerFS(formgen.RuntimeAssetsFS())))
 	mux.HandleFunc("/api/uploads/", uploadHandler)
 	mux.Handle("/form", server.formHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
