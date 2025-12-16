@@ -583,7 +583,7 @@ function bindSelectionListener(store: TypeaheadStore): void {
     }
     const selected = getSelectedValues(store.select);
     updateInputFromSelection(store, selected);
-    updateClearState(store, selected);
+    updateClearState(store);
   };
   store.changeHandler = handler;
   store.select.addEventListener("change", handler);

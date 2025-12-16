@@ -51,7 +51,7 @@ export function useRelationshipOptions(element: HTMLElement | null) {
             value: opt.value,
             label: opt.textContent || opt.value,
           }));
-        setState({ options, loading: false, error: null });
+        setState({ options, loading: false, error: null, validation: null });
       } else if (dataState === "error") {
         setState((prev) => ({ ...prev, loading: false, error: new Error("Failed to load options") }));
       } else if (dataState !== "loading") {

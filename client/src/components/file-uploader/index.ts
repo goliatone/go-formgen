@@ -30,7 +30,7 @@ export type FileSerializerHook = (context: FileSerializerHookContext) => void;
 export interface FileUploaderConfig {
   variant?: FileUploaderVariant;
   maxSize?: number;
-  allowedTypes?: string[];
+  allowedTypes?: string[] | string;
   multiple?: boolean;
   uploadEndpoint?: string;
   uploadMethod?: string;
@@ -39,6 +39,14 @@ export interface FileUploaderConfig {
   headers?: Record<string, string>;
   serialize?: FileSerializerHook;
 }
+
+type NormalizedFileUploaderConfig = Omit<
+  Required<FileUploaderConfig>,
+  "allowedTypes" | "serialize"
+> & {
+  allowedTypes: string[];
+  serialize?: FileSerializerHook;
+};
 
 type FileStatus = "pending" | "uploading" | "uploaded" | "error";
 
@@ -68,7 +76,7 @@ export const fileUploaderFactory: ComponentFactory = ({ element, config }: Compo
 class FileUploader {
   private readonly element: HTMLElement;
   private readonly input: HTMLInputElement;
-  private readonly config: Required<FileUploaderConfig>;
+  private readonly config: NormalizedFileUploaderConfig;
   private readonly theme: FileUploaderClassMap;
   private readonly form: HTMLFormElement | null;
   private readonly originalName: string;
@@ -78,18 +86,20 @@ class FileUploader {
   private readonly hiddenContainer: HTMLElement;
   private readonly statusMessage: HTMLElement;
   private readonly previewImage?: HTMLImageElement;
-  private readonly dropzone?: HTMLElement;
+  private dropzone?: HTMLElement;
   private entries: FileEntry[] = [];
   private destroying = false;
   private submitting = false;
 
-  constructor(element: HTMLElement, input: HTMLInputElement, config: Required<FileUploaderConfig>) {
+  constructor(element: HTMLElement, input: HTMLInputElement, config: NormalizedFileUploaderConfig) {
     this.element = element;
     this.input = input;
     this.config = config;
     this.theme = getThemeClasses().fileUploader;
     this.form = input.form;
     this.originalName = input.name;
+
+    const hydratedUrls = this.collectHydratedUrls();
 
     this.input.type = "hidden";
     this.input.value = "";
@@ -134,6 +144,10 @@ class FileUploader {
     this.form?.addEventListener("reset", this.handleFormReset);
     if (!this.config.autoUpload) {
       this.form?.addEventListener("submit", this.handleFormSubmit);
+    }
+
+    if (hydratedUrls.length > 0) {
+      this.hydrateUrls(hydratedUrls);
     }
 
     if (!this.config.uploadEndpoint) {
@@ -432,6 +446,44 @@ class FileUploader {
     this.input.name = this.originalName;
   }
 
+  private collectHydratedUrls(): string[] {
+    const normalize = (value: string) => value.trim();
+
+    if (!this.config.multiple) {
+      const value = normalize(this.input.value ?? "");
+      return value ? [value] : [];
+    }
+
+    const logicalName = this.originalName.endsWith("[]")
+      ? this.originalName.slice(0, -2)
+      : this.originalName;
+    const multipleName = `${logicalName}[]`;
+    const selector = [
+      `input[name="${cssEscapeAttributeValue(this.originalName)}"]`,
+      `input[name="${cssEscapeAttributeValue(multipleName)}"]`,
+    ].join(", ");
+
+    const candidates = Array.from(this.element.querySelectorAll<HTMLInputElement>(selector));
+    const urls = candidates.map((candidate) => normalize(candidate.value ?? "")).filter(Boolean);
+
+    // Consume additional inputs so the runtime owns serialization after init.
+    for (const candidate of candidates) {
+      if (candidate !== this.input) {
+        candidate.remove();
+      }
+    }
+
+    return urls;
+  }
+
+  private hydrateUrls(urls: string[]): void {
+    for (const url of urls) {
+      this.entries.push(createHydratedEntry(url));
+    }
+    this.serializeFiles();
+    this.refreshUI();
+  }
+
   private serializeFiles(): void {
     const uploaded = this.entries
       .filter((entry) => entry.uploaded)
@@ -541,7 +593,41 @@ function matchesType(file: File, allowed: string): boolean {
   return file.type === allowed;
 }
 
-function normalizeConfig(raw?: Record<string, unknown>): Required<FileUploaderConfig> {
+function cssEscapeAttributeValue(value: string): string {
+  if (
+    typeof globalThis !== "undefined" &&
+    typeof (globalThis as unknown as { CSS?: { escape?: (input: string) => string } }).CSS?.escape === "function"
+  ) {
+    return (globalThis as unknown as { CSS: { escape: (input: string) => string } }).CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, "\\$1");
+}
+
+function createHydratedEntry(url: string): FileEntry {
+  const fileName = guessFileName(url);
+  const file = new File([], fileName);
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    file,
+    status: "uploaded",
+    progress: 100,
+    uploaded: {
+      url,
+      name: fileName,
+      originalName: fileName,
+      size: 0,
+      contentType: "",
+    },
+  };
+}
+
+function guessFileName(url: string): string {
+  const cleaned = url.split("#")[0].split("?")[0];
+  const parts = cleaned.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? url;
+}
+
+function normalizeConfig(raw?: Record<string, unknown>): NormalizedFileUploaderConfig {
   const config = (raw ?? {}) as FileUploaderConfig;
   const toBool = (value: unknown, fallback = false) => {
     if (typeof value === "boolean") {
@@ -585,7 +671,7 @@ function normalizeConfig(raw?: Record<string, unknown>): Required<FileUploaderCo
     autoUpload: config.autoUpload !== undefined ? toBool(config.autoUpload, true) : true,
     preview: config.preview !== undefined ? toBool(config.preview, config.variant === "image") : config.variant === "image",
     headers,
-    serialize: config.serialize,
+    serialize: typeof config.serialize === "function" ? config.serialize : undefined,
   };
 }
 
