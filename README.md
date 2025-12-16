@@ -163,8 +163,30 @@ When serving HTML, remember to register and set a default renderer, and ensure t
 
 - Reuse `formgen.EmbeddedTemplates()` for vanilla or supply your own via `WithTemplatesFS/Dir`.
 - Preact ships embedded assets (`preact.AssetsFS()`); copy them to your static host or set `WithAssetURLPrefix` to point at a CDN/handler.
+- Serve the browser runtime bundles (relationships + runtime components like `file_uploader`) from `formgen.RuntimeAssetsFS()` and mount them at `/runtime/` so `<script src="/runtime/formgen-relationships.min.js">` works.
 - Component overrides and UI schema metadata (`placeholder`, `helpText`, `layout.*`, icons, actions, behaviors) flow through to renderers for fine grained control.
 - Theme selection is resolved via `WithThemeProvider/WithThemeSelector`, providing partials/tokens/assets to renderers; set `WithThemeFallbacks` to ensure template keys always resolve.
+
+Example mount:
+
+```go
+mux.Handle("/runtime/",
+  http.StripPrefix("/runtime/",
+    http.FileServerFS(formgen.RuntimeAssetsFS()),
+  ),
+)
+```
+
+Runtime usage (vanilla renderer or custom pages):
+
+```html
+<script src="/runtime/formgen-relationships.min.js" defer></script>
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    window.FormgenRelationships?.initRelationships?.();
+  });
+</script>
+```
 
 ## Localization (i18n)
 
