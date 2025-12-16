@@ -1,5 +1,28 @@
 # Changelog
 
+# [0.6.0](https://github.com/goliatone/go-formgen/compare/v0.5.0...v0.6.0) - (2025-12-16)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.6.0 ([1ce45bd](https://github.com/goliatone/go-formgen/commit/1ce45bd85d9c374203ac06e6112e41dab59b3ce2))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Vanilla renderer ([8d1b2c0](https://github.com/goliatone/go-formgen/commit/8d1b2c0e9696912c0382e013ccce8bd77ab33ee8))  - (goliatone)
+- Updated preact renderer ([afa189e](https://github.com/goliatone/go-formgen/commit/afa189eff39215e8f10cfcfd68d132628b4480f1))  - (goliatone)
+- Update file uploader styling ([9c43570](https://github.com/goliatone/go-formgen/commit/9c4357026c31faa9bedb6099ab227ee6beb7db4b))  - (goliatone)
+- Runtime assets ([cb3f9cb](https://github.com/goliatone/go-formgen/commit/cb3f9cbb5502f2c0c74d00465fe0848a13dd681a))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.5.0 ([9560c32](https://github.com/goliatone/go-formgen/commit/9560c3274ea30b3550f5c7c2f6aba95437504681))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update readme ([2f5b59b](https://github.com/goliatone/go-formgen/commit/2f5b59b819bbba8ca2f7afc3a2923eb11c4d0bd8))  - (goliatone)
+- Update example ([c283824](https://github.com/goliatone/go-formgen/commit/c283824b98bb18c155b3f0fba6e2be6eb6606f64))  - (goliatone)
+- Update tests ([25bc0cd](https://github.com/goliatone/go-formgen/commit/25bc0cd70dae42234ea2de70439f2cdffd743c5f))  - (goliatone)
+
 # [0.5.0](https://github.com/goliatone/go-formgen/compare/v0.4.0...v0.5.0) - (2025-12-13)
 
 ## <!-- 13 -->📦 Bumps
