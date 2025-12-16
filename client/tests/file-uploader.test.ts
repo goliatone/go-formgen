@@ -134,4 +134,79 @@ describe("file uploader component", () => {
     const hidden = document.querySelector<HTMLInputElement>('input[name="resume"]');
     expect(hidden?.value).toBe("/uploads/doc.pdf");
   });
+
+  it("hydrates a prefilled single URL and removes it", () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init>
+        <div data-component="file_uploader" data-component-config='{"variant":"image","uploadEndpoint":"/api/uploads","preview":true}'>
+          <input type="text" name="profile_picture" value="/assets/uploads/foo.png">
+        </div>
+      </form>
+    `;
+
+    initComponents(document);
+
+    const input = document.querySelector<HTMLInputElement>('input[name="profile_picture"]');
+    expect(input).not.toBeNull();
+    expect(input?.type).toBe("hidden");
+    expect(input?.value).toBe("/assets/uploads/foo.png");
+
+    const preview = document.querySelector<HTMLImageElement>("img");
+    expect(preview).not.toBeNull();
+    expect(preview?.hidden).toBe(false);
+    expect(preview?.getAttribute("src")).toBe("/assets/uploads/foo.png");
+
+    const removeButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Remove",
+    );
+    expect(removeButton).not.toBeUndefined();
+    removeButton?.dispatchEvent(new Event("click", { bubbles: true }));
+
+    expect(input?.value).toBe("");
+    expect(preview?.hidden).toBe(true);
+  });
+
+  it("hydrates repeated field[] inputs in multiple mode and preserves runtime-owned serialization", () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init>
+        <div data-component="file_uploader" data-component-config='{"multiple":true,"uploadEndpoint":"/api/uploads"}'>
+          <input type="text" name="photos" value="/assets/uploads/a.png">
+          <input type="hidden" name="photos[]" value="/assets/uploads/b.png" data-original-extra="true">
+        </div>
+      </form>
+    `;
+
+    initComponents(document);
+
+    expect(document.querySelector('[data-original-extra="true"]')).toBeNull();
+
+    const primary = document.querySelector<HTMLInputElement>('input[type="hidden"][name="photos[]"]');
+    expect(primary).not.toBeNull();
+    expect(primary?.value).toBe("/assets/uploads/a.png");
+
+    const hiddenInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="photos[]"]'));
+    expect(hiddenInputs.map((node) => node.value)).toEqual([
+      "/assets/uploads/a.png",
+      "/assets/uploads/b.png",
+    ]);
+
+    const removeButtons = Array.from(document.querySelectorAll("button")).filter(
+      (button) => button.textContent?.trim() === "Remove",
+    );
+    expect(removeButtons.length).toBe(2);
+
+    removeButtons[0].dispatchEvent(new Event("click", { bubbles: true }));
+
+    const remaining = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="photos[]"]'));
+    expect(remaining.map((node) => node.value)).toEqual(["/assets/uploads/b.png"]);
+
+    const remainingRemove = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Remove",
+    );
+    expect(remainingRemove).not.toBeUndefined();
+    remainingRemove?.dispatchEvent(new Event("click", { bubbles: true }));
+    const resetInput = document.querySelector<HTMLInputElement>('input[type="hidden"][name="photos"]');
+    expect(resetInput).not.toBeNull();
+    expect(resetInput?.value).toBe("");
+  });
 });
