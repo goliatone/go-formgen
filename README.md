@@ -513,7 +513,7 @@ Use built-in widgets or register custom components:
 {
   "fields": {
     "description": {
-      "widget": "wysiwyg",
+      "component": "wysiwyg",
       "componentOptions": {
         "toolbar": ["bold", "italic", "link"]
       }
@@ -530,7 +530,7 @@ Use built-in widgets or register custom components:
 
 ### Behaviors
 
-Add client side behaviors like auto slug or auto resize:
+Add client-side behaviors like auto slug:
 
 ```json
 {
@@ -560,9 +560,9 @@ gen := formgen.NewOrchestrator(
     orchestrator.WithUISchemaFS(uiSchemas),
 )
 
-// UI schemas are automatically loaded by operation ID
+// OperationID selects which entry under "operations" is applied.
 output, _ := gen.Generate(ctx, orchestrator.Request{
-    OperationID: "createArticle",  // Loads ui-schemas/create-article.json
+    OperationID: "createArticle",
 })
 ```
 
@@ -570,10 +570,10 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 - Action button configuration (submit, reset, cancel, custom)
 - Section and fieldset organization
 - Field-level customization (labels, help text, grid positioning)
-- Built in widgets (wysiwyg, file uploader, datetime, etc.)
+- Widgets and components (vanilla components + Preact widget hints)
 - Custom component registration
 - Icons and visual enhancements
-- Behaviors (auto slug, auto resize, custom)
+- Behaviors (auto slug + custom behavior hooks)
 - Field ordering and presets
 - Three complete working examples (blog, registration, e-commerce)
 
