@@ -1287,9 +1287,23 @@ func resolveComponentName(field model.Field) string {
 		}
 	}
 
-	switch widgetHint(field) {
+	switch strings.TrimSpace(strings.ToLower(widgetHint(field))) {
+	case "textarea":
+		return "textarea"
 	case widgets.WidgetJSONEditor:
 		return "json_editor"
+	case widgets.WidgetToggle:
+		return "boolean"
+	case widgets.WidgetSelect, widgets.WidgetChips:
+		return "select"
+	case widgets.WidgetCodeEditor:
+		return "textarea"
+	case "wysiwyg":
+		return "wysiwyg"
+	case "file_uploader":
+		return "file_uploader"
+	case "datetime-range", "datetime_range":
+		return "datetime-range"
 	}
 
 	hint := func(key string) string {
