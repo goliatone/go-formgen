@@ -28,6 +28,12 @@
 {% if not grid_gutter -%}
 {% set grid_gutter = 'md' -%}
 {% endif %}
+{% set grid_gap_class = 'gap-6' -%}
+{% if grid_gutter == 'sm' -%}
+{% set grid_gap_class = 'gap-4' -%}
+{% elif grid_gutter == 'lg' -%}
+{% set grid_gap_class = 'gap-8' -%}
+{% endif -%}
 <form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
     {% if render_options.method_override %}
     <input type="hidden" name="_method" value="{{ render_options.method_override }}">
@@ -58,7 +64,7 @@
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+    <div class="grid {{ grid_gap_class }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
         {% for field in layout.unsectioned %}
         <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
@@ -82,7 +88,7 @@
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+            <div class="grid {{ grid_gap_class }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
                 {% for field in section.fields %}
                 <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
@@ -91,7 +97,7 @@
             </div>
         </fieldset>
         {% else %}
-        <div class="grid gap-6"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+        <div class="grid {{ grid_gap_class }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
             {% for field in section.fields %}
             <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
