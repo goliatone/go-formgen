@@ -12,6 +12,8 @@ This guide covers non-styling customizations for `go-formgen` forms, including:
 
 All customizations are managed through the **UI Schema** system, which allows you to configure form behavior without modifying templates or code.
 
+UI schemas are best for **layout/labels/metadata**. Interactive features (relationships, WYSIWYG, file uploaders, custom widgets) may also require **runtime JavaScript** and/or registering **custom components**.
+
 ---
 
 ## Table of Contents
@@ -24,8 +26,9 @@ All customizations are managed through the **UI Schema** system, which allows yo
 6. [Widgets and Components](#6-widgets-and-components)
 7. [Icons and Visual Enhancements](#7-icons-and-visual-enhancements)
 8. [Behaviors and Interactions](#8-behaviors-and-interactions)
-9. [Field Ordering](#9-field-ordering)
-10. [Complete Examples](#10-complete-examples)
+9. [Visibility Rules](#9-visibility-rules)
+10. [Field Ordering](#10-field-ordering)
+11. [Complete Examples](#11-complete-examples)
 
 ---
 
@@ -39,6 +42,7 @@ A UI Schema is a JSON or YAML file that describes how to render a form without m
 
 ```json
 {
+  "fieldOrderPresets": { ... },
   "operations": {
     "operationId": {
       "form": {
@@ -54,8 +58,7 @@ A UI Schema is a JSON or YAML file that describes how to render a form without m
       "sections": [ ... ],
       "fields": {
         "fieldName": { ... }
-      },
-      "fieldOrderPresets": { ... }
+      }
     }
   }
 }
@@ -86,17 +89,19 @@ gen := formgen.NewOrchestrator(
 
 ```go
 gen := formgen.NewOrchestrator(
-    orchestrator.WithUISchemaFS(nil),  // Disables embedded defaults
+    orchestrator.WithUISchemaFS(nil),  // Disables all UI schemas (including embedded defaults)
 )
 ```
 
-### File Naming Convention
+If you omit `WithUISchemaFS` entirely, `go-formgen` loads its embedded UI schema bundle (`pkg/uischema/ui/schema`) when present.
 
-UI schema files are discovered by operation ID or a general schema file:
+### File Organization
 
-- `create-pet.json` → Maps to `createPet` operation
-- `edit-article.yaml` → Maps to `editArticle` operation
-- `schema.json` / `schema.yaml` → Contains multiple operations
+`go-formgen` loads every `*.json`, `*.yaml`, and `*.yml` file in the configured `fs.FS` (recursively) and registers the operations found under `operations`.
+
+- File names are not significant; operation IDs come from the keys in `operations`.
+- You can use one file per operation (recommended for readability) or group multiple operations in one file.
+- Duplicate operation IDs across files are an error.
 
 ---
 
@@ -135,16 +140,16 @@ Without configuration, forms render a single "Submit" button ([form.tmpl:116](..
 
 ### ActionConfig Structure
 
-From [types.go:43-50](../pkg/uischema/types.go#L43-50):
+From [pkg/uischema/types.go](../pkg/uischema/types.go#L45):
 
 ```go
 type ActionConfig struct {
-    Kind  string  // "primary" or "secondary" (styling)
-    Label string  // Button text
+    Kind     string // "primary" or "secondary" (styling hint)
+    Label    string // Button text
     LabelKey string // Optional i18n key for Label
-    Href  string  // For link buttons (optional)
-    Type  string  // "submit", "reset", "button" (optional)
-    Icon  string  // Icon identifier (optional)
+    Href     string // When set, renders an <a> styled like a button
+    Type     string // "submit", "reset", or "button" (defaults to "submit")
+    Icon     string // Icon identifier (optional; renderer-dependent)
 }
 ```
 
@@ -158,6 +163,11 @@ type ActionConfig struct {
 | `type` | `"button"` | Generic button (for JS handlers) |
 | `kind` | `"primary"` | Blue background, emphasized |
 | `kind` | `"secondary"` | White background, subtle |
+
+Notes for the built-in vanilla renderer:
+- Button actions default to `type: "submit"` when omitted.
+- For `<button>` actions, `kind` defaults to primary when omitted.
+- For `<a href="…">` actions, `kind` defaults to secondary when omitted.
 
 ### Example: Submit + Cancel
 
@@ -259,6 +269,7 @@ type ActionConfig struct {
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.querySelector('form[data-formgen-auto-init]');
+  if (!form) return;
   const buttons = form.querySelectorAll('button[type="button"]');
 
   buttons.forEach(button => {
@@ -281,18 +292,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ### Action Button Styling
 
-**Primary buttons** (`kind: "primary"`):
+**Primary `<button>` actions** (`kind: "primary"` or omitted):
 - Background: `bg-blue-600`
 - Text: `text-white`
 - Hover: `hover:bg-blue-700`
 - Focus ring: `focus:ring-blue-600`
 
-**Secondary buttons** (`kind: "secondary"` or omitted):
+**Secondary `<button>` actions** (`kind: "secondary"`):
 - Background: `bg-white` / `dark:bg-slate-900`
 - Border: `border-gray-200`
 - Text: `text-gray-800` / `dark:text-white`
 - Hover: `hover:bg-gray-50`
 - Focus ring: `focus:ring-gray-400`
+
+**`<a href="…">` actions** default to secondary styles unless `kind: "primary"` is set.
 
 ---
 
@@ -317,10 +330,7 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 }
 ```
 
-**Gutter sizes:**
-- `"sm"` — Small spacing
-- `"md"` — Medium spacing (default)
-- `"lg"` — Large spacing
+`layout.gutter` is accepted and stored on the form (`layout.gutter` UI hint), but the built-in vanilla template currently uses a fixed gap (`gap-6`). If you need gutter-aware spacing, use a custom template/theme and read `layout.gutter`.
 
 ### Form Title and Subtitle
 
@@ -352,18 +362,20 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 
 ### Section Configuration
 
-From [types.go:52-62](../pkg/uischema/types.go#L52-62):
+From [pkg/uischema/types.go](../pkg/uischema/types.go#L55):
 
 ```go
 type SectionConfig struct {
-    ID          string
-    Title       string
-    Description string
-    Order       *int
-    Fieldset    *bool
-    OrderPreset string
-    Metadata    map[string]string
-    UIHints     map[string]string
+    ID             string
+    Title          string
+    TitleKey       string
+    Description    string
+    DescriptionKey string
+    Order          *int
+    Fieldset       *bool
+    OrderPreset    OrderPreset // string preset name, or []string inline pattern
+    Metadata       map[string]string
+    UIHints        map[string]string
 }
 ```
 
@@ -447,7 +459,7 @@ type SectionConfig struct {
 
 ### FieldConfig Structure
 
-From [types.go:64-84](../pkg/uischema/types.go#L64-84):
+From [pkg/uischema/types.go](../pkg/uischema/types.go#L69):
 
 ```go
 type FieldConfig struct {
@@ -455,9 +467,13 @@ type FieldConfig struct {
     Order            *int
     Grid             *GridConfig
     Label            string
+    LabelKey         string
     Description      string
+    DescriptionKey   string
     HelpText         string
+    HelpTextKey      string
     Placeholder      string
+    PlaceholderKey   string
     Widget           string
     Component        string
     ComponentOptions map[string]any
@@ -532,27 +548,44 @@ type FieldConfig struct {
 
 ## 6. Widgets and Components
 
-### Built-in Widgets
+UI schemas give you two levers that affect field rendering:
 
-Widgets control the field rendering strategy:
+- `fields.<name>.widget` — a string hint stored on the form model (`field.UIHints["widget"]`).
+- `fields.<name>.component` — a concrete component name (used by the vanilla renderer’s component registry).
 
-- `"text"` — Text input
-- `"textarea"` — Multi-line text
-- `"select"` — Dropdown
-- `"checkbox"` — Single checkbox
-- `"radio"` — Radio buttons
-- `"datetime"` — Date/time picker
-- `"wysiwyg"` — Rich text editor
-- `"json-editor"` — JSON editor
-- `"file-uploader"` — File upload
+### Widgets (hint)
 
-### Example: Rich Text Editor
+Built-in widget identifiers (used by the widget registry and the Preact renderer) are defined in `pkg/widgets`:
+
+- `toggle`
+- `select`
+- `chips`
+- `code-editor`
+- `json-editor`
+- `key-value`
+
+Vanilla renderer notes:
+- `widget: "textarea"` switches a field to the `textarea` component.
+- `widget: "json-editor"` switches a field to the `json_editor` component.
+- Other widget values are preserved on the model but do not change vanilla HTML unless your templates/runtime interpret them.
+
+### Components (vanilla renderer)
+
+The vanilla renderer ships a component registry (`pkg/renderers/vanilla/components`). Built-in component names include:
+
+- `input`, `textarea`, `select`, `boolean`
+- `object`, `array`, `datetime-range`
+- `wysiwyg`, `json_editor`, `file_uploader`
+
+Use `componentOptions` to configure components; it is serialized into `field.metadata["component.config"]` and exposed to the component renderer as `components.ComponentData.Config`.
+
+### Example: WYSIWYG Component
 
 ```json
 {
   "fields": {
     "body": {
-      "widget": "wysiwyg",
+      "component": "wysiwyg",
       "label": "Article Content",
       "componentOptions": {
         "toolbar": ["bold", "italic", "link", "heading"],
@@ -562,6 +595,31 @@ Widgets control the field rendering strategy:
   }
 }
 ```
+
+Runtime note: the WYSIWYG editor is implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `file_uploader` component injects this runtime automatically; if you only use `wysiwyg`, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
+
+### Example: File Uploader Component
+
+```json
+{
+  "fields": {
+    "featuredImage": {
+      "component": "file_uploader",
+      "label": "Featured Image",
+      "componentOptions": {
+        "variant": "image",
+        "uploadEndpoint": "/api/uploads/hero",
+        "allowedTypes": "image/*",
+        "maxSize": 5242880,
+        "preview": true,
+        "multiple": false
+      }
+    }
+  }
+}
+```
+
+`file_uploader` options are defined by the runtime’s `FileUploaderConfig` (see `pkg/runtime/assets/formgen-relationships.min.js.map`).
 
 ### Example: Custom Component
 
@@ -584,7 +642,11 @@ Widgets control the field rendering strategy:
 **Register custom component:**
 
 ```go
-// In your code
+// In your code:
+// import "bytes"
+// import "github.com/goliatone/go-formgen/pkg/model"
+// import "github.com/goliatone/go-formgen/pkg/renderers/vanilla"
+// import "github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 registry := components.NewDefaultRegistry()
 registry.MustRegister("event-select", components.Descriptor{
     Renderer: func(buf *bytes.Buffer, field model.Field, data components.ComponentData) error {
@@ -616,11 +678,29 @@ renderer, _ := vanilla.New(
 }
 ```
 
-**Icon sources:**
-- `"iconoir"` — Iconoir icon set
-- `"heroicons"` — Heroicons
-- `"lucide"` — Lucide icons
-- Custom SVG via `iconRaw`
+Notes for the built-in vanilla renderer:
+- `iconRaw` is rendered inline (sanitized). When present it takes precedence over runtime icon resolution.
+- `icon` and `iconSource` are emitted as data attributes (`data-icon`, `data-icon-source`). By default, vanilla templates render a placeholder glyph when only `icon` is present.
+
+### Runtime Icon Providers
+
+To render real icons without using `iconRaw`, register an icon provider in JavaScript. Providers map `{ iconSource, icon }` to an SVG string, which the runtime sanitizes and injects into the icon slot.
+
+```html
+<script src="/runtime/formgen-behaviors.min.js" defer></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const iconoir = {
+      search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="6"/><path d="M16 16L21 21"/></svg>`,
+    };
+
+    window.FormgenBehaviors?.registerIconProvider?.("iconoir", (name) => iconoir[name] ?? null);
+
+    // initBehaviors() also runs icon resolution (and any field behaviors).
+    window.FormgenBehaviors?.initBehaviors?.(document);
+  });
+</script>
+```
 
 ### CSS Classes
 
@@ -628,7 +708,7 @@ renderer, _ := vanilla.New(
 {
   "fields": {
     "notes": {
-      "cssClass": "fg-field--notes custom-textarea"
+      "cssClass": "field--notes custom-textarea"
     }
   }
 }
@@ -637,7 +717,7 @@ renderer, _ := vanilla.New(
 **Custom CSS:**
 
 ```css
-.fg-field--notes textarea {
+.field--notes textarea {
   min-height: 200px;
   font-family: monospace;
 }
@@ -670,17 +750,52 @@ renderer, _ := vanilla.New(
 }
 ```
 
+### Runtime Setup
+
+`go-formgen` emits behavior data attributes but does not execute them. To enable built-in behaviors, serve and include the runtime bundle:
+
+```go
+// Serve runtime bundles like /runtime/formgen-behaviors.min.js
+mux.Handle("/runtime/",
+  http.StripPrefix("/runtime/",
+    http.FileServerFS(formgen.RuntimeAssetsFS()),
+  ),
+)
+```
+
+```html
+<script src="/runtime/formgen-behaviors.min.js" defer></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    window.FormgenBehaviors?.initBehaviors?.(document);
+  });
+</script>
+```
+
+Current built-in behaviors in `formgen-behaviors.min.js`:
+- `autoSlug`
+- `autoResize`
+
 ### Auto-Resize Textarea
+
+`autoResize` automatically adjusts a textarea height to fit its content.
+
+Config:
+- `minRows?: number` - minimum row count (clamps the minimum height)
+- `maxRows?: number` - maximum row count (clamps the maximum height)
 
 ```json
 {
   "fields": {
     "notes": {
       "widget": "textarea",
+      "uiHints": {
+        "rows": 2
+      },
       "behaviors": {
         "autoResize": {
-          "minRows": 3,
-          "maxRows": 10
+          "minRows": 2,
+          "maxRows": 6
         }
       }
     }
@@ -690,7 +805,10 @@ renderer, _ := vanilla.New(
 
 ### Custom Behavior Metadata
 
-Behaviors are stored in field metadata for client-side JavaScript to consume:
+Behaviors are serialized into field metadata and exposed as:
+
+- `data-behavior="name1 name2"` (space-separated)
+- `data-behavior-config="…"` (JSON)
 
 ```json
 {
@@ -710,16 +828,61 @@ Behaviors are stored in field metadata for client-side JavaScript to consume:
 **Access from JavaScript:**
 
 ```js
-const field = document.querySelector('[name="amount"]');
-const behaviorConfig = JSON.parse(
-  field.closest('.field-wrapper').dataset.behaviorConfig
-);
-// { currencyFormat: { locale: "en-US", currency: "USD" } }
+const el = document.querySelector('#fg-amount'); // the rendered <input>/<textarea>/<select>
+const names = (el.dataset.behavior || "").split(/\s+/).filter(Boolean);
+const config = el.dataset.behaviorConfig ? JSON.parse(el.dataset.behaviorConfig) : undefined;
+// If there is one behavior, config is that behavior's config (e.g. { locale: "en-US" }).
+// If there are multiple behaviors, config is an object keyed by behavior name.
 ```
 
 ---
 
-## 9. Field Ordering
+## 9. Visibility Rules
+
+`go-formgen` supports conditional display via a `visibilityRule` string stored on fields. Rules are **no-op by default**: you must configure a `visibility.Evaluator` for them to be applied.
+
+### Setting a Rule
+
+UI schemas don’t have a dedicated `visibilityRule` field, but you can set it via `uiHints` or `metadata`:
+
+```json
+{
+  "fields": {
+    "discountCode": {
+      "uiHints": {
+        "visibilityRule": "hasDiscount == true"
+      }
+    }
+  }
+}
+```
+
+The rule language is evaluator-defined; `go-formgen` treats it as an opaque string.
+
+### Enabling Evaluation
+
+```go
+gen := formgen.NewOrchestrator(
+  orchestrator.WithVisibilityEvaluator(myEvaluator),
+)
+
+html, err := gen.Generate(ctx, orchestrator.Request{
+  OperationID: "checkout",
+  RenderOptions: render.RenderOptions{
+    Values: map[string]any{
+      "hasDiscount": true,
+    },
+  },
+})
+```
+
+Notes:
+- The evaluator receives `RenderOptions.VisibilityContext` (and `RenderOptions.Values` as a fallback for `ctx.Values`).
+- Fields that evaluate to false are removed from the form model and won’t render.
+
+---
+
+## 10. Field Ordering
 
 ### Inline Order
 
@@ -736,16 +899,16 @@ const behaviorConfig = JSON.parse(
 
 ### Order Presets
 
-Define reusable ordering patterns:
+Define reusable ordering patterns at the document level, then reference them from sections:
 
 ```json
 {
+  "fieldOrderPresets": {
+    "default": ["title", "slug", "category", "body", "published"],
+    "minimal": ["title", "body"]
+  },
   "operations": {
     "createArticle": {
-      "fieldOrderPresets": {
-        "default": ["title", "slug", "category", "body", "published"],
-        "minimal": ["title", "body"]
-      },
       "sections": [
         {
           "id": "main",
@@ -770,9 +933,13 @@ Define reusable ordering patterns:
 }
 ```
 
+Ordering notes:
+- Field paths in ordering patterns are normalized the same way as field keys (see `pkg/uischema.NormalizeFieldPath`), so `tags[]` and `tags.items` refer to the same field.
+- Use `"*"` inside an order preset to include “all remaining fields” at that position.
+
 ---
 
-## 10. Complete Examples
+## 11. Complete Examples
 
 ### Example 1: Blog Article Form
 
@@ -856,7 +1023,7 @@ Define reusable ordering patterns:
           "order": 2,
           "grid": { "span": 6 },
           "label": "Category",
-          "widget": "select"
+          "uiHints": { "input": "select" }
         },
         "tags": {
           "section": "basic-info",
@@ -873,20 +1040,14 @@ Define reusable ordering patterns:
           "label": "Excerpt",
           "widget": "textarea",
           "placeholder": "Brief summary for listings",
-          "helpText": "Maximum 200 characters",
-          "behaviors": {
-            "autoResize": {
-              "minRows": 2,
-              "maxRows": 4
-            }
-          }
+          "helpText": "Maximum 200 characters"
         },
         "body": {
           "section": "content",
           "order": 1,
           "grid": { "span": 12 },
           "label": "Article Content",
-          "widget": "wysiwyg",
+          "component": "wysiwyg",
           "componentOptions": {
             "toolbar": ["bold", "italic", "link", "heading", "bulletList", "orderedList"],
             "placeholder": "Start writing your article..."
@@ -897,25 +1058,27 @@ Define reusable ordering patterns:
           "order": 2,
           "grid": { "span": 12 },
           "label": "Featured Image",
-          "widget": "file-uploader",
+          "component": "file_uploader",
           "componentOptions": {
-            "accept": "image/*",
-            "maxSize": 5242880
+            "variant": "image",
+            "uploadEndpoint": "/api/uploads/hero",
+            "allowedTypes": "image/*",
+            "maxSize": 5242880,
+            "preview": true
           }
         },
         "published": {
           "section": "publishing",
           "order": 0,
           "grid": { "span": 6 },
-          "label": "Publish Immediately",
-          "widget": "checkbox"
+          "label": "Publish Immediately"
         },
         "publishDate": {
           "section": "publishing",
           "order": 1,
           "grid": { "span": 6 },
           "label": "Scheduled Publish Date",
-          "widget": "datetime"
+          "uiHints": { "inputType": "datetime-local" }
         }
       }
     }
@@ -1045,7 +1208,7 @@ operations:
         grid:
           span: 12
         label: Subscribe to newsletter
-        widget: checkbox
+        widget: toggle
 
       timezone:
         section: preferences
@@ -1121,8 +1284,11 @@ operations:
         "description": {
           "section": "general",
           "grid": { "span": 12 },
-          "widget": "wysiwyg",
-          "label": "Description"
+          "component": "wysiwyg",
+          "label": "Description",
+          "componentOptions": {
+            "placeholder": "Write a detailed description..."
+          }
         },
         "price": {
           "section": "pricing",
@@ -1149,12 +1315,13 @@ operations:
         "images": {
           "section": "media",
           "grid": { "span": 12 },
-          "widget": "file-uploader",
+          "component": "file_uploader",
           "label": "Product Images",
           "componentOptions": {
             "multiple": true,
-            "accept": "image/*",
-            "maxFiles": 10
+            "allowedTypes": "image/*",
+            "uploadEndpoint": "/api/uploads/products",
+            "preview": true
           }
         }
       }
@@ -1173,16 +1340,17 @@ operations:
 |-------|------|-------------|
 | `kind` | `string` | `"primary"` or `"secondary"` |
 | `label` | `string` | Button text |
+| `labelKey` | `string` | Optional i18n key for `label` |
 | `href` | `string` | Link URL (renders `<a>`) |
-| `type` | `string` | `"submit"`, `"reset"`, `"button"` |
-| `icon` | `string` | Icon identifier |
+| `type` | `string` | `"submit"`, `"reset"`, `"button"` (defaults to `"submit"`) |
+| `icon` | `string` | Icon identifier (renderer-dependent) |
 
 ### Layout Configuration
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `gridColumns` | `int` | Number of grid columns (1-12) |
-| `gutter` | `string` | `"sm"`, `"md"`, `"lg"` |
+| `gutter` | `string` | Stored as a hint; default vanilla template uses a fixed gap |
 
 ### Section Configuration
 
@@ -1190,7 +1358,9 @@ operations:
 |-------|------|-------------|
 | `id` | `string` | Unique section identifier |
 | `title` | `string` | Section heading |
+| `titleKey` | `string` | Optional i18n key for `title` |
 | `description` | `string` | Section description |
+| `descriptionKey` | `string` | Optional i18n key for `description` |
 | `order` | `int` | Display order |
 | `fieldset` | `bool` | Wrap in `<fieldset>` |
 | `orderPreset` | `string/array` | Field ordering pattern |
@@ -1205,16 +1375,23 @@ operations:
 | `grid.start` | `int` | Starting column |
 | `grid.row` | `int` | Row number |
 | `label` | `string` | Field label |
+| `labelKey` | `string` | Optional i18n key for `label` |
 | `description` | `string` | Field description |
+| `descriptionKey` | `string` | Optional i18n key for `description` |
 | `helpText` | `string` | Help text below input |
+| `helpTextKey` | `string` | Optional i18n key for `helpText` |
 | `placeholder` | `string` | Input placeholder |
-| `widget` | `string` | Widget type |
-| `component` | `string` | Custom component name |
-| `componentOptions` | `object` | Component configuration |
-| `icon` | `string` | Icon identifier |
-| `iconSource` | `string` | Icon library |
-| `behaviors` | `object` | Behavior configuration |
-| `cssClass` | `string` | Additional CSS classes |
+| `placeholderKey` | `string` | Optional i18n key for `placeholder` |
+| `widget` | `string` | Widget hint (renderer/runtime-dependent) |
+| `component` | `string` | Vanilla component name (e.g. `wysiwyg`, `file_uploader`) |
+| `componentOptions` | `object` | Component configuration (serialized into `component.config`) |
+| `icon` | `string` | Icon identifier (emitted as `data-icon`) |
+| `iconSource` | `string` | Free-form source hint (emitted as `data-icon-source`) |
+| `iconRaw` | `string` | Inline SVG markup (sanitized) |
+| `behaviors` | `object` | Behavior configuration (emitted as `data-behavior*`) |
+| `cssClass` | `string` | Additional wrapper CSS classes (sanitized in vanilla) |
+| `uiHints` | `object` | Extra per-field UI hints (string map) |
+| `metadata` | `object` | Extra per-field metadata (string map) |
 
 ---
 
@@ -1226,7 +1403,7 @@ operations:
 4. **Use grid spanning** to create visual hierarchy (wide for important fields)
 5. **Choose appropriate widgets** based on field data type and validation
 6. **Add icons** to improve scanability and visual appeal
-7. **Configure behaviors** in UI schema, not in JavaScript
+7. **Declare behavior metadata** in UI schema; enable/implement handlers via the runtime JS
 8. **Use fieldsets** for accessibility and semantic grouping
 9. **Test action buttons** across different form states (valid, invalid, submitting)
 10. **Document custom components** and their configuration options
