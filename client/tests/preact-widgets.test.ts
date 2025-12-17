@@ -172,4 +172,94 @@ describe("preact renderer runtime widgets", () => {
     expect(selects.length).toBeGreaterThan(0);
     expect(selects[0].props.multiple).toBe("multiple");
   });
+
+  it("emits chips renderer hint for widget=chips on relationship fields", async () => {
+    document.body.innerHTML = `
+      <div id="formgen-preact-root"></div>
+      <script id="formgen-preact-data" type="application/json"></script>
+    `;
+
+    const payload = {
+      operationId: "relationshipChips",
+      fields: [
+        {
+          name: "tags",
+          type: "array",
+          uiHints: { widget: "chips", placeholder: "Select tags" },
+          metadata: { "relationship.endpoint.url": "/api/tags" },
+          relationship: { kind: "has-many", cardinality: "many", target: "Tag" },
+        },
+      ],
+    };
+    const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+    dataNode.textContent = JSON.stringify(payload);
+
+    await loadPreactBundle();
+
+    const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+    const tree = (mount as any).__tree;
+    const selects = findAll(tree, (node) => node?.type === "select" && node?.props?.name === "tags");
+    expect(selects.length).toBeGreaterThan(0);
+    expect(selects[0].props.multiple).toBe("multiple");
+    expect(selects[0].props["data-endpoint-renderer"]).toBe("chips");
+  });
+
+  it("emits typeahead renderer hint for widget=typeahead on has-one relationships", async () => {
+    document.body.innerHTML = `
+      <div id="formgen-preact-root"></div>
+      <script id="formgen-preact-data" type="application/json"></script>
+    `;
+
+    const payload = {
+      operationId: "relationshipTypeahead",
+      fields: [
+        {
+          name: "author_id",
+          type: "string",
+          uiHints: { widget: "typeahead", placeholder: "Select author" },
+          metadata: { "relationship.endpoint.url": "/api/authors" },
+          relationship: { kind: "has-one", cardinality: "one", target: "Author" },
+        },
+      ],
+    };
+    const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+    dataNode.textContent = JSON.stringify(payload);
+
+    await loadPreactBundle();
+
+    const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+    const tree = (mount as any).__tree;
+    const selects = findAll(tree, (node) => node?.type === "select" && node?.props?.name === "author_id");
+    expect(selects.length).toBeGreaterThan(0);
+    expect(selects[0].props["data-endpoint-renderer"]).toBe("typeahead");
+  });
+
+  it("marks toggle widgets for switch enhancement", async () => {
+    document.body.innerHTML = `
+      <div id="formgen-preact-root"></div>
+      <script id="formgen-preact-data" type="application/json"></script>
+    `;
+
+    const payload = {
+      operationId: "toggle",
+      fields: [
+        {
+          name: "enabled",
+          type: "boolean",
+          uiHints: { widget: "toggle" },
+        },
+      ],
+    };
+    const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+    dataNode.textContent = JSON.stringify(payload);
+
+    await loadPreactBundle();
+
+    const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+    const tree = (mount as any).__tree;
+    const inputs = findAll(tree, (node) => node?.type === "input" && node?.props?.name === "enabled");
+    expect(inputs.length).toBeGreaterThan(0);
+    expect(inputs[0].props.type).toBe("checkbox");
+    expect(inputs[0].props["data-fg-switch"]).toBe("true");
+  });
 });
