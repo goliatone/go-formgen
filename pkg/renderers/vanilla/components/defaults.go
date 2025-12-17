@@ -43,6 +43,10 @@ func NewDefaultRegistry() *Registry {
 	})
 	registry.MustRegister("wysiwyg", Descriptor{
 		Renderer: templateComponentRenderer("forms.wysiwyg", templatePrefix+"wysiwyg.tmpl"),
+		Scripts: []Script{
+			{Src: runtimeScript, Defer: true},
+			{Inline: runtimeInit},
+		},
 	})
 	registry.MustRegister("file_uploader", Descriptor{
 		Renderer: templateComponentRenderer("forms.file-uploader", templatePrefix+"file_uploader.tmpl"),
