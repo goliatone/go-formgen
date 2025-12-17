@@ -7,6 +7,7 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
+	visibilityexpr "github.com/goliatone/go-formgen/pkg/visibility/expr"
 	"github.com/goliatone/go-formgen/pkg/visibility"
 )
 
@@ -118,6 +119,49 @@ func TestOrchestrator_VisibilityEvaluatorIntegration(t *testing.T) {
 	}
 	if len(renderer.lastForm.Fields) != 1 || renderer.lastForm.Fields[0].Name != "keep" {
 		t.Fatalf("expected hidden field to be removed, got %+v", renderer.lastForm.Fields)
+	}
+}
+
+func TestOrchestrator_BuiltInVisibilityEvaluatorIntegration(t *testing.T) {
+	t.Parallel()
+
+	form := model.FormModel{
+		OperationID: "op",
+		Endpoint:    "/op",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "enabled", Type: model.FieldTypeBoolean},
+			{Name: "threshold", Type: model.FieldTypeNumber, Metadata: map[string]string{"visibilityRule": "enabled == true"}},
+		},
+	}
+
+	builder := visibilityBuilder{form: form}
+	parser := visibilityParser{form: form}
+	renderer := &visibilityRecordingRenderer{}
+	registry := render.NewRegistry()
+	registry.MustRegister(renderer)
+
+	orch := New(
+		WithModelBuilder(builder),
+		WithParser(parser),
+		WithRegistry(registry),
+		WithDefaultRenderer(renderer.Name()),
+		WithVisibilityEvaluator(visibilityexpr.New()),
+	)
+
+	_, err := orch.Generate(context.Background(), Request{
+		Document:    &openapi.Document{},
+		OperationID: "op",
+		RenderOptions: render.RenderOptions{
+			Values: map[string]any{"enabled": false},
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	if len(renderer.lastForm.Fields) != 1 || renderer.lastForm.Fields[0].Name != "enabled" {
+		t.Fatalf("expected threshold to be removed, got %+v", renderer.lastForm.Fields)
 	}
 }
 
