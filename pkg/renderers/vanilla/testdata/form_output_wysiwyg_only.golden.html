@@ -1,0 +1,49 @@
+
+
+
+
+<style data-formgen-theme-vars>:root {
+--brand: #123456;
+}</style>
+<script id="formgen-theme" type="application/json">{"name":"acme","variant":"dark","tokens":{"brand":"#123456"},"cssVars":{"--brand":"#123456"}}</script>
+
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="post" action="/wysiwyg" data-formgen-auto-init="true" data-formgen-theme="acme" data-formgen-theme-variant="dark">
+    
+    
+    
+    
+
+    
+    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="wysiwyg">
+    <label data-formgen-chrome="label" id="fg-body-label" for="fg-body" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Body
+    </label>
+    <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
+      <textarea
+          id="fg-body"
+          name="body"
+          class="sr-only"
+          data-fg-component="wysiwyg"
+           data-validation-label="Body"
+      ></textarea>
+      <div id="fg-body-editor" class="wysiwyg-editor"></div>
+    </div>
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+</div>
+
+        </div>
+        
+    </div>
+    
+
+    
+
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+        
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
+        
+    </div>
+</form><script src="/runtime/formgen-relationships.min.js" defer></script><script>(function(){function init(){var api=window.FormgenRelationships;if(api&&typeof api.initRelationships==="function"){try{api.initRelationships();}catch(e){}}}if(typeof document==="undefined"){return;}if(document.readyState==="loading"){window.addEventListener("DOMContentLoaded",init);}else{init();}})();</script>
