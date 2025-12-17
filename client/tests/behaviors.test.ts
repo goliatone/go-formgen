@@ -50,6 +50,41 @@ describe("behaviors runtime", () => {
     dispose();
   });
 
+  it("autoResize adjusts textarea height based on content", () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <textarea
+          id="fg-notes"
+          name="notes"
+          rows="2"
+          data-behavior="autoResize"
+          data-behavior-config='{"minRows":2,"maxRows":6}'
+          style="line-height: 20px; padding: 0; border: 0;"
+        ></textarea>
+      </form>
+    `;
+
+    const { dispose } = initBehaviors();
+    const notes = document.getElementById("fg-notes") as HTMLTextAreaElement;
+
+    Object.defineProperty(notes, "scrollHeight", { configurable: true, get: () => 40 });
+    notes.value = "a";
+    notes.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(notes.style.height).toBe("40px");
+
+    Object.defineProperty(notes, "scrollHeight", { configurable: true, get: () => 120 });
+    notes.value = "multi\nline\ncontent";
+    notes.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(notes.style.height).toBe("120px");
+
+    Object.defineProperty(notes, "scrollHeight", { configurable: true, get: () => 999 });
+    notes.value = "clamped";
+    notes.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(notes.style.height).toBe("120px");
+
+    dispose();
+  });
+
   it("passes behavior-specific configs when multiple behaviors share an element", () => {
     const alphaSpy = vi.fn();
     const betaSpy = vi.fn();
