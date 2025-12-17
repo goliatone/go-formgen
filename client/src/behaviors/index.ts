@@ -1,18 +1,29 @@
 import { autoSlug } from "./auto-slug";
-import { initBehaviors, registerBehavior, resetBehaviorRegistry } from "./registry";
+import { autoResize } from "./auto-resize";
+import { initBehaviors as initBehaviorsCore, registerBehavior, resetBehaviorRegistry } from "./registry";
+import type { BehaviorInitResult } from "./registry";
 import { slugify } from "./utils";
+import { initIcons, registerIconProvider, __resetIconProvidersForTests } from "../icons";
 
 registerDefaults();
 
 function registerDefaults(): void {
   registerBehavior("autoSlug", autoSlug);
+  registerBehavior("autoResize", autoResize);
 }
 
-export { initBehaviors, registerBehavior, slugify, autoSlug };
+export function initBehaviors(root: Document | HTMLElement = document): BehaviorInitResult {
+  const result = initBehaviorsCore(root);
+  initIcons(root);
+  return result;
+}
+
+export { registerBehavior, registerIconProvider, initIcons, slugify, autoSlug, autoResize };
 export type { BehaviorContext, BehaviorFactory } from "./types";
 export type { BehaviorInitResult } from "./registry";
 
 export function __resetBehaviorsForTests(): void {
   resetBehaviorRegistry();
+  __resetIconProvidersForTests();
   registerDefaults();
 }
