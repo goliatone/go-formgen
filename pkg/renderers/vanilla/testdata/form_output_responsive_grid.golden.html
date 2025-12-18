@@ -1,0 +1,99 @@
+
+<style data-formgen-theme-vars>:root {
+--brand: #123456;
+}</style>
+<style data-formgen-responsive-grid>@media (min-width: 640px) {
+  .fg-grid-responsive {
+    grid-column: span var(--fg-span-sm, var(--fg-span, 12)) / span var(--fg-span-sm, var(--fg-span, 12)) !important;
+    grid-column-start: var(--fg-start-sm, var(--fg-start, auto)) !important;
+    grid-row: var(--fg-row-sm, var(--fg-row, auto)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .fg-grid-responsive {
+    grid-column: span var(--fg-span-md, var(--fg-span, 12)) / span var(--fg-span-md, var(--fg-span, 12)) !important;
+    grid-column-start: var(--fg-start-md, var(--fg-start, auto)) !important;
+    grid-row: var(--fg-row-md, var(--fg-row, auto)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fg-grid-responsive {
+    grid-column: span var(--fg-span-lg, var(--fg-span, 12)) / span var(--fg-span-lg, var(--fg-span, 12)) !important;
+    grid-column-start: var(--fg-start-lg, var(--fg-start, auto)) !important;
+    grid-row: var(--fg-row-lg, var(--fg-row, auto)) !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .fg-grid-responsive {
+    grid-column: span var(--fg-span-xl, var(--fg-span, 12)) / span var(--fg-span-xl, var(--fg-span, 12)) !important;
+    grid-column-start: var(--fg-start-xl, var(--fg-start, auto)) !important;
+    grid-row: var(--fg-row-xl, var(--fg-row, auto)) !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  .fg-grid-responsive {
+    grid-column: span var(--fg-span-2xl, var(--fg-span, 12)) / span var(--fg-span-2xl, var(--fg-span, 12)) !important;
+    grid-column-start: var(--fg-start-2xl, var(--fg-start, auto)) !important;
+    grid-row: var(--fg-row-2xl, var(--fg-row, auto)) !important;
+  }
+}</style>
+<script id="formgen-theme" type="application/json">{"name":"acme","variant":"dark","tokens":{"brand":"#123456"},"cssVars":{"--brand":"#123456"}}</script>
+
+<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="post" action="/responsive" data-formgen-auto-init="true" data-formgen-theme="acme" data-formgen-theme-variant="dark">
+    
+    
+    
+    
+
+    
+    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+        
+        <div class="fg-grid-responsive" style="grid-column: span 12 / span 12; --fg-span: 12; --fg-start: auto; --fg-row: auto; --fg-span-lg: 6">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-title-label" for="fg-title" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Title
+    </label>
+    <input
+        type="text"
+        id="fg-title"
+        name="title"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
+         data-validation-label="Title"
+    >
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+</div>
+
+        </div>
+        
+        <div style="grid-column: span 12 / span 12">
+            <div class="flex flex-col gap-2" data-component="input">
+    <label data-formgen-chrome="label" id="fg-summary-label" for="fg-summary" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        Summary
+    </label>
+    <input
+        type="text"
+        id="fg-summary"
+        name="summary"
+        class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
+         data-validation-label="Summary"
+    >
+    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+</div>
+
+        </div>
+        
+    </div>
+    
+
+    
+
+    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+        
+            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
+        
+    </div>
+</form>
