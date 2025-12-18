@@ -50,6 +50,7 @@ func jsonEditorRenderer() Renderer {
 		payload := map[string]any{
 			"field":       field,
 			"config":      data.Config,
+			"theme":       data.Theme,
 			"value":       value,
 			"schema_hint": cfg.SchemaHint,
 			"collapsed":   cfg.Collapsed,
