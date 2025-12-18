@@ -263,7 +263,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	themeCtx := buildThemeContext(renderOptions.Theme)
 	assetResolver := themeAssetResolver(renderOptions.Theme)
 	urls := r.assetURLs(assetResolver)
-	cleanTheme := themeCtx
+	templateTheme := buildTemplateThemeContext(themeCtx, assetResolver)
 	data := map[string]any{
 		"locale":       renderOptions.Locale,
 		"form":         formWithPrefill,
@@ -275,7 +275,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 			"stylesheet":   urls.Stylesheet,
 		},
 		"form_errors": formErrors,
-		"theme":       cleanTheme,
+		"theme":       templateTheme,
 	}
 
 	rendered, err := r.templates.RenderTemplate(templateName, data)
@@ -518,11 +518,58 @@ func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
 	return ctx
 }
 
+func buildTemplateThemeContext(ctx rendererTheme, resolver func(string) string) map[string]any {
+	return map[string]any{
+		"name":           ctx.Name,
+		"variant":        ctx.Variant,
+		"partials":       ctx.Partials,
+		"tokens":         ctx.Tokens,
+		"cssVars":        ctx.CSSVars,
+		"css_vars_style": ctx.CSSVarsStyle,
+		"json":           ctx.JSON,
+		"assetURL": func(key any) string {
+			trimmed := strings.TrimSpace(anyToString(key))
+			if trimmed == "" {
+				return ""
+			}
+			if resolver == nil {
+				return ""
+			}
+			if strings.HasPrefix(trimmed, "http://") ||
+				strings.HasPrefix(trimmed, "https://") ||
+				strings.HasPrefix(trimmed, "//") ||
+				strings.HasPrefix(trimmed, "/") {
+				return trimmed
+			}
+			if resolved := strings.TrimSpace(resolver(trimmed)); resolved != "" {
+				return resolved
+			}
+			return trimmed
+		},
+	}
+}
+
 func themeAssetResolver(cfg *theme.RendererConfig) func(string) string {
 	if cfg == nil {
 		return nil
 	}
 	return cfg.AssetURL
+}
+
+func anyToString(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return fmt.Sprint(value)
+	}
 }
 
 func copyStringMap(in map[string]string) map[string]string {
