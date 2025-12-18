@@ -76,6 +76,7 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 		payload := map[string]any{
 			"field":  field,
 			"config": data.Config,
+			"theme":  data.Theme,
 		}
 		rendered, err := data.Template.RenderTemplate(resolvedTemplate, payload)
 		if err != nil {
