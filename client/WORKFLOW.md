@@ -58,6 +58,10 @@ registry.registerRenderer("my-renderer", myRenderer);
 // 4. Browser auto-reloads, your renderer is active!
 ```
 
+**Event wiring tip (relationships)**
+- Prefer `formgen:relationship:update` (see `src/relationship-events.ts`) for internal wiring (`kind:"options" | "selection" | "search"`).
+- Avoid listening to native `change` inside renderers/components; keep it for external integration only.
+
 ### 2. CSS/Styling Changes
 
 **Prototyping:**
