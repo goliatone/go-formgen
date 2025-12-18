@@ -20,6 +20,7 @@ type componentRenderer struct {
 
 	usedComponents map[string]struct{}
 	theme          rendererTheme
+	templateTheme  map[string]any
 	assetResolver  func(string) string
 }
 
@@ -44,6 +45,7 @@ func newComponentRenderer(templates template.TemplateRenderer, registry *compone
 		overrides:      cloneStringMap(overrides),
 		usedComponents: make(map[string]struct{}),
 		theme:          theme,
+		templateTheme:  buildTemplateThemeContext(theme, assetResolver),
 		assetResolver:  assetResolver,
 	}
 }
@@ -76,6 +78,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 		Config:        config,
 		RenderChild:   r.childRenderer(path),
 		ThemePartials: r.theme.Partials,
+		Theme:         r.templateTheme,
 	}
 
 	var control bytes.Buffer
