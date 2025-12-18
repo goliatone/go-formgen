@@ -330,7 +330,10 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 }
 ```
 
-`layout.gutter` is accepted and stored on the form (`layout.gutter` UI hint), but the built-in vanilla template currently uses a fixed gap (`gap-6`). If you need gutter-aware spacing, use a custom template/theme and read `layout.gutter`.
+The built-in vanilla template honors `layout.gutter` and maps it to Tailwind gap classes:
+- `"sm"` → `gap-4`
+- `"md"` (default) → `gap-6`
+- `"lg"` → `gap-8`
 
 ### Form Title and Subtitle
 
@@ -517,6 +520,7 @@ type FieldConfig struct {
 - `span` — Number of columns to span (1-12)
 - `start` — Starting column (1-12)
 - `row` — Row number (for explicit positioning)
+- `breakpoints` — Per-breakpoint overrides for `span`/`start`/`row` (`sm`/`md`/`lg`/`xl`/`2xl`)
 
 ### Labels and Help Text
 
@@ -879,6 +883,18 @@ html, err := gen.Generate(ctx, orchestrator.Request{
 Notes:
 - The evaluator receives `RenderOptions.VisibilityContext` (and `RenderOptions.Values` as a fallback for `ctx.Values`).
 - Fields that evaluate to false are removed from the form model and won’t render.
+
+### Built-in evaluator (optional)
+
+`go-formgen` ships a small, dependency-free evaluator you can use for common cases:
+
+```go
+import visibilityexpr "github.com/goliatone/go-formgen/pkg/visibility/expr"
+
+gen := formgen.NewOrchestrator(
+  orchestrator.WithVisibilityEvaluator(visibilityexpr.New()),
+)
+```
 
 ---
 
@@ -1350,7 +1366,7 @@ operations:
 | Field | Type | Description |
 |-------|------|-------------|
 | `gridColumns` | `int` | Number of grid columns (1-12) |
-| `gutter` | `string` | Stored as a hint; default vanilla template uses a fixed gap |
+| `gutter` | `string` | Grid spacing (`"sm"` → `gap-4`, `"md"` → `gap-6`, `"lg"` → `gap-8`) |
 
 ### Section Configuration
 
