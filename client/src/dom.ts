@@ -1,3 +1,9 @@
+import {
+  RELATIONSHIP_UPDATE_EVENT,
+  ensureRelationshipSelectionBridge,
+  type RelationshipUpdateDetail,
+} from "./relationship-events";
+
 const FIELD_SELECTOR = "[data-endpoint-url]";
 const HIDDEN_CONTAINER_ATTR = "data-relationship-hidden";
 const HIDDEN_INITIALISED_ATTR = "data-relationship-hidden-initialised";
@@ -43,8 +49,16 @@ export function attachHiddenInputSync(select: HTMLSelectElement): void {
   }
   select.setAttribute(HIDDEN_INITIALISED_ATTR, "true");
   select.setAttribute(SUBMIT_MODE_ATTR, "hidden-array");
+  ensureRelationshipSelectionBridge(select);
   syncHiddenInputs(select);
-  select.addEventListener("change", () => syncHiddenInputs(select));
+  // Internal wiring listens to semantic updates (not native `change`).
+  select.addEventListener(RELATIONSHIP_UPDATE_EVENT, (event) => {
+    const detail = (event as CustomEvent<RelationshipUpdateDetail>).detail;
+    if (detail.kind !== "selection") {
+      return;
+    }
+    syncHiddenInputs(select);
+  });
 }
 
 export function syncHiddenInputs(select: HTMLSelectElement): void {
@@ -98,13 +112,21 @@ export function attachJsonInputSync(select: HTMLSelectElement): void {
   }
   select.setAttribute(JSON_INITIALISED_ATTR, "true");
   select.setAttribute(SUBMIT_MODE_ATTR, "json");
+  ensureRelationshipSelectionBridge(select);
   const originalName = select.getAttribute("name");
   if (originalName) {
     select.setAttribute(ORIGINAL_NAME_ATTR, originalName);
     select.removeAttribute("name");
   }
   syncJsonInput(select);
-  select.addEventListener("change", () => syncJsonInput(select));
+  // Internal wiring listens to semantic updates (not native `change`).
+  select.addEventListener(RELATIONSHIP_UPDATE_EVENT, (event) => {
+    const detail = (event as CustomEvent<RelationshipUpdateDetail>).detail;
+    if (detail.kind !== "selection") {
+      return;
+    }
+    syncJsonInput(select);
+  });
   select.addEventListener("blur", () => syncJsonInput(select));
 }
 
