@@ -268,6 +268,36 @@ func TestDecorator_InvalidGridSpan(t *testing.T) {
 	}
 }
 
+func TestDecorator_ResponsiveGridBreakpoints(t *testing.T) {
+	store := loadStore(t, "responsive_grid")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "responsiveExample",
+		Fields: []pkgmodel.Field{
+			{Name: "title"},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	titleField := mustField(t, form.Fields, "title")
+	if got := titleField.UIHints["layout.span"]; got != "12" {
+		t.Fatalf("expected base span 12, got %q", got)
+	}
+	if got := titleField.UIHints["layout.span.lg"]; got != "6" {
+		t.Fatalf("expected lg span 6, got %q", got)
+	}
+	if got := titleField.UIHints["layout.span.xl"]; got != "6" {
+		t.Fatalf("expected xl span 6, got %q", got)
+	}
+	if got := titleField.UIHints["layout.start.xl"]; got != "7" {
+		t.Fatalf("expected xl start 7, got %q", got)
+	}
+}
+
 func mustField(t *testing.T, fields []pkgmodel.Field, name string) pkgmodel.Field {
 	t.Helper()
 	for _, field := range fields {

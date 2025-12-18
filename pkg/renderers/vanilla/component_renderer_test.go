@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
@@ -95,6 +96,34 @@ func TestJSONEditorComponentRendersPrettyValue(t *testing.T) {
 	want := normalizeHTML(string(testsupport.MustReadGolden(t, goldenPath)))
 	if diff := testsupport.CompareGolden(want, normalizeHTML(html)); diff != "" {
 		t.Fatalf("json editor output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestComponentRenderer_ComponentTemplateReceivesTheme(t *testing.T) {
+	engine, err := gotemplate.New(
+		gotemplate.WithFS(fstest.MapFS{
+			"templates/components/input.tmpl": &fstest.MapFile{
+				Data: []byte(`brand={{ theme.tokens.brand }}`),
+			},
+		}),
+		gotemplate.WithExtension(".tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("configure template renderer: %v", err)
+	}
+
+	renderer := newComponentRenderer(engine, components.NewDefaultRegistry(), nil, rendererTheme{
+		Tokens: map[string]string{
+			"brand": "#123456",
+		},
+	}, nil)
+
+	html, err := renderer.render(model.Field{Name: "title", Type: model.FieldTypeString}, "title")
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(html, "brand=#123456") {
+		t.Fatalf("expected theme token in output, got %q", html)
 	}
 }
 

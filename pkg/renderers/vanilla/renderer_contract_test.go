@@ -71,6 +71,55 @@ func TestRenderer_RenderContractGutterSm(t *testing.T) {
 	}
 }
 
+func TestRenderer_RenderContractResponsiveGrid(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "responsiveGrid",
+		Endpoint:    "/responsive",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "title",
+				Type:  model.FieldTypeString,
+				Label: "Title",
+				UIHints: map[string]string{
+					"layout.span":    "12",
+					"layout.span.lg": "6",
+				},
+			},
+			{
+				Name:  "summary",
+				Type:  model.FieldTypeString,
+				Label: "Summary",
+				UIHints: map[string]string{
+					"layout.span": "12",
+				},
+			},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "form_output_responsive_grid.golden.html")
+	if testsupport.WriteMaybeGolden(t, goldenPath, output) {
+		return
+	}
+
+	want := testsupport.MustReadGolden(t, goldenPath)
+	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
+		t.Fatalf("output mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestRenderer_RenderWithDefaultStyles(t *testing.T) {
 	form := testsupport.MustLoadFormModel(t, filepath.Join("testdata", "form_model.json"))
 
@@ -190,6 +239,52 @@ func TestRenderer_WithTemplateFuncs(t *testing.T) {
 	}
 	if strings.TrimSpace(string(out)) != "DEMO" {
 		t.Fatalf("unexpected output: %s", out)
+	}
+}
+
+func TestRenderer_ThemeAssetURLHelper(t *testing.T) {
+	templates := fstest.MapFS{
+		"templates/form.tmpl": &fstest.MapFile{
+			Data: []byte(`{{ theme.assetURL("logo.svg") }}`),
+		},
+	}
+
+	renderer, err := vanilla.New(vanilla.WithTemplatesFS(templates))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{OperationID: "demo", Endpoint: "/", Method: "POST"}
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: testThemeConfig(),
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "/themes/acme/logo.svg" {
+		t.Fatalf("unexpected output: %q", got)
+	}
+}
+
+func TestRenderer_ThemeAssetURLHelper_NoTheme(t *testing.T) {
+	templates := fstest.MapFS{
+		"templates/form.tmpl": &fstest.MapFile{
+			Data: []byte(`{{ theme.assetURL("logo.svg") }}`),
+		},
+	}
+
+	renderer, err := vanilla.New(vanilla.WithTemplatesFS(templates))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{OperationID: "demo", Endpoint: "/", Method: "POST"}
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "" {
+		t.Fatalf("unexpected output: %q", got)
 	}
 }
 
