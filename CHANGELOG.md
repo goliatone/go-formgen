@@ -1,5 +1,27 @@
 # Changelog
 
+# [0.8.0](https://github.com/goliatone/go-formgen/compare/v0.7.0...v0.8.0) - (2025-12-18)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.8.0 ([70d2f5a](https://github.com/goliatone/go-formgen/commit/70d2f5afba2e44280bb7b3f8c4e8ff145c2d390e))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Relationship events to client ([6c9e14c](https://github.com/goliatone/go-formgen/commit/6c9e14c0bc35b3a2ce6c524d56d3327a51f7dd98))  - (goliatone)
+
+## <!-- 2 -->🚜 Refactor
+
+- Client package use custom events ([b88ef3c](https://github.com/goliatone/go-formgen/commit/b88ef3c6114b8f8d209f0fc0c9327246012481e2))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.7.0 ([0df270e](https://github.com/goliatone/go-formgen/commit/0df270ea19be85570763456d0d68155686d7c1f2))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([95c1fd4](https://github.com/goliatone/go-formgen/commit/95c1fd46569f4b5ee70d5194fdfbc10b9722a9eb))  - (goliatone)
+
 # [0.7.0](https://github.com/goliatone/go-formgen/compare/v0.6.0...v0.7.0) - (2025-12-18)
 
 ## <!-- 13 -->📦 Bumps
