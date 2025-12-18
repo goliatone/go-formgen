@@ -24,6 +24,14 @@ const (
 	behaviorConfigMetadataKey = "behavior.config"
 )
 
+var supportedGridBreakpoints = map[string]struct{}{
+	"sm":  {},
+	"md":  {},
+	"lg":  {},
+	"xl":  {},
+	"2xl": {},
+}
+
 // Decorator applies UI schema metadata to a form model.
 type Decorator struct {
 	store *Store
@@ -249,6 +257,45 @@ func applyGridHints(field *pkgmodel.Field, cfg FieldConfig, columns int, op Oper
 	}
 	if cfg.Grid.Row > 0 {
 		field.UIHints[layoutRowKey] = strconv.Itoa(cfg.Grid.Row)
+	}
+
+	if len(cfg.Grid.Breakpoints) == 0 {
+		return nil
+	}
+
+	breakpointKeys := make([]string, 0, len(cfg.Grid.Breakpoints))
+	for key := range cfg.Grid.Breakpoints {
+		if strings.TrimSpace(key) != "" {
+			breakpointKeys = append(breakpointKeys, key)
+		}
+	}
+	sort.Strings(breakpointKeys)
+
+	for _, raw := range breakpointKeys {
+		breakpoint := strings.TrimSpace(raw)
+		if breakpoint == "" {
+			continue
+		}
+		if _, ok := supportedGridBreakpoints[breakpoint]; !ok {
+			return fmt.Errorf("uischema: operation %q (file %s) field %q uses unsupported grid breakpoint %q", op.ID, op.Source, cfg.OriginalPath, breakpoint)
+		}
+
+		bp := cfg.Grid.Breakpoints[raw]
+		if bp.Span > 0 {
+			if columns > 0 && bp.Span > columns {
+				return fmt.Errorf("uischema: operation %q (file %s) field %q grid span %d exceeds layout columns %d at breakpoint %q", op.ID, op.Source, cfg.OriginalPath, bp.Span, columns, breakpoint)
+			}
+			field.UIHints[layoutSpanKey+"."+breakpoint] = strconv.Itoa(bp.Span)
+		}
+		if bp.Start > 0 {
+			if columns > 0 && bp.Start > columns {
+				return fmt.Errorf("uischema: operation %q (file %s) field %q grid start %d exceeds layout columns %d at breakpoint %q", op.ID, op.Source, cfg.OriginalPath, bp.Start, columns, breakpoint)
+			}
+			field.UIHints[layoutStartKey+"."+breakpoint] = strconv.Itoa(bp.Start)
+		}
+		if bp.Row > 0 {
+			field.UIHints[layoutRowKey+"."+breakpoint] = strconv.Itoa(bp.Row)
+		}
 	}
 
 	return nil
