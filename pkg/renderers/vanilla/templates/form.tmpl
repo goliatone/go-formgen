@@ -1,4 +1,4 @@
-{%- if not stylesheets and not inline_styles -%}
+{%- if not stylesheets and not inline_styles and not responsive_grid_styles -%}
 {{ top_padding|safe }}
 {%- endif -%}
 {% if stylesheets -%}
@@ -8,6 +8,9 @@
 {%- endif -%}
 {% if theme.css_vars_style %}
 <style data-formgen-theme-vars>{{ theme.css_vars_style|safe }}</style>
+{% endif -%}
+{% if responsive_grid_styles -%}
+<style data-formgen-responsive-grid>{{ responsive_grid_styles|safe }}</style>
 {% endif -%}
 {%- if inline_styles -%}
 <style data-formgen-default-style>{{ inline_styles|safe }}</style>
