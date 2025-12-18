@@ -1,6 +1,11 @@
 import type { Option, RendererContext } from "../config";
 import type { ResolverRegistry } from "../registry";
 import {
+  RELATIONSHIP_UPDATE_EVENT,
+  emitRelationshipUpdate,
+  type RelationshipUpdateDetail,
+} from "../relationship-events";
+import {
   syncSelectOptions,
   derivePlaceholder,
   deriveSearchPlaceholder,
@@ -39,8 +44,7 @@ interface ChipStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
-  changeHandler?: (event: Event) => void;
-  syncingFromSelect?: boolean;
+  updateHandler?: (event: Event) => void;
 }
 
 const CHIP_ROOT_ATTR = "data-fg-chip-root";
@@ -61,6 +65,12 @@ export function bootstrapChips(element: HTMLSelectElement): void {
     options: store.options,
     placeholder: store.placeholder,
   });
+  emitRelationshipUpdate(store.select, {
+    kind: "options",
+    origin: "hydrate",
+    selectedValues: Array.from(selected),
+    query: store.searchValue,
+  });
   renderChips(store, selected);
   renderMenu(store, selected);
   updateClearState(store, selected);
@@ -79,6 +89,12 @@ const chipsRenderer = (context: RendererContext): void => {
     select: store.select,
     options,
     placeholder: store.placeholder,
+  });
+  emitRelationshipUpdate(store.select, {
+    kind: "options",
+    origin: "resolver",
+    selectedValues: Array.from(selectedValues),
+    query: store.searchValue,
   });
   renderChips(store, selectedValues);
   renderMenu(store, selectedValues);
@@ -194,6 +210,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
       const trimmed = searchInput.value.trim();
       store.searchValue = trimmed;
       select.setAttribute("data-endpoint-search-value", trimmed);
+      emitRelationshipUpdate(select, { kind: "search", origin: "ui", query: trimmed });
       const selectedValues = getSelectedValues(select);
       renderMenu(store, selectedValues);
       select.dispatchEvent(new Event("input", { bubbles: true }));
@@ -370,13 +387,13 @@ function updateSelected(store: ChipStore, values: Set<string>): void {
   for (const option of Array.from(select.options)) {
     option.selected = values.has(option.value);
   }
-  store.syncingFromSelect = true;
-  try {
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  } finally {
-    store.syncingFromSelect = false;
-  }
   const selectedValues = getSelectedValues(select);
+  emitRelationshipUpdate(select, {
+    kind: "selection",
+    origin: "ui",
+    selectedValues: Array.from(selectedValues),
+  });
+  select.dispatchEvent(new Event("change", { bubbles: true }));
   renderChips(store, selectedValues);
 
   if (store.searchMode) {
@@ -440,8 +457,13 @@ function bindValidationState(store: ChipStore): void {
 }
 
 function bindSelectionListener(store: ChipStore): void {
-  const handler = () => {
-    if (store.syncingFromSelect) {
+  // Listen to semantic selection updates (not native `change`).
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<RelationshipUpdateDetail>).detail;
+    if (detail.kind !== "selection") {
+      return;
+    }
+    if (detail.origin === "ui") {
       return;
     }
     const selected = getSelectedValues(store.select);
@@ -449,8 +471,8 @@ function bindSelectionListener(store: ChipStore): void {
     renderMenu(store, selected);
     updateClearState(store, selected);
   };
-  store.changeHandler = handler;
-  store.select.addEventListener("change", handler);
+  store.updateHandler = handler;
+  store.select.addEventListener(RELATIONSHIP_UPDATE_EVENT, handler as EventListener);
 }
 
 function destroyChipStore(store: ChipStore): void {
@@ -462,8 +484,8 @@ function destroyChipStore(store: ChipStore): void {
     );
   }
   store.validationObserver?.disconnect();
-  if (store.changeHandler) {
-    store.select.removeEventListener("change", store.changeHandler);
+  if (store.updateHandler) {
+    store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
   }
 }
 
