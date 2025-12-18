@@ -1,0 +1,27 @@
+{
+  "operations": {
+    "responsiveExample": {
+      "form": {
+        "layout": {
+          "gridColumns": 12
+        }
+      },
+      "fields": {
+        "title": {
+          "grid": {
+            "span": 12,
+            "breakpoints": {
+              "lg": {
+                "span": 6
+              },
+              "xl": {
+                "span": 6,
+                "start": 7
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
