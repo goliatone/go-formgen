@@ -1,6 +1,11 @@
 import type { Option, RendererContext } from "../config";
 import type { ResolverRegistry } from "../registry";
 import {
+  RELATIONSHIP_UPDATE_EVENT,
+  emitRelationshipUpdate,
+  type RelationshipUpdateDetail,
+} from "../relationship-events";
+import {
   syncSelectOptions,
   derivePlaceholder,
   deriveSearchPlaceholder,
@@ -40,8 +45,7 @@ interface TypeaheadStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
-  changeHandler?: (event: Event) => void;
-  syncingFromSelect?: boolean;
+  updateHandler?: (event: Event) => void;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -62,6 +66,12 @@ export function bootstrapTypeahead(select: HTMLSelectElement): void {
     options: store.options,
     placeholder: store.placeholder,
   });
+  emitRelationshipUpdate(store.select, {
+    kind: "options",
+    origin: "hydrate",
+    selectedValues: Array.from(selected),
+    query: store.searchQuery,
+  });
   updateInputFromSelection(store, selected);
   renderOptions(store);
 }
@@ -79,6 +89,12 @@ const typeaheadRenderer = (context: RendererContext): void => {
     select: store.select,
     options,
     placeholder: store.placeholder,
+  });
+  emitRelationshipUpdate(store.select, {
+    kind: "options",
+    origin: "resolver",
+    selectedValues: Array.from(selectedValues),
+    query: store.searchQuery,
   });
   updateInputFromSelection(store, selectedValues);
   renderOptions(store);
@@ -250,8 +266,7 @@ function updateInputFromSelection(
   selectedValues: Set<string>
 ): void {
   const { select, input } = store;
-  const hasSelection = selectedValues.size > 0;
-  if (document.activeElement === input && store.searchQuery && !hasSelection) {
+  if (document.activeElement === input && store.searchQuery) {
     return;
   }
   const value = Array.from(selectedValues)[0] ?? "";
@@ -275,6 +290,7 @@ function handleInput(store: TypeaheadStore): void {
   store.highlightedIndex = -1;
   store.searchQuery = trimmed;
   select.setAttribute("data-endpoint-search-value", trimmed);
+  emitRelationshipUpdate(select, { kind: "search", origin: "ui", query: trimmed });
   renderOptions(store);
   openDropdown(store);
   if (store.searchMode) {
@@ -368,16 +384,16 @@ function selectOption(store: TypeaheadStore, option: Option): void {
   }
   input.value = option.label ?? option.value;
   resetInputPlaceholder(store);
-  store.syncingFromSelect = true;
-  try {
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  } finally {
-    store.syncingFromSelect = false;
-  }
   closeDropdown(store);
   store.highlightedIndex = -1;
   store.searchQuery = "";
   select.setAttribute("data-endpoint-search-value", "");
+  emitRelationshipUpdate(select, {
+    kind: "selection",
+    origin: "ui",
+    selectedValues: Array.from(getSelectedValues(select)),
+  });
+  select.dispatchEvent(new Event("change", { bubbles: true }));
   updateClearState(store);
 }
 
@@ -388,15 +404,15 @@ function clearSelection(store: TypeaheadStore): void {
   }
   input.value = "";
   resetInputPlaceholder(store);
-  store.syncingFromSelect = true;
-  try {
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  } finally {
-    store.syncingFromSelect = false;
-  }
   store.highlightedIndex = -1;
   store.searchQuery = "";
   select.setAttribute("data-endpoint-search-value", "");
+  emitRelationshipUpdate(select, {
+    kind: "selection",
+    origin: "ui",
+    selectedValues: [],
+  });
+  select.dispatchEvent(new Event("change", { bubbles: true }));
   renderOptions(store);
   updateClearState(store);
   if (store.searchMode) {
@@ -577,16 +593,21 @@ function bindValidationState(store: TypeaheadStore): void {
 }
 
 function bindSelectionListener(store: TypeaheadStore): void {
-  const handler = () => {
-    if (store.syncingFromSelect) {
+  // Listen to semantic selection updates (not native `change`).
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<RelationshipUpdateDetail>).detail;
+    if (detail.kind !== "selection") {
+      return;
+    }
+    if (detail.origin === "ui") {
       return;
     }
     const selected = getSelectedValues(store.select);
     updateInputFromSelection(store, selected);
     updateClearState(store);
   };
-  store.changeHandler = handler;
-  store.select.addEventListener("change", handler);
+  store.updateHandler = handler;
+  store.select.addEventListener(RELATIONSHIP_UPDATE_EVENT, handler as EventListener);
 }
 
 function destroyTypeaheadStore(store: TypeaheadStore): void {
@@ -598,8 +619,8 @@ function destroyTypeaheadStore(store: TypeaheadStore): void {
     );
   }
   store.validationObserver?.disconnect();
-  if (store.changeHandler) {
-    store.select.removeEventListener("change", store.changeHandler);
+  if (store.updateHandler) {
+    store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
   }
 }
 
