@@ -94,6 +94,14 @@ type FieldConfig struct {
 
 // GridConfig describes a field's presence in the layout grid.
 type GridConfig struct {
+	Span        int                             `json:"span,omitempty" yaml:"span,omitempty"`
+	Start       int                             `json:"start,omitempty" yaml:"start,omitempty"`
+	Row         int                             `json:"row,omitempty" yaml:"row,omitempty"`
+	Breakpoints map[string]GridBreakpointConfig `json:"breakpoints,omitempty" yaml:"breakpoints,omitempty"`
+}
+
+// GridBreakpointConfig describes per-breakpoint layout overrides for a field.
+type GridBreakpointConfig struct {
 	Span  int `json:"span,omitempty" yaml:"span,omitempty"`
 	Start int `json:"start,omitempty" yaml:"start,omitempty"`
 	Row   int `json:"row,omitempty" yaml:"row,omitempty"`
