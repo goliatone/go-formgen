@@ -22,6 +22,7 @@ import {
   readElementValue,
 } from "./dom";
 import { validateFieldValue, mergeValidationResults } from "./validation";
+import { ensureRelationshipSelectionBridge } from "./relationship-events";
 
 const DYNAMIC_TOKEN_PATTERN = /\{\{\s*([^}]+)\s*\}\}/g;
 const DEFAULT_ERROR_MESSAGE = "Unable to load options.";
@@ -164,6 +165,7 @@ export class Resolver {
     this.customResolvers = options.customResolvers;
 
     if (this.element instanceof HTMLSelectElement) {
+      ensureRelationshipSelectionBridge(this.element);
       if (this.field.submitAs === "json") {
         attachJsonInputSync(this.element);
       } else if (isMultiSelect(this.element)) {
