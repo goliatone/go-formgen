@@ -681,26 +681,33 @@ Override [form.tmpl:61](../pkg/renderers/vanilla/templates/form.tmpl#L61):
 
 **Approach 3: Dynamic grid columns via UI schema**
 
-Set `layout.gridColumns` and use field spans:
+Set `layout.gridColumns` and use breakpoint-aware spans:
 
 ```json
 {
-  "uiHints": {
-    "layout.gridColumns": "12"
-  },
-  "fields": [
-    {
-      "name": "title",
-      "uiHints": {
-        "layout.span": "12",
-        "@media (min-width: 1024px)": {
-          "layout.span": "6"
+  "operations": {
+    "createPet": {
+      "form": {
+        "layout": { "gridColumns": 12 }
+      },
+      "fields": {
+        "title": {
+          "grid": {
+            "span": 12,
+            "breakpoints": {
+              "lg": { "span": 6 }
+            }
+          }
         }
       }
     }
-  ]
+  }
 }
 ```
+
+Notes:
+- Vanilla also honors breakpoint spans when they are already present as UI hints on a field (for example `layout.span.lg: "6"`).
+- If you override `templates/form.tmpl`, include `responsive_grid_styles` (see “Template Variables”) so breakpoint spans keep working without custom CSS.
 
 **Approach 4: JavaScript-based (not recommended)**
 
@@ -852,7 +859,7 @@ renderer, _ := vanilla.New(
 
 ### Template Variables
 
-All templates receive a context with:
+The main `templates/form.tmpl` receives a context with:
 
 - `form` — The `FormModel` with fields, metadata, UI hints
 - `layout` — Grid columns, sections, unsectioned fields
@@ -861,6 +868,7 @@ All templates receive a context with:
 - `render_options` — Method, hidden fields, form errors
 - `stylesheets` — External stylesheet URLs
 - `inline_styles` — Inline CSS block
+- `responsive_grid_styles` — Inline CSS for breakpoint spans (only set when responsive spans are present)
 - `component_scripts` — JavaScript dependencies
 
 Component templates receive:
@@ -868,7 +876,11 @@ Component templates receive:
 - `field` — The `Field` being rendered
 - `config` — Component-specific configuration
 - `theme` — Theme context
-- `chrome` — Whether to render label/description wrapper
+
+Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
+
+- `field` — The `Field` being rendered
+- `context` — IDs/flags used to render `<label>`, help text, etc.
 
 ---
 
@@ -903,8 +915,11 @@ Component templates receive:
 | `layout.gridColumns` | Set grid column count | `"12"` |
 | `layout.gutter` | Grid gap size | `"md"` |
 | `layout.span` | Field column span | `"6"` (half width) |
+| `layout.span.<bp>` | Breakpoint column span (`sm`/`md`/`lg`/`xl`/`2xl`) | `"6"` |
 | `layout.start` | Grid column start | `"1"` |
+| `layout.start.<bp>` | Breakpoint column start (`sm`/`md`/`lg`/`xl`/`2xl`) | `"7"` |
 | `layout.row` | Grid row placement | `"2"` |
+| `layout.row.<bp>` | Breakpoint row placement (`sm`/`md`/`lg`/`xl`/`2xl`) | `"2"` |
 | `layout.sections` | Define form sections | JSON array |
 | `layout.section` | Assign field to section | `"personal"` |
 
@@ -931,8 +946,8 @@ Component templates receive:
 | **Override templates** | `vanilla.WithTemplatesFS(customFS)` |
 | **Theme system** | `orchestrator.WithThemeProvider(provider, theme, variant)` |
 | **Fluid container** | Override form template or CSS `max-width: none` |
-| **Responsive grid** | Media queries or Tailwind responsive classes |
-| **Per-field layout** | UI schema `layout.span`, `layout.start`, `layout.row` |
+| **Responsive grid** | UI schema `grid.breakpoints` (or media queries / Tailwind responsive classes) |
+| **Per-field layout** | UI schema `grid.span/start/row` (+ `grid.breakpoints`) |
 | **Component overrides** | `WithComponentRegistry()` or theme partials |
 
 All styling customization happens **before rendering** via renderer options or **at runtime** via theme selection in the orchestrator request.
