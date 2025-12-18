@@ -1,5 +1,31 @@
 # Changelog
 
+# [0.7.0](https://github.com/goliatone/go-formgen/compare/v0.6.0...v0.7.0) - (2025-12-18)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.7.0 ([254a739](https://github.com/goliatone/go-formgen/commit/254a7390600b3adbe4064e870af4c5bcb8a6ee5d))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Propagate theme to components ([74c299f](https://github.com/goliatone/go-formgen/commit/74c299ff65a790c4cd6afd02288909e5338a4850))  - (goliatone)
+- Template redenerer adapter ([8934e78](https://github.com/goliatone/go-formgen/commit/8934e78c8cdaff52277a6488b3fb0e99a10599f6))  - (goliatone)
+- Reponseive grid schema ([72bd890](https://github.com/goliatone/go-formgen/commit/72bd890c5dde3b23e171acafd3270c007563b80a))  - (goliatone)
+- Apply grid hints ([840e353](https://github.com/goliatone/go-formgen/commit/840e35352bad4597232d6a01276d1932cfe527eb))  - (goliatone)
+- Visibility evaluator ([6532de5](https://github.com/goliatone/go-formgen/commit/6532de5af28741b110fd484eebe4c0e71b5e7798))  - (goliatone)
+- Updated runtime assets for default implementation ([8888ae8](https://github.com/goliatone/go-formgen/commit/8888ae8d4853003089b05fd52bed3af26ea4b115))  - (goliatone)
+- Close feature implementations ([7a67e3b](https://github.com/goliatone/go-formgen/commit/7a67e3b0da3c5e2d9c99e90fdd0a5c0040e98fad))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.6.0 ([da69446](https://github.com/goliatone/go-formgen/commit/da69446df7195acec384f375031ab79eca1384ff))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([d64e306](https://github.com/goliatone/go-formgen/commit/d64e3062b147f001c6c8fc3dc3d09920ab823dfe))  - (goliatone)
+- Update docs ([112a54c](https://github.com/goliatone/go-formgen/commit/112a54cc0e900d5f485f1f3192c25ac27b3c384a))  - (goliatone)
+- Udpate deps ([f78e777](https://github.com/goliatone/go-formgen/commit/f78e7776f0312c7b29fb57ed1c21fa6256dbe6d3))  - (goliatone)
+
 # [0.6.0](https://github.com/goliatone/go-formgen/compare/v0.5.0...v0.6.0) - (2025-12-16)
 
 ## <!-- 13 -->📦 Bumps
