@@ -22,6 +22,7 @@ type ComponentData struct {
 	RenderChild   func(value any) (string, error)
 	Config        map[string]any
 	ThemePartials map[string]string
+	Theme         map[string]any
 }
 
 // Script describes JavaScript dependencies a component needs to emit once per
