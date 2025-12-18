@@ -19,6 +19,7 @@ import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
 import { initComponents } from "./components/registry";
 import { clearFieldError, renderFieldError } from "./errors";
+import { emitRelationshipUpdate } from "./relationship-events";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -669,6 +670,13 @@ function applyHydratedValue(
         : undefined;
     if (changed) {
       syncRelationshipMirrors(element, submitMode as FieldConfig["submitAs"]);
+      emitRelationshipUpdate(element, {
+        kind: "selection",
+        origin: "hydrate",
+        selectedValues: Array.from(element.selectedOptions)
+          .map((option) => option.value)
+          .filter((value) => value !== ""),
+      });
       element.dispatchEvent(new Event("change", { bubbles: true }));
     }
   } else if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
