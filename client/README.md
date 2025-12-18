@@ -8,6 +8,29 @@ This package provides browser-side relationship resolution for forms generated b
 
 By default the resolver appends `?format=options` to relationship endpoints and expects an array of `{value,label}` objects. Legacy envelopes (such as `{"data":[...]}`) remain supported via the `resultsPath` metadata or a `transformOptions` hook when you need to adapt older payloads.
 
+## Relationship Event Contract
+
+The runtime uses DOM `CustomEvent`s to keep the relationship system decoupled and composable.
+
+**Resolver lifecycle events (emitted by `client/src/registry.ts`)**
+- `formgen:relationship:loading`
+- `formgen:relationship:success`
+- `formgen:relationship:error`
+- `formgen:relationship:validation`
+
+**Internal/UI update event (emitted by renderers + bridges)**
+- `formgen:relationship:update` (see `client/src/relationship-events.ts`)
+
+`formgen:relationship:update` includes a typed `detail` payload describing what changed:
+- `kind: "options"` when resolver output re-syncs the `<select>` options
+- `kind: "selection"` when the selected value(s) change
+- `kind: "search"` when a search query changes (search-mode fields)
+
+Design rules used throughout the codebase:
+- Native `change` is reserved for external integration and form semantics.
+- Internal wiring (renderers, mirror syncing) listens to `formgen:relationship:update` instead of `change`.
+- Option syncing (`syncSelectOptions`) is intentionally side-effect free; renderers emit `kind:"options"` updates explicitly after syncing.
+
 ## Directory Structure
 
 ```
@@ -22,6 +45,7 @@ client/
 │   ├── state.ts         # State management helpers
 │   ├── errors.ts        # Custom error types
 │   ├── timers.ts        # Throttle/debounce for search
+│   ├── relationship-events.ts  # Relationship update event contract
 │   └── frameworks/
 │       └── preact.ts    # Preact hooks integration
 ├── dist/                # Build output
