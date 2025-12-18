@@ -9,6 +9,10 @@ export interface SyncOptionsConfig {
 /**
  * Synchronises the native <select> options with the resolver output while
  * preserving existing selections and labels for stale values.
+ *
+ * Important: this is intentionally side-effect free (no event dispatch). Use
+ * `formgen:relationship:update` (`kind: "options"`) to notify renderers/internal
+ * listeners after syncing.
  */
 export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
   const { select, options, placeholder } = config;
@@ -50,7 +54,6 @@ export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
     select.appendChild(node);
   }
 
-  select.dispatchEvent(new Event("change", { bubbles: true }));
   return getSelectedValues(select);
 }
 
