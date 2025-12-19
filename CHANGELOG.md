@@ -1,5 +1,25 @@
 # Changelog
 
+# [0.9.0](https://github.com/goliatone/go-formgen/compare/v0.8.0...v0.9.0) - (2025-12-19)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.9.0 ([354e8a3](https://github.com/goliatone/go-formgen/commit/354e8a3f91362366dde6d193d9ce7320928435b1))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Updated select style ([2b98764](https://github.com/goliatone/go-formgen/commit/2b98764110c4faebb1ec488bdb6429622fb5c186))  - (goliatone)
+- Updated client select mechanics support rels ([1dc55db](https://github.com/goliatone/go-formgen/commit/1dc55db345ea49ab0e2f88c77b9e7d019166ec40))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.8.0 ([92d9d80](https://github.com/goliatone/go-formgen/commit/92d9d80d3681885b2fc6a1f3f7ca9115f0481155))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update readme ([7459743](https://github.com/goliatone/go-formgen/commit/745974374eba2b291a3fa29df4ef6f98ccedce20))  - (goliatone)
+- Update tests ([0064588](https://github.com/goliatone/go-formgen/commit/0064588a1efa9299d0d169efb75fd99dd7f3c1da))  - (goliatone)
+
 # [0.8.0](https://github.com/goliatone/go-formgen/compare/v0.7.0...v0.8.0) - (2025-12-18)
 
 ## <!-- 13 -->📦 Bumps
