@@ -714,22 +714,147 @@ Form submits:
 
 Backend resolves to junction table inserts.
 
-### Embedded Relationship Creation
+### Create Action Modal (Related Entity Form)
 
-Inline relationship creation (e.g., “Create new Author” inside the select) is
-not implemented by the built-in runtime today. You can still build it at the
-application level (custom UI + endpoint) and then set the field value.
+Use the "Create ..." action when related entities require a real form (multiple
+fields, permissions, validation) instead of inline creation. The runtime only
+triggers the action; your application owns the modal markup and submit logic.
 
-```yaml
-author:
-  type: object
-  x-relationships:
-    type: belongsTo
-    target: "#/components/schemas/Author"
-  x-ui-hints:
-    allowCreate: true
-    createEndpoint: /api/authors
+#### 1) Enable create action on the relationship field
+
+```html
+<select
+  name="author_id"
+  data-endpoint-url="/api/authors"
+  data-endpoint-renderer="typeahead"
+  data-endpoint-mode="search"
+  data-endpoint-create-action="true"
+  data-endpoint-create-action-id="author"
+  data-endpoint-create-action-label="Create Author"
+  data-relationship-cardinality="one"
+></select>
 ```
+
+#### 2) Define the modal and form (Pongo2 templates)
+
+Create a modal partial that includes **only the fields you want** for the
+related entity. This keeps the create flow focused and fast.
+
+```django
+{# templates/partials/modals/author_create.tmpl #}
+<div
+  id="modal-author-create"
+  class="fixed inset-0 hidden items-center justify-center bg-black/50"
+  data-fg-create-modal="author"
+  aria-hidden="true"
+>
+  <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+    <header class="mb-4">
+      <h2 class="text-lg font-semibold text-gray-900">Create Author</h2>
+      <p class="text-sm text-gray-500">Add the minimum required details.</p>
+    </header>
+    <form id="form-author-create" class="space-y-4">
+      {% include "partials/forms/author_create_fields.tmpl" %}
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" class="px-4 py-2 text-sm" data-fg-modal-close="author">Cancel</button>
+        <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+```
+
+```django
+{# templates/partials/forms/author_create_fields.tmpl #}
+<label class="block text-sm font-medium text-gray-700">Name</label>
+<input name="name" class="w-full rounded-md border px-3 py-2" />
+
+<label class="block text-sm font-medium text-gray-700">Email</label>
+<input name="email" type="email" class="w-full rounded-md border px-3 py-2" />
+```
+
+Include the modal partial once on the page where the relationship field lives:
+
+```django
+{% include "partials/modals/author_create.tmpl" %}
+```
+
+#### 3) Wire the create action to the modal (vanilla TypeScript)
+
+```ts
+import { initRelationships } from "@goliatone/formgen-runtime";
+
+function openModal(modal: HTMLElement): void {
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeModal(modal: HTMLElement): void {
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function waitForSubmit(form: HTMLFormElement): Promise<FormData | null> {
+  return new Promise((resolve) => {
+    const onSubmit = (event: Event) => {
+      event.preventDefault();
+      form.removeEventListener("submit", onSubmit);
+      resolve(new FormData(form));
+    };
+    const onCancel = () => {
+      form.removeEventListener("submit", onSubmit);
+      resolve(null);
+    };
+    form.addEventListener("submit", onSubmit, { once: true });
+    form
+      .querySelectorAll<HTMLElement>("[data-fg-modal-close]")
+      .forEach((btn) => btn.addEventListener("click", onCancel, { once: true }));
+  });
+}
+
+await initRelationships({
+  onCreateAction: async (_context, detail) => {
+    if (detail.actionId !== "author") {
+      return;
+    }
+
+    const modal = document.querySelector<HTMLElement>('[data-fg-create-modal="author"]');
+    const form = document.getElementById("form-author-create") as HTMLFormElement | null;
+    if (!modal || !form) {
+      return;
+    }
+
+    // Prefill with the current query if present.
+    const nameInput = form.querySelector<HTMLInputElement>('input[name="name"]');
+    if (nameInput && detail.query) {
+      nameInput.value = detail.query;
+    }
+
+    openModal(modal);
+    const data = await waitForSubmit(form);
+    closeModal(modal);
+
+    if (!data) {
+      return;
+    }
+
+    const response = await fetch("/api/authors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(data.entries())),
+    });
+
+    const created = await response.json();
+    return { value: String(created.id), label: created.name };
+  },
+});
+```
+
+Notes:
+- For chips (multi-select), you can return multiple options and choose
+  append/replace using `data-endpoint-create-action-select`.
+- If you prefer DOM events instead of hooks, listen for
+  `formgen:relationship:create-action` and follow the same modal flow.
 
 ### Optimistic UI Updates
 
