@@ -83,6 +83,8 @@ describe("runtime resolver", () => {
     resetComponentRegistryForTests();
     // Reset global registry to ensure test isolation
     resetGlobalRegistry();
+    // Mock scrollIntoView for JSDOM (not implemented)
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   afterEach(() => {
@@ -217,7 +219,8 @@ describe("runtime resolver", () => {
     const chipContainer = document.querySelector<HTMLElement>("[data-fg-chip-root='true']");
     expect(chipContainer).not.toBeNull();
 
-    const searchInput = chipContainer!.querySelector<HTMLInputElement>('input[type="search"]');
+    const menu = chipContainer!.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]');
     expect(searchInput).not.toBeNull();
     searchInput!.value = "tag";
     searchInput!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -261,7 +264,8 @@ describe("runtime resolver", () => {
     toggle.click();
     await flush();
 
-    const searchInput = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
     const menuItems = () =>
       Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
 
@@ -291,6 +295,118 @@ describe("runtime resolver", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(select.getAttribute("data-endpoint-search-value")).toBe("");
     expect(searchInput.value).toBe("");
+  });
+
+  it("opens chips menu when typing without requiring extra click", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select id="tags" name="article[tags][]" multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-relationship-cardinality="many"></select>
+      </form>
+    `;
+
+    fetchSpy.mockResolvedValue(
+      mockResponse([
+        { value: "design", label: "Product Design" },
+        { value: "ai", label: "AI Strategy" },
+      ])
+    );
+
+    const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+    const select = document.getElementById("tags") as HTMLSelectElement;
+    await registry.resolve(select);
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    // Search input is now inside the menu header
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+    // Menu should be closed initially
+    expect(menu.hidden).toBe(true);
+
+    // Open the menu first (search input is inside the menu, so we need to open it)
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+    toggle.click();
+    await flush();
+
+    // Menu should open and focus search input
+    expect(menu.hidden).toBe(false);
+
+    // Close the menu to test typing behavior
+    toggle.click();
+    await flush();
+    expect(menu.hidden).toBe(true);
+
+    // Open and type into the input - menu should stay open
+    toggle.click();
+    await flush();
+    searchInput.value = "des";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    // Menu should still be open
+    expect(menu.hidden).toBe(false);
+
+    // Verify filtered options are shown
+    const menuItems = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+    expect(menuItems.length).toBe(1);
+    expect(menuItems[0]?.dataset.value).toBe("design");
+  });
+
+  it("shows create option in chips menu when typing non-matching query", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select id="tags" name="article[tags][]" multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-allow-create="true"
+          data-endpoint-search-param="q"
+          data-relationship-cardinality="many"></select>
+      </form>
+    `;
+
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships({
+      searchThrottleMs: 0,
+      searchDebounceMs: 0,
+      createOption: async (_context, query) => ({
+        value: query.toLowerCase(),
+        label: query,
+      }),
+    });
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const select = document.getElementById("tags") as HTMLSelectElement;
+    const container = select.previousElementSibling as HTMLElement;
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+    // Type a new tag name - menu should open and show create option
+    searchInput.focus();
+    searchInput.value = "NewTag";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    // Menu should be open
+    expect(menu.hidden).toBe(false);
+
+    // Create button should be visible without extra click
+    const createButton = container.querySelector<HTMLButtonElement>('[data-fg-create-option="true"]');
+    expect(createButton).not.toBeNull();
+    expect(createButton?.textContent).toContain("NewTag");
   });
 
   it("applies auth headers declared in metadata", async () => {
@@ -376,8 +492,199 @@ describe("runtime resolver", () => {
 
     expect(Array.from(select.selectedOptions).map((item) => item.value)).not.toContain("design");
 
-    const menu = container.querySelector<HTMLElement>("[role='listbox']");
+    // Menu wrapper is what controls visibility, not the listbox
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]');
     expect(menu?.hidden).toBe(true);
+  });
+
+  it("allows creating new tags in chips search mode", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="tags"
+          name="tags"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-allow-create="true"
+          data-endpoint-search-param="q"
+          data-endpoint-submit-as="json"
+          data-relationship-cardinality="many"
+        ></select>
+      </form>
+    `;
+    const select = document.getElementById("tags") as HTMLSelectElement;
+
+    fetchSpy.mockImplementation(async (url) => {
+      if (url.includes("q=NewTag")) {
+        return mockResponse([]);
+      }
+      return mockResponse([{ value: "typescript", label: "TypeScript" }]);
+    });
+
+    await initRelationships({
+      searchThrottleMs: 0,
+      searchDebounceMs: 0,
+      createOption: async (_context, query) => ({
+        value: query.toLowerCase(),
+        label: query,
+      }),
+    });
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
+    expect(toggle).not.toBeNull();
+    toggle!.click();
+    await flush();
+
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(searchInput).not.toBeNull();
+    searchInput!.focus();
+    searchInput!.value = "NewTag";
+    searchInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    await flush();
+
+    const createButton = container.querySelector<HTMLButtonElement>('[data-fg-create-option="true"]');
+    expect(createButton).not.toBeNull();
+    createButton!.click();
+    await flush();
+    await flush();
+
+    expect(Array.from(select.selectedOptions).map((item) => item.value)).toContain("newtag");
+    expect(container.querySelector("[data-fg-chip-value='newtag']")).not.toBeNull();
+
+    const hidden = select.parentElement?.querySelector<HTMLInputElement>('[data-relationship-hidden] [data-relationship-json]');
+    expect(hidden).not.toBeNull();
+    expect(hidden?.value).toBe(JSON.stringify(["newtag"]));
+  });
+
+  it("creates on Enter from chips input when query is not a literal match", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="tags"
+          name="tags"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-allow-create="true"
+          data-endpoint-search-param="q"
+          data-endpoint-submit-as="json"
+          data-relationship-cardinality="many"
+        ></select>
+      </form>
+    `;
+    const select = document.getElementById("tags") as HTMLSelectElement;
+
+    const createOption = vi.fn(async (_context, query: string) => ({
+      value: query.toLowerCase(),
+      label: query,
+    }));
+
+    fetchSpy.mockImplementation(async (url) => {
+      if (url.includes("q=Type")) {
+        return mockResponse([{ value: "typescript", label: "TypeScript" }]);
+      }
+      return mockResponse([{ value: "typescript", label: "TypeScript" }]);
+    });
+
+    await initRelationships({
+      searchThrottleMs: 0,
+      searchDebounceMs: 0,
+      createOption,
+    });
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
+    toggle!.click();
+    await flush();
+
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+    searchInput.focus();
+    searchInput.value = "Type";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    await flush();
+
+    searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    expect(createOption).toHaveBeenCalledTimes(1);
+    expect(Array.from(select.selectedOptions).map((item) => item.value)).toContain("type");
+  });
+
+  it("selects existing option on Enter from chips input when query is a literal match", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="tags"
+          name="tags"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-method="GET"
+          data-endpoint-renderer="chips"
+          data-endpoint-mode="search"
+          data-endpoint-allow-create="true"
+          data-endpoint-search-param="q"
+          data-endpoint-submit-as="json"
+          data-relationship-cardinality="many"
+        ></select>
+      </form>
+    `;
+    const select = document.getElementById("tags") as HTMLSelectElement;
+
+    const createOption = vi.fn(async (_context, query: string) => ({
+      value: query.toLowerCase(),
+      label: query,
+    }));
+
+    fetchSpy.mockResolvedValue(mockResponse([{ value: "typescript", label: "TypeScript" }]));
+
+    await initRelationships({
+      searchThrottleMs: 0,
+      searchDebounceMs: 0,
+      createOption,
+    });
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const container = select.previousElementSibling as HTMLElement;
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]');
+    toggle!.click();
+    await flush();
+
+    const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+    const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+    searchInput.focus();
+    searchInput.value = "TypeScript";
+    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+    await flush();
+
+    expect(createOption).toHaveBeenCalledTimes(0);
+    expect(Array.from(select.selectedOptions).map((item) => item.value)).toContain("typescript");
   });
 
   it("respects chips defaults before fetching options", async () => {
@@ -1055,6 +1362,1573 @@ describe("runtime resolver", () => {
       });
 
       expect(slug.getAttribute("data-validation-state")).toBeNull();
+    });
+  });
+
+  describe("chips UX improvements", () => {
+    it("positions dropdown below toggle without overlapping", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Menu should use top-full positioning (below toggle)
+      expect(menu.classList.contains("top-full")).toBe(true);
+      expect(menu.classList.contains("mt-1")).toBe(true);
+
+      // Open the menu
+      toggle.click();
+      await flush();
+
+      expect(menu.hidden).toBe(false);
+    });
+
+    it("highlights option visually during keyboard navigation", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+          { value: "ml", label: "Machine Learning" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      const getOptions = () => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+
+      // Press ArrowDown to highlight first option
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      let options = getOptions();
+      expect(options[0]?.classList.contains("bg-blue-50")).toBe(true);
+
+      // Press ArrowDown again to highlight second option
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      options = getOptions();
+      expect(options[0]?.classList.contains("bg-blue-50")).toBe(false);
+      expect(options[1]?.classList.contains("bg-blue-50")).toBe(true);
+    });
+
+    it("navigates to first/last option with Home/End keys", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "a", label: "Option A" },
+          { value: "b", label: "Option B" },
+          { value: "c", label: "Option C" },
+          { value: "d", label: "Option D" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      const getOptions = () => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+
+      // Navigate to second option first
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      // Press Home - should go to first option
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+      await flush();
+
+      let options = getOptions();
+      expect(options[0]?.classList.contains("bg-blue-50")).toBe(true);
+      expect(options[1]?.classList.contains("bg-blue-50")).toBe(false);
+
+      // Press End - should go to last option
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+      await flush();
+
+      options = getOptions();
+      expect(options[0]?.classList.contains("bg-blue-50")).toBe(false);
+      expect(options[options.length - 1]?.classList.contains("bg-blue-50")).toBe(true);
+    });
+
+    it("closes dropdown on Tab without blocking focus traversal", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+          <button id="next-button">Next</button>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+      expect(menu.hidden).toBe(false);
+
+      // Press Tab - should close dropdown (don't preventDefault so focus can move)
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+      await flush();
+
+      // Menu should be closed
+      expect(menu.hidden).toBe(true);
+    });
+
+    it("closes dropdown on Escape and restores focus to toggle", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+      expect(menu.hidden).toBe(false);
+
+      // Press Escape - should close dropdown and restore focus
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await flush();
+
+      expect(menu.hidden).toBe(true);
+      expect(document.activeElement).toBe(toggle);
+    });
+
+    it("prevents rapid open/close state mismatches", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Initial state
+      expect(menu.hidden).toBe(true);
+
+      // Rapid clicks - should not desync state
+      toggle.click();
+      toggle.click();
+      toggle.click();
+      await flush();
+
+      // State should be consistent (open after odd number of clicks)
+      const isOpen = !menu.hidden;
+      const ariaExpanded = toggle.getAttribute("aria-expanded");
+      expect(ariaExpanded).toBe(isOpen ? "true" : "false");
+    });
+
+    it("supports non-search mode keyboard navigation on toggle", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Focus toggle and press ArrowDown to open and navigate
+      toggle.focus();
+      toggle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      // Menu should be open
+      expect(menu.hidden).toBe(false);
+
+      // Press Escape to close
+      toggle.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await flush();
+
+      expect(menu.hidden).toBe(true);
+    });
+
+    it("uses hybrid focus model with aria-activedescendant in search mode", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Navigate with ArrowDown - focus should stay in input
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      // Focus should remain on the search input (hybrid model)
+      expect(document.activeElement).toBe(searchInput);
+
+      // aria-activedescendant should be set
+      const activeDescendant = searchInput.getAttribute("aria-activedescendant");
+      expect(activeDescendant).not.toBeNull();
+
+      // The referenced element should exist and be highlighted
+      if (activeDescendant) {
+        const highlightedOption = document.getElementById(activeDescendant);
+        expect(highlightedOption).not.toBeNull();
+        expect(highlightedOption?.classList.contains("bg-blue-50")).toBe(true);
+      }
+    });
+
+    it("moves focus between last option and footer action with Arrow keys", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+          { value: "ml", label: "Machine Learning" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      expect(footerAction).not.toBeNull();
+
+      const getOptions = () => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+
+      // Walk to last option
+      for (let i = 0; i < getOptions().length; i += 1) {
+        searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+        await flush();
+      }
+
+      // ArrowDown from last option should move focus to footer action
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      expect(document.activeElement).toBe(footerAction);
+      expect(footerAction.classList.contains("bg-blue-50")).toBe(true);
+
+      // ArrowUp should return to last option and focus the input
+      footerAction.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+      await flush();
+
+      const options = getOptions();
+      expect(document.activeElement).toBe(searchInput);
+      expect(options[options.length - 1]?.classList.contains("bg-blue-50")).toBe(true);
+    });
+  });
+
+  describe("typeahead create action", () => {
+    it("renders create action row when enabled", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-endpoint-create-action-label="Create Author"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Alice Smith" },
+          { value: "2", label: "Bob Jones" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+
+      const dropdown = container.querySelector<HTMLElement>('[role="listbox"]')!.parentElement as HTMLElement;
+      expect(dropdown.hidden).toBe(false);
+
+      // Create action row should be present
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]');
+      expect(createAction).not.toBeNull();
+      expect(createAction?.textContent).toContain("Create Author");
+    });
+
+    it("renders create action even when options exist", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Alice" },
+          { value: "2", label: "Bob" },
+          { value: "3", label: "Charlie" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+
+      // Verify options are present
+      const options = container.querySelectorAll<HTMLButtonElement>('[data-fg-typeahead-option="true"]');
+      expect(options.length).toBe(3);
+
+      // Create action should also be present
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]');
+      expect(createAction).not.toBeNull();
+    });
+
+    it("dispatches create-action event with correct payload when clicked", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-endpoint-create-action-id="author"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Listen for the create-action event
+      const eventSpy = vi.fn();
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      // Open dropdown and type a query
+      input.focus();
+      input.value = "New Author";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // Click create action
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      createAction.click();
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      const detail = eventSpy.mock.calls[0][0].detail;
+      expect(detail.query).toBe("New Author");
+      expect(detail.actionId).toBe("author");
+      expect(detail.mode).toBe("typeahead");
+      expect(detail.selectBehavior).toBe("replace"); // typeahead defaults to replace
+      expect(detail.field.name).toBe("article[author_id]");
+      expect(detail.endpoint.url).toBe("/api/authors");
+      expect(detail.element).toBe(select);
+    });
+
+    it("invokes onCreateAction hook instead of dispatching event when provided", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const onCreateAction = vi.fn().mockResolvedValue({ value: "new-1", label: "New Author" });
+      const eventSpy = vi.fn();
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown and type a query
+      input.focus();
+      input.value = "New Author";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // Click create action
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      createAction.click();
+      await flush();
+      await flush();
+
+      // Hook should be called, event should NOT be dispatched
+      expect(onCreateAction).toHaveBeenCalledTimes(1);
+      expect(eventSpy).not.toHaveBeenCalled();
+
+      // The returned option should be selected
+      expect(select.value).toBe("new-1");
+      expect(input.value).toBe("New Author");
+    });
+
+    it("restricts returned values to single Option for typeahead", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      // Return array - typeahead should only use the first item
+      const onCreateAction = vi.fn().mockResolvedValue([
+        { value: "new-1", label: "First Author" },
+        { value: "new-2", label: "Second Author" },
+      ]);
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+
+      // Click create action
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      createAction.click();
+      await flush();
+      await flush();
+
+      // Only first option should be selected (typeahead is single-select)
+      expect(select.value).toBe("new-1");
+      expect(input.value).toBe("First Author");
+    });
+
+    it("closes dropdown when create action is activated", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+      const dropdown = container.querySelector<HTMLElement>('[role="listbox"]')!.parentElement as HTMLElement;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+      expect(dropdown.hidden).toBe(false);
+
+      // Click create action
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      createAction.click();
+      await flush();
+
+      // Dropdown should be closed
+      expect(dropdown.hidden).toBe(true);
+    });
+
+    it("navigates to create action via keyboard from last option", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Alice" },
+          { value: "2", label: "Bob" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+
+      // Navigate down through options to create action
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); // First option
+      await flush();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); // Second option
+      await flush();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); // Create action
+      await flush();
+
+      expect(document.activeElement).toBe(createAction);
+    });
+
+    it("returns focus to options from create action via ArrowUp", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Alice" },
+          { value: "2", label: "Bob" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown
+      input.focus();
+      await flush();
+
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+
+      // Navigate to create action
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      expect(document.activeElement).toBe(createAction);
+
+      // ArrowUp from create action should return to input with last option highlighted
+      createAction.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+      await flush();
+
+      expect(document.activeElement).toBe(input);
+    });
+
+    it("triggers create action via Enter on focused action button", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const eventSpy = vi.fn();
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown and type query
+      input.focus();
+      input.value = "Test";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // Navigate to create action
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      expect(document.activeElement).toBe(createAction);
+
+      // Press Enter on create action
+      createAction.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders create action in non-search mode (default mode)", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown (non-search mode)
+      input.focus();
+      await flush();
+
+      // Create action should be present even in non-search mode
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]');
+      expect(createAction).not.toBeNull();
+    });
+
+    it("passes empty query in non-search mode create action event", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="one"
+          ></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Alice" }]));
+
+      const eventSpy = vi.fn();
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open dropdown (non-search mode)
+      input.focus();
+      await flush();
+
+      // Click create action
+      const createAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-create-action="true"]')!;
+      createAction.click();
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      expect(eventSpy.mock.calls[0][0].detail.query).toBe("");
+    });
+  });
+
+  describe("chips create action", () => {
+    it("renders create action in dropdown footer when enabled", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-endpoint-create-action-label="Create Tag"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "design", label: "Product Design" },
+          { value: "ai", label: "AI Strategy" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]');
+
+      expect(footerAction).not.toBeNull();
+      expect(footerAction?.textContent).toContain("Create Tag");
+    });
+
+    it("renders create action even when options exist", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "a", label: "Option A" },
+          { value: "b", label: "Option B" },
+          { value: "c", label: "Option C" },
+        ])
+      );
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Verify options are present
+      const options = container.querySelectorAll<HTMLButtonElement>('[role="option"]');
+      expect(options.length).toBe(3);
+
+      // Create action should also be present
+      const footerAction = container.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]');
+      expect(footerAction).not.toBeNull();
+    });
+
+    it("dispatches create-action event with correct payload when clicked", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-endpoint-create-action-id="tags"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Tag 1" }]));
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      const eventSpy = vi.fn();
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      // Open menu and type query
+      toggle.click();
+      await flush();
+      searchInput.value = "New Tag";
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // Click create action
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      const detail = eventSpy.mock.calls[0][0].detail;
+      expect(detail.query).toBe("New Tag");
+      expect(detail.actionId).toBe("tags");
+      expect(detail.mode).toBe("chips");
+      expect(detail.selectBehavior).toBe("append"); // chips defaults to append
+      expect(detail.field.name).toBe("article[tags][]");
+      expect(detail.endpoint.url).toBe("/api/tags");
+      expect(detail.element).toBe(select);
+    });
+
+    it("invokes onCreateAction hook instead of dispatching event when provided", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Tag 1" }]));
+
+      const onCreateAction = vi.fn().mockResolvedValue({ value: "new-1", label: "New Tag" });
+      const eventSpy = vi.fn();
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Click create action
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+      await flush();
+
+      // Hook should be called, event should NOT be dispatched
+      expect(onCreateAction).toHaveBeenCalledTimes(1);
+      expect(eventSpy).not.toHaveBeenCalled();
+
+      // The returned option should be selected
+      expect(Array.from(select.selectedOptions).map(o => o.value)).toContain("new-1");
+    });
+
+    it("applies append behavior for returned options by default", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "existing", label: "Existing Tag" }]));
+
+      const onCreateAction = vi.fn().mockResolvedValue([
+        { value: "new-1", label: "New Tag 1" },
+        { value: "new-2", label: "New Tag 2" },
+      ]);
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // First select an existing option
+      toggle.click();
+      await flush();
+      const existingOption = container.querySelector<HTMLButtonElement>('[data-value="existing"]')!;
+      existingOption.click();
+      await flush();
+      await flush();
+
+      expect(Array.from(select.selectedOptions).map(o => o.value)).toContain("existing");
+
+      // Open menu again and click create action
+      toggle.click();
+      await flush();
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+      await flush();
+
+      // All options should be selected (append behavior)
+      const selectedValues = Array.from(select.selectedOptions).map(o => o.value);
+      expect(selectedValues).toContain("existing");
+      expect(selectedValues).toContain("new-1");
+      expect(selectedValues).toContain("new-2");
+    });
+
+    it("applies replace behavior when configured", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-endpoint-create-action-select="replace"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "existing", label: "Existing Tag" }]));
+
+      const onCreateAction = vi.fn().mockResolvedValue([
+        { value: "new-1", label: "New Tag 1" },
+      ]);
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // First select an existing option
+      toggle.click();
+      await flush();
+      const existingOption = container.querySelector<HTMLButtonElement>('[data-value="existing"]')!;
+      existingOption.click();
+      await flush();
+      await flush();
+
+      expect(Array.from(select.selectedOptions).map(o => o.value)).toContain("existing");
+
+      // Open menu again and click create action
+      toggle.click();
+      await flush();
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+      await flush();
+
+      // Only new options should be selected (replace behavior)
+      const selectedValues = Array.from(select.selectedOptions).map(o => o.value);
+      expect(selectedValues).not.toContain("existing");
+      expect(selectedValues).toContain("new-1");
+    });
+
+    it("closes dropdown and clears query on create action (Model 1)", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Tag 1" }]));
+
+      await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu and type query
+      toggle.click();
+      await flush();
+      searchInput.value = "Test Query";
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      expect(menu.hidden).toBe(false);
+      expect(searchInput.value).toBe("Test Query");
+
+      // Click create action
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+
+      // Menu should be closed
+      expect(menu.hidden).toBe(true);
+      // Query should be cleared
+      expect(searchInput.value).toBe("");
+    });
+
+    it("renders create action in non-search mode (default mode)", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Tag 1" }]));
+
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Create action should be present even in non-search mode
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]');
+      expect(footerAction).not.toBeNull();
+    });
+
+    it("passes empty query in non-search mode create action event", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "1", label: "Tag 1" }]));
+
+      const eventSpy = vi.fn();
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Click create action
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      expect(eventSpy.mock.calls[0][0].detail.query).toBe("");
+    });
+
+    it("triggers create action via Enter on focused footer action button", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Tag 1" },
+          { value: "2", label: "Tag 2" },
+        ])
+      );
+
+      const eventSpy = vi.fn();
+      const registry = await initRelationships({ searchThrottleMs: 0, searchDebounceMs: 0 });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      select.addEventListener("formgen:relationship:create-action", eventSpy);
+
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu
+      toggle.click();
+      await flush();
+
+      // Navigate to footer action (ArrowDown past all options)
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      searchInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flush();
+
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      expect(document.activeElement).toBe(footerAction);
+
+      // Press Enter on footer action
+      footerAction.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("inline create and create action can coexist", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-allow-create="true"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      // Return empty results to trigger inline create
+      fetchSpy.mockResolvedValue(mockResponse([]));
+
+      const createOption = vi.fn().mockResolvedValue({ value: "inline", label: "Inline Tag" });
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        createOption,
+      });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu and type query
+      toggle.click();
+      await flush();
+      searchInput.value = "NewTag";
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // Both inline create and footer create action should be present
+      const inlineCreate = container.querySelector<HTMLButtonElement>('[data-fg-create-option="true"]');
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]');
+
+      expect(inlineCreate).not.toBeNull();
+      expect(footerAction).not.toBeNull();
+      expect(inlineCreate?.textContent).toContain("NewTag"); // Inline create shows query
+      // Footer action has the static label
+    });
+
+    it("adds created options to store.options for consistent filtering", async () => {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select id="tags" name="article[tags][]" multiple
+            data-endpoint-url="/api/tags"
+            data-endpoint-renderer="chips"
+            data-endpoint-mode="search"
+            data-endpoint-create-action="true"
+            data-relationship-cardinality="many"></select>
+        </form>
+      `;
+
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "existing", label: "Existing" }]));
+
+      const onCreateAction = vi.fn().mockResolvedValue({ value: "created", label: "Created Tag" });
+
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        onCreateAction,
+      });
+      const select = document.getElementById("tags") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+
+      const container = select.previousElementSibling as HTMLElement;
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')!;
+      const menu = container.querySelector<HTMLElement>('[data-fg-chip-menu="true"]')!;
+      const searchInput = menu.querySelector<HTMLInputElement>('input[type="text"]')!;
+
+      // Open menu and click create action
+      toggle.click();
+      await flush();
+      const footerAction = menu.querySelector<HTMLButtonElement>('[data-fg-chips-create-action="true"]')!;
+      footerAction.click();
+      await flush();
+      await flush();
+
+      // Open menu again and filter by the created option's label
+      toggle.click();
+      await flush();
+      searchInput.value = "Created";
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      // The created option should now appear in the filter (it's selected, so might be hidden from options)
+      // Check that it exists in the select element
+      const createdOption = Array.from(select.options).find(o => o.value === "created");
+      expect(createdOption).not.toBeUndefined();
+      expect(createdOption?.textContent).toBe("Created Tag");
     });
   });
 });
