@@ -31,6 +31,170 @@ Design rules used throughout the codebase:
 - Internal wiring (renderers, mirror syncing) listens to `formgen:relationship:update` instead of `change`.
 - Option syncing (`syncSelectOptions`) is intentionally side-effect free; renderers emit `kind:"options"` updates explicitly after syncing.
 
+## Creating New Options
+
+The runtime supports two complementary mechanisms for creating new related records:
+
+### Inline Create (for lightweight values like tags)
+
+Some relationship fields (notably tag-like many-to-many selects) need to support user-defined values directly in the dropdown.
+
+- Per-field opt-in: `data-endpoint-allow-create="true"` (parsed into `field.allowCreate`)
+- A global hook: `createOption(context, query)` passed to `initRelationships(...)`
+- Widgets: `chips` / `typeahead` surface an inline "Create …" option when the query doesn't match existing options
+
+Notes:
+- The runtime calls the hook through `ResolverRegistry.create(...)` / `Resolver.create(...)`.
+- The hook must return an `Option` (`{value,label}`) so the widget can select it immediately.
+- The default create request uses `POST` to the field endpoint URL and includes dynamic params; customize the payload/transport in the hook.
+
+### Create Action (for complex creation flows via modal/panel)
+
+For has-one relationships (e.g., Author, Manager) or when creation requires a full form, the runtime provides a dedicated "Create …" action that delegates to a host-defined UI.
+
+**Field Attributes:**
+- `data-endpoint-create-action="true"` – Enables the create action row/footer
+- `data-endpoint-create-action-label="Create Author"` – Custom label (default: `Create {field label}…`, falling back to "Create new…")
+- `data-endpoint-create-action-id="author"` – Identifier for routing to the correct modal/flow
+- `data-endpoint-create-action-select="append|replace"` – Selection behavior for returned options
+  - `replace` (default for typeahead): replaces existing selection
+  - `append` (default for chips): adds to existing selection
+
+**Example HTML:**
+```html
+<select
+  name="author_id"
+  data-relationship-cardinality="one"
+  data-endpoint-renderer="typeahead"
+  data-endpoint-url="/api/authors"
+  data-endpoint-create-action="true"
+  data-endpoint-create-action-label="Create Author"
+  data-endpoint-create-action-id="author"
+>
+</select>
+```
+
+**Hook Integration:**
+
+Provide an `onCreateAction` hook to handle the action programmatically:
+
+```typescript
+import { initRelationships, type Option } from '@goliatone/formgen-runtime';
+
+await initRelationships({
+  onCreateAction: async (context, detail) => {
+    // detail.query - current search query (may be empty)
+    // detail.actionId - from data-endpoint-create-action-id
+    // detail.mode - "typeahead" or "chips"
+    // detail.selectBehavior - "append" or "replace"
+
+    // Open your modal, wait for user to create record
+    const created = await openAuthorModal({ prefill: detail.query });
+
+    if (created) {
+      // Return the created option(s) to apply selection
+      return { value: created.id, label: created.name };
+      // For chips, you can return multiple: [option1, option2]
+    }
+    // Return void if you'll handle selection manually
+  },
+});
+```
+
+**DOM Event Contract:**
+
+When `onCreateAction` is not provided, the runtime dispatches a `formgen:relationship:create-action` event:
+
+```typescript
+document.addEventListener('formgen:relationship:create-action', async (event) => {
+  const detail = event.detail;
+  // detail.element - the <select> element
+  // detail.field - FieldConfig from DOM attributes
+  // detail.endpoint - EndpointConfig
+  // detail.query - current search query
+  // detail.actionId - routing identifier
+  // detail.mode - "typeahead" or "chips"
+  // detail.selectBehavior - "append" or "replace"
+
+  const created = await openCreateModal(detail);
+  if (created) {
+    // Option A: Inject option and select it
+    const option = document.createElement('option');
+    option.value = created.id;
+    option.textContent = created.name;
+    option.selected = true;
+    detail.element.appendChild(option);
+    detail.element.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Option B: Refresh options via registry
+    // const registry = window.formgenRelationships;
+    // await registry.resolve(detail.element);
+  }
+});
+```
+
+**Keyboard Accessibility:**
+- The create action uses the hybrid focus model: options are highlighted via `aria-activedescendant`, the action has `role="button"`
+- ArrowDown from the last option moves focus to the create action
+- Enter on the create action triggers it
+- Escape closes the dropdown without triggering the action
+
+**Notes:**
+- Create action renders in both `search` and `default` modes (not gated to search)
+- Create action and inline create may both be enabled without conflict
+- The hook takes precedence over the DOM event when provided
+
+### Migration Guide: Inline Create vs Create Action
+
+The runtime supports two complementary approaches to creating new related records. Choose the right one based on your use case:
+
+| Feature | Inline Create (`allowCreate`) | Create Action (`createAction`) |
+|---------|------------------------------|-------------------------------|
+| **Use case** | Lightweight values (tags, labels) | Complex records (authors, managers) |
+| **UI** | Inline option in dropdown when query doesn't match | Dedicated button always visible |
+| **Trigger** | User types non-matching query | User clicks "Create …" button |
+| **Creation flow** | Immediate via `createOption` hook | Delegated to host UI (modal/panel) |
+| **Attribute** | `data-endpoint-allow-create="true"` | `data-endpoint-create-action="true"` |
+| **Hook** | `createOption(context, query)` | `onCreateAction(context, detail)` |
+| **Event** | None (hook required) | `formgen:relationship:create-action` |
+| **Return value** | `Option` (required) | `Option \| Option[] \| void` |
+| **Search mode** | Required (`mode="search"`) | Optional (works in both modes) |
+
+**Coexistence:**
+Both features can be enabled on the same field without conflict:
+- Inline create appears at the top of the options list (query-conditional)
+- Create action appears in the footer/bottom (always visible)
+
+```html
+<select
+  name="tags"
+  data-endpoint-allow-create="true"
+  data-endpoint-create-action="true"
+  data-endpoint-create-action-label="Create Tag Category"
+  ...
+>
+</select>
+```
+
+**Hook Precedence:**
+- `onCreateAction` hook takes precedence over the DOM event
+- If the hook is provided, `formgen:relationship:create-action` is NOT dispatched
+- If the hook is not provided, the event is dispatched for host handling
+- This mirrors the precedence pattern used by `createOption`
+
+**Upgrading from Inline Create to Create Action:**
+If you need more control over the creation flow (e.g., multi-field forms, validation, permissions):
+
+1. Keep `allowCreate` for quick inline creation (if still needed)
+2. Add `createAction` attributes:
+   ```html
+   data-endpoint-create-action="true"
+   data-endpoint-create-action-label="Create Author"
+   data-endpoint-create-action-id="author"
+   ```
+3. Either provide `onCreateAction` hook or listen for the DOM event
+4. After creation, return the option(s) or manually inject and select
+
 ## Directory Structure
 
 ```
@@ -282,6 +446,103 @@ function PublisherSelect({ field }) {
 }
 ```
 
+### Rich Options (Icons, Avatars, Descriptions)
+
+Menu options and chips can display icons, avatars, and descriptions for richer UI. Supply these fields alongside `value` and `label` in your API response or via the `transformOptions` hook:
+
+```typescript
+transformOptions: (ctx, options) => options.map(opt => ({
+  value: opt.id,
+  label: opt.name,
+  icon: opt.iconName,        // Icon key for registry lookup
+  avatar: opt.avatarUrl,     // URL to avatar image
+  description: opt.subtitle, // Subtitle text below label
+})),
+```
+
+**Icon Registry**: Icons are rendered via a safe registry lookup (not raw HTML) to prevent XSS. Register icons before initializing:
+
+```typescript
+import { registerIcon } from '@goliatone/formgen-runtime';
+
+registerIcon('user', '<svg>...</svg>');
+registerIcon('tag', '<svg>...</svg>');
+
+await initRelationships();
+```
+
+**Chips with avatars**: When an option has an `avatar` URL, selected chips display a thumbnail next to the label.
+
+### Chips Theme Customization
+
+The chips renderer exposes extensive theme classes for styling. Override defaults via `setChipsTheme()`:
+
+```typescript
+import { setChipsTheme } from '@goliatone/formgen-runtime';
+
+setChipsTheme({
+  // Container & chips
+  wrapper: ['flex', 'flex-wrap', 'gap-2'],
+  chip: ['inline-flex', 'items-center', 'bg-blue-100', 'rounded-full', 'px-3', 'py-1'],
+  chipAvatar: ['w-5', 'h-5', 'rounded-full', 'mr-1'],
+  chipRemove: ['ml-1', 'text-gray-500', 'hover:text-gray-700'],
+
+  // Menu structure
+  menu: ['absolute', 'z-50', 'bg-white', 'shadow-lg', 'rounded'],
+  menuSearch: ['sticky', 'top-0', 'p-2', 'bg-white'],
+  menuSearchInput: ['w-full', 'border', 'rounded', 'px-2', 'py-1'],
+  menuList: ['max-h-60', 'overflow-y-auto'],
+  menuDivider: ['border-t', 'my-1'],
+  menuFooter: ['sticky', 'bottom-0', 'p-2', 'bg-gray-50'],
+  menuFooterAction: ['text-blue-600', 'hover:underline'],
+  menuFooterActionFocused: ['ring-2', 'ring-blue-500'],
+
+  // Menu items with rich content
+  menuItem: ['px-3', 'py-2', 'cursor-pointer'],
+  menuItemHighlighted: ['bg-blue-50'],
+  menuItemIcon: ['w-5', 'h-5', 'mr-2', 'text-gray-500'],
+  menuItemAvatar: ['w-6', 'h-6', 'rounded-full', 'mr-2'],
+  menuItemText: ['flex', 'flex-col'],
+  menuItemTitle: ['font-medium'],
+  menuItemDescription: ['text-sm', 'text-gray-500'],
+});
+```
+
+### Optional Enhancements
+
+#### Floating UI Positioning
+
+For viewport-aware dropdown positioning that handles edge cases (near screen edges, inside modals), enable Floating UI integration:
+
+```html
+<select
+  name="tags"
+  data-relationship-cardinality="many"
+  data-endpoint-renderer="chips"
+  data-endpoint-use-floating-ui="true"
+  ...
+></select>
+```
+
+The runtime dynamically imports `@floating-ui/dom` only when this attribute is present, keeping the default bundle size unchanged.
+
+#### Dynamic Input Width (Tags Mode)
+
+In search mode, the input can automatically resize to fit its content:
+
+```html
+<select
+  name="tags"
+  data-relationship-cardinality="many"
+  data-endpoint-renderer="chips"
+  data-endpoint-mode="search"
+  data-endpoint-dynamic-input="true"
+  ...
+></select>
+```
+
+This creates a hidden measurer element to calculate optimal input width as the user types.
+
 ### Typeahead Renderer
 
 Single-cardinality relationships automatically upgrade to the typeahead renderer when the schema exposes endpoint metadata. The runtime looks for the same `data-endpoint-*` attributes used by the chips renderer.
@@ -479,6 +740,7 @@ See parent repository docs:
 - [JS_TDD.md](../JS_TDD.md) - Technical design document
 - [JS_TSK.md](../JS_TSK.md) - Implementation tasks
 - [REL_TDD.md](../REL_TDD.md) - Relationship feature overview
+- [HAS_TDD.md](../HAS_TDD.md) - Create action feature for relationship fields
 - [go-form-gen.md](../go-form-gen.md) - Main formgen documentation
 
 ## License
