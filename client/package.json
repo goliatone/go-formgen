@@ -62,6 +62,7 @@
     "vitest": "^0.34.0"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/core": "^2.27.1",
     "@tiptap/extension-link": "^2.27.1",
