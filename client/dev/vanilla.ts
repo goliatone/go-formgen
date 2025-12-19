@@ -6,7 +6,9 @@ import {
   autoInitWysiwyg,
   getThemeClasses,
   registerErrorRenderer,
+  RELATIONSHIP_CREATE_ACTION_EVENT,
   type ResolverRegistry,
+  type RelationshipCreateActionDetail,
 } from "../src/index";
 import { initBehaviors } from "../src/behaviors";
 import { installMockApi } from "./mock-api";
@@ -389,6 +391,34 @@ function renderVanillaMarkup(container: HTMLElement): HTMLElement {
   layout.appendChild(template.content.cloneNode(true));
 
   container.replaceChildren(layout);
+
+  // Sandbox-only: make tags creatable so the dev environment exercises the
+  // `data-endpoint-allow-create` + `createOption` integration.
+  const tags = container.querySelector<HTMLSelectElement>("#fg-tags");
+  if (tags) {
+    tags.dataset.endpointAllowCreate = "true";
+  }
+
+  // Sandbox-only: enable create-action on author field to demonstrate the
+  // `data-endpoint-create-action` + `onCreateAction` / event integration.
+  // This shows how typeahead fields can delegate creation to a modal/panel.
+  const author = container.querySelector<HTMLSelectElement>("#fg-author_id");
+  if (author) {
+    author.dataset.endpointCreateAction = "true";
+    author.dataset.endpointCreateActionLabel = "Create Author";
+    author.dataset.endpointCreateActionId = "author";
+  }
+
+  // Sandbox-only: enable create-action on related articles (chips) to show
+  // multi-select create action with append behavior.
+  const relatedArticles = container.querySelector<HTMLSelectElement>("#fg-related_article_ids");
+  if (relatedArticles) {
+    relatedArticles.dataset.endpointCreateAction = "true";
+    relatedArticles.dataset.endpointCreateActionLabel = "Create Article";
+    relatedArticles.dataset.endpointCreateActionId = "article";
+    relatedArticles.dataset.endpointCreateActionSelect = "append";
+  }
+
   return toolbar;
 }
 
@@ -408,6 +438,87 @@ function setupViewSelector(): void {
   });
 }
 
+/**
+ * Demonstrates the create-action event flow for relationship fields.
+ *
+ * This listener handles `formgen:relationship:create-action` events dispatched
+ * when the user clicks "Create ..." in a typeahead/chips dropdown (and no
+ * `onCreateAction` hook is provided in `initRelationships`).
+ *
+ * In a real application, you would:
+ * 1. Open a modal/panel based on `detail.actionId`
+ * 2. Prefill the create form with `detail.query` if applicable
+ * 3. After creation, inject the new option and select it
+ *
+ * This sandbox demo uses `window.prompt` to simulate the modal flow.
+ */
+function setupCreateActionListener(): void {
+  document.addEventListener(RELATIONSHIP_CREATE_ACTION_EVENT, async (event) => {
+    const detail = (event as CustomEvent<RelationshipCreateActionDetail>).detail;
+    const { element, actionId, query, mode, selectBehavior } = detail;
+
+    console.log("[sandbox] create-action triggered:", {
+      actionId,
+      query,
+      mode,
+      selectBehavior,
+      fieldName: detail.field.name,
+    });
+
+    // Simulate a modal dialog using window.prompt
+    // In production, you'd open a proper modal component here
+    const defaultLabel =
+      query.trim() ||
+      (actionId === "author" ? "New Author" : actionId === "article" ? "New Article" : "New Item");
+
+    const label = window.prompt(
+      `[Sandbox Demo] Create ${actionId ?? "item"}:\n\nEnter a label for the new record (prefilled from query).`,
+      defaultLabel
+    );
+
+    if (!label || label.trim() === "") {
+      console.log("[sandbox] create-action cancelled by user");
+      return;
+    }
+
+    // Generate a fake ID for the created record
+    const newId = `created-${Date.now()}`;
+    const newLabel = label.trim();
+
+    console.log("[sandbox] simulating record creation:", { value: newId, label: newLabel });
+
+    // Inject the new option into the select element
+    if (element instanceof HTMLSelectElement) {
+      const optionExists = Array.from(element.options).some((opt) => opt.value === newId);
+      if (!optionExists) {
+        const option = document.createElement("option");
+        option.value = newId;
+        option.textContent = newLabel;
+        element.appendChild(option);
+      }
+
+      // Apply selection based on selectBehavior
+      if (selectBehavior === "replace") {
+        // Clear existing selection, then select new option
+        Array.from(element.options).forEach((opt) => {
+          opt.selected = opt.value === newId;
+        });
+      } else {
+        // Append: just select the new option (keep existing selections for multi-select)
+        const newOption = Array.from(element.options).find((opt) => opt.value === newId);
+        if (newOption) {
+          newOption.selected = true;
+        }
+      }
+
+      // Dispatch change event to notify the runtime
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+
+      console.log("[sandbox] create-action completed:", { value: newId, label: newLabel });
+    }
+  });
+}
+
 async function bootstrap(): Promise<void> {
   const host = document.getElementById("app");
   if (!host) {
@@ -417,6 +528,7 @@ async function bootstrap(): Promise<void> {
   setupViewSelector();
   installMockApi();
   registerDemoErrorRenderer();
+  setupCreateActionListener(); // Wire up create-action event handler
 
   const toolbar = renderVanillaMarkup(host);
   const form = host.querySelector("form");
@@ -424,6 +536,31 @@ async function bootstrap(): Promise<void> {
   const registry = await initRelationships({
     searchThrottleMs: 150,
     searchDebounceMs: 150,
+    createOption: async (context, query) => {
+      // Demo: POST /api/tags with the same dynamic params used for fetching options.
+      // The mock API returns `{value,label}`.
+      const response = await fetch(context.request.url, {
+        ...context.request.init,
+        method: "POST",
+        body: JSON.stringify({ label: query }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to create tag (${response.status})`);
+      }
+      const payload = (await response.json()) as { value: string; label: string };
+      return { value: payload.value, label: payload.label };
+    },
+    // Note: We intentionally do NOT provide onCreateAction here so that the
+    // DOM event is dispatched and handled by setupCreateActionListener() above.
+    // If you want to handle create-action via hook instead of events, you can
+    // provide onCreateAction here:
+    //
+    // onCreateAction: async (context, detail) => {
+    //   const label = await openCreateModal(detail.actionId, detail.query);
+    //   if (label) {
+    //     return { value: `hook-${Date.now()}`, label };
+    //   }
+    // },
   });
   wireToolbarActions(toolbar, registry, form);
   initBehaviors();

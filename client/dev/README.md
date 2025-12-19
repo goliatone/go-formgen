@@ -101,12 +101,30 @@ The sandbox demonstrates:
 
 - **Chips Renderer**: Multi-select with search
 - **Typeahead Renderer**: Single-select with autocomplete
+- **Inline Create (Tags)**: Tags chips field supports inline "Create …" via `allowCreate` + mock API
+- **Create Action (Author/Articles)**: Author typeahead and Related Articles chips demonstrate `createAction` for modal-based creation flows
 - **Relationship Fields**: Dynamic options loading with dependent refresh
 - **Shared UI Schema**: `dev/ui-schema.json` keeps layout metadata in sync across vanilla + Preact views
 - **Mock API**: In-memory fetch interceptor that honours pagination, tenant scopes, and dynamic params
 - **Live Form Generation**: Preact view renders directly from `dev/schema.json` + UI schema
 - **Production CSS Preview**: Loads exact CSS that ships with Go package
 - **Toolbar Toggles**: Buttons to load a sample record or inject server errors via the `hydrateFormValues` helper, mirroring edit-mode flows
+
+### Create Action Demo
+
+The sandbox exercises both creation mechanisms:
+
+1. **Inline Create (`allowCreate`)** — Tags field shows an inline "Create …" option when the search query doesn't match existing options. Uses `createOption` hook to POST to mock API.
+
+2. **Create Action (`createAction`)** — Author (typeahead) and Related Articles (chips) show a dedicated "Create …" button that triggers the `formgen:relationship:create-action` event. The sandbox listens for this event and simulates a modal via `window.prompt`.
+
+To test create-action:
+1. Click on the Author field and type a query
+2. Click "Create Author" in the dropdown
+3. A prompt appears (simulating a modal) to enter the new author's name
+4. After confirming, the new option is injected and selected
+
+The same flow works for Related Articles (multi-select chips) with "append" behavior.
 
 ## CSS Development - Exact Production Preview
 

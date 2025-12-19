@@ -195,6 +195,50 @@ export function installMockApi(): void {
     }
 
     if (url.pathname.includes("/api/tags")) {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "POST") {
+        const tenantId = url.searchParams.get("tenant_id") ?? "garden";
+        const categoryId = url.searchParams.get("category_id") ?? undefined;
+        const rawBody = typeof init?.body === "string" ? init.body : "";
+        let payload: any = null;
+        try {
+          payload = rawBody ? JSON.parse(rawBody) : {};
+        } catch (_err) {
+          payload = {};
+        }
+
+        const label = String(payload?.label ?? payload?.name ?? payload?.query ?? "").trim();
+        if (!label) {
+          return new Response(JSON.stringify({ error: "label is required" }), {
+            status: 400,
+            headers: RESPONSE_HEADERS,
+          });
+        }
+
+        const base = label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+
+        let value = base || `tag-${Date.now()}`;
+        let suffix = 1;
+        while (mockData.tags.some((tag) => tag.value === value)) {
+          suffix += 1;
+          value = `${base || "tag"}-${suffix}`;
+        }
+
+        const record: TagRecord = { value, label, tenantId };
+        if (categoryId) {
+          record.categoryId = categoryId;
+        }
+        mockData.tags.unshift(record);
+
+        return new Response(JSON.stringify({ value, label }), {
+          status: 201,
+          headers: RESPONSE_HEADERS,
+        });
+      }
+
       const tenantId = url.searchParams.get("tenant_id");
       const categoryId = url.searchParams.get("category_id");
       const records = mockData.tags
