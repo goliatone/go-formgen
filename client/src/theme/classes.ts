@@ -11,18 +11,41 @@ export interface ChipsClassMap {
   chipsContent: ClassToken[];
   icon: ClassToken[];
   placeholder: ClassToken[];
+  /** @deprecated Search input is now inside the menu. Kept for backwards compatibility. */
   search: ClassToken[];
+  /** @deprecated Search input is now inside the menu. Kept for backwards compatibility. */
   searchInput: ClassToken[];
   searchHighlight: ClassToken[];
   chip: ClassToken[];
   chipLabel: ClassToken[];
   chipRemove: ClassToken[];
+  /** Avatar image inside a chip. */
+  chipAvatar: ClassToken[];
   actions: ClassToken[];
   action: ClassToken[];
   actionClear: ClassToken[];
   actionToggle: ClassToken[];
   menu: ClassToken[];
+  menuSearch: ClassToken[];
+  menuSearchInput: ClassToken[];
+  /** Divider line between menu sections (e.g., between options list and footer). */
+  menuDivider: ClassToken[];
+  menuList: ClassToken[];
+  menuFooter: ClassToken[];
+  menuFooterAction: ClassToken[];
+  menuFooterActionFocused: ClassToken[];
   menuItem: ClassToken[];
+  menuItemHighlighted: ClassToken[];
+  /** Wrapper for icon or avatar in a menu item. */
+  menuItemIcon: ClassToken[];
+  /** Avatar image inside a menu item icon wrapper. */
+  menuItemAvatar: ClassToken[];
+  /** Container for title and description text in a menu item. */
+  menuItemText: ClassToken[];
+  /** Title/label span in a rich menu item. */
+  menuItemTitle: ClassToken[];
+  /** Description/subtitle span in a rich menu item. */
+  menuItemDescription: ClassToken[];
   menuEmpty: ClassToken[];
   nativeSelect: ClassToken[];
 }
@@ -37,6 +60,7 @@ export interface TypeaheadClassMap {
   inputWithIcon: ClassToken[];
   clear: ClassToken[];
   dropdown: ClassToken[];
+  dropdownList: ClassToken[];
   option: ClassToken[];
   optionActive: ClassToken[];
   highlight: ClassToken[];
@@ -44,6 +68,8 @@ export interface TypeaheadClassMap {
   icon: ClassToken[];
   iconSvg: ClassToken[];
   nativeSelect: ClassToken[];
+  createAction: ClassToken[];
+  createActionFocused: ClassToken[];
 }
 
 export interface SwitchClassMap {
@@ -126,6 +152,7 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "dark:text-slate-500",
     ],
     placeholder: ["text-slate-500"],
+    // Deprecated: search input is now inside the menu header
     search: ["flex", "items-center", "gap-2", "grow"],
     searchInput: [
       "w-full",
@@ -173,6 +200,12 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "focus-visible:ring-blue-500",
       "focus-visible:ring-offset-2",
     ],
+    chipAvatar: [
+      "size-5",
+      "rounded-full",
+      "object-cover",
+      "mr-1.5",
+    ],
     actions: ["flex", "items-center", "gap-1", "ml-auto"],
     action: [
       "inline-flex",
@@ -196,22 +229,77 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     actionToggle: ["text-base", "text-slate-500"],
     menu: [
       "absolute",
+      "top-full",
       "left-0",
       "right-0",
       "z-20",
-      "mt-2",
+      "mt-1",
       "flex",
       "flex-col",
-      "space-y-0.5",
       "rounded-lg",
       "border",
       "border-gray-200",
       "bg-white",
-      "p-1",
       "shadow-xl",
-      "max-h-72",
       "overflow-hidden",
+    ],
+    menuSearch: [
+      "p-2",
+      "border-b",
+      "border-gray-200",
+      "dark:border-gray-700",
+    ],
+    menuSearchInput: [
+      "w-full",
+      "px-3",
+      "py-2",
+      "text-sm",
+      "border",
+      "border-gray-300",
+      "rounded-md",
+      "focus:outline-none",
+      "focus:ring-2",
+      "focus:ring-blue-500",
+      "dark:bg-slate-800",
+      "dark:border-gray-600",
+    ],
+    menuDivider: [
+      "border-t",
+      "border-gray-200",
+      "dark:border-gray-700",
+      "my-1",
+    ],
+    menuList: [
+      "max-h-72",
       "overflow-y-auto",
+      "space-y-0.5",
+      "p-1",
+    ],
+    menuFooter: [
+      "border-t",
+      "border-gray-200",
+      "dark:border-gray-700",
+      "p-2",
+    ],
+    menuFooterAction: [
+      "flex",
+      "items-center",
+      "gap-2",
+      "w-full",
+      "px-3",
+      "py-2",
+      "text-sm",
+      "text-blue-600",
+      "rounded-md",
+      "hover:bg-blue-50",
+      "focus:outline-none",
+      "focus:bg-blue-50",
+    ],
+    menuFooterActionFocused: [
+      "bg-blue-50",
+      "ring-2",
+      "ring-blue-500",
+      "ring-inset",
     ],
     menuItem: [
       "flex",
@@ -230,6 +318,43 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "hover:bg-gray-100",
       "focus:outline-none",
       "focus:bg-gray-100",
+    ],
+    menuItemHighlighted: [
+      "bg-blue-50",
+      "dark:bg-slate-700",
+    ],
+    menuItemIcon: [
+      "shrink-0",
+      "size-8",
+      "rounded-full",
+      "overflow-hidden",
+      "mr-3",
+      "flex",
+      "items-center",
+      "justify-center",
+    ],
+    menuItemAvatar: [
+      "w-full",
+      "h-full",
+      "object-cover",
+    ],
+    menuItemText: [
+      "flex",
+      "flex-col",
+      "flex-1",
+      "min-w-0",
+    ],
+    menuItemTitle: [
+      "font-medium",
+      "text-gray-900",
+      "dark:text-white",
+      "truncate",
+    ],
+    menuItemDescription: [
+      "text-sm",
+      "text-gray-500",
+      "dark:text-gray-400",
+      "truncate",
     ],
     menuEmpty: ["px-3", "py-2", "text-sm", "text-slate-500"],
     nativeSelect: ["hidden"],
@@ -292,17 +417,22 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "right-0",
       "z-20",
       "mt-2",
-      "flex",
-      "flex-col",
-      "space-y-0.5",
       "rounded-lg",
       "border",
       "border-gray-200",
       "bg-white",
       "p-1",
       "shadow-xl",
-      "max-h-72",
       "overflow-hidden",
+      "flex",
+      "flex-col",
+    ],
+    dropdownList: [
+      "flex",
+      "flex-col",
+      "space-y-0.5",
+      "min-h-0",
+      "max-h-72",
       "overflow-y-auto",
     ],
     option: [
@@ -340,6 +470,32 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     ],
     iconSvg: ["size-5", "text-current"],
     nativeSelect: ["hidden"],
+    createAction: [
+      "flex",
+      "items-center",
+      "gap-2",
+      "w-full",
+      "px-4",
+      "py-2",
+      "text-sm",
+      "text-blue-600",
+      "font-medium",
+      "rounded-lg",
+      "cursor-pointer",
+      "transition",
+      "border-t",
+      "border-gray-100",
+      "mt-1",
+      "hover:bg-blue-50",
+      "focus:outline-none",
+      "focus:bg-blue-50",
+    ],
+    createActionFocused: [
+      "bg-blue-50",
+      "ring-2",
+      "ring-blue-500",
+      "ring-inset",
+    ],
   },
   switch: {
     container: [

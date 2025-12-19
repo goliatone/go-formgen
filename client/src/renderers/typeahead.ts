@@ -1,8 +1,11 @@
-import type { Option, RendererContext } from "../config";
+import type { Option, RendererContext, FieldConfig, EndpointConfig, CreateActionDetail } from "../config";
+import { readDataset } from "../dom";
+import { datasetToEndpoint, datasetToFieldConfig } from "../relationship-config";
 import type { ResolverRegistry } from "../registry";
 import {
   RELATIONSHIP_UPDATE_EVENT,
   emitRelationshipUpdate,
+  emitRelationshipCreateAction,
   type RelationshipUpdateDetail,
 } from "../relationship-events";
 import {
@@ -30,10 +33,14 @@ interface TypeaheadStore {
   input: HTMLInputElement;
   clear: HTMLButtonElement;
   dropdown: HTMLElement;
+  dropdownList: HTMLElement;
   options: Option[];
   filtered: Option[];
   placeholder: string;
   searchPlaceholder: string;
+  allowCreate: boolean;
+  createLabel: (query: string) => string;
+  createOption?: (query: string) => Promise<Option | undefined>;
   label?: string;
   highlightedIndex: number;
   isOpen: boolean;
@@ -46,6 +53,17 @@ interface TypeaheadStore {
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
   updateHandler?: (event: Event) => void;
+  // Create action state
+  createActionEnabled: boolean;
+  createActionLabel: string;
+  createActionId?: string;
+  createActionSelect: "append" | "replace";
+  createActionFocused: boolean;
+  createActionElement: HTMLElement | null;
+  // References for hook invocation
+  field: FieldConfig;
+  endpoint: EndpointConfig;
+  registry: ResolverRegistry;
 }
 
 const TYPEAHEAD_ROOT_ATTR = "data-fg-typeahead-root";
@@ -53,14 +71,17 @@ const TYPEAHEAD_OPTION_ATTR = "data-fg-typeahead-option";
 const stores = new WeakMap<HTMLSelectElement, TypeaheadStore>();
 
 export function registerTypeaheadRenderer(registry: ResolverRegistry): void {
-  registry.registerRenderer("typeahead", typeaheadRenderer);
+  registry.registerRenderer("typeahead", (context) =>
+    typeaheadRenderer(context, registry)
+  );
 }
 
-export function bootstrapTypeahead(select: HTMLSelectElement): void {
+export function bootstrapTypeahead(select: HTMLSelectElement, registry: ResolverRegistry): void {
   if (select.multiple) {
     return;
   }
   const store = ensureStore(select);
+  ensureCreateIntegration(store, registry);
   const selected = syncSelectOptions({
     select: store.select,
     options: store.options,
@@ -76,13 +97,14 @@ export function bootstrapTypeahead(select: HTMLSelectElement): void {
   renderOptions(store);
 }
 
-const typeaheadRenderer = (context: RendererContext): void => {
+const typeaheadRenderer = (context: RendererContext, registry: ResolverRegistry): void => {
   const { element, options } = context;
   if (!(element instanceof HTMLSelectElement) || element.multiple) {
     return;
   }
 
   const store = ensureStore(element);
+  ensureCreateIntegration(store, registry, context);
   store.options = options;
 
   const selectedValues = syncSelectOptions({
@@ -136,11 +158,13 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
 
   const dropdown = document.createElement("div");
   setElementClasses(dropdown, theme.dropdown);
-  dropdown.setAttribute("role", "listbox");
   dropdown.hidden = true;
 
   const dropdownId = select.id ? `${select.id}__typeahead` : `fg-typeahead-${Math.random().toString(36).slice(2)}`;
-  dropdown.id = dropdownId;
+  const dropdownList = document.createElement("div");
+  setElementClasses(dropdownList, theme.dropdownList);
+  dropdownList.setAttribute("role", "listbox");
+  dropdownList.id = dropdownId;
   control.setAttribute("aria-controls", dropdownId);
   input.setAttribute("aria-controls", dropdownId);
 
@@ -149,6 +173,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   arrow.className = "absolute top-1/2 end-3 -translate-y-1/2 pointer-events-none";
   arrow.innerHTML = '<svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
 
+  dropdown.appendChild(dropdownList);
   container.append(control, arrow, dropdown);
 
   select.insertAdjacentElement("beforebegin", container);
@@ -173,6 +198,10 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
 
   const iconConfig = readIconConfig(select);
 
+  // Derive create action label from field label
+  const createActionLabelFromAttr = select.dataset.endpointCreateActionLabel;
+  const defaultCreateActionLabel = label ? `Create ${label}…` : "Create new…";
+
   const store: TypeaheadStore = {
     select,
     container,
@@ -180,10 +209,14 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     input,
     clear,
     dropdown,
+    dropdownList,
     options: [],
     filtered: [],
     placeholder,
     searchPlaceholder,
+    allowCreate: select.dataset.endpointAllowCreate === "true",
+    createLabel: (query) => `Create "${query}"`,
+    createOption: undefined,
     label,
     highlightedIndex: -1,
     isOpen: false,
@@ -193,6 +226,17 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     theme,
     icon: iconConfig,
     iconElement: null,
+    // Create action state
+    createActionEnabled: select.dataset.endpointCreateAction === "true",
+    createActionLabel: createActionLabelFromAttr || defaultCreateActionLabel,
+    createActionId: select.dataset.endpointCreateActionId,
+    createActionSelect: (select.dataset.endpointCreateActionSelect === "append" ? "append" : "replace"),
+    createActionFocused: false,
+    createActionElement: null,
+    // References (will be set in ensureCreateIntegration)
+    field: {} as FieldConfig,
+    endpoint: {} as EndpointConfig,
+    registry: null as unknown as ResolverRegistry,
   };
 
   input.placeholder = store.searchMode ? store.searchPlaceholder : store.placeholder;
@@ -288,6 +332,7 @@ function handleInput(store: TypeaheadStore): void {
   const { input, select } = store;
   const trimmed = input.value.trim();
   store.highlightedIndex = -1;
+  store.createActionFocused = false;
   store.searchQuery = trimmed;
   select.setAttribute("data-endpoint-search-value", trimmed);
   emitRelationshipUpdate(select, { kind: "search", origin: "ui", query: trimmed });
@@ -334,6 +379,33 @@ function handleKeydown(store: TypeaheadStore, event: KeyboardEvent): void {
 
   event.preventDefault();
 
+  if (event.key === "Enter") {
+    if (store.highlightedIndex >= 0) {
+      const option = filtered[store.highlightedIndex];
+      if (option) {
+        selectOption(store, option);
+      }
+      return;
+    }
+
+    if (filtered.length === 1) {
+      selectOption(store, filtered[0]);
+      return;
+    }
+
+    const query = store.searchQuery.trim();
+    const createOption = store.createOption;
+    if (
+      store.searchMode &&
+      store.allowCreate &&
+      createOption &&
+      shouldOfferCreate(store, query)
+    ) {
+      createAndSelect(store, query).catch(() => undefined);
+    }
+    return;
+  }
+
   if (event.key === "ArrowDown") {
     if (!store.isOpen) {
       openDropdown(store);
@@ -349,31 +421,165 @@ function handleKeydown(store: TypeaheadStore, event: KeyboardEvent): void {
     return;
   }
 
-  if (event.key === "Enter") {
-    if (store.highlightedIndex >= 0) {
-      const option = filtered[store.highlightedIndex];
-      if (option) {
-        selectOption(store, option);
-      }
-    } else if (filtered.length === 1) {
-      selectOption(store, filtered[0]);
+}
+
+function ensureCreateIntegration(
+  store: TypeaheadStore,
+  registry: ResolverRegistry,
+  context?: RendererContext
+): void {
+  const allowCreate =
+    context?.field.allowCreate ?? store.select.dataset.endpointAllowCreate === "true";
+  store.allowCreate = allowCreate;
+  store.createOption = async (query: string) => {
+    return registry.create(store.select, query);
+  };
+
+  const dataset = readDataset(store.select);
+  const fallbackField = datasetToFieldConfig(store.select, dataset);
+  const fallbackEndpoint = datasetToEndpoint(dataset);
+
+  // Store registry and context references for create action
+  store.registry = registry;
+  store.field = context?.field ?? fallbackField;
+  store.endpoint = fallbackEndpoint;
+
+  if (context) {
+    // Update create action config from context if available
+    if (context.field.createAction !== undefined) {
+      store.createActionEnabled = context.field.createAction;
+    }
+    if (context.field.createActionLabel) {
+      store.createActionLabel = context.field.createActionLabel;
+    }
+    if (context.field.createActionId) {
+      store.createActionId = context.field.createActionId;
+    }
+    if (context.field.createActionSelect) {
+      store.createActionSelect = context.field.createActionSelect;
     }
   }
 }
 
-function moveHighlight(store: TypeaheadStore, delta: number): void {
-  const { filtered } = store;
-  if (filtered.length === 0) {
-    store.highlightedIndex = -1;
+function shouldOfferCreate(store: TypeaheadStore, query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (!store.allowCreate || !store.createOption) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  if (
+    store.options.some((option) => option.value.toLowerCase() === lower)
+  ) {
+    return false;
+  }
+  if (
+    store.options.some((option) => (option.label ?? option.value).toLowerCase() === lower)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function createAndSelect(store: TypeaheadStore, query: string): Promise<void> {
+  const create = store.createOption;
+  if (!create) {
     return;
   }
-  const next =
-    store.highlightedIndex === -1
-      ? delta > 0
-        ? 0
-        : filtered.length - 1
-      : (store.highlightedIndex + delta + filtered.length) % filtered.length;
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  const dropdown = store.dropdown;
+  const createButton = dropdown.querySelector<HTMLButtonElement>("[data-fg-create-option='true']");
+  if (createButton) {
+    createButton.disabled = true;
+    createButton.textContent = "Creating…";
+  }
+
+  const option = await create(trimmed);
+  if (!option) {
+    return;
+  }
+
+  const existing = Array.from(store.select.options).find(
+    (node) => node.value === option.value
+  );
+  if (!existing) {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label ?? option.value;
+    store.select.appendChild(node);
+  }
+
+  if (!store.options.some((item) => item.value === option.value)) {
+    store.options = [...store.options, option];
+  }
+
+  selectOption(store, option);
+}
+
+function moveHighlight(store: TypeaheadStore, delta: number): void {
+  const { filtered, createActionEnabled, createActionElement } = store;
+  const hasCreateAction = createActionEnabled && createActionElement;
+
+  // If currently focused on create action
+  if (store.createActionFocused) {
+    if (delta < 0) {
+      // ArrowUp from create action: go to last option or stay if no options
+      store.createActionFocused = false;
+      if (filtered.length > 0) {
+        store.highlightedIndex = filtered.length - 1;
+      }
+      store.input.focus();
+      updateHighlightedOption(store);
+    }
+    // ArrowDown from create action: stay on create action (it's the last item)
+    return;
+  }
+
+  // No options case
+  if (filtered.length === 0) {
+    if (hasCreateAction && delta > 0) {
+      // Move to create action
+      store.highlightedIndex = -1;
+      store.createActionFocused = true;
+      createActionElement.focus();
+      updateHighlightedOption(store);
+    }
+    return;
+  }
+
+  // Calculate next index
+  let next: number;
+  if (store.highlightedIndex === -1) {
+    next = delta > 0 ? 0 : filtered.length - 1;
+  } else {
+    next = store.highlightedIndex + delta;
+  }
+
+  // Handle boundaries with create action
+  if (next >= filtered.length && hasCreateAction && delta > 0) {
+    // ArrowDown from last option: move to create action
+    store.highlightedIndex = -1;
+    store.createActionFocused = true;
+    createActionElement.focus();
+    updateHighlightedOption(store);
+    return;
+  }
+
+  // Standard wrapping behavior (without create action or when not at boundary)
+  if (next < 0) {
+    next = filtered.length - 1;
+  } else if (next >= filtered.length) {
+    next = 0;
+  }
+
   store.highlightedIndex = next;
+  store.createActionFocused = false;
   updateHighlightedOption(store);
 }
 
@@ -452,12 +658,13 @@ function closeDropdown(store: TypeaheadStore): void {
   removeElementClasses(store.container, store.theme.containerOpen);
   store.isOpen = false;
   store.highlightedIndex = -1;
+  store.createActionFocused = false;
   updateHighlightedOption(store);
 }
 
 function renderOptions(store: TypeaheadStore): void {
-  const { dropdown, select, theme } = store;
-  dropdown.innerHTML = "";
+  const { dropdownList, select, theme } = store;
+  dropdownList.innerHTML = "";
   const trimmed = store.searchQuery.trim().toLowerCase();
 
   let available = store.options;
@@ -474,10 +681,28 @@ function renderOptions(store: TypeaheadStore): void {
   store.filtered = available;
 
   if (available.length === 0) {
-    const empty = document.createElement("div");
-    setElementClasses(empty, theme.empty);
-    empty.textContent = trimmed ? "No matches" : "No options";
-    dropdown.appendChild(empty);
+    const rawQuery = store.searchQuery.trim();
+    if (store.searchMode && shouldOfferCreate(store, rawQuery)) {
+      const create = document.createElement("button");
+      create.type = "button";
+      setElementClasses(create, theme.option);
+      create.setAttribute("role", "option");
+      create.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
+      create.setAttribute("data-fg-create-option", "true");
+      create.textContent = store.createLabel(rawQuery);
+      create.addEventListener("click", () => {
+        createAndSelect(store, rawQuery).catch(() => undefined);
+      });
+      dropdownList.appendChild(create);
+    } else if (!store.createActionEnabled) {
+      // Only show empty state if create action is not enabled
+      const empty = document.createElement("div");
+      setElementClasses(empty, theme.empty);
+      empty.textContent = trimmed ? "No matches" : "No options";
+      dropdownList.appendChild(empty);
+    }
+    // Render create action row if enabled (always visible, even with no matches)
+    renderCreateAction(store);
     return;
   }
 
@@ -514,20 +739,23 @@ function renderOptions(store: TypeaheadStore): void {
     }
 
     button.addEventListener("click", () => selectOption(store, option));
-    dropdown.appendChild(button);
+    dropdownList.appendChild(button);
 
     if (store.highlightedIndex === -1 && option.value === selectedValue) {
       store.highlightedIndex = index;
     }
   });
 
+  // Render create action row if enabled (always visible, not query-dependent)
+  renderCreateAction(store);
+
   updateHighlightedOption(store);
 }
 
 function updateHighlightedOption(store: TypeaheadStore): void {
-  const { dropdown, highlightedIndex, theme } = store;
+  const { dropdownList, highlightedIndex, theme } = store;
   const options = Array.from(
-    dropdown.querySelectorAll<HTMLElement>(`[${TYPEAHEAD_OPTION_ATTR}]`)
+    dropdownList.querySelectorAll<HTMLElement>(`[${TYPEAHEAD_OPTION_ATTR}]`)
   );
 
   options.forEach((option, index) => {
@@ -545,6 +773,171 @@ function updateHighlightedOption(store: TypeaheadStore): void {
       option.scrollIntoView({ block: "nearest" });
     }
   });
+
+  // Update create action focus state
+  updateCreateActionFocus(store);
+}
+
+const TYPEAHEAD_CREATE_ACTION_ATTR = "data-fg-typeahead-create-action";
+
+/**
+ * Render the create action row in the dropdown footer.
+ * The create action is always visible when enabled, regardless of search query or matches.
+ */
+function renderCreateAction(store: TypeaheadStore): void {
+  if (store.createActionElement) {
+    store.createActionElement.remove();
+    store.createActionElement = null;
+  }
+  if (!store.createActionEnabled) {
+    return;
+  }
+
+  const { dropdown, theme } = store;
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  setElementClasses(actionButton, theme.createAction);
+  actionButton.setAttribute("role", "button");
+  actionButton.setAttribute(TYPEAHEAD_CREATE_ACTION_ATTR, "true");
+  actionButton.setAttribute("tabindex", "-1");
+
+  // Add plus icon
+  const iconSpan = document.createElement("span");
+  iconSpan.innerHTML = '<svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  actionButton.appendChild(iconSpan);
+
+  // Add label
+  const labelSpan = document.createElement("span");
+  labelSpan.textContent = store.createActionLabel;
+  actionButton.appendChild(labelSpan);
+
+  actionButton.addEventListener("click", () => {
+    triggerCreateAction(store);
+  });
+
+  // Handle keyboard events on the action button
+  actionButton.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      triggerCreateAction(store);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      // Return focus to options list
+      store.createActionFocused = false;
+      if (store.filtered.length > 0) {
+        store.highlightedIndex = store.filtered.length - 1;
+      }
+      store.input.focus();
+      updateHighlightedOption(store);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeDropdown(store);
+      resetInputPlaceholder(store);
+    }
+  });
+
+  dropdown.appendChild(actionButton);
+  store.createActionElement = actionButton;
+}
+
+/**
+ * Update the visual focus state of the create action button.
+ */
+function updateCreateActionFocus(store: TypeaheadStore): void {
+  const { createActionElement, createActionFocused, theme } = store;
+  if (!createActionElement) {
+    return;
+  }
+
+  if (createActionFocused) {
+    addElementClasses(createActionElement, theme.createActionFocused);
+    createActionElement.setAttribute("aria-current", "true");
+  } else {
+    removeElementClasses(createActionElement, theme.createActionFocused);
+    createActionElement.removeAttribute("aria-current");
+  }
+}
+
+/**
+ * Trigger the create action: invoke hook or dispatch event.
+ */
+async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
+  const config = store.registry.getConfig();
+  const query = store.searchQuery.trim();
+
+  const detail: CreateActionDetail = {
+    query,
+    actionId: store.createActionId,
+    mode: "typeahead",
+    selectBehavior: store.createActionSelect,
+  };
+
+  // Close dropdown before triggering action
+  closeDropdown(store);
+  resetInputPlaceholder(store);
+
+  // Check if hook is provided
+  if (config.onCreateAction) {
+    try {
+      // Build a minimal context for the hook
+      const context = {
+        element: store.select,
+        field: store.field,
+        endpoint: store.endpoint,
+        request: { url: store.endpoint.url ?? "", init: {} },
+        fromCache: false,
+        config,
+      };
+      const result = await config.onCreateAction(context, detail);
+
+      // Apply returned option (typeahead only accepts single option)
+      if (result) {
+        const option = Array.isArray(result) ? result[0] : result;
+        if (option) {
+          applyCreatedOption(store, option);
+        }
+      }
+    } catch (_err) {
+      // Ignore hook errors
+    }
+  } else {
+    // Dispatch DOM event
+    emitRelationshipCreateAction(store.select, {
+      element: store.select,
+      field: store.field,
+      endpoint: store.endpoint,
+      query,
+      actionId: store.createActionId,
+      mode: "typeahead",
+      selectBehavior: store.createActionSelect,
+    });
+  }
+}
+
+/**
+ * Apply a created option from the create action hook.
+ * For typeahead (single-select), this replaces the current selection.
+ */
+function applyCreatedOption(store: TypeaheadStore, option: Option): void {
+  // Add option to the native select if not present
+  const existing = Array.from(store.select.options).find(
+    (node) => node.value === option.value
+  );
+  if (!existing) {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label ?? option.value;
+    store.select.appendChild(node);
+  }
+
+  // Add to store options if not present
+  if (!store.options.some((item) => item.value === option.value)) {
+    store.options = [...store.options, option];
+  }
+
+  // Select the option
+  selectOption(store, option);
 }
 
 function updateClearState(store: TypeaheadStore): void {

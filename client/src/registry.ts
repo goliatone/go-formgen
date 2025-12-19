@@ -187,6 +187,18 @@ export class ResolverRegistry {
     return resolver.validate();
   }
 
+  /**
+   * Create a new relationship option for the given element (when enabled by
+   * config and supported by the backing API).
+   */
+  async create(element: HTMLElement, query: string): Promise<Option | undefined> {
+    const resolver = this.resolvers.get(element);
+    if (!resolver) {
+      return undefined;
+    }
+    return resolver.create(query);
+  }
+
   registerRenderer(name: string, renderer: Renderer): void {
     this.renderers.set(name, renderer);
   }

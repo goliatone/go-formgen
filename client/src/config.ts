@@ -9,6 +9,12 @@ export type RelationshipCardinality = "one" | "many";
 export interface Option {
   value: string;
   label: string;
+  /** Icon name for registry lookup (not raw HTML for security). */
+  icon?: string;
+  /** URL to avatar image for display in options and chips. */
+  avatar?: string;
+  /** Subtitle/description text displayed below the label. */
+  description?: string;
   meta?: unknown;
   /** Raw value prior to mapping, useful for custom renderers */
   raw?: unknown;
@@ -95,6 +101,60 @@ export interface FieldConfig {
   refreshOn?: string[];
   refreshMode?: "auto" | "manual";
   mode?: "default" | "search";
+  /**
+   * When true, search-based relationship widgets may offer an **inline create**
+   * action for the current query. The inline create flow is triggered when the
+   * user's search query doesn't match any existing options, allowing lightweight
+   * creation (e.g., tags) directly within the dropdown.
+   *
+   * This is intentionally opt-in per field (usually via `data-endpoint-allow-create="true"`).
+   *
+   * **Note**: This is distinct from `createAction`, which provides a dedicated
+   * "Create …" button that delegates to a host-defined UI (modal/panel/redirect)
+   * for more complex creation flows. Both features may be enabled simultaneously.
+   *
+   * @see createAction for delegated create flows (modal/panel)
+   */
+  allowCreate?: boolean;
+  /**
+   * When true, a dedicated "Create …" action is rendered in the dropdown
+   * (footer for chips, row for typeahead). Unlike `allowCreate` (inline create),
+   * this action delegates creation to a host-defined UI (modal/panel/redirect)
+   * and is always visible regardless of search query or existing matches.
+   *
+   * The action triggers either:
+   * - `GlobalConfig.onCreateAction` hook (if provided), or
+   * - `formgen:relationship:create-action` DOM event (if hook not provided)
+   *
+   * This is intentionally opt-in per field (via `data-endpoint-create-action="true"`).
+   *
+   * @see allowCreate for inline (query-based) creation
+   * @see GlobalConfig.onCreateAction for programmatic handling
+   */
+  createAction?: boolean;
+  /**
+   * Custom label for the create action button. If omitted, a default label
+   * is derived from the field label (e.g., "Create Author…" or "Create new…").
+   *
+   * Set via `data-endpoint-create-action-label="Create Author"`.
+   */
+  createActionLabel?: string;
+  /**
+   * Optional identifier the host can use to route to the correct modal/flow
+   * when the create action is triggered. Passed through in the event payload
+   * and hook detail.
+   *
+   * Set via `data-endpoint-create-action-id="author"`.
+   */
+  createActionId?: string;
+  /**
+   * How returned options from the create action are applied to the selection.
+   * - `"append"` (default for multi-select): adds to existing selection
+   * - `"replace"`: clears existing selection before applying new options
+   *
+   * Set via `data-endpoint-create-action-select="append|replace"`.
+   */
+  createActionSelect?: "append" | "replace";
   throttleMs?: number;
   debounceMs?: number;
   searchParam?: string;
@@ -145,6 +205,21 @@ export interface RendererContext {
   config: ResolvedGlobalConfig;
 }
 
+/**
+ * Detail payload passed to the `onCreateAction` hook when the user activates
+ * a create action in a relationship widget (typeahead or chips).
+ */
+export interface CreateActionDetail {
+  /** Current search query (may be empty in default mode). */
+  query: string;
+  /** Optional identifier for routing to the correct modal/flow. */
+  actionId?: string;
+  /** Which renderer triggered the action. */
+  mode: "typeahead" | "chips";
+  /** How returned options should be applied to selection. */
+  selectBehavior: "append" | "replace";
+}
+
 export interface CacheSetContext {
   ttlMs?: number;
   field: FieldConfig;
@@ -192,6 +267,45 @@ export interface GlobalConfig {
     value: string | string[] | null
   ) => ValidationResult | Promise<ValidationResult>;
   onValidationError?: (context: ResolverContext, error: ValidationError) => void;
+  /**
+   * Optional hook for **inline creation** of a new option record (e.g. POST /tags)
+   * when a relationship field allows user-defined values via `allowCreate`.
+   *
+   * When provided, widgets may call this via `ResolverRegistry.create(...)`.
+   * Returning an `Option` is required so the widget can select it immediately.
+   *
+   * **Note**: This is distinct from `onCreateAction`, which handles delegated
+   * creation flows (modal/panel). Both hooks may be provided simultaneously.
+   *
+   * @see onCreateAction for delegated create flows (modal/panel)
+   */
+  createOption?: (context: ResolverContext, query: string) => Option | Promise<Option>;
+  /**
+   * Optional hook for **delegated creation** triggered by the "Create …" action
+   * in relationship widgets. Unlike `createOption` (inline creation), this hook
+   * delegates to a host-defined UI (modal/panel/redirect).
+   *
+   * When provided, this hook takes precedence over the DOM event
+   * (`formgen:relationship:create-action`). If not provided, the event is
+   * dispatched instead.
+   *
+   * **Return values:**
+   * - `Option`: Single created option (typeahead always, chips single create)
+   * - `Option[]`: Multiple created options (chips only, batch creation)
+   * - `void`: Host will apply selection manually via registry/DOM
+   * - `Promise<...>`: Async versions of the above
+   *
+   * Returned options are applied according to `detail.selectBehavior`:
+   * - `"replace"` (default for typeahead): replaces existing selection
+   * - `"append"` (default for chips): adds to existing selection
+   *
+   * @see createOption for inline (query-based) creation
+   * @see CreateActionDetail for the detail payload structure
+   */
+  onCreateAction?: (
+    context: ResolverContext,
+    detail: CreateActionDetail
+  ) => Option | Option[] | void | Promise<Option | Option[] | void>;
   cache?: CacheConfig;
   logger?: Logger;
   searchThrottleMs?: number;

@@ -294,6 +294,33 @@ export class Resolver {
     return this.runValidation("manual");
   }
 
+  /**
+   * Create a new option record for this relationship field (e.g. "Create tag").
+   * The concrete behavior is provided by `config.createOption`.
+   */
+  async create(query: string): Promise<Option> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      throw new ResolverError("Create request requires a non-empty query.");
+    }
+    if (!this.config.createOption) {
+      throw new ResolverError("createOption is not configured.");
+    }
+
+    const request = await this.buildCreateRequest(trimmed);
+    const context = this.createContext(request, false);
+    const created = await this.config.createOption(context, trimmed);
+
+    if (!created || typeof created !== "object") {
+      throw new ResolverError("createOption returned an invalid option.");
+    }
+    if (typeof (created as Option).value !== "string" || typeof (created as Option).label !== "string") {
+      throw new ResolverError("createOption must return an Option with string value/label.");
+    }
+
+    return created as Option;
+  }
+
   setCurrentValue(value: string | string[] | null): void {
     this.field.current = value ?? null;
   }
@@ -572,6 +599,47 @@ export class Resolver {
         Object.assign(request.init.headers as Record<string, string>, custom);
       }
     }
+
+    return request;
+  }
+
+  private async buildCreateRequest(query: string): Promise<ResolverRequest> {
+    const params = new URLSearchParams(this.endpoint.params ?? {});
+    this.applyDynamicParams(params);
+
+    const baseUrl = this.normaliseBaseUrl(this.endpoint.url ?? "");
+    const queryString = params.toString();
+    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+
+    Object.assign(headers, resolveAuthHeaders(this.endpoint.auth, this.element));
+
+    const controller = new AbortController();
+
+    const request: ResolverRequest = {
+      url,
+      init: {
+        method: "POST",
+        headers,
+        signal: controller.signal,
+      },
+    };
+
+    const context = this.createContext(request, false);
+
+    if (this.config.buildHeaders) {
+      const custom = await this.config.buildHeaders(context);
+      if (custom && typeof custom === "object") {
+        Object.assign(request.init.headers as Record<string, string>, custom);
+      }
+    }
+
+    // The hook decides how to send/encode the payload, but we provide a sensible default.
+    request.init.body = JSON.stringify({ query });
 
     return request;
   }
