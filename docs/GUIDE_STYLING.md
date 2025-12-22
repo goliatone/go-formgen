@@ -313,7 +313,9 @@ manifest := &theme.Manifest{
         "forms.select":        "themes/acme/select.tmpl",
         "forms.textarea":      "themes/acme/textarea.tmpl",
         "forms.checkbox":      "themes/acme/checkbox.tmpl",
+        "forms.radio":         "themes/acme/radio.tmpl",
         "forms.wysiwyg":       "themes/acme/wysiwyg.tmpl",
+        "forms.json-editor":   "themes/acme/json_editor.tmpl",
         "forms.file-uploader": "themes/acme/file-uploader.tmpl",
     },
 }
@@ -332,9 +334,14 @@ manifest := &theme.Manifest{
 gen := formgen.NewOrchestrator(
     orchestrator.WithThemeProvider(provider, "acme", "dark"),
     orchestrator.WithThemeFallbacks(map[string]string{
-        "forms.input":    "templates/components/input.tmpl",
-        "forms.select":   "templates/components/select.tmpl",
-        "forms.textarea": "templates/components/textarea.tmpl",
+        "forms.input":         "templates/components/input.tmpl",
+        "forms.select":        "templates/components/select.tmpl",
+        "forms.textarea":      "templates/components/textarea.tmpl",
+        "forms.checkbox":      "templates/components/boolean.tmpl",
+        "forms.radio":         "templates/components/boolean.tmpl",
+        "forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
+        "forms.json-editor":   "templates/components/json_editor.tmpl",
+        "forms.file-uploader": "templates/components/file_uploader.tmpl",
     }),
 )
 ```

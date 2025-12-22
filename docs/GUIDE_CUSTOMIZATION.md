@@ -28,7 +28,9 @@ UI schemas are best for **layout/labels/metadata**. Interactive features (relati
 8. [Behaviors and Interactions](#8-behaviors-and-interactions)
 9. [Visibility Rules](#9-visibility-rules)
 10. [Field Ordering](#10-field-ordering)
-11. [Complete Examples](#11-complete-examples)
+11. [Render Options (Prefill and Subsets)](#11-render-options-prefill-and-subsets)
+12. [OpenAPI Loader Configuration](#12-openapi-loader-configuration)
+13. [Complete Examples](#13-complete-examples)
 
 ---
 
@@ -600,7 +602,7 @@ Use `componentOptions` to configure components; it is serialized into `field.met
 }
 ```
 
-Runtime note: the WYSIWYG editor is implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `file_uploader` component injects this runtime automatically; if you only use `wysiwyg`, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
+Runtime note: the WYSIWYG editor is implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `wysiwyg` and `file_uploader` components inject this runtime automatically; if you render relationship fields without either component, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
 
 ### Example: File Uploader Component
 
@@ -955,7 +957,92 @@ Ordering notes:
 
 ---
 
-## 11. Complete Examples
+## 11. Render Options (Prefill and Subsets)
+
+UI schema handles layout and metadata, but some customization is per-render:
+
+- **Prefill values** (including relationship defaults)
+- **Provenance badges** and **Readonly/Disabled** flags
+- **Subset rendering** by groups/tags/sections
+- **Server errors** and hidden fields
+
+### Example: Prefill + Readonly/Disabled
+
+```go
+output, err := gen.Generate(ctx, orchestrator.Request{
+  OperationID: "createPet",
+  RenderOptions: render.RenderOptions{
+    Values: map[string]any{
+      "name": render.ValueWithProvenance{
+        Value:      "Fido",
+        Provenance: "tenant default",
+        Readonly:   true,
+      },
+      "status": render.ValueWithProvenance{
+        Value:    "active",
+        Disabled: true,
+      },
+    },
+  },
+})
+```
+
+### Example: Subset Rendering + Server Errors
+
+```go
+output, err := gen.Generate(ctx, orchestrator.Request{
+  OperationID: "createPet",
+  RenderOptions: render.RenderOptions{
+    Subset: render.FieldSubset{Groups: []string{"notifications"}},
+    Errors: map[string][]string{
+      "email": {"Email already used"},
+    },
+  },
+})
+```
+
+---
+
+## 12. OpenAPI Loader Configuration
+
+The loader resolves OpenAPI sources (filesystem, `fs.FS`, or HTTP). By default,
+`go-formgen` is **offline-first**; HTTP loading is disabled unless explicitly
+enabled.
+
+### Example: Custom Filesystem + HTTP Fallback
+
+```go
+import (
+  "net/http"
+  "os"
+  "time"
+
+  "github.com/goliatone/go-formgen"
+  "github.com/goliatone/go-formgen/pkg/openapi"
+  "github.com/goliatone/go-formgen/pkg/orchestrator"
+)
+
+loader := formgen.NewLoader(
+  openapi.WithFileSystem(os.DirFS("./specs")),
+  openapi.WithHTTPClient(http.DefaultClient),
+  openapi.WithHTTPFallback(5*time.Second),
+)
+
+gen := formgen.NewOrchestrator(
+  orchestrator.WithLoader(loader),
+)
+```
+
+### Example: Allow Default HTTP Sources
+
+```go
+loader := formgen.NewLoader(openapi.WithDefaultSources())
+gen := formgen.NewOrchestrator(orchestrator.WithLoader(loader))
+```
+
+---
+
+## 13. Complete Examples
 
 ### Example 1: Blog Article Form
 

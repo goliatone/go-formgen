@@ -222,6 +222,11 @@ author_id:
 - `labelField`: Response field to display (e.g., `name`)
 - `valueField`: Response field for form submission (e.g., `id`)
 
+**Default response contract**: when `resultsPath` and `mapping` are both unset,
+the runtime appends `format=options` to the request and expects an array of
+`{value,label}` objects. Set `params.format` yourself or configure `resultsPath`
+or `mapping` if your API returns a different payload.
+
 ### Static Query Parameters
 
 Pass fixed filters to the endpoint:
@@ -261,6 +266,54 @@ category_id:
 When user selects `tenant_id`, the category dropdown reloads with:
 `GET /api/categories?tenant_id=<selected-value>`
 
+### Refresh Behavior (Auto vs Manual)
+
+By default, dependent fields refresh automatically when their `refreshOn` values
+change. This is derived from `x-endpoint.dynamicParams` and can be overridden
+manually via metadata.
+
+**Preferred: UI schema metadata**
+
+```json
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "author_id": {
+          "metadata": {
+            "relationship.endpoint.refresh": "manual",
+            "relationship.endpoint.refreshOn": "tenant_id"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Equivalent raw HTML**
+
+```html
+<select
+  name="author_id"
+  data-endpoint-refresh="manual"
+  data-endpoint-refresh-on="tenant_id"
+></select>
+
+<button
+  type="button"
+  data-endpoint-refresh-target="author_id"
+  data-endpoint-refresh-trigger="true"
+>
+  Refresh Authors
+</button>
+```
+
+Notes:
+- `data-endpoint-refresh="manual"` disables auto-refresh and requires a trigger.
+- Triggers can be placed anywhere using `data-endpoint-refresh-target` or
+  `data-endpoint-refresh-for` with the field name.
+
 ### Search Mode (Autocomplete)
 
 Enable server-side search for large datasets:
@@ -279,6 +332,45 @@ x-endpoint:
 
 User types "John" → `GET /api/authors?q=John&limit=25`
 
+### Search Tuning (Debounce, Throttle, Cache)
+
+You can tune search responsiveness and cache behavior per field.
+
+**Preferred: UI schema metadata**
+
+```json
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "author_id": {
+          "metadata": {
+            "relationship.endpoint.mode": "search",
+            "relationship.endpoint.searchParam": "q",
+            "relationship.endpoint.debounce": "250",
+            "relationship.endpoint.throttle": "500",
+            "relationship.endpoint.cacheKey": "authors-search"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Equivalent raw HTML**
+
+```html
+<select
+  name="author_id"
+  data-endpoint-mode="search"
+  data-endpoint-search-param="q"
+  data-endpoint-debounce="250"
+  data-endpoint-throttle="500"
+  data-endpoint-cache-key="authors-search"
+></select>
+```
+
 ### Authentication Configuration
 
 Specify how to authenticate API requests:
@@ -291,12 +383,17 @@ x-endpoint:
   valueField: id
   auth:
     strategy: header
-    header: X-Auth-Token
+    header: Authorization
     source: meta:formgen-auth
+    prefix: Bearer
 ```
 
 **Auth Strategies**:
-- `header` (supported): Add token to request header. For bearer auth, set `header: Authorization` and make the token value include the `Bearer ` prefix (e.g. via the meta tag content).
+- `header` (supported): Add token to request header. For bearer auth, set `header: Authorization` and either include the `Bearer ` prefix in the token value or set `prefix: Bearer`.
+
+**Prefix**:
+- `prefix`: Optional string prepended to the token when using `strategy: header`
+  (e.g. `Bearer`).
 
 **Sources**:
 - `meta:<name>`: Read from `<meta name="<name>" content="...">`
@@ -545,6 +642,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 });
 ```
 
+For a deeper list of runtime hooks and events (including `createOption`,
+`onCreateAction`, caching, and error handling), see
+[client/README.md](../client/README.md).
+
 ### Prefilling Current Values
 
 To pre-select relationship values before the runtime loads options, set
@@ -722,6 +823,29 @@ triggers the action; your application owns the modal markup and submit logic.
 
 #### 1) Enable create action on the relationship field
 
+**Preferred: UI schema metadata**
+
+```json
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "author_id": {
+          "metadata": {
+            "relationship.endpoint.createAction": "true",
+            "relationship.endpoint.createActionId": "author",
+            "relationship.endpoint.createActionLabel": "Create Author",
+            "relationship.endpoint.createActionSelect": "replace"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Equivalent raw HTML attributes**
+
 ```html
 <select
   name="author_id"
@@ -731,6 +855,7 @@ triggers the action; your application owns the modal markup and submit logic.
   data-endpoint-create-action="true"
   data-endpoint-create-action-id="author"
   data-endpoint-create-action-label="Create Author"
+  data-endpoint-create-action-select="replace"
   data-relationship-cardinality="one"
 ></select>
 ```
@@ -857,6 +982,57 @@ Notes:
   `formgen:relationship:create-action` and follow the same modal flow.
 - For a complete reference, see the advanced HTTP example at `/advanced` in
   `examples/http`.
+
+### Inline Create (Quick Tag Creation)
+
+Inline create is designed for lightweight values (tags, labels). It requires
+`mode: search` and a `createOption` hook.
+
+**Preferred: UI schema metadata**
+
+```json
+{
+  "operations": {
+    "createArticle": {
+      "fields": {
+        "tags": {
+          "metadata": {
+            "relationship.endpoint.mode": "search",
+            "relationship.endpoint.allowCreate": "true"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Equivalent raw HTML attributes**
+
+```html
+<select
+  name="tags"
+  data-endpoint-mode="search"
+  data-endpoint-allow-create="true"
+  multiple
+></select>
+```
+
+**Hook example:**
+
+```ts
+await initRelationships({
+  createOption: async (_context, query) => {
+    const response = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: query }),
+    });
+    const created = await response.json();
+    return { value: String(created.id), label: created.name };
+  },
+});
+```
 
 ### Optimistic UI Updates
 
@@ -1015,15 +1191,28 @@ document.addEventListener('formgen:relationship:validation', handler);
 | `data-endpoint-value-field` | Submit field | `id` |
 | `data-endpoint-mode` | Interaction mode | `search` |
 | `data-endpoint-search-param` | Query param | `q` |
+| `data-endpoint-debounce` | Search debounce (ms) | `250` |
+| `data-endpoint-throttle` | Search throttle (ms) | `500` |
+| `data-endpoint-cache-key` | Cache key override | `authors-search` |
+| `data-endpoint-refresh` | Refresh mode | `manual` |
 | `data-endpoint-refresh-on` | Trigger field | `category_id` |
+| `data-endpoint-refresh-target` | Manual refresh target | `author_id` |
+| `data-endpoint-refresh-for` | Manual refresh target | `author_id` |
+| `data-endpoint-refresh-trigger` | Manual refresh trigger | `true` |
 | `data-endpoint-renderer` | Runtime renderer | `chips` |
 | `data-endpoint-submit-as` | Submit encoding | `json` |
+| `data-endpoint-allow-create` | Inline create toggle | `true` |
+| `data-endpoint-create-action` | Create action toggle | `true` |
+| `data-endpoint-create-action-label` | Create action label | `Create Author` |
+| `data-endpoint-create-action-id` | Create action id | `author` |
+| `data-endpoint-create-action-select` | Selection mode | `append` |
 | `data-relationship-type` | Relationship kind | `belongsTo` |
 | `data-relationship-target` | Target schema | `#/components/schemas/Author` |
 | `data-relationship-current` | Prefilled value(s) | `abc-123` or `["a","b"]` |
 | `data-auth-strategy` | Auth method | `header` |
 | `data-auth-header` | Header name | `X-Auth-Token` |
 | `data-auth-source` | Token source | `meta:formgen-auth` |
+| `data-auth-prefix` | Auth prefix | `Bearer` |
 
 ---
 
