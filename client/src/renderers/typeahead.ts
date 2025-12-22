@@ -781,13 +781,11 @@ function renderOptions(store: TypeaheadStore): void {
         createAndSelect(store, rawQuery).catch(() => undefined);
       });
       dropdownList.appendChild(create);
-    } else if (!store.createActionEnabled) {
-      // Only show empty state if create action is not enabled
-      const empty = document.createElement("div");
-      setElementClasses(empty, theme.empty);
-      empty.textContent = trimmed ? "No matches" : "No options";
-      dropdownList.appendChild(empty);
     }
+    const empty = document.createElement("div");
+    setElementClasses(empty, theme.empty);
+    empty.textContent = trimmed ? "No matches" : "No options";
+    dropdownList.appendChild(empty);
     // Render create action row if enabled (always visible, even with no matches)
     renderCreateAction(store);
     return;
@@ -1096,8 +1094,10 @@ function bindLoadingState(store: TypeaheadStore): void {
     renderOptions(store);
   };
   const successHandler = () => {
-    store.loading = false;
-    // Options will be re-rendered by the resolver callback
+    if (store.loading) {
+      store.loading = false;
+      renderOptions(store);
+    }
   };
   store.loadingHandler = loadingHandler;
   store.successHandler = successHandler;
