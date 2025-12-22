@@ -855,6 +855,8 @@ Notes:
   append/replace using `data-endpoint-create-action-select`.
 - If you prefer DOM events instead of hooks, listen for
   `formgen:relationship:create-action` and follow the same modal flow.
+- For a complete reference, see the advanced HTTP example at `/advanced` in
+  `examples/http`.
 
 ### Optimistic UI Updates
 
