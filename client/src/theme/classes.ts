@@ -47,6 +47,10 @@ export interface ChipsClassMap {
   /** Description/subtitle span in a rich menu item. */
   menuItemDescription: ClassToken[];
   menuEmpty: ClassToken[];
+  /** Loading indicator row shown while fetching options. */
+  menuLoading: ClassToken[];
+  /** Spinner icon inside the loading row. */
+  menuLoadingSpinner: ClassToken[];
   nativeSelect: ClassToken[];
 }
 
@@ -58,13 +62,22 @@ export interface TypeaheadClassMap {
   control: ClassToken[];
   input: ClassToken[];
   inputWithIcon: ClassToken[];
+  /** @deprecated Use actions/action/actionClear instead */
   clear: ClassToken[];
+  actions: ClassToken[];
+  action: ClassToken[];
+  actionClear: ClassToken[];
+  actionToggle: ClassToken[];
   dropdown: ClassToken[];
   dropdownList: ClassToken[];
   option: ClassToken[];
   optionActive: ClassToken[];
   highlight: ClassToken[];
   empty: ClassToken[];
+  /** Loading indicator row shown while fetching options. */
+  loading: ClassToken[];
+  /** Spinner icon inside the loading row. */
+  loadingSpinner: ClassToken[];
   icon: ClassToken[];
   iconSvg: ClassToken[];
   nativeSelect: ClassToken[];
@@ -357,6 +370,21 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "truncate",
     ],
     menuEmpty: ["px-3", "py-2", "text-sm", "text-slate-500"],
+    menuLoading: [
+      "flex",
+      "items-center",
+      "justify-center",
+      "gap-2",
+      "px-3",
+      "py-4",
+      "text-sm",
+      "text-slate-500",
+    ],
+    menuLoadingSpinner: [
+      "size-5",
+      "animate-spin",
+      "text-blue-500",
+    ],
     nativeSelect: ["hidden"],
   },
   typeahead: {
@@ -411,6 +439,27 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
       "disabled:cursor-default",
       "disabled:opacity-40",
     ],
+    actions: ["flex", "items-center", "gap-1"],
+    action: [
+      "inline-flex",
+      "h-9",
+      "w-9",
+      "items-center",
+      "justify-center",
+      "rounded-md",
+      "border",
+      "border-slate-200",
+      "bg-white",
+      "text-slate-500",
+      "shadow-sm",
+      "transition-colors",
+      "focus-visible:outline-none",
+      "focus-visible:ring-2",
+      "focus-visible:ring-blue-500",
+      "focus-visible:ring-offset-2",
+    ],
+    actionClear: ["hover:text-rose-500"],
+    actionToggle: ["text-base", "text-slate-500"],
     dropdown: [
       "absolute",
       "left-0",
@@ -456,6 +505,21 @@ const DEFAULT_THEME_CLASSES: ThemeClassMap = {
     optionActive: ["bg-slate-100"],
     highlight: ["bg-amber-100", "font-semibold"],
     empty: ["px-3", "py-2", "text-sm", "text-slate-500"],
+    loading: [
+      "flex",
+      "items-center",
+      "justify-center",
+      "gap-2",
+      "px-3",
+      "py-4",
+      "text-sm",
+      "text-slate-500",
+    ],
+    loadingSpinner: [
+      "size-5",
+      "animate-spin",
+      "text-blue-500",
+    ],
     icon: [
       "absolute",
       "top-1/2",

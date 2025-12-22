@@ -19,6 +19,7 @@ import { registerRendererCleanup } from "./relationship-cleanup";
 import {
   addElementClasses,
   classesToString,
+  combineClasses,
   getThemeClasses,
   removeElementClasses,
   setElementClasses,
@@ -31,7 +32,9 @@ interface TypeaheadStore {
   container: HTMLElement;
   control: HTMLElement;
   input: HTMLInputElement;
+  actions: HTMLElement;
   clear: HTMLButtonElement;
+  toggle: HTMLButtonElement;
   dropdown: HTMLElement;
   dropdownList: HTMLElement;
   options: Option[];
@@ -53,6 +56,10 @@ interface TypeaheadStore {
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
   updateHandler?: (event: Event) => void;
+  // Loading state
+  loading: boolean;
+  loadingHandler?: (event: Event) => void;
+  successHandler?: (event: Event) => void;
   // Create action state
   createActionEnabled: boolean;
   createActionLabel: string;
@@ -147,14 +154,26 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   input.autocomplete = "off";
   input.setAttribute("aria-autocomplete", "list");
 
+  // Actions container with clear and toggle buttons (matching chips renderer)
+  const actions = document.createElement("div");
+  setElementClasses(actions, theme.actions);
+
   const clear = document.createElement("button");
   clear.type = "button";
-  setElementClasses(clear, theme.clear);
+  setElementClasses(clear, combineClasses(theme.action, theme.actionClear));
   clear.setAttribute("aria-label", "Clear selection");
   clear.innerHTML = '<span aria-hidden="true">&times;</span>';
   clear.disabled = true;
 
-  control.append(input, clear);
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  setElementClasses(toggle, combineClasses(theme.action, theme.actionToggle));
+  toggle.setAttribute("aria-haspopup", "listbox");
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.innerHTML = '<svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+
+  actions.append(clear, toggle);
+  control.append(input, actions);
 
   const dropdown = document.createElement("div");
   setElementClasses(dropdown, theme.dropdown);
@@ -168,13 +187,8 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   control.setAttribute("aria-controls", dropdownId);
   input.setAttribute("aria-controls", dropdownId);
 
-  // Add dropdown arrow indicator
-  const arrow = document.createElement("div");
-  arrow.className = "absolute top-1/2 end-3 -translate-y-1/2 pointer-events-none";
-  arrow.innerHTML = '<svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
-
   dropdown.appendChild(dropdownList);
-  container.append(control, arrow, dropdown);
+  container.append(control, dropdown);
 
   select.insertAdjacentElement("beforebegin", container);
   addElementClasses(select, theme.nativeSelect);
@@ -207,7 +221,9 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     container,
     control,
     input,
+    actions,
     clear,
+    toggle,
     dropdown,
     dropdownList,
     options: [],
@@ -226,6 +242,8 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     theme,
     icon: iconConfig,
     iconElement: null,
+    // Loading state
+    loading: false,
     // Create action state
     createActionEnabled: select.dataset.endpointCreateAction === "true",
     createActionLabel: createActionLabelFromAttr || defaultCreateActionLabel,
@@ -254,6 +272,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   bindEvents(store);
 
   bindValidationState(store);
+  bindLoadingState(store);
   bindSelectionListener(store);
   stores.set(select, store);
 
@@ -273,7 +292,7 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
 }
 
 function bindEvents(store: TypeaheadStore): void {
-  const { input, clear, dropdown } = store;
+  const { input, clear, toggle, dropdown } = store;
 
   input.addEventListener("focus", () => {
     openDropdown(store);
@@ -289,6 +308,50 @@ function bindEvents(store: TypeaheadStore): void {
 
   clear.addEventListener("click", () => {
     clearSelection(store);
+  });
+
+  // Toggle button opens/closes dropdown
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (store.isOpen) {
+      closeDropdown(store);
+      resetInputPlaceholder(store);
+    } else {
+      openDropdown(store);
+      input.focus();
+    }
+  });
+
+  // Keyboard navigation on toggle button
+  toggle.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (store.isOpen) {
+        closeDropdown(store);
+        resetInputPlaceholder(store);
+      } else {
+        openDropdown(store);
+        input.focus();
+      }
+      return;
+    }
+
+    if (event.key === "Escape" && store.isOpen) {
+      event.preventDefault();
+      closeDropdown(store);
+      resetInputPlaceholder(store);
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!store.isOpen) {
+        openDropdown(store);
+      }
+      input.focus();
+      return;
+    }
   });
 
   dropdown.addEventListener("mousedown", (event) => {
@@ -637,10 +700,12 @@ function openDropdown(store: TypeaheadStore): void {
     // keep the dropdown collapsed so the empty state doesn't cover other inputs.
     store.dropdown.hidden = true;
     store.control.setAttribute("aria-expanded", "false");
+    store.toggle.setAttribute("aria-expanded", "false");
     return;
   }
   store.dropdown.hidden = false;
   store.control.setAttribute("aria-expanded", "true");
+  store.toggle.setAttribute("aria-expanded", "true");
   addElementClasses(store.container, store.theme.containerOpen);
   store.isOpen = true;
   if (store.highlightedIndex === -1 && store.filtered.length > 0) {
@@ -655,6 +720,7 @@ function closeDropdown(store: TypeaheadStore): void {
   }
   store.dropdown.hidden = true;
   store.control.setAttribute("aria-expanded", "false");
+  store.toggle.setAttribute("aria-expanded", "false");
   removeElementClasses(store.container, store.theme.containerOpen);
   store.isOpen = false;
   store.highlightedIndex = -1;
@@ -681,6 +747,27 @@ function renderOptions(store: TypeaheadStore): void {
   store.filtered = available;
 
   if (available.length === 0) {
+    // Show loading indicator when fetching and no options yet
+    if (store.loading) {
+      const loadingRow = document.createElement("div");
+      setElementClasses(loadingRow, theme.loading);
+      loadingRow.setAttribute("aria-live", "polite");
+      loadingRow.setAttribute("role", "status");
+
+      const spinner = document.createElement("span");
+      setElementClasses(spinner, theme.loadingSpinner);
+      spinner.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+      loadingRow.appendChild(spinner);
+
+      const text = document.createElement("span");
+      text.textContent = "Loading…";
+      loadingRow.appendChild(text);
+
+      dropdownList.appendChild(loadingRow);
+      renderCreateAction(store);
+      return;
+    }
+
     const rawQuery = store.searchQuery.trim();
     if (store.searchMode && shouldOfferCreate(store, rawQuery)) {
       const create = document.createElement("button");
@@ -1003,6 +1090,22 @@ function bindSelectionListener(store: TypeaheadStore): void {
   store.select.addEventListener(RELATIONSHIP_UPDATE_EVENT, handler as EventListener);
 }
 
+function bindLoadingState(store: TypeaheadStore): void {
+  const loadingHandler = () => {
+    store.loading = true;
+    renderOptions(store);
+  };
+  const successHandler = () => {
+    store.loading = false;
+    // Options will be re-rendered by the resolver callback
+  };
+  store.loadingHandler = loadingHandler;
+  store.successHandler = successHandler;
+  store.select.addEventListener("formgen:relationship:loading", loadingHandler);
+  store.select.addEventListener("formgen:relationship:success", successHandler);
+  store.select.addEventListener("formgen:relationship:error", successHandler);
+}
+
 function destroyTypeaheadStore(store: TypeaheadStore): void {
   document.removeEventListener("click", store.documentHandler);
   if (store.validationHandler) {
@@ -1014,6 +1117,13 @@ function destroyTypeaheadStore(store: TypeaheadStore): void {
   store.validationObserver?.disconnect();
   if (store.updateHandler) {
     store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
+  }
+  if (store.loadingHandler) {
+    store.select.removeEventListener("formgen:relationship:loading", store.loadingHandler);
+  }
+  if (store.successHandler) {
+    store.select.removeEventListener("formgen:relationship:success", store.successHandler);
+    store.select.removeEventListener("formgen:relationship:error", store.successHandler);
   }
 }
 

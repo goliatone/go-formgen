@@ -103,6 +103,10 @@ interface ChipStore {
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
   updateHandler?: (event: Event) => void;
+  // Loading state
+  loading: boolean;
+  loadingHandler?: (event: Event) => void;
+  successHandler?: (event: Event) => void;
   /** When true, footer action has keyboard focus (hybrid model) */
   footerFocused: boolean;
   /** Prevents rapid open/close races during animations */
@@ -349,6 +353,8 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     theme,
     icon: iconConfig,
     iconElement: renderedIcon,
+    // Loading state
+    loading: false,
     footerFocused: false,
     animationInProcess: false,
     useFloatingUI,
@@ -514,6 +520,13 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
       if (canCreate(store)) {
         toggleMenu(store, true);
         createAndSelect(store, query).catch(() => undefined);
+        return;
+      }
+
+      // If create action is enabled and no inline create is available,
+      // trigger the create action (modal-based creation) on Enter
+      if (store.createActionEnabled && !hasMatchingOptions(store, query)) {
+        triggerCreateAction(store);
       }
     });
   }
@@ -741,6 +754,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   });
 
   bindValidationState(store);
+  bindLoadingState(store);
   bindSelectionListener(store);
   stores.set(select, store);
   if (typeof requestAnimationFrame === "function") {
@@ -932,6 +946,27 @@ function findLiteralMatch(
   return null;
 }
 
+/**
+ * Check if there are any options matching the given query.
+ * Used to determine if Enter should trigger create action when no matches exist.
+ */
+function hasMatchingOptions(store: ChipStore, query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+
+  // Check if any option matches the query (by value or label)
+  return store.options.some((option) => {
+    const label = option.label ?? option.value;
+    return (
+      option.value.toLowerCase().includes(lower) ||
+      label.toLowerCase().includes(lower)
+    );
+  });
+}
+
 function shouldOfferCreate(
   store: ChipStore,
   query: string,
@@ -1099,6 +1134,27 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
     create.disabled = true;
     create.textContent = `Creating "${store.creatingQuery}"…`;
     menuList.appendChild(create);
+    return;
+  }
+
+  // Show loading indicator when fetching and no options yet
+  if (store.loading && options.length === 0) {
+    const loadingRow = document.createElement("div");
+    setElementClasses(loadingRow, theme.menuLoading);
+    loadingRow.setAttribute("aria-live", "polite");
+    loadingRow.setAttribute("role", "status");
+
+    const spinner = document.createElement("span");
+    setElementClasses(spinner, theme.menuLoadingSpinner);
+    spinner.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+    loadingRow.appendChild(spinner);
+
+    const text = document.createElement("span");
+    text.textContent = "Loading…";
+    loadingRow.appendChild(text);
+
+    menuList.appendChild(loadingRow);
+    renderCreateActionFooter(store);
     return;
   }
 
@@ -1671,6 +1727,23 @@ function bindSelectionListener(store: ChipStore): void {
   store.select.addEventListener(RELATIONSHIP_UPDATE_EVENT, handler as EventListener);
 }
 
+function bindLoadingState(store: ChipStore): void {
+  const loadingHandler = () => {
+    store.loading = true;
+    const selectedValues = getSelectedValues(store.select);
+    renderMenu(store, selectedValues);
+  };
+  const successHandler = () => {
+    store.loading = false;
+    // Options will be re-rendered by the resolver callback
+  };
+  store.loadingHandler = loadingHandler;
+  store.successHandler = successHandler;
+  store.select.addEventListener("formgen:relationship:loading", loadingHandler);
+  store.select.addEventListener("formgen:relationship:success", successHandler);
+  store.select.addEventListener("formgen:relationship:error", successHandler);
+}
+
 function destroyChipStore(store: ChipStore): void {
   document.removeEventListener("click", store.documentHandler);
   if (store.validationHandler) {
@@ -1682,6 +1755,13 @@ function destroyChipStore(store: ChipStore): void {
   store.validationObserver?.disconnect();
   if (store.updateHandler) {
     store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
+  }
+  if (store.loadingHandler) {
+    store.select.removeEventListener("formgen:relationship:loading", store.loadingHandler);
+  }
+  if (store.successHandler) {
+    store.select.removeEventListener("formgen:relationship:success", store.successHandler);
+    store.select.removeEventListener("formgen:relationship:error", store.successHandler);
   }
 }
 
