@@ -1,0 +1,143 @@
+{
+  "operations": {
+    "post-author:create": {
+      "form": {
+        "title": "Create Author",
+        "subtitle": "Add a new author to the catalog.",
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Create Author",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Author details",
+          "order": 0
+        }
+      ],
+      "fields": {
+        "full_name": {
+          "section": "main",
+          "order": 0,
+          "grid": { "span": 12 },
+          "placeholder": "Ada Lovelace",
+          "uiHints": { "tags": "modal-min" }
+        },
+        "email": {
+          "section": "main",
+          "order": 1,
+          "grid": { "span": 12 },
+          "placeholder": "ada@example.com",
+          "uiHints": { "tags": "modal-min", "inputType": "email" }
+        },
+        "publisher_id": {
+          "section": "main",
+          "order": 2,
+          "grid": { "span": 12 },
+          "label": "Publisher",
+          "helpText": "The publishing house this author belongs to.",
+          "uiHints": { "tags": "modal-min" }
+        },
+        "active": {
+          "section": "main",
+          "order": 3,
+          "grid": { "span": 12 },
+          "helpText": "Enable to include the author in new assignments.",
+          "uiHints": { "tags": "modal-min" }
+        }
+      }
+    },
+    "post-publishing-house:create": {
+      "form": {
+        "title": "Create Publisher",
+        "subtitle": "Register a new publishing house.",
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Create Publisher",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Publisher details",
+          "order": 0
+        }
+      ],
+      "fields": {
+        "name": {
+          "section": "main",
+          "order": 0,
+          "grid": { "span": 12 },
+          "placeholder": "Northwind Publishing",
+          "uiHints": { "tags": "modal-min" }
+        },
+        "imprint_prefix": {
+          "section": "main",
+          "order": 1,
+          "grid": { "span": 12 },
+          "placeholder": "NW",
+          "uiHints": { "tags": "modal-min" }
+        }
+      }
+    },
+    "post-tag:create": {
+      "form": {
+        "title": "Create Tag",
+        "subtitle": "Create a new tag for editorial workflows.",
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Create Tag",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Tag details",
+          "order": 0
+        }
+      ],
+      "fields": {
+        "name": {
+          "section": "main",
+          "order": 0,
+          "grid": { "span": 12 },
+          "placeholder": "announcement",
+          "uiHints": { "tags": "modal-min" }
+        },
+        "category": {
+          "section": "main",
+          "order": 1,
+          "grid": { "span": 12 },
+          "label": "Category",
+          "helpText": "Select the category for this tag.",
+          "uiHints": { "tags": "modal-min" }
+        }
+      }
+    }
+  }
+}
