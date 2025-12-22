@@ -1,5 +1,25 @@
 # Changelog
 
+# [0.11.0](https://github.com/goliatone/go-formgen/compare/v0.10.0...v0.11.0) - (2025-12-22)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.11.0 ([bd7d5dc](https://github.com/goliatone/go-formgen/commit/bd7d5dcd1b5708ee8075898471e4557281d599a3))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- OmitAssets instruct renderers ([cdf8e5b](https://github.com/goliatone/go-formgen/commit/cdf8e5b94d5d85ed458d05ee6e852a0fcf44b031))  - (goliatone)
+- Client library supports loading state and create button ([7f4482a](https://github.com/goliatone/go-formgen/commit/7f4482af00caddb6d4847bed8ad6bece4b5e93bd))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.10.0 ([6f5beba](https://github.com/goliatone/go-formgen/commit/6f5beba2c51d9809d2d9b8caf1ae1e504e2d2402))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update example ([c822d86](https://github.com/goliatone/go-formgen/commit/c822d8684934fa20f3a99d7434d60d7e69c9f5f4))  - (goliatone)
+- Update docs ([a32a7c8](https://github.com/goliatone/go-formgen/commit/a32a7c86c1a1065cb91613e14ceed9e6a3f6b3bf))  - (goliatone)
+
 # [0.10.0](https://github.com/goliatone/go-formgen/compare/v0.9.0...v0.10.0) - (2025-12-22)
 
 ## <!-- 13 -->📦 Bumps
