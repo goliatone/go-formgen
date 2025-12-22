@@ -1189,13 +1189,10 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
   }
 
   if (available.length === 0) {
-    // Only show empty state if create action is not enabled
-    if (!store.createActionEnabled) {
-      const empty = document.createElement("div");
-      setElementClasses(empty, theme.menuEmpty);
-      empty.textContent = query ? "No matches" : "No more options";
-      menuList.appendChild(empty);
-    }
+    const empty = document.createElement("div");
+    setElementClasses(empty, theme.menuEmpty);
+    empty.textContent = query ? "No matches" : "No more options";
+    menuList.appendChild(empty);
     // Render create action footer even with no options
     renderCreateActionFooter(store);
     return;
@@ -1734,8 +1731,11 @@ function bindLoadingState(store: ChipStore): void {
     renderMenu(store, selectedValues);
   };
   const successHandler = () => {
-    store.loading = false;
-    // Options will be re-rendered by the resolver callback
+    if (store.loading) {
+      store.loading = false;
+      const selectedValues = getSelectedValues(store.select);
+      renderMenu(store, selectedValues);
+    }
   };
   store.loadingHandler = loadingHandler;
   store.successHandler = successHandler;
