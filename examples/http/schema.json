@@ -3413,7 +3413,28 @@
             }
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "x-endpoint": {
+              "labelField": "name",
+              "method": "GET",
+              "mode": "search",
+              "params": {
+                "format": "options",
+                "limit": "50",
+                "order": "name asc",
+                "select": "id,name"
+              },
+              "renderer": "typeahead",
+              "searchParam": "q",
+              "submitAs": "value",
+              "url": "/api/categories",
+              "valueField": "name"
+            },
+            "x-relationships": {
+              "cardinality": "one",
+              "target": "#/components/schemas/category",
+              "type": "belongsTo"
+            }
           },
           "created_at": {
             "format": "date-time",
