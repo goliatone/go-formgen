@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -22,6 +23,10 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/gomarkdown/markdown"
+	mdhtml "github.com/gomarkdown/markdown/html"
+	mdparser "github.com/gomarkdown/markdown/parser"
+
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/examples/internal/exampleutil"
 	"github.com/goliatone/go-formgen/pkg/model"
@@ -33,6 +38,9 @@ import (
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 )
+
+//go:embed README.md
+var readmeContent []byte
 
 const vanillaRuntimeBootstrap = `
 <script src="/runtime/formgen-relationships.min.js" defer></script>
@@ -122,6 +130,18 @@ function formDataToObject(form) {
   return payload;
 }
 
+function shouldUseMultipart(form) {
+  if (!form) {
+    return false;
+  }
+  var enctype = (form.getAttribute('enctype') || form.enctype || '').toLowerCase();
+  if (enctype === 'multipart/form-data') {
+    return true;
+  }
+  var fileInputs = form.querySelectorAll('input[type="file"]');
+  return fileInputs && fileInputs.length > 0;
+}
+
 function normalizeCreatePayload(payload) {
   if (payload && typeof payload === 'object' && payload.data) {
     return payload.data;
@@ -149,15 +169,22 @@ function submitCreateForm(spec) {
   var form = spec.form;
   var action = form.getAttribute('action') || window.location.href;
   var method = (form.getAttribute('method') || 'POST').toUpperCase();
-  var payload = formDataToObject(form);
+  var useMultipart = shouldUseMultipart(form);
+  var headers = {
+    'Accept': 'application/json',
+  };
+  var body = null;
+  if (useMultipart) {
+    body = new FormData(form);
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(formDataToObject(form));
+  }
   return fetch(action, {
     method: method,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    },
+    headers: headers,
     credentials: 'same-origin',
-    body: JSON.stringify(payload),
+    body: body,
   }).then(function (response) {
     if (response.status === 204) {
       return {};
@@ -202,7 +229,7 @@ function openCreateModal(spec, query) {
   return new Promise(function (resolve) {
     var handled = false;
     var overlay = spec.element.querySelector('[data-fg-modal-overlay]');
-    var closeButtons = spec.element.querySelectorAll('[data-fg-modal-close], button[type="button"]');
+    var closeButtons = spec.element.querySelectorAll('[data-fg-modal-close]');
 
     function cleanup() {
       if (overlay) {
@@ -683,11 +710,18 @@ func main() {
 
 	relationships := newRelationshipDataset()
 
+	uploadsDir := filepath.Join(os.TempDir(), "formgen-uploads")
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		log.Fatalf("uploads dir: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	relationships.register(mux)
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
 	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServerFS(formgen.RuntimeAssetsFS())))
-	mux.HandleFunc("/api/uploads/", uploadHandler)
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
+	mux.HandleFunc("/api/uploads/", uploadHandler(uploadsDir))
+	mux.HandleFunc("/", readmeHandler)
 	mux.Handle("/form", server.formHandler())
 	mux.Handle("/advanced", server.advancedHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -726,29 +760,190 @@ func main() {
 	}
 }
 
-func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "invalid multipart payload", http.StatusBadRequest)
+// readmeHandler serves the examples/http/README.md as an HTML page.
+func readmeHandler(w http.ResponseWriter, r *http.Request) {
+	// Only handle exact "/" path
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
 		return
 	}
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "file field is required", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
 
-	filename := filepath.Base(header.Filename)
-	payload := map[string]any{
-		"url":          fmt.Sprintf("/uploads/%d_%s", time.Now().Unix(), filename),
-		"name":         filename,
-		"originalName": filename,
-		"size":         header.Size,
-		"contentType":  header.Header.Get("Content-Type"),
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		log.Printf("upload encode: %v", err)
+	// Convert embedded Markdown to HTML
+	extensions := mdparser.CommonExtensions | mdparser.AutoHeadingIDs | mdparser.NoEmptyLineBeforeBlock
+	p := mdparser.NewWithExtensions(extensions)
+	doc := p.Parse(readmeContent)
+
+	htmlFlags := mdhtml.CommonFlags | mdhtml.HrefTargetBlank
+	opts := mdhtml.RendererOptions{Flags: htmlFlags}
+	renderer := mdhtml.NewRenderer(opts)
+	htmlContent := markdown.Render(doc, renderer)
+
+	// Wrap in a styled HTML page
+	page := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>go-formgen HTTP Demo</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a2e;
+      --link: #2563eb;
+      --code-bg: #f3f4f6;
+      --border: #e5e7eb;
+      --nav-bg: #f8fafc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a2e;
+        --fg: #e5e7eb;
+        --link: #60a5fa;
+        --code-bg: #2d2d44;
+        --border: #374151;
+        --nav-bg: #252542;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    a { color: var(--link); }
+    pre {
+      background: var(--code-bg);
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    code {
+      background: var(--code-bg);
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    h1, h2, h3 { margin-top: 2rem; }
+    h1 { border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    .nav-box {
+      background: var(--nav-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+    .nav-box h2 { margin-top: 0; }
+    .nav-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .nav-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .nav-card:hover {
+      border-color: var(--link);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .nav-card h3 { margin: 0 0 0.5rem 0; color: var(--link); }
+    .nav-card p { margin: 0; font-size: 0.9rem; opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <nav class="nav-box">
+    <h2>🚀 Quick Navigation</h2>
+    <div class="nav-grid">
+      <a href="/form" class="nav-card">
+        <h3>/form</h3>
+        <p>Basic form rendering. Explore different renderers (vanilla, preact) and operations via query params.</p>
+      </a>
+      <a href="/advanced" class="nav-card">
+        <h3>/advanced</h3>
+        <p>Advanced create-action flow with modal forms, relationship fields, chips, and typeahead components.</p>
+      </a>
+      <a href="/form?renderer=preact" class="nav-card">
+        <h3>/form?renderer=preact</h3>
+        <p>Same form using the Preact renderer for client-side hydration.</p>
+      </a>
+      <a href="/form?id=article-edit&amp;method=PATCH" class="nav-card">
+        <h3>/form (Edit Mode)</h3>
+        <p>Edit/prefill flow with PATCH method, pre-populated values, and validation states.</p>
+      </a>
+    </div>
+  </nav>
+  %s
+</body>
+</html>`, htmlContent)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(page))
+}
+
+func uploadHandler(uploadDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			methodNotAllowedWith(w, http.MethodPost)
+			return
+		}
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			http.Error(w, "invalid multipart payload", http.StatusBadRequest)
+			return
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "file field is required", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		filename := filepath.Base(header.Filename)
+		if filename == "." || filename == "" {
+			http.Error(w, "invalid file name", http.StatusBadRequest)
+			return
+		}
+		storedName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
+		if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+			http.Error(w, "upload directory unavailable", http.StatusInternalServerError)
+			return
+		}
+		targetPath := filepath.Join(uploadDir, storedName)
+		targetFile, err := os.Create(targetPath)
+		if err != nil {
+			http.Error(w, "failed to save upload", http.StatusInternalServerError)
+			return
+		}
+		defer targetFile.Close()
+		if _, err := io.Copy(targetFile, file); err != nil {
+			http.Error(w, "failed to save upload", http.StatusInternalServerError)
+			return
+		}
+
+		payload := map[string]any{
+			"url":          fmt.Sprintf("/uploads/%s", storedName),
+			"name":         filename,
+			"originalName": filename,
+			"size":         header.Size,
+			"contentType":  header.Header.Get("Content-Type"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(payload); err != nil {
+			log.Printf("upload encode: %v", err)
+		}
 	}
 }
 
@@ -1618,7 +1813,11 @@ func parseCreatePayload(r *http.Request) (map[string]any, error) {
 		}
 		return payload, nil
 	}
-	if err := r.ParseForm(); err != nil {
+	if strings.HasPrefix(contentType, "multipart/") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			return nil, err
+		}
+	} else if err := r.ParseForm(); err != nil {
 		return nil, err
 	}
 	payload := make(map[string]any, len(r.Form))
@@ -1887,7 +2086,18 @@ func statusPillRenderer(buf *bytes.Buffer, field model.Field, data components.Co
 	current := toString(field.Default)
 
 	if len(options) == 0 {
-		builder.WriteString(`<input type="text" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">`)
+		builder.WriteString(`<input type="text" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" name="`)
+		builder.WriteString(html.EscapeString(field.Name))
+		builder.WriteString(`"`)
+		if current != "" {
+			builder.WriteString(` value="`)
+			builder.WriteString(html.EscapeString(current))
+			builder.WriteString(`"`)
+		}
+		if field.Required {
+			builder.WriteString(` required`)
+		}
+		builder.WriteString(`>`)
 		buf.WriteString(builder.String())
 		return nil
 	}
@@ -1900,10 +2110,11 @@ func statusPillRenderer(buf *bytes.Buffer, field model.Field, data components.Co
 		builder.WriteString(`" value="`)
 		builder.WriteString(html.EscapeString(option.Value))
 		builder.WriteString(`"`)
-		if idx == 0 && current == "" {
+		if option.Value == current {
 			builder.WriteString(` checked`)
-		} else if option.Value == current {
-			builder.WriteString(` checked`)
+		}
+		if field.Required && idx == 0 {
+			builder.WriteString(` required`)
 		}
 		builder.WriteString(`>
             <span>`)
