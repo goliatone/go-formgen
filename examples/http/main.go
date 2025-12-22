@@ -7,14 +7,19 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io"
+	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
+	"testing/fstest"
 	"time"
 
 	"github.com/goliatone/go-formgen"
@@ -23,6 +28,7 @@ import (
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
 	"github.com/goliatone/go-formgen/pkg/render"
+	gotemplate "github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/go-formgen/pkg/renderers/preact"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
@@ -32,6 +38,292 @@ const vanillaRuntimeBootstrap = `
 <script src="/runtime/formgen-relationships.min.js" defer></script>
 <script src="/runtime/formgen-behaviors.min.js" defer></script>
 <script>
+function buildCreateModalRegistry() {
+  var registry = {};
+  var nodes = document.querySelectorAll('[data-fg-create-modal]');
+  Array.prototype.forEach.call(nodes, function (modal) {
+    var actionId = modal.getAttribute('data-fg-create-modal');
+    if (!actionId) {
+      return;
+    }
+    var form = modal.querySelector('form');
+    if (!form) {
+      return;
+    }
+    var labelField = modal.getAttribute('data-fg-create-label-field') || 'name';
+    var valueField = modal.getAttribute('data-fg-create-value-field') || 'id';
+    var prefillField = modal.getAttribute('data-fg-create-prefill-field') || labelField;
+    registry[actionId] = {
+      element: modal,
+      form: form,
+      labelField: labelField,
+      valueField: valueField,
+      prefillField: prefillField,
+    };
+  });
+  return registry;
+}
+
+function setModalOpen(spec, open) {
+  if (!spec || !spec.element) {
+    return;
+  }
+  spec.element.hidden = !open;
+  document.body.classList.toggle('overflow-hidden', open);
+}
+
+function prefillModal(spec, query) {
+  if (!spec || !spec.form) {
+    return;
+  }
+  var fieldName = spec.prefillField;
+  if (!fieldName) {
+    return;
+  }
+  // Only prefill if we have a non-empty query; otherwise preserve defaults
+  var trimmed = (query && typeof query === 'string') ? query.trim() : '';
+  if (!trimmed) {
+    return;
+  }
+  var input = spec.form.querySelector('[name="' + fieldName + '"]');
+  if (!input) {
+    return;
+  }
+  input.value = trimmed;
+  try {
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  } catch (_err) {
+    // Ignore event errors in older browsers.
+  }
+}
+
+function formDataToObject(form) {
+  var payload = {};
+  var data = new FormData(form);
+  data.forEach(function (value, key) {
+    if (payload[key] === undefined) {
+      payload[key] = value;
+      return;
+    }
+    if (Array.isArray(payload[key])) {
+      payload[key].push(value);
+      return;
+    }
+    payload[key] = [payload[key], value];
+  });
+  var checkboxes = form.querySelectorAll('input[type="checkbox"][name]');
+  Array.prototype.forEach.call(checkboxes, function (input) {
+    if (payload[input.name] === undefined) {
+      payload[input.name] = input.checked;
+    } else if (payload[input.name] === 'on') {
+      payload[input.name] = input.checked;
+    }
+  });
+  return payload;
+}
+
+function normalizeCreatePayload(payload) {
+  if (payload && typeof payload === 'object' && payload.data) {
+    return payload.data;
+  }
+  return payload;
+}
+
+function buildCreatedOption(spec, payload) {
+  var record = normalizeCreatePayload(payload);
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  var value = record[spec.valueField];
+  var label = record[spec.labelField];
+  if (value === undefined || label === undefined) {
+    return null;
+  }
+  return {
+    value: String(value),
+    label: String(label),
+  };
+}
+
+function submitCreateForm(spec) {
+  var form = spec.form;
+  var action = form.getAttribute('action') || window.location.href;
+  var method = (form.getAttribute('method') || 'POST').toUpperCase();
+  var payload = formDataToObject(form);
+  return fetch(action, {
+    method: method,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify(payload),
+  }).then(function (response) {
+    if (response.status === 204) {
+      return {};
+    }
+    return response.json().then(function (data) {
+      if (!response.ok) {
+        var message = (data && data.error) ? data.error : response.statusText;
+        throw new Error(message);
+      }
+      return data;
+    }).catch(function (err) {
+      if (!response.ok) {
+        throw err;
+      }
+      return {};
+    });
+  });
+}
+
+function getFocusableElements(container) {
+  var selector = 'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
+  var elements = container.querySelectorAll(selector);
+  return Array.prototype.filter.call(elements, function (el) {
+    return !el.disabled && el.offsetParent !== null;
+  });
+}
+
+function openCreateModal(spec, query) {
+  if (!spec || !spec.element || !spec.form) {
+    return Promise.resolve(null);
+  }
+  if (!spec.element.hidden) {
+    return Promise.resolve(null);
+  }
+  setModalOpen(spec, true);
+  prefillModal(spec, query);
+  var focusable = spec.form.querySelector('input:not([type="hidden"]), select, textarea, button');
+  if (focusable) {
+    focusable.focus();
+  }
+
+  return new Promise(function (resolve) {
+    var handled = false;
+    var overlay = spec.element.querySelector('[data-fg-modal-overlay]');
+    var closeButtons = spec.element.querySelectorAll('[data-fg-modal-close], button[type="button"]');
+
+    function cleanup() {
+      if (overlay) {
+        overlay.removeEventListener('click', onCancel);
+      }
+      Array.prototype.forEach.call(closeButtons, function (button) {
+        button.removeEventListener('click', onCancel);
+      });
+      spec.form.removeEventListener('submit', onSubmit);
+      document.removeEventListener('keydown', onKeyDown);
+    }
+
+    function close(result) {
+      if (handled) {
+        return;
+      }
+      handled = true;
+      cleanup();
+      setModalOpen(spec, false);
+      // Reset form when closing modal
+      if (spec.form && typeof spec.form.reset === 'function') {
+        spec.form.reset();
+      }
+      // Clear any error messages
+      var errorContainer = spec.element.querySelector('[data-fg-modal-error]');
+      if (errorContainer) {
+        errorContainer.textContent = '';
+        errorContainer.hidden = true;
+      }
+      resolve(result || null);
+    }
+
+    function onCancel(event) {
+      if (event) {
+        event.preventDefault();
+      }
+      close(null);
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+        return;
+      }
+      // Focus trap: keep Tab cycling within the modal
+      if (event.key === 'Tab') {
+        var focusableEls = getFocusableElements(spec.element);
+        if (focusableEls.length === 0) {
+          event.preventDefault();
+          return;
+        }
+        var firstEl = focusableEls[0];
+        var lastEl = focusableEls[focusableEls.length - 1];
+        if (event.shiftKey) {
+          // Shift+Tab: if on first element, wrap to last
+          if (document.activeElement === firstEl) {
+            event.preventDefault();
+            lastEl.focus();
+          }
+        } else {
+          // Tab: if on last element, wrap to first
+          if (document.activeElement === lastEl) {
+            event.preventDefault();
+            firstEl.focus();
+          }
+        }
+      }
+    }
+
+    function showError(message) {
+      var errorContainer = spec.element.querySelector('[data-fg-modal-error]');
+      if (errorContainer) {
+        errorContainer.textContent = message || 'An error occurred. Please try again.';
+        errorContainer.hidden = false;
+      }
+    }
+
+    function onSubmit(event) {
+      event.preventDefault();
+      // Disable submit button and show loading state
+      var submitBtn = spec.form.querySelector('button[type="submit"]');
+      var originalText = '';
+      if (submitBtn) {
+        originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating...';
+      }
+      // Clear previous errors
+      var errorContainer = spec.element.querySelector('[data-fg-modal-error]');
+      if (errorContainer) {
+        errorContainer.hidden = true;
+      }
+      submitCreateForm(spec)
+        .then(function (payload) {
+          close(buildCreatedOption(spec, payload));
+        })
+        .catch(function (error) {
+          console.warn('[formgen] create action failed', error);
+          showError(error.message || 'Failed to create record.');
+        })
+        .finally(function () {
+          // Restore submit button state
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+        });
+    }
+
+    if (overlay) {
+      overlay.addEventListener('click', onCancel);
+    }
+    Array.prototype.forEach.call(closeButtons, function (button) {
+      button.addEventListener('click', onCancel);
+    });
+    spec.form.addEventListener('submit', onSubmit);
+    document.addEventListener('keydown', onKeyDown);
+  });
+}
+
 window.addEventListener('DOMContentLoaded', function () {
   if (!window.FormgenRelationships || typeof window.FormgenRelationships.initRelationships !== 'function') {
     console.warn('formgen runtime bundle not loaded; ensure /runtime/ is served from formgen.RuntimeAssetsFS()');
@@ -60,12 +352,95 @@ window.addEventListener('DOMContentLoaded', function () {
       activate();
     });
   }
+  var delayButton = document.getElementById('apply-delay-button');
+  var delayStatus = document.getElementById('apply-delay-status');
+  var relationshipRegistry = null;
+  var pendingDelay = null;
+
+  function setDelayStatus(message) {
+    if (!delayStatus) {
+      return;
+    }
+    delayStatus.textContent = message || '';
+  }
+
+  function randomDelayValue() {
+    var delay = 1.5 + (Math.random() * 1.5);
+    return delay.toFixed(1) + 's';
+  }
+
+  function applyDelayToElements(delayValue) {
+    var nodes = document.querySelectorAll('[data-endpoint-url]');
+    if (!nodes || nodes.length === 0) {
+      setDelayStatus('No relationship fields found.');
+      return false;
+    }
+    Array.prototype.forEach.call(nodes, function (element) {
+      element.setAttribute('data-endpoint-params-_delay', delayValue);
+    });
+    return true;
+  }
+
+  function applyDelayToResolvers(delayValue) {
+    if (!relationshipRegistry || typeof relationshipRegistry.get !== 'function') {
+      return;
+    }
+    var nodes = document.querySelectorAll('[data-endpoint-url]');
+    Array.prototype.forEach.call(nodes, function (element) {
+      var resolver = relationshipRegistry.get(element);
+      if (!resolver || !resolver.endpoint) {
+        return;
+      }
+      if (!resolver.endpoint.params) {
+        resolver.endpoint.params = {};
+      }
+      resolver.endpoint.params['_delay'] = delayValue;
+    });
+  }
+
+  function applyRelationshipDelay() {
+    var delayValue = randomDelayValue();
+    var updated = applyDelayToElements(delayValue);
+    if (!updated) {
+      return;
+    }
+    if (relationshipRegistry) {
+      applyDelayToResolvers(delayValue);
+    } else {
+      pendingDelay = delayValue;
+    }
+    setDelayStatus('Delay set to ' + delayValue + ' for all relationships.');
+  }
+
+  if (delayButton) {
+    delayButton.addEventListener('click', applyRelationshipDelay);
+  }
+  var modalRegistry = buildCreateModalRegistry();
   var config = {
     onValidationError: function (ctx, error) {
       console.warn('[formgen] validation failed', ctx.field.name, error.message);
     },
+    cache: { strategy: 'none' },
   };
-  window.FormgenRelationships.initRelationships(config).catch(function (error) {
+  if (Object.keys(modalRegistry).length > 0) {
+    config.onCreateAction = function (_context, detail) {
+      if (!detail || !detail.actionId) {
+        return;
+      }
+      var spec = modalRegistry[detail.actionId];
+      if (!spec) {
+        return;
+      }
+      return openCreateModal(spec, detail.query || '');
+    };
+  }
+  window.FormgenRelationships.initRelationships(config).then(function (registry) {
+    relationshipRegistry = registry;
+    if (pendingDelay) {
+      applyDelayToResolvers(pendingDelay);
+      pendingDelay = null;
+    }
+  }).catch(function (error) {
     console.error('initRelationships failed', error);
   });
   if (window.FormgenBehaviors && typeof window.FormgenBehaviors.initBehaviors === 'function') {
@@ -76,6 +451,41 @@ window.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 `
+
+const advancedRendererName = "vanilla"
+const advancedMainOperation = "post-book:create"
+
+type createModalSpec struct {
+	ActionID     string
+	OperationID  string
+	ValueField   string
+	LabelField   string
+	PrefillField string
+}
+
+var advancedCreateModals = []createModalSpec{
+	{
+		ActionID:     "author",
+		OperationID:  "post-author:create",
+		ValueField:   "id",
+		LabelField:   "full_name",
+		PrefillField: "full_name",
+	},
+	{
+		ActionID:     "publisher",
+		OperationID:  "post-publishing-house:create",
+		ValueField:   "id",
+		LabelField:   "name",
+		PrefillField: "name",
+	},
+	{
+		ActionID:     "tag",
+		OperationID:  "post-tag:create",
+		ValueField:   "id",
+		LabelField:   "name",
+		PrefillField: "name",
+	},
+}
 
 func defaultSchemaPath() string {
 	fixture := exampleutil.FixturePath("petstore.json")
@@ -99,12 +509,90 @@ func defaultUISchemaDir(schemaPath string) string {
 	return candidate
 }
 
+func defaultTemplatesDir(schemaPath string) string {
+	path := strings.TrimSpace(schemaPath)
+	if path == "" {
+		return ""
+	}
+	candidate := filepath.Clean(filepath.Join(filepath.Dir(path), "templates"))
+	info, err := os.Stat(candidate)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+	return candidate
+}
+
+func resolveUISchemaFS(source string) (fs.FS, error) {
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "" {
+		return nil, nil
+	}
+	if isURL(trimmed) {
+		resp, err := http.Get(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("fetch ui schema %q: %w", trimmed, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			return nil, fmt.Errorf("fetch ui schema %q: status %d", trimmed, resp.StatusCode)
+		}
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read ui schema %q: %w", trimmed, err)
+		}
+		name := uiSchemaFilenameFromURL(trimmed, resp.Header.Get("Content-Type"))
+		return fstest.MapFS{
+			name: &fstest.MapFile{Data: data},
+		}, nil
+	}
+
+	info, err := os.Stat(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("ui schema %q: %w", trimmed, err)
+	}
+	if info.IsDir() {
+		return os.DirFS(trimmed), nil
+	}
+	ext := strings.ToLower(filepath.Ext(trimmed))
+	if ext != ".json" && ext != ".yaml" && ext != ".yml" {
+		return nil, fmt.Errorf("ui schema %q: unsupported extension %q", trimmed, ext)
+	}
+	data, err := os.ReadFile(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("read ui schema %q: %w", trimmed, err)
+	}
+	return fstest.MapFS{
+		filepath.Base(trimmed): &fstest.MapFile{Data: data},
+	}, nil
+}
+
+func uiSchemaFilenameFromURL(raw string, contentType string) string {
+	parsed, err := url.Parse(raw)
+	if err == nil {
+		base := path.Base(parsed.Path)
+		ext := strings.ToLower(path.Ext(base))
+		if ext == ".json" || ext == ".yaml" || ext == ".yml" {
+			return base
+		}
+	}
+	if strings.Contains(strings.ToLower(contentType), "yaml") {
+		return "schema.yaml"
+	}
+	return "schema.json"
+}
+
+func isURL(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
+}
+
 func main() {
 	defaultSource := defaultSchemaPath()
 
 	var (
-		addrFlag      = flag.String("addr", ":8080", "HTTP listen address")
+		addrFlag      = flag.String("addr", ":8383", "HTTP listen address")
 		sourceFlag    = flag.String("source", defaultSource, "Default OpenAPI source (file path or URL)")
+		uiSchemaFlag  = flag.String("ui", "", "UI schema directory or file (path or URL)")
+		templatesFlag = flag.String("templates", "", "Templates directory for advanced view (local path)")
 		rendererFlag  = flag.String("renderer", "vanilla", "Default renderer name")
 		operationFlag = flag.String("operation", "post-book:create", "Default operation ID")
 		shutdownGrace = flag.Duration("grace", 5*time.Second, "Shutdown grace period")
@@ -125,7 +613,17 @@ func main() {
 	)
 	parser := formgen.NewParser()
 	builder := model.NewBuilder()
-	uiSchemaDir := defaultUISchemaDir(*sourceFlag)
+
+	uiSchemaSource := strings.TrimSpace(*uiSchemaFlag)
+	if uiSchemaSource == "" {
+		uiSchemaSource = defaultUISchemaDir(*sourceFlag)
+	}
+
+	templatesDir := strings.TrimSpace(*templatesFlag)
+	if templatesDir == "" {
+		templatesDir = defaultTemplatesDir(*sourceFlag)
+	}
+
 	options := []orchestrator.Option{
 		orchestrator.WithLoader(loader),
 		orchestrator.WithParser(parser),
@@ -133,8 +631,36 @@ func main() {
 		orchestrator.WithRegistry(registry),
 		orchestrator.WithDefaultRenderer(*rendererFlag),
 	}
-	if uiSchemaDir != "" {
-		options = append(options, orchestrator.WithUISchemaFS(os.DirFS(uiSchemaDir)))
+	if uiSchemaSource != "" {
+		uiSchemaFS, err := resolveUISchemaFS(uiSchemaSource)
+		if err != nil {
+			log.Fatalf("ui schema: %v", err)
+		}
+		if uiSchemaFS != nil {
+			options = append(options, orchestrator.WithUISchemaFS(uiSchemaFS))
+		}
+	}
+
+	var templateEngine *gotemplate.Engine
+	if templatesDir != "" {
+		if isURL(templatesDir) {
+			log.Fatalf("templates: expected local directory, got URL %q", templatesDir)
+		}
+		info, err := os.Stat(templatesDir)
+		if err != nil {
+			log.Fatalf("templates: %v", err)
+		}
+		if !info.IsDir() {
+			log.Fatalf("templates: %q is not a directory", templatesDir)
+		}
+		engine, err := gotemplate.New(
+			gotemplate.WithBaseDir(templatesDir),
+			gotemplate.WithExtension(".tmpl"),
+		)
+		if err != nil {
+			log.Fatalf("templates: %v", err)
+		}
+		templateEngine = engine
 	}
 
 	defaultOperation := strings.TrimSpace(*operationFlag)
@@ -148,6 +674,7 @@ func main() {
 		parser:           parser,
 		builder:          builder,
 		registry:         registry,
+		templates:        templateEngine,
 		cache:            newDocumentCache(),
 		defaultSource:    *sourceFlag,
 		defaultRenderer:  *rendererFlag,
@@ -162,6 +689,7 @@ func main() {
 	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServerFS(formgen.RuntimeAssetsFS())))
 	mux.HandleFunc("/api/uploads/", uploadHandler)
 	mux.Handle("/form", server.formHandler())
+	mux.Handle("/advanced", server.advancedHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -230,6 +758,7 @@ type formServer struct {
 	parser           pkgopenapi.Parser
 	builder          model.Builder
 	registry         *render.Registry
+	templates        *gotemplate.Engine
 	cache            *documentCache
 	defaultSource    string
 	defaultRenderer  string
@@ -327,6 +856,92 @@ func (s *formServer) formHandler() http.Handler {
 	})
 }
 
+func (s *formServer) advancedHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.templates == nil {
+			http.Error(w, "templates not configured", http.StatusInternalServerError)
+			return
+		}
+		if !s.registry.Has(advancedRendererName) {
+			http.Error(w, fmt.Sprintf("renderer %q not found", advancedRendererName), http.StatusNotFound)
+			return
+		}
+
+		sourceRaw := strings.TrimSpace(r.URL.Query().Get("source"))
+		if sourceRaw == "" {
+			sourceRaw = s.defaultSource
+		}
+		source, cacheKey, err := exampleutil.ResolveSource(sourceRaw)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("resolve source: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		var document pkgopenapi.Document
+		if cached, ok := s.cache.Get(cacheKey); ok {
+			document = cached
+		} else {
+			document, err = s.loader.Load(r.Context(), source)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("load document: %v", err), http.StatusBadGateway)
+				return
+			}
+			s.cache.Set(cacheKey, document)
+		}
+
+		mainOutput, err := s.generator.Generate(r.Context(), orchestrator.Request{
+			Document:    &document,
+			OperationID: advancedMainOperation,
+			Renderer:    advancedRendererName,
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("generate main form: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		modals := make([]map[string]any, 0, len(advancedCreateModals))
+		for _, spec := range advancedCreateModals {
+			modalOutput, err := s.generator.Generate(r.Context(), orchestrator.Request{
+				Document:    &document,
+				OperationID: spec.OperationID,
+				Renderer:    advancedRendererName,
+				RenderOptions: render.RenderOptions{
+					Subset: render.FieldSubset{
+						Tags: []string{"modal-min"},
+					},
+					OmitAssets: true, // Modals inherit assets from the parent page
+				},
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("generate modal form (%s): %v", spec.OperationID, err), http.StatusInternalServerError)
+				return
+			}
+			modals = append(modals, map[string]any{
+				"action_id":     spec.ActionID,
+				"value_field":   spec.ValueField,
+				"label_field":   spec.LabelField,
+				"prefill_field": spec.PrefillField,
+				"form_html":     string(modalOutput),
+			})
+		}
+
+		page, err := s.templates.RenderTemplate("advanced", map[string]any{
+			"main_form_html":    string(mainOutput),
+			"modals":            modals,
+			"runtime_bootstrap": vanillaRuntimeBootstrap,
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("render template: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if _, err := w.Write([]byte(page)); err != nil {
+			log.Printf("write response: %v", err)
+		}
+	})
+}
+
 func (s *formServer) buildFormModel(ctx context.Context, document pkgopenapi.Document, operation string) (model.FormModel, error) {
 	if s.parser == nil || s.builder == nil {
 		return model.FormModel{}, fmt.Errorf("form server missing parser or builder")
@@ -347,6 +962,7 @@ func (s *formServer) buildFormModel(ctx context.Context, document pkgopenapi.Doc
 }
 
 type relationshipDataset struct {
+	mu             sync.RWMutex
 	authors        []authorRecord
 	categories     []categoryRecord
 	managers       []managerRecord
@@ -362,40 +978,48 @@ func newRelationshipDataset() *relationshipDataset {
 	return &relationshipDataset{
 		authors: []authorRecord{
 			{
-				ID:       "11111111-1111-4111-8111-111111111111",
-				FullName: "Ada Lovelace",
-				Email:    "ada@example.com",
-				TenantID: "northwind",
+				ID:          "11111111-1111-4111-8111-111111111111",
+				FullName:    "Ada Lovelace",
+				Email:       "ada@example.com",
+				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
+				Active:      true,
+				TenantID:    "northwind",
 				Profile: authorProfile{
 					Bio:     "First programmer and resident polymath.",
 					Twitter: "@ada",
 				},
 			},
 			{
-				ID:       "22222222-2222-4222-8222-222222222222",
-				FullName: "Claude Shannon",
-				Email:    "claude@example.com",
-				TenantID: "northwind",
+				ID:          "22222222-2222-4222-8222-222222222222",
+				FullName:    "Claude Shannon",
+				Email:       "claude@example.com",
+				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
+				Active:      true,
+				TenantID:    "northwind",
 				Profile: authorProfile{
 					Bio:     "Father of information theory.",
 					Twitter: "@entropy",
 				},
 			},
 			{
-				ID:       "33333333-3333-4333-8333-333333333333",
-				FullName: "Octavia E. Butler",
-				Email:    "octavia@example.com",
-				TenantID: "lumen",
+				ID:          "33333333-3333-4333-8333-333333333333",
+				FullName:    "Octavia E. Butler",
+				Email:       "octavia@example.com",
+				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
+				Active:      true,
+				TenantID:    "lumen",
 				Profile: authorProfile{
 					Bio:     "Visionary science fiction author.",
 					Twitter: "@patternist",
 				},
 			},
 			{
-				ID:       "44444444-4444-4444-8444-444444444444",
-				FullName: "Ida B. Wells",
-				Email:    "ida@example.com",
-				TenantID: "lumen",
+				ID:          "44444444-4444-4444-8444-444444444444",
+				FullName:    "Ida B. Wells",
+				Email:       "ida@example.com",
+				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
+				Active:      true,
+				TenantID:    "lumen",
 				Profile: authorProfile{
 					Bio:     "Investigative journalist and civil rights pioneer.",
 					Twitter: "@idabwells",
@@ -412,10 +1036,10 @@ func newRelationshipDataset() *relationshipDataset {
 			{ID: "99999999-9999-4999-8999-999999999999", Name: "Radia Perlman"},
 		},
 		tags: []tagRecord{
-			{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Label: "feature", Description: "Feature launch related content"},
-			{ID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", Label: "announcement", Description: "Company announcements"},
-			{ID: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", Label: "editorial", Description: "Long-form editorial work"},
-			{ID: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", Label: "people", Description: "People and culture stories"},
+			{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Name: "feature", Category: "product", Description: "Feature launch related content"},
+			{ID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", Name: "announcement", Category: "company", Description: "Company announcements"},
+			{ID: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", Name: "editorial", Category: "editorial", Description: "Long-form editorial work"},
+			{ID: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", Name: "people", Category: "culture", Description: "People and culture stories"},
 		},
 		publishers: []publishingHouseRecord{
 			{
@@ -555,10 +1179,13 @@ func (d *relationshipDataset) register(mux *http.ServeMux) {
 	if mux == nil {
 		return
 	}
+	mux.HandleFunc("/author", d.handleAuthorCreate)
 	mux.HandleFunc("/api/authors", d.handleAuthors)
 	mux.HandleFunc("/api/categories", d.handleCategories)
 	mux.HandleFunc("/api/managers", d.handleManagers)
+	mux.HandleFunc("/tag", d.handleTagCreate)
 	mux.HandleFunc("/api/tags", d.handleTags)
+	mux.HandleFunc("/publishing-house", d.handlePublishingHouseCreate)
 	mux.HandleFunc("/api/publishing-houses", d.handlePublishingHouses)
 	mux.HandleFunc("/api/author-profiles", d.handleAuthorProfiles)
 	mux.HandleFunc("/api/books", d.handleBooks)
@@ -567,10 +1194,21 @@ func (d *relationshipDataset) register(mux *http.ServeMux) {
 }
 
 func (d *relationshipDataset) handleAuthors(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
+	if r.Method == http.MethodPost {
+		d.handleAuthorCreate(w, r)
 		return
 	}
+	if r.Method != http.MethodGet {
+		methodNotAllowedWith(w, http.MethodGet, http.MethodPost)
+		return
+	}
+
+	// Apply artificial delay to demonstrate loading indicators.
+	// Example: /api/authors?_delay=1s
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	tenantFilter := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
@@ -596,11 +1234,55 @@ func (d *relationshipDataset) handleAuthors(w http.ResponseWriter, r *http.Reque
 	writeRelationshipData(w, results)
 }
 
+func (d *relationshipDataset) handleAuthorCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowedWith(w, http.MethodPost)
+		return
+	}
+
+	payload, err := parseCreatePayload(r)
+	if err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	fullName := payloadString(payload, "full_name")
+	email := payloadString(payload, "email")
+	publisherID := payloadString(payload, "publisher_id")
+	if fullName == "" || email == "" || publisherID == "" {
+		http.Error(w, "full_name, email, and publisher_id are required", http.StatusBadRequest)
+		return
+	}
+
+	record := authorRecord{
+		ID:          newRecordID("author"),
+		FullName:    fullName,
+		Email:       email,
+		PublisherID: publisherID,
+		Active:      payloadBool(payload, "active"),
+		TenantID:    "northwind",
+	}
+
+	d.mu.Lock()
+	d.authors = append(d.authors, record)
+	d.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(record); err != nil {
+		log.Printf("write author create response: %v", err)
+	}
+}
+
 func (d *relationshipDataset) handleCategories(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
+
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
@@ -638,6 +1320,11 @@ func (d *relationshipDataset) handleManagers(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	if wantsOptionsFormat(r) {
 		writeRelationshipOptions(w, d.managers, func(m managerRecord) string { return m.ID }, func(m managerRecord) string {
 			return m.Name
@@ -649,15 +1336,24 @@ func (d *relationshipDataset) handleManagers(w http.ResponseWriter, r *http.Requ
 }
 
 func (d *relationshipDataset) handleTags(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
+	if r.Method == http.MethodPost {
+		d.handleTagCreate(w, r)
 		return
 	}
+	if r.Method != http.MethodGet {
+		methodNotAllowedWith(w, http.MethodGet, http.MethodPost)
+		return
+	}
+
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	results := make([]tagRecord, 0, len(d.tags))
 	for _, tag := range d.tags {
-		if search != "" && !strings.Contains(strings.ToLower(tag.Label), search) {
+		if search != "" && !strings.Contains(strings.ToLower(tag.Name), search) {
 			continue
 		}
 		results = append(results, tag)
@@ -665,7 +1361,7 @@ func (d *relationshipDataset) handleTags(w http.ResponseWriter, r *http.Request)
 
 	if wantsOptionsFormat(r) {
 		writeRelationshipOptions(w, results, func(t tagRecord) string { return t.ID }, func(t tagRecord) string {
-			return t.Label
+			return t.Name
 		})
 		return
 	}
@@ -673,11 +1369,56 @@ func (d *relationshipDataset) handleTags(w http.ResponseWriter, r *http.Request)
 	writeRelationshipData(w, results)
 }
 
-func (d *relationshipDataset) handlePublishingHouses(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
+func (d *relationshipDataset) handleTagCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowedWith(w, http.MethodPost)
 		return
 	}
+
+	payload, err := parseCreatePayload(r)
+	if err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	name := payloadString(payload, "name")
+	category := payloadString(payload, "category")
+	if name == "" || category == "" {
+		http.Error(w, "name and category are required", http.StatusBadRequest)
+		return
+	}
+
+	record := tagRecord{
+		ID:          newRecordID("tag"),
+		Name:        name,
+		Category:    category,
+		Description: payloadString(payload, "description"),
+	}
+
+	d.mu.Lock()
+	d.tags = append(d.tags, record)
+	d.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(record); err != nil {
+		log.Printf("write tag create response: %v", err)
+	}
+}
+
+func (d *relationshipDataset) handlePublishingHouses(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		d.handlePublishingHouseCreate(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		methodNotAllowedWith(w, http.MethodGet, http.MethodPost)
+		return
+	}
+
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
@@ -703,11 +1444,50 @@ func (d *relationshipDataset) handlePublishingHouses(w http.ResponseWriter, r *h
 	writeRelationshipData(w, results)
 }
 
+func (d *relationshipDataset) handlePublishingHouseCreate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowedWith(w, http.MethodPost)
+		return
+	}
+
+	payload, err := parseCreatePayload(r)
+	if err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	name := payloadString(payload, "name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	record := publishingHouseRecord{
+		ID:            newRecordID("publisher"),
+		Name:          name,
+		ImprintPrefix: payloadString(payload, "imprint_prefix"),
+	}
+
+	d.mu.Lock()
+	d.publishers = append(d.publishers, record)
+	d.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(record); err != nil {
+		log.Printf("write publishing house create response: %v", err)
+	}
+}
+
 func (d *relationshipDataset) handleAuthorProfiles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
+
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	authorID := strings.TrimSpace(r.URL.Query().Get("author_id"))
@@ -744,6 +1524,11 @@ func (d *relationshipDataset) handleBooks(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	results := make([]bookRecord, 0, len(d.books))
 	for _, book := range d.books {
@@ -765,6 +1550,11 @@ func (d *relationshipDataset) handleChapters(w http.ResponseWriter, r *http.Requ
 		methodNotAllowed(w)
 		return
 	}
+
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	bookID := strings.TrimSpace(r.URL.Query().Get("book_id"))
@@ -794,6 +1584,11 @@ func (d *relationshipDataset) handleHeadquarters(w http.ResponseWriter, r *http.
 		return
 	}
 
+	applyArtificialDelay(r)
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
 	results := make([]headquartersRecord, 0, len(d.headquarters))
@@ -809,6 +1604,91 @@ func (d *relationshipDataset) handleHeadquarters(w http.ResponseWriter, r *http.
 	}
 
 	writeRelationshipData(w, results)
+}
+
+func parseCreatePayload(r *http.Request) (map[string]any, error) {
+	if r == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+	contentType := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
+	if strings.HasPrefix(contentType, "application/json") {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			return nil, err
+		}
+		return payload, nil
+	}
+	if err := r.ParseForm(); err != nil {
+		return nil, err
+	}
+	payload := make(map[string]any, len(r.Form))
+	for key, values := range r.Form {
+		if len(values) == 0 {
+			continue
+		}
+		if len(values) == 1 {
+			payload[key] = values[0]
+			continue
+		}
+		payload[key] = values
+	}
+	return payload, nil
+}
+
+func payloadString(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, ok := payload[key]
+	if !ok {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case []string:
+		if len(v) > 0 {
+			return strings.TrimSpace(v[0])
+		}
+	case []any:
+		if len(v) > 0 {
+			return strings.TrimSpace(fmt.Sprintf("%v", v[0]))
+		}
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	return ""
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	value, ok := payload[key]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		normalized := strings.ToLower(strings.TrimSpace(v))
+		return normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "on"
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func newRecordID(prefix string) string {
+	trimmed := strings.TrimSpace(prefix)
+	if trimmed == "" {
+		trimmed = "record"
+	}
+	return fmt.Sprintf("%s-%d", trimmed, time.Now().UnixNano())
 }
 
 func wantsOptionsFormat(r *http.Request) bool {
@@ -846,12 +1726,38 @@ func methodNotAllowed(w http.ResponseWriter) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 
+func methodNotAllowedWith(w http.ResponseWriter, allowed ...string) {
+	if len(allowed) == 0 {
+		methodNotAllowed(w)
+		return
+	}
+	w.Header().Set("Allow", strings.Join(allowed, ", "))
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// applyArtificialDelay reads an optional "_delay" query parameter and sleeps
+// for that duration. Use this to demonstrate loading indicators.
+// Examples: ?_delay=500ms, ?_delay=1s, ?_delay=2s
+func applyArtificialDelay(r *http.Request) {
+	delayStr := r.URL.Query().Get("_delay")
+	if delayStr == "" {
+		return
+	}
+	d, err := time.ParseDuration(delayStr)
+	if err != nil || d <= 0 || d > 10*time.Second {
+		return // Ignore invalid or excessive delays
+	}
+	time.Sleep(d)
+}
+
 type authorRecord struct {
-	ID       string        `json:"id"`
-	FullName string        `json:"full_name"`
-	Email    string        `json:"email"`
-	TenantID string        `json:"tenant_id"`
-	Profile  authorProfile `json:"profile"`
+	ID          string        `json:"id"`
+	FullName    string        `json:"full_name"`
+	Email       string        `json:"email"`
+	PublisherID string        `json:"publisher_id"`
+	Active      bool          `json:"active"`
+	TenantID    string        `json:"tenant_id"`
+	Profile     authorProfile `json:"profile"`
 }
 
 type authorProfile struct {
@@ -871,7 +1777,8 @@ type managerRecord struct {
 
 type tagRecord struct {
 	ID          string `json:"id"`
-	Label       string `json:"label"`
+	Name        string `json:"name"`
+	Category    string `json:"category"`
 	Description string `json:"description,omitempty"`
 }
 
