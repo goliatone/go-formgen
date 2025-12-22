@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.10.0](https://github.com/goliatone/go-formgen/compare/v0.9.0...v0.10.0) - (2025-12-22)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.10.0 ([19ad986](https://github.com/goliatone/go-formgen/commit/19ad986d4d9067f992e80065e3bb054d41481246))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Timezone component ([9f82829](https://github.com/goliatone/go-formgen/commit/9f82829c81098027b6cf92fe48096fb947496898))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.9.0 ([e3bb00b](https://github.com/goliatone/go-formgen/commit/e3bb00b45e9a621bf731a9a874f170de17d8f7c2))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([24f0a53](https://github.com/goliatone/go-formgen/commit/24f0a53e95ba2b1e51205991b2ef9e375e5e6ce0))  - (goliatone)
+
 # [0.9.0](https://github.com/goliatone/go-formgen/compare/v0.8.0...v0.9.0) - (2025-12-19)
 
 ## <!-- 13 -->📦 Bumps
