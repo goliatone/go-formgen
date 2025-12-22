@@ -70,6 +70,11 @@ type RenderOptions struct {
 	// root form markup when no external stylesheets or inline styles are
 	// present. A zero value allows the renderer to apply its default.
 	TopPadding int
+	// OmitAssets instructs renderers to skip emitting <link>, <style>, and
+	// <script> tags. This is useful for rendering partial forms (e.g., modal
+	// bodies) that will be embedded in a page where the parent already supplies
+	// these assets.
+	OmitAssets bool
 }
 
 func missingTranslationDefault(locale, key string, args []any, err error) string {
