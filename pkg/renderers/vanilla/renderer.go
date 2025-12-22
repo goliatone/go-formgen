@@ -357,13 +357,24 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		responsiveGridStyles = strings.TrimSpace(responsiveGridCSS)
 	}
 
+	// When OmitAssets is set, skip stylesheets, inline styles, and scripts to
+	// avoid duplication when the form is embedded in a parent page.
+	inlineStyles := r.inlineStyle
+	if renderOptions.OmitAssets {
+		stylesheets = nil
+		inlineStyles = ""
+		responsiveGridStyles = ""
+		componentScriptPayload = nil
+		templateTheme = nil
+	}
+
 	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
 		"locale":                 renderOptions.Locale,
 		"form":                   decorated,
 		"layout":                 layout,
 		"actions":                actions,
 		"stylesheets":            stylesheets,
-		"inline_styles":          r.inlineStyle,
+		"inline_styles":          inlineStyles,
 		"responsive_grid_styles": responsiveGridStyles,
 		"component_scripts":      componentScriptPayload,
 		"theme":                  templateTheme,
