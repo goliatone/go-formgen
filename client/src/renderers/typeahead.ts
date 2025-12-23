@@ -1094,9 +1094,14 @@ function bindLoadingState(store: TypeaheadStore): void {
     renderOptions(store);
   };
   const successHandler = () => {
-    if (store.loading) {
-      store.loading = false;
-      renderOptions(store);
+    const wasCreateFocused = store.createActionFocused;
+    const wasInputFocused = document.activeElement === store.input;
+    store.loading = false;
+    renderOptions(store);
+    if (wasCreateFocused && store.createActionElement) {
+      store.createActionElement.focus();
+    } else if (wasInputFocused) {
+      store.input.focus();
     }
   };
   store.loadingHandler = loadingHandler;
