@@ -1,5 +1,24 @@
 # Changelog
 
+# [0.13.0](https://github.com/goliatone/go-formgen/compare/v0.12.0...v0.13.0) - (2025-12-23)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Typeahead loader steup ([dd75402](https://github.com/goliatone/go-formgen/commit/dd7540295b1832ac593c87788543551089fddcb3))  - (goliatone)
+- Chip loader steup ([770376b](https://github.com/goliatone/go-formgen/commit/770376bdeef3d314eb875c47f636bc02070f27b8))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.13.0 ([7370887](https://github.com/goliatone/go-formgen/commit/73708878b015bbb946ab88b40b19f525b21b7435))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.12.0 ([5aeccfd](https://github.com/goliatone/go-formgen/commit/5aeccfdef028966da1739bb6734797a90fce8d0e))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([cf11fec](https://github.com/goliatone/go-formgen/commit/cf11feca25f7acb0ce4a3f4b3b1e687b9b6b6573))  - (goliatone)
+
 # [0.12.0](https://github.com/goliatone/go-formgen/compare/v0.11.0...v0.12.0) - (2025-12-23)
 
 ## <!-- 1 -->🐛 Bug Fixes
