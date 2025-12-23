@@ -1139,6 +1139,20 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
 
   // Show loading indicator when fetching and no options yet
   if (store.loading && options.length === 0) {
+    const rawQuery = searchMode ? searchValue.trim() : "";
+    if (shouldOfferCreate(store, rawQuery, selectedValues)) {
+      const create = document.createElement("button");
+      create.type = "button";
+      setElementClasses(create, theme.menuItem);
+      create.setAttribute("role", "option");
+      create.setAttribute("data-fg-chip-option", "true");
+      create.setAttribute("data-fg-create-option", "true");
+      create.textContent = store.createLabel(rawQuery);
+      create.addEventListener("click", () => {
+        createAndSelect(store, rawQuery).catch(() => undefined);
+      });
+      menuList.appendChild(create);
+    }
     const loadingRow = document.createElement("div");
     setElementClasses(loadingRow, theme.menuLoading);
     loadingRow.setAttribute("aria-live", "polite");
@@ -1731,10 +1745,13 @@ function bindLoadingState(store: ChipStore): void {
     renderMenu(store, selectedValues);
   };
   const successHandler = () => {
-    if (store.loading) {
-      store.loading = false;
-      const selectedValues = getSelectedValues(store.select);
-      renderMenu(store, selectedValues);
+    const wasSearchFocused =
+      store.searchInput && document.activeElement === store.searchInput;
+    store.loading = false;
+    const selectedValues = getSelectedValues(store.select);
+    renderMenu(store, selectedValues);
+    if (wasSearchFocused && store.searchInput) {
+      store.searchInput.focus();
     }
   };
   store.loadingHandler = loadingHandler;
