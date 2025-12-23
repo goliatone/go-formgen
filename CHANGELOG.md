@@ -1,5 +1,33 @@
 # Changelog
 
+# [0.12.0](https://github.com/goliatone/go-formgen/compare/v0.11.0...v0.12.0) - (2025-12-23)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Search mode fields auto resolve on init when value ([2a7c202](https://github.com/goliatone/go-formgen/commit/2a7c202dd67c8b7325f14b983188cb82c33f60d2))  - (goliatone)
+- Typeahead handle no resutls from api ([c280d18](https://github.com/goliatone/go-formgen/commit/c280d18d11056d34710345c2a34832cfbfa1412b))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.12.0 ([ac18dc3](https://github.com/goliatone/go-formgen/commit/ac18dc34217b245e7e05db51111811e224c5798b))  - (goliatone)
+- Release bundled assets version ([544076e](https://github.com/goliatone/go-formgen/commit/544076e60c1ea449a4d4886b8c79e6d3e3d7d685))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Updated forgen rels ([cb5b120](https://github.com/goliatone/go-formgen/commit/cb5b120a29f272dd06f0f61849f050818d9998d0))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.11.0 ([a9ffe47](https://github.com/goliatone/go-formgen/commit/a9ffe47e763a4767ee3659756b4ed8695077e44e))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update readme ([e18288f](https://github.com/goliatone/go-formgen/commit/e18288f58626089584827d7eac6767dad51e305e))  - (goliatone)
+- Update deps ([162542d](https://github.com/goliatone/go-formgen/commit/162542d79e7cbf28a30b14b89397fb21bb5ea223))  - (goliatone)
+- Update example ([c1593ba](https://github.com/goliatone/go-formgen/commit/c1593ba40534778712bdb3cfaa10351b92417e73))  - (goliatone)
+- Update docs ([e3c67ea](https://github.com/goliatone/go-formgen/commit/e3c67ea78aad0a1647492b7d58eb8578b35d424c))  - (goliatone)
+- Update assets runtime ([d47e855](https://github.com/goliatone/go-formgen/commit/d47e8552bda0e841d407b9318fc1e545f7dd6ee8))  - (goliatone)
+
 # [0.11.0](https://github.com/goliatone/go-formgen/compare/v0.10.0...v0.11.0) - (2025-12-22)
 
 ## <!-- 13 -->📦 Bumps
