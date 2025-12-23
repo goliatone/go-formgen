@@ -4,6 +4,7 @@ go 1.23.4
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/flosch/pongo2/v6 v6.0.0
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/goliatone/go-template v0.3.1
 	github.com/goliatone/go-theme v0.2.0
@@ -14,7 +15,6 @@ require (
 
 require (
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/flosch/pongo2/v6 v6.0.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
