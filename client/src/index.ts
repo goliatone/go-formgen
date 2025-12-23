@@ -242,9 +242,19 @@ function shouldAutoResolve(field: FieldConfig): boolean {
     return false;
   }
   if (field.mode === "search") {
-    return false;
+    return hasCurrentValue(field.current);
   }
   return true;
+}
+
+function hasCurrentValue(current: FieldConfig["current"]): boolean {
+  if (current == null) {
+    return false;
+  }
+  if (Array.isArray(current)) {
+    return current.some((value) => String(value).trim() !== "");
+  }
+  return String(current).trim() !== "";
 }
 
 export interface HydrationPayload {
