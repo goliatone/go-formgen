@@ -1351,6 +1351,14 @@
             "description": "Cover image asset URL",
             "format": "uri"
           },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Additional book metadata (JSON)",
+            "x-formgen": {
+              "widget": "json-editor"
+            }
+          },
           "tags": {
             "items": {
               "$ref": "#/components/schemas/tag"
