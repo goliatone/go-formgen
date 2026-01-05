@@ -4,6 +4,7 @@ import { initBehaviors as initBehaviorsCore, registerBehavior, resetBehaviorRegi
 import type { BehaviorInitResult } from "./registry";
 import { slugify } from "./utils";
 import { initIcons, registerIconProvider, __resetIconProvidersForTests } from "../icons";
+import { initJSONEditors } from "../editors";
 
 registerDefaults();
 
@@ -15,10 +16,11 @@ function registerDefaults(): void {
 export function initBehaviors(root: Document | HTMLElement = document): BehaviorInitResult {
   const result = initBehaviorsCore(root);
   initIcons(root);
+  initJSONEditors();
   return result;
 }
 
-export { registerBehavior, registerIconProvider, initIcons, slugify, autoSlug, autoResize };
+export { registerBehavior, registerIconProvider, initIcons, initJSONEditors, slugify, autoSlug, autoResize };
 export type { BehaviorContext, BehaviorFactory } from "./types";
 export type { BehaviorInitResult } from "./registry";
 
