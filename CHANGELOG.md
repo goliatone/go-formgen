@@ -1,5 +1,27 @@
 # Changelog
 
+# [0.14.0](https://github.com/goliatone/go-formgen/compare/v0.13.0...v0.14.0) - (2026-01-09)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.14.0 ([a8a3fda](https://github.com/goliatone/go-formgen/commit/a8a3fdab9c1a9edf05769ddd9100137f842dfc49))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- JSON editor with GUI interface ([1ffa3f1](https://github.com/goliatone/go-formgen/commit/1ffa3f1d4cd1e7d3b99e0941f64cb7369844ef2d))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.13.0 ([f8f67ff](https://github.com/goliatone/go-formgen/commit/f8f67ffd23312e5e84ff4bd8c8d54e8a5504237a))  - (goliatone)
+
+## <!-- 30 -->📝 Other
+
+- PR [#1](https://github.com/goliatone/go-formgen/pull/1): json editor ([183ab20](https://github.com/goliatone/go-formgen/commit/183ab20696fc08321db44fa621c9308c4ab6451a))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update examples ([59d9e98](https://github.com/goliatone/go-formgen/commit/59d9e98e28ae0b6ab7f0e000961a3eb4f34b314c))  - (goliatone)
+
 # [0.13.0](https://github.com/goliatone/go-formgen/compare/v0.12.0...v0.13.0) - (2025-12-23)
 
 ## <!-- 1 -->🐛 Bug Fixes
