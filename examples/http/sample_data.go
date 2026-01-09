@@ -32,9 +32,37 @@ var articleSample = render.RenderOptions{
 	},
 }
 
+var bookSample = render.RenderOptions{
+	Values: map[string]any{
+		"title":        "The Art of Code",
+		"isbn":         "978-0-00-000001-0",
+		"status":       "in_review",
+		"author_id":    "11111111-1111-4111-8111-111111111111", // Ada Lovelace
+		"publisher_id": "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
+		"tags":         []string{"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"},
+		// JSON editor field: JSON string value for proper prefill
+		// Note: The JSON editor component expects a JSON string for the textarea.
+		// Native Go maps would be flattened by the prefill logic.
+		"metadata": `{
+  "awards": ["Hugo Award 2023", "Nebula Nominee"],
+  "editions": 3,
+  "translated": true,
+  "languages": ["en", "es", "fr"],
+  "formats": {
+    "hardcover": true,
+    "paperback": true,
+    "ebook": true,
+    "audiobook": false
+  }
+}`,
+	},
+}
+
 var presetRenderOptions = map[string]render.RenderOptions{
 	"article":      articleSample,
 	"article-edit": articleSample,
+	"book":         bookSample,
+	"book-create":  bookSample,
 }
 
 func sampleRenderOptionsFor(key string) (render.RenderOptions, bool) {

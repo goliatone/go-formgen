@@ -11,34 +11,84 @@
 {% set schema_hint_value = "" -%}
 {% if schema_hint %}{% set schema_hint_value = schema_hint %}{% endif %}
 {% if not schema_hint_value and field.description %}{% set schema_hint_value = field.description %}{% endif %}
-{% if not schema_hint_value %}{% set schema_hint_value = "Provide a JSON object; unknown keys are preserved." %}{% endif %}
+{% if not schema_hint_value %}{% set schema_hint_value = "Provide a JSON object or array; unknown keys are preserved." %}{% endif %}
 {% set placeholder_value = "" -%}
 {% if example %}{% set placeholder_value = example %}{% endif %}
 {% if not placeholder_value and field.placeholder %}{% set placeholder_value = field.placeholder %}{% endif %}
-<div class="space-y-2" data-json-editor="true" data-json-editor-collapsed="{{ collapsed_attr }}" data-json-editor-state="{{ state_value }}">
+{% set mode_value = mode %}
+{% if not mode_value %}{% set mode_value = "raw" %}{% endif %}
+{% set active_view = "raw" %}
+{% if mode_value == "gui" %}{% set active_view = "gui" %}{% endif %}
+<div class="space-y-2" data-json-editor="true" data-json-editor-collapsed="{{ collapsed_attr }}" data-json-editor-state="{{ state_value }}" data-json-editor-mode="{{ mode_value }}" data-json-editor-active="{{ active_view }}"{% if readonly_value %} data-json-editor-readonly="true"{% endif %}{% if disabled_value %} data-json-editor-disabled="true"{% endif %}>
     <div class="flex items-start justify-between gap-2">
         <p class="text-xs text-gray-500 dark:text-gray-400 leading-5">{{ schema_hint_value }}</p>
         <div class="flex items-center gap-2">
-            <button type="button" class="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-200" data-json-editor-toggle aria-expanded="{{ expanded_value }}">
+            {% if show_toggle %}
+            <div class="inline-flex rounded-md shadow-sm" role="group" data-json-editor-mode-toggle>
+                <button type="button" class="px-3 py-1 text-xs font-medium rounded-l-md border {% if active_view == 'gui' %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-slate-800 dark:text-gray-300 dark:border-gray-600{% endif %}"{% if disabled_value %} disabled{% endif %} data-json-editor-mode-btn="gui">
+                    GUI
+                </button>
+                <button type="button" class="px-3 py-1 text-xs font-medium rounded-r-md border-t border-b border-r {% if active_view == 'raw' %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-slate-800 dark:text-gray-300 dark:border-gray-600{% endif %}"{% if disabled_value %} disabled{% endif %} data-json-editor-mode-btn="raw">
+                    Raw
+                </button>
+            </div>
+            {% endif %}
+            {% if show_raw %}
+            <button type="button" class="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-200"{% if disabled_value %} disabled{% endif %} data-json-editor-toggle aria-expanded="{{ expanded_value }}">
                 {% if collapsed %}Expand{% else %}Collapse{% endif %}
             </button>
-            <button type="button" class="text-xs font-medium text-blue-600 hover:text-blue-700" data-json-editor-format>Pretty print</button>
+            <button type="button" class="text-xs font-medium text-blue-600 hover:text-blue-700"{% if disabled_value %} disabled{% endif %}{% if readonly_value %} disabled{% endif %} data-json-editor-format>Pretty print</button>
+            {% endif %}
         </div>
     </div>
+
+    {% if show_gui %}
+    {# Issue 3 fix: GUI container gets the field id for label association #}
+    <div id="fg-{{ field.name }}" class="border {% if validation_state == 'invalid' %}border-red-500{% else %}border-gray-200 dark:border-gray-700{% endif %} rounded-lg bg-white dark:bg-slate-900 {% if mode_value == 'hybrid' and active_view == 'raw' %}hidden{% endif %}" data-json-editor-gui="true" tabindex="0" role="group" aria-labelledby="fg-{{ field.name }}-label">
+        <div class="p-3 space-y-2" data-json-editor-rows>
+            {# Rows will be rendered by JavaScript #}
+        </div>
+        {# Issue 2 fix: Disable add button when readonly/disabled #}
+        {# Button text updates dynamically via JS based on rootType (array vs object) #}
+        <div class="border-t border-gray-200 dark:border-gray-700 p-2 flex justify-end{% if readonly_value or disabled_value %} hidden{% endif %}">
+            <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"{% if disabled_value %} disabled{% endif %}{% if readonly_value %} disabled{% endif %} data-json-editor-add-field>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Add Field</span>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_raw %}
+    {# Textarea remains the submission source for no-JS and GUI sync. #}
     <textarea
-        id="fg-{{ field.name }}"
+        id="{% if not show_gui %}fg-{{ field.name }}{% else %}fg-{{ field.name }}-raw{% endif %}"
         name="{{ field.name }}"
-        class="font-mono text-sm leading-6 w-full border {% if validation_state == "invalid" %}border-red-500 focus:border-red-500 focus:ring-red-500{% else %}border-gray-200 focus:border-blue-500 focus:ring-blue-500{% endif %} rounded-lg p-3 bg-white text-gray-900 dark:bg-slate-900 dark:text-gray-100 dark:border-gray-700{% if collapsed %} hidden{% endif %}"
+        data-json-editor-input="true"
+        class="font-mono text-sm leading-6 w-full border {% if validation_state == 'invalid' %}border-red-500 focus:border-red-500 focus:ring-red-500{% else %}border-gray-200 focus:border-blue-500 focus:ring-blue-500{% endif %} rounded-lg p-3 bg-white text-gray-900 dark:bg-slate-900 dark:text-gray-100 dark:border-gray-700{% if collapsed or (mode_value == 'hybrid' and active_view == 'gui') %} hidden{% endif %}"
         rows="8"
         {% if placeholder_value %}placeholder="{{ placeholder_value }}"{% endif %}
-        {% if field.required %}required{% endif %}
         {% if disabled_value %}disabled{% endif %}
         {% if readonly_value %}readonly{% endif %}
         {% if readonly_value %}aria-readonly="true"{% endif %}
         {% if validation_state == "invalid" %}aria-invalid="true"{% endif %}
         {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
-        data-json-editor-input="true"
         {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
-    >{{ value|safe }}</textarea>
-    <pre class="font-mono text-xs leading-6 border border-dashed {% if validation_state == "invalid" %}border-red-400 bg-red-50 text-red-700{% else %}border-gray-200 bg-gray-50 text-gray-800{% endif %} rounded-lg p-3 {% if not collapsed %}hidden{% endif %}" data-json-editor-preview data-state="{{ state_value }}">{{ value|safe }}</pre>
+    >{{ value }}</textarea>
+    <pre class="font-mono text-xs leading-6 border border-dashed {% if validation_state == 'invalid' %}border-red-400 bg-red-50 text-red-700{% else %}border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-slate-800 dark:text-gray-300{% endif %} rounded-lg p-3 {% if not collapsed or (mode_value == 'hybrid' and active_view == 'gui') %}hidden{% endif %}" data-json-editor-preview data-state="{{ state_value }}">{{ value }}</pre>
+    {% else %}
+    {# Hidden textarea keeps the form submission value for GUI-only mode. #}
+    <textarea
+        id="fg-{{ field.name }}-raw"
+        name="{{ field.name }}"
+        data-json-editor-input="true"
+        class="hidden"
+        rows="1"
+        {% if disabled_value %}disabled{% endif %}
+        {% if readonly_value %}readonly{% endif %}
+        {% if readonly_value %}aria-readonly="true"{% endif %}
+        {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
+        {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
+    >{{ value }}</textarea>
+    {% endif %}
 </div>

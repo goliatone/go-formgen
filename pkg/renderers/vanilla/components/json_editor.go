@@ -56,6 +56,10 @@ func jsonEditorRenderer() Renderer {
 			"collapsed":   cfg.Collapsed,
 			"valid":       valid,
 			"example":     cfg.Example,
+			"mode":        string(cfg.Mode),
+			"show_raw":    cfg.Mode == JSONEditorModeRaw || cfg.Mode == JSONEditorModeHybrid,
+			"show_gui":    cfg.Mode == JSONEditorModeGUI || cfg.Mode == JSONEditorModeHybrid,
+			"show_toggle": cfg.Mode == JSONEditorModeHybrid,
 		}
 
 		rendered, err := data.Template.RenderTemplate(templateName, payload)
@@ -68,16 +72,30 @@ func jsonEditorRenderer() Renderer {
 	}
 }
 
+// JSONEditorMode defines the editing interface mode.
+type JSONEditorMode string
+
+const (
+	// JSONEditorModeRaw shows only the raw textarea editor.
+	JSONEditorModeRaw JSONEditorMode = "raw"
+	// JSONEditorModeGUI shows only the GUI key-value editor.
+	JSONEditorModeGUI JSONEditorMode = "gui"
+	// JSONEditorModeHybrid shows both with a toggle to switch.
+	JSONEditorModeHybrid JSONEditorMode = "hybrid"
+)
+
 type jsonEditorConfig struct {
 	SchemaHint string
 	Collapsed  bool
 	Example    string
+	Mode       JSONEditorMode
 }
 
 func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConfig {
 	hint := strings.TrimSpace(field.Description)
 	example := strings.TrimSpace(field.Placeholder)
 	collapsed := false
+	mode := JSONEditorModeRaw // Default to raw for backwards compatibility
 
 	if field.UIHints != nil {
 		if value := strings.TrimSpace(field.UIHints["schemaHint"]); value != "" {
@@ -88,6 +106,9 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		}
 		if asBool(field.UIHints["collapsed"]) {
 			collapsed = true
+		}
+		if value := strings.TrimSpace(field.UIHints["editorMode"]); value != "" {
+			mode = parseJSONEditorMode(value)
 		}
 	}
 	if field.Metadata != nil {
@@ -100,6 +121,9 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		if asBool(field.Metadata["json.collapsed"]) {
 			collapsed = true
 		}
+		if value := strings.TrimSpace(field.Metadata["editor.mode"]); value != "" {
+			mode = parseJSONEditorMode(value)
+		}
 	}
 	if cfg != nil {
 		if value := strings.TrimSpace(stringify(cfg["schemaHint"])); value != "" {
@@ -111,6 +135,9 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		if asBool(cfg["collapsed"]) {
 			collapsed = true
 		}
+		if value := strings.TrimSpace(stringify(cfg["mode"])); value != "" {
+			mode = parseJSONEditorMode(value)
+		}
 	}
 
 	if hint == "" {
@@ -121,6 +148,18 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		SchemaHint: hint,
 		Collapsed:  collapsed,
 		Example:    example,
+		Mode:       mode,
+	}
+}
+
+func parseJSONEditorMode(value string) JSONEditorMode {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "gui":
+		return JSONEditorModeGUI
+	case "hybrid", "both":
+		return JSONEditorModeHybrid
+	default:
+		return JSONEditorModeRaw
 	}
 }
 
@@ -284,9 +323,13 @@ func asBool(value any) bool {
 	}
 }
 
+// jsonEditorInlineScript provides a minimal fallback for raw-mode JSON editors
+// when the behaviors bundle (formgen-behaviors.min.js) is not loaded.
+// The full GUI mode requires the behaviors bundle which includes the TypeScript
+// implementation in client/src/editors/json-gui.ts.
 const jsonEditorInlineScript = `(function () {
-  const ROOT = '[data-json-editor="true"]';
-  const INIT_ATTR = "data-json-editor-init";
+  var ROOT = '[data-json-editor="true"]';
+  var INIT_ATTR = "data-json-editor-init";
 
   function parsed(json) {
     try {
@@ -297,7 +340,7 @@ const jsonEditorInlineScript = `(function () {
   }
 
   function pretty(value) {
-    const parsedValue = parsed(value);
+    var parsedValue = parsed(value);
     if (parsedValue === null) {
       return value || "";
     }
@@ -309,12 +352,18 @@ const jsonEditorInlineScript = `(function () {
       if (root.getAttribute(INIT_ATTR) === "true") {
         return;
       }
+      // Skip if full behaviors bundle is handling this
+      var mode = root.getAttribute("data-json-editor-mode");
+      if (mode === "gui" || mode === "hybrid") {
+        // GUI/hybrid modes require the behaviors bundle
+        return;
+      }
       root.setAttribute(INIT_ATTR, "true");
 
-      const textarea = root.querySelector("[data-json-editor-input]");
-      const preview = root.querySelector("[data-json-editor-preview]");
-      const toggle = root.querySelector("[data-json-editor-toggle]");
-      const format = root.querySelector("[data-json-editor-format]");
+      var textarea = root.querySelector("[data-json-editor-input]");
+      var preview = root.querySelector("[data-json-editor-preview]");
+      var toggle = root.querySelector("[data-json-editor-toggle]");
+      var format = root.querySelector("[data-json-editor-format]");
 
       function setState(valid) {
         root.setAttribute("data-json-editor-state", valid ? "valid" : "invalid");
@@ -324,13 +373,15 @@ const jsonEditorInlineScript = `(function () {
       }
 
       function syncPreview() {
-        if (!preview || !textarea) {
+        if (!textarea) {
           return;
         }
-        const raw = textarea.value || "";
-        const formatted = pretty(raw || "{}");
-        const valid = parsed(raw || "{}") !== null;
-        preview.textContent = formatted || "{}";
+        var raw = textarea.value || "";
+        var formatted = pretty(raw || "{}");
+        var valid = parsed(raw || "{}") !== null;
+        if (preview) {
+          preview.textContent = formatted || "{}";
+        }
         setState(valid);
       }
 
@@ -348,7 +399,7 @@ const jsonEditorInlineScript = `(function () {
         }
       }
 
-      const collapsed = root.getAttribute("data-json-editor-collapsed") === "true";
+      var collapsed = root.getAttribute("data-json-editor-collapsed") === "true";
       setCollapsed(collapsed);
       syncPreview();
 

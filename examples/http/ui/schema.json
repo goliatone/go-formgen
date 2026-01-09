@@ -52,6 +52,12 @@
           "description": "Seed the first chapters readers will encounter.",
           "order": 3,
           "fieldset": true
+        },
+        {
+          "id": "extended",
+          "title": "Extended Metadata",
+          "description": "Additional structured data for awards, editions, and translations.",
+          "order": 4
         }
       ],
       "fields": {
@@ -238,6 +244,19 @@
         "updated_at": {
           "uiHints": {
             "inputType": "hidden"
+          }
+        },
+        "metadata": {
+          "section": "extended",
+          "order": 0,
+          "grid": {
+            "span": 12
+          },
+          "component": "json_editor",
+          "helpText": "Edit structured data using the GUI or raw JSON.",
+          "componentOptions": {
+            "mode": "hybrid",
+            "schemaHint": "Book metadata: awards, editions, translations, formats, etc."
           }
         }
       }
