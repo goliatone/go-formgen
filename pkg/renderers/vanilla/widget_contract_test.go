@@ -116,4 +116,3 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 		})
 	}
 }
-

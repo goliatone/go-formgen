@@ -7,8 +7,8 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
-	visibilityexpr "github.com/goliatone/go-formgen/pkg/visibility/expr"
 	"github.com/goliatone/go-formgen/pkg/visibility"
+	visibilityexpr "github.com/goliatone/go-formgen/pkg/visibility/expr"
 )
 
 type stubEvaluator struct {

@@ -158,4 +158,3 @@ func TestEvaluatorBooleanComposition(t *testing.T) {
 		t.Fatalf("expected true for disjunction")
 	}
 }
-

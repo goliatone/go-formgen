@@ -15,4 +15,3 @@ func TestAssetsFSBehaviorsBundleIncludesAutoResize(t *testing.T) {
 		t.Fatalf("expected behaviors bundle to include autoResize")
 	}
 }
-
