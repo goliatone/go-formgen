@@ -1,0 +1,114 @@
+{
+  "operationId": "com.example.page.edit",
+  "endpoint": "/",
+  "method": "POST",
+  "fields": [
+    {
+      "name": "blocks",
+      "type": "array",
+      "required": false,
+      "label": "Page Sections",
+      "items": {
+        "name": "blocksItem",
+        "type": "object",
+        "required": false,
+        "label": "Blocks item",
+        "oneOf": [
+          {
+            "name": "hero",
+            "type": "object",
+            "required": false,
+            "label": "Hero",
+            "nested": [
+              {
+                "name": "_type",
+                "type": "string",
+                "required": true,
+                "label": "Type",
+                "metadata": {
+                  "readonly": "true"
+                },
+                "uiHints": {
+                  "readonly": "true"
+                }
+              },
+              {
+                "name": "cta",
+                "type": "string",
+                "required": false,
+                "label": "Cta"
+              },
+              {
+                "name": "headline",
+                "type": "string",
+                "required": true,
+                "label": "Headline"
+              }
+            ],
+            "metadata": {
+              "collapsed": "true",
+              "icon": "hero",
+              "label": "Hero"
+            },
+            "uiHints": {
+              "label": "Hero"
+            }
+          },
+          {
+            "name": "rich_text",
+            "type": "object",
+            "required": false,
+            "label": "Rich Text",
+            "nested": [
+              {
+                "name": "_type",
+                "type": "string",
+                "required": true,
+                "label": "Type",
+                "metadata": {
+                  "readonly": "true"
+                },
+                "uiHints": {
+                  "readonly": "true"
+                }
+              },
+              {
+                "name": "body",
+                "type": "string",
+                "required": false,
+                "label": "Body",
+                "metadata": {
+                  "widget": "wysiwyg"
+                },
+                "uiHints": {
+                  "widget": "wysiwyg"
+                }
+              }
+            ],
+            "metadata": {
+              "icon": "text",
+              "label": "Rich Text"
+            },
+            "uiHints": {
+              "label": "Rich Text"
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "label": "Page Sections",
+        "widget": "block"
+      },
+      "uiHints": {
+        "label": "Page Sections",
+        "widget": "block"
+      }
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "required": false,
+      "label": "Title"
+    }
+  ]
+}
