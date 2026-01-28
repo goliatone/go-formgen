@@ -69,6 +69,7 @@ type Field struct {
 	Enum         []any             `json:"enum,omitempty"`
 	Nested       []Field           `json:"nested,omitempty"`
 	Items        *Field            `json:"items,omitempty"`
+	OneOf        []Field           `json:"oneOf,omitempty"`
 	Validations  []ValidationRule  `json:"validations,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 	UIHints      map[string]string `json:"uiHints,omitempty"`
