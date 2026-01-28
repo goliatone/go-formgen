@@ -1,5 +1,27 @@
 # Changelog
 
+# [0.16.0](https://github.com/goliatone/go-formgen/compare/v0.15.0...v0.16.0) - (2026-01-28)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Merge UI hints with grid hints ([1aaa256](https://github.com/goliatone/go-formgen/commit/1aaa2566f31ca2fba2afd51d6be28188dab4f35d))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.16.0 ([5cec9ea](https://github.com/goliatone/go-formgen/commit/5cec9ea81ec3a493be57903ebd40b61dd8310e4d))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Normalize option include overlay ([c88d7f1](https://github.com/goliatone/go-formgen/commit/c88d7f1aa466a8a1d32a1b797dd5e6fcc51a1ff4))  - (goliatone)
+- Validation package ([b0a85f3](https://github.com/goliatone/go-formgen/commit/b0a85f324d7ea5fa59d15578c7d6c8394026c8cf))  - (goliatone)
+- Grid hints ([2338d4d](https://github.com/goliatone/go-formgen/commit/2338d4d9f0a5d6375403de1ff1a76ec5a8dbf2d4))  - (goliatone)
+- Ui schema loader support draft 2020-12 ([5bfa6fb](https://github.com/goliatone/go-formgen/commit/5bfa6fbdd2ad6f9fe96422867ba6a24f050aa1b3))  - (goliatone)
+- Jsonschema overlay ([62d9f4f](https://github.com/goliatone/go-formgen/commit/62d9f4f65255671db518c229e4fda1d55b5991c9))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.15.0 ([4a06568](https://github.com/goliatone/go-formgen/commit/4a065682dd2907cce2a29b8b326d40a2d31a0186))  - (goliatone)
+
 # [0.15.0](https://github.com/goliatone/go-formgen/compare/v0.14.0...v0.15.0) - (2026-01-28)
 
 ## <!-- 1 -->🐛 Bug Fixes
