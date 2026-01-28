@@ -799,6 +799,13 @@ func collectFieldRefs(fields []pkgmodel.Field, parentPath string, refs map[strin
 			if len(field.Items.Nested) > 0 {
 				collectFieldRefs(field.Items.Nested, itemPath, refs, originals)
 			}
+			if len(field.Items.OneOf) > 0 {
+				collectFieldRefs(field.Items.OneOf, joinPath(itemPath, "oneOf"), refs, originals)
+			}
+		}
+
+		if len(field.OneOf) > 0 {
+			collectFieldRefs(field.OneOf, joinPath(path, "oneOf"), refs, originals)
 		}
 	}
 }
