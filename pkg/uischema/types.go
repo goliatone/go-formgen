@@ -116,21 +116,55 @@ func NormalizeFieldPath(path string) string {
 	if trimmed == "" {
 		return ""
 	}
-	replacer := strings.NewReplacer(
-		"[].", ".items.",
-		"[]", ".items",
-		"[", ".",
-		"]", "",
-	)
-	normalised := replacer.Replace(trimmed)
-	for strings.Contains(normalised, ".items.items.items") {
-		normalised = strings.ReplaceAll(normalised, ".items.items.items", ".items.items")
+	segments := strings.Split(trimmed, ".")
+	normalised := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		parts := normalizeSegment(segment)
+		if len(parts) == 0 {
+			continue
+		}
+		normalised = append(normalised, parts...)
 	}
-	normalised = strings.TrimPrefix(normalised, ".")
-	for strings.Contains(normalised, "..") {
-		normalised = strings.ReplaceAll(normalised, "..", ".")
+	return strings.Join(normalised, ".")
+}
+
+func normalizeSegment(segment string) []string {
+	if segment == "" {
+		return nil
 	}
-	return strings.Trim(normalised, ".")
+	if !strings.Contains(segment, "[") {
+		return []string{segment}
+	}
+
+	base := segment
+	if idx := strings.Index(segment, "["); idx >= 0 {
+		base = segment[:idx]
+	}
+	tail := ""
+	if last := strings.LastIndex(segment, "]"); last >= 0 && last+1 < len(segment) {
+		tail = strings.TrimSpace(segment[last+1:])
+	}
+
+	count := strings.Count(segment, "[")
+	parts := make([]string, 0, count+2)
+	if base != "" {
+		parts = append(parts, base)
+	}
+	itemsToAdd := count
+	if base == "items" && itemsToAdd > 0 {
+		itemsToAdd--
+	}
+	for i := 0; i < itemsToAdd; i++ {
+		parts = append(parts, "items")
+	}
+	if tail != "" {
+		parts = append(parts, tail)
+	}
+	return parts
 }
 
 // OrderPreset represents a per-section ordering preset, which can either refer
