@@ -1,5 +1,45 @@
 # Changelog
 
+# [0.15.0](https://github.com/goliatone/go-formgen/compare/v0.14.0...v0.15.0) - (2026-01-28)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Normalize segment ([1da1e9d](https://github.com/goliatone/go-formgen/commit/1da1e9daf7e2b121c676ff787b0b06921f52aed3))  - (goliatone)
+- Collect field rels ([696042b](https://github.com/goliatone/go-formgen/commit/696042b2fc31089979073ec8c25428671e5420e0))  - (goliatone)
+- Parse types ([965ad36](https://github.com/goliatone/go-formgen/commit/965ad36a253b4e75ac437e82053db82c3375277a))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.15.0 ([44e7596](https://github.com/goliatone/go-formgen/commit/44e7596d234f6e5c3775d7dc594bfd57d4408377))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Model builder use generic schema parser ([2a97d90](https://github.com/goliatone/go-formgen/commit/2a97d901e1acf6ffeb829ead8e8935536423cd4f))  - (goliatone)
+- Model support OneOf ([4bf1f1e](https://github.com/goliatone/go-formgen/commit/4bf1f1e4fb82459066845fe8974608c78674656c))  - (goliatone)
+- Preact renderer support oneOf ([2ed84e1](https://github.com/goliatone/go-formgen/commit/2ed84e1be11fef63065f04d8569b1a8154b7b602))  - (goliatone)
+- Uischema include test data ([47d628f](https://github.com/goliatone/go-formgen/commit/47d628f6fcbda55e0c735d0125940935f8d02cff))  - (goliatone)
+- Schema package ([0a063eb](https://github.com/goliatone/go-formgen/commit/0a063eb6125fa8b6a45542f92373cf9fed8ea919))  - (goliatone)
+- Orchestrator integrate different schema types ([bb667fc](https://github.com/goliatone/go-formgen/commit/bb667fc572e3301fa4569ce30828031b48462a5d))  - (goliatone)
+- Model extensions ([237f010](https://github.com/goliatone/go-formgen/commit/237f0100bdbaa368ae3cca8f971cdbbea1b814cd))  - (goliatone)
+- Json schema ([b4b1fa1](https://github.com/goliatone/go-formgen/commit/b4b1fa132adb164469b10429256c455e1ffbb571))  - (goliatone)
+- Open api adapter ([26d18f8](https://github.com/goliatone/go-formgen/commit/26d18f8a5108c7db912846731ac952cde107d797))  - (goliatone)
+- Model builder and extensions added ([b1cae10](https://github.com/goliatone/go-formgen/commit/b1cae10cc553eabb08646a5c079409675d5c28bb))  - (goliatone)
+- Jsonschema ([77df49d](https://github.com/goliatone/go-formgen/commit/77df49def895b3fb03c551c38b73a33650b11bd0))  - (goliatone)
+- Editor json ([5e03ac7](https://github.com/goliatone/go-formgen/commit/5e03ac7ba902d4ea07cf68184d36abdfd872d68f))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.14.0 ([f079a17](https://github.com/goliatone/go-formgen/commit/f079a17af39cd2cf8cfa3857709d84f7f6afef82))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update test ([ed44427](https://github.com/goliatone/go-formgen/commit/ed44427aaf3d2502d25b2367f1aa37fc95d8cd58))  - (goliatone)
+- Update guides ([2d57e4c](https://github.com/goliatone/go-formgen/commit/2d57e4c3aea1fdf545a5049f4bdc03eff1782a45))  - (goliatone)
+- Update gitignore ([e24f7ee](https://github.com/goliatone/go-formgen/commit/e24f7ee438f51291a9b4e32b388295cffb4d1a30))  - (goliatone)
+- Update readme ([0780db3](https://github.com/goliatone/go-formgen/commit/0780db3b855e6a0640aa6b1f064d576271b9e5be))  - (goliatone)
+- Update examples ([27362ca](https://github.com/goliatone/go-formgen/commit/27362ca0fc5c64a771b098c0657bb0cc7c98014b))  - (goliatone)
+- Update style ([2f0e7d2](https://github.com/goliatone/go-formgen/commit/2f0e7d2b455ba055d8674067368b36f7ef90e76e))  - (goliatone)
+
 # [0.14.0](https://github.com/goliatone/go-formgen/compare/v0.13.0...v0.14.0) - (2026-01-09)
 
 ## <!-- 13 -->📦 Bumps
