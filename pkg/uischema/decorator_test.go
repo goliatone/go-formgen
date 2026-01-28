@@ -117,6 +117,36 @@ func TestDecorator_Decorate(t *testing.T) {
 	}
 }
 
+func TestDecorator_ExtensionHints(t *testing.T) {
+	store := loadStore(t, "extensions")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "extensionExample",
+		Fields: []pkgmodel.Field{
+			{Name: "title", Label: "Title"},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	field := mustField(t, form.Fields, "title")
+	if got := field.UIHints["placeholder"]; got != "Extension placeholder" {
+		t.Fatalf("placeholder hint mismatch: %#v", field.UIHints)
+	}
+	if got := field.Metadata["widget"]; got != "select" {
+		t.Fatalf("widget metadata mismatch: %#v", field.Metadata)
+	}
+	if got := field.Metadata["admin.widget"]; got != "select" {
+		t.Fatalf("admin.widget metadata mismatch: %#v", field.Metadata)
+	}
+	if got := field.UIHints["cssClass"]; got != "from-ui" {
+		t.Fatalf("cssClass hint mismatch: %#v", field.UIHints)
+	}
+}
+
 func TestDecorator_I18nKeys(t *testing.T) {
 	store := loadStore(t, "i18n_keys")
 	decorator := uischema.NewDecorator(store)

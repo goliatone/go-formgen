@@ -32,6 +32,8 @@ type FormConfig struct {
 	SubtitleKey string            `json:"subtitleKey,omitempty" yaml:"subtitleKey,omitempty"`
 	Layout      LayoutConfig      `json:"layout" yaml:"layout"`
 	Actions     []ActionConfig    `json:"actions" yaml:"actions"`
+	XFormgen    map[string]any    `json:"x-formgen,omitempty" yaml:"x-formgen,omitempty"`
+	XAdmin      map[string]any    `json:"x-admin,omitempty" yaml:"x-admin,omitempty"`
 	Metadata    map[string]string `json:"metadata" yaml:"metadata"`
 	UIHints     map[string]string `json:"uiHints" yaml:"uiHints"`
 }
@@ -62,6 +64,8 @@ type SectionConfig struct {
 	Order          *int              `json:"order,omitempty" yaml:"order,omitempty"`
 	Fieldset       *bool             `json:"fieldset,omitempty" yaml:"fieldset,omitempty"`
 	OrderPreset    OrderPreset       `json:"orderPreset,omitempty" yaml:"orderPreset,omitempty"`
+	XFormgen       map[string]any    `json:"x-formgen,omitempty" yaml:"x-formgen,omitempty"`
+	XAdmin         map[string]any    `json:"x-admin,omitempty" yaml:"x-admin,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	UIHints        map[string]string `json:"uiHints,omitempty" yaml:"uiHints,omitempty"`
 }
@@ -87,6 +91,8 @@ type FieldConfig struct {
 	IconRaw          string            `json:"iconRaw,omitempty" yaml:"iconRaw,omitempty"`
 	Behaviors        map[string]any    `json:"behaviors,omitempty" yaml:"behaviors,omitempty"`
 	CSSClass         string            `json:"cssClass,omitempty" yaml:"cssClass,omitempty"`
+	XFormgen         map[string]any    `json:"x-formgen,omitempty" yaml:"x-formgen,omitempty"`
+	XAdmin           map[string]any    `json:"x-admin,omitempty" yaml:"x-admin,omitempty"`
 	UIHints          map[string]string `json:"uiHints,omitempty" yaml:"uiHints,omitempty"`
 	Metadata         map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	OriginalPath     string            `json:"-" yaml:"-"`

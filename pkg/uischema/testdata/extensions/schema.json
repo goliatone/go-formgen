@@ -1,0 +1,24 @@
+{
+  "operations": {
+    "extensionExample": {
+      "form": {
+        "x-formgen": {
+          "title": "Extension Form"
+        }
+      },
+      "fields": {
+        "title": {
+          "x-formgen": {
+            "placeholder": "Extension placeholder"
+          },
+          "x-admin": {
+            "widget": "select"
+          },
+          "uiHints": {
+            "cssClass": "from-ui"
+          }
+        }
+      }
+    }
+  }
+}

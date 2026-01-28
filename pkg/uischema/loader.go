@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 	"gopkg.in/yaml.v3"
 )
 
@@ -121,6 +122,11 @@ func normaliseOperation(raw operationFile, id, source string, presets map[string
 		FieldOrderPresets: clonePresetMap(presets),
 	}
 
+	normaliseFormExtensions(&op.Form)
+	for idx := range op.Sections {
+		normaliseSectionExtensions(&op.Sections[idx])
+	}
+
 	for key, cfg := range raw.Fields {
 		normalised := NormalizeFieldPath(key)
 		if normalised == "" {
@@ -130,6 +136,7 @@ func normaliseOperation(raw operationFile, id, source string, presets map[string
 			return Operation{}, fmt.Errorf("uischema: operation %q (file %s) defines duplicate field path %q", id, source, normalised)
 		}
 		cloned := cloneFieldConfig(cfg)
+		normaliseFieldExtensions(&cloned)
 		cloned.OriginalPath = key
 		op.Fields[normalised] = cloned
 	}
@@ -139,6 +146,12 @@ func normaliseOperation(raw operationFile, id, source string, presets map[string
 
 func cloneFieldConfig(cfg FieldConfig) FieldConfig {
 	out := cfg
+	if len(cfg.XFormgen) > 0 {
+		out.XFormgen = cloneAnyMap(cfg.XFormgen)
+	}
+	if len(cfg.XAdmin) > 0 {
+		out.XAdmin = cloneAnyMap(cfg.XAdmin)
+	}
 	if len(cfg.UIHints) > 0 {
 		out.UIHints = make(map[string]string, len(cfg.UIHints))
 		for k, v := range cfg.UIHints {
@@ -164,6 +177,58 @@ func cloneFieldConfig(cfg FieldConfig) FieldConfig {
 		}
 	}
 	return out
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		out[key] = value
+	}
+	return out
+}
+
+func normaliseFormExtensions(cfg *FormConfig) {
+	if cfg == nil {
+		return
+	}
+	metadata, hints := parseExtensionHints(cfg.XFormgen, cfg.XAdmin)
+	cfg.Metadata = mergeStringMap(metadata, cfg.Metadata)
+	cfg.UIHints = mergeStringMap(hints, cfg.UIHints)
+}
+
+func normaliseSectionExtensions(cfg *SectionConfig) {
+	if cfg == nil {
+		return
+	}
+	metadata, hints := parseExtensionHints(cfg.XFormgen, cfg.XAdmin)
+	cfg.Metadata = mergeStringMap(metadata, cfg.Metadata)
+	cfg.UIHints = mergeStringMap(hints, cfg.UIHints)
+}
+
+func normaliseFieldExtensions(cfg *FieldConfig) {
+	if cfg == nil {
+		return
+	}
+	metadata, hints := parseExtensionHints(cfg.XFormgen, cfg.XAdmin)
+	cfg.Metadata = mergeStringMap(metadata, cfg.Metadata)
+	cfg.UIHints = mergeStringMap(hints, cfg.UIHints)
+}
+
+func parseExtensionHints(formgen, admin map[string]any) (map[string]string, map[string]string) {
+	if len(formgen) == 0 && len(admin) == 0 {
+		return nil, nil
+	}
+	ext := make(map[string]any)
+	if len(formgen) > 0 {
+		ext["x-formgen"] = formgen
+	}
+	if len(admin) > 0 {
+		ext["x-admin"] = admin
+	}
+	return pkgmodel.ParseUIExtensions(ext)
 }
 
 func isSchemaFile(path string) bool {
