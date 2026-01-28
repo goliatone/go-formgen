@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/schema"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 	currentValueExtensionKey = "x-current-value"
 )
 
-// Builder converts OpenAPI operations into form models.
+// Builder converts canonical schema forms into form models.
 type Builder struct {
 	opts Options
 }
@@ -35,52 +35,52 @@ func New(options Options) *Builder {
 // Build transforms an OpenAPI operation into a FormModel suitable for
 // rendering. It focuses on request bodies and metadata as described in the
 // README.
-func (b *Builder) Build(op pkgopenapi.Operation) (FormModel, error) {
-	if err := validateOperation(op); err != nil {
+func (b *Builder) Build(form schema.Form) (FormModel, error) {
+	if err := validateForm(form); err != nil {
 		return FormModel{}, err
 	}
 
-	form := FormModel{
-		OperationID: op.ID,
-		Endpoint:    op.Path,
-		Method:      strings.ToUpper(op.Method),
-		Summary:     op.Summary,
-		Description: op.Description,
+	output := FormModel{
+		OperationID: form.ID,
+		Endpoint:    form.Endpoint,
+		Method:      strings.ToUpper(form.Method),
+		Summary:     form.Summary,
+		Description: form.Description,
 	}
 
-	if form.Metadata == nil {
-		form.Metadata = make(map[string]string)
+	if output.Metadata == nil {
+		output.Metadata = make(map[string]string)
 	}
-	if op.Summary != "" {
-		form.Metadata["summary"] = op.Summary
+	if form.Summary != "" {
+		output.Metadata["summary"] = form.Summary
 	}
-	if op.Description != "" {
-		form.Metadata["description"] = op.Description
+	if form.Description != "" {
+		output.Metadata["description"] = form.Description
 	}
-	formExt := metadataFromExtensions(op.Extensions)
-	bodyExt := metadataFromExtensions(op.RequestBody.Extensions)
-	mergeMetadata(form.Metadata, formExt)
-	mergeMetadata(form.Metadata, bodyExt)
-	form.UIHints = mergeUIHints(form.UIHints, filterUIHints(formExt))
-	form.UIHints = mergeUIHints(form.UIHints, filterUIHints(bodyExt))
+	formMeta, formHints := ParseUIExtensions(form.Extensions)
+	bodyMeta, bodyHints := ParseUIExtensions(form.Schema.Extensions)
+	mergeMetadata(output.Metadata, formMeta)
+	mergeMetadata(output.Metadata, bodyMeta)
+	output.UIHints = mergeUIHints(output.UIHints, formHints)
+	output.UIHints = mergeUIHints(output.UIHints, bodyHints)
 
-	fields, err := b.fieldsFromSchema("", op.RequestBody, true)
+	fields, err := b.fieldsFromSchema("", form.Schema, true)
 	if err != nil {
 		return FormModel{}, err
 	}
-	form.Fields = fields
+	output.Fields = fields
 
-	if len(form.Metadata) == 0 {
-		form.Metadata = nil
+	if len(output.Metadata) == 0 {
+		output.Metadata = nil
 	}
-	if len(form.UIHints) == 0 {
-		form.UIHints = nil
+	if len(output.UIHints) == 0 {
+		output.UIHints = nil
 	}
 
-	return form, nil
+	return output, nil
 }
 
-func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, required bool) ([]Field, error) {
+func (b *Builder) fieldsFromSchema(name string, schema schema.Schema, required bool) ([]Field, error) {
 	if schema.Ref != "" && schema.Type == "" && len(schema.Properties) == 0 {
 		// Unresolved reference; capture metadata for consumers to handle.
 		field := Field{
@@ -92,14 +92,22 @@ func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, requir
 			Metadata:    map[string]string{},
 		}
 		field.Metadata["$ref"] = schema.Ref
-		refExt := metadataFromExtensions(schema.Extensions)
-		mergeMetadata(field.Metadata, refExt)
+		refMeta, refHints := ParseUIExtensions(schema.Extensions)
+		mergeMetadata(field.Metadata, refMeta)
 		field.Relationship = relationshipFromExtensions(schema.Extensions)
-		field.UIHints = mergeUIHints(field.UIHints, filterUIHints(refExt))
+		field.UIHints = mergeUIHints(field.UIHints, refHints)
 		applyRelationshipHints(&field)
 		field.applyUIHintAttributes()
 		field.normalizeMetadata()
 		field.normalizeUIHints()
+		return []Field{field}, nil
+	}
+
+	if len(schema.OneOf) > 0 {
+		field, err := b.fieldFromUnion(name, schema, required)
+		if err != nil {
+			return nil, err
+		}
 		return []Field{field}, nil
 	}
 
@@ -118,7 +126,7 @@ func (b *Builder) fieldsFromSchema(name string, schema pkgopenapi.Schema, requir
 	}
 }
 
-func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, required bool) ([]Field, error) {
+func (b *Builder) fieldsFromObject(name string, schema schema.Schema, required bool) ([]Field, error) {
 	var fields []Field
 	requiredSet := make(map[string]struct{}, len(schema.Required))
 	for _, item := range schema.Required {
@@ -160,10 +168,10 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 			parent.Enum = append([]any(nil), schema.Enum...)
 		}
 		applyValidations(&parent, schema)
-		parentExt := metadataFromExtensions(schema.Extensions)
-		mergeMetadata(parent.ensureMetadata(), parentExt)
+		parentMeta, parentHints := ParseUIExtensions(schema.Extensions)
+		mergeMetadata(parent.ensureMetadata(), parentMeta)
 		parent.Relationship = relationshipFromExtensions(schema.Extensions)
-		parent.UIHints = mergeUIHints(parent.UIHints, filterUIHints(parentExt))
+		parent.UIHints = mergeUIHints(parent.UIHints, parentHints)
 		applyRelationshipHints(&parent)
 		parent.applyUIHintAttributes()
 		decorateTypeaheadMetadata(&parent)
@@ -175,7 +183,7 @@ func (b *Builder) fieldsFromObject(name string, schema pkgopenapi.Schema, requir
 	return fields, nil
 }
 
-func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required bool) (Field, error) {
+func (b *Builder) fieldFromArray(name string, schema schema.Schema, required bool) (Field, error) {
 	if schema.Items == nil {
 		return Field{}, fmt.Errorf("model builder: array field %q missing items", name)
 	}
@@ -204,10 +212,10 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 		field.Enum = append([]any(nil), schema.Enum...)
 	}
 	applyValidations(&field, schema)
-	arrayExt := metadataFromExtensions(schema.Extensions)
-	mergeMetadata(field.ensureMetadata(), arrayExt)
+	arrayMeta, arrayHints := ParseUIExtensions(schema.Extensions)
+	mergeMetadata(field.ensureMetadata(), arrayMeta)
 	field.Relationship = relationshipFromExtensions(schema.Extensions)
-	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(arrayExt))
+	field.UIHints = mergeUIHints(field.UIHints, arrayHints)
 	applyRelationshipHints(&field)
 	propagateRelationshipToItems(&field)
 	field.applyUIHintAttributes()
@@ -217,7 +225,50 @@ func (b *Builder) fieldFromArray(name string, schema pkgopenapi.Schema, required
 	return field, nil
 }
 
-func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, required bool) Field {
+func (b *Builder) fieldFromUnion(name string, schema schema.Schema, required bool) (Field, error) {
+	field := Field{
+		Name:        name,
+		Type:        FieldTypeObject,
+		Label:       b.opts.Labeler(name),
+		Description: schema.Description,
+		Required:    required,
+	}
+
+	options := make([]Field, 0, len(schema.OneOf))
+	seen := make(map[string]struct{}, len(schema.OneOf))
+	for idx, option := range schema.OneOf {
+		discriminator, ok := discriminatorValue(option)
+		if !ok {
+			return Field{}, fmt.Errorf("model builder: oneOf option %d missing _type discriminator", idx)
+		}
+		if _, exists := seen[discriminator]; exists {
+			return Field{}, fmt.Errorf("model builder: duplicate _type discriminator %q", discriminator)
+		}
+		seen[discriminator] = struct{}{}
+
+		built, err := b.fieldsFromSchema(discriminator, option, false)
+		if err != nil {
+			return Field{}, err
+		}
+		if len(built) == 0 {
+			return Field{}, fmt.Errorf("model builder: oneOf option %q produced no fields", discriminator)
+		}
+		options = append(options, built[0])
+	}
+	field.OneOf = options
+
+	unionMeta, unionHints := ParseUIExtensions(schema.Extensions)
+	mergeMetadata(field.ensureMetadata(), unionMeta)
+	field.Relationship = relationshipFromExtensions(schema.Extensions)
+	field.UIHints = mergeUIHints(field.UIHints, unionHints)
+	field.applyUIHintAttributes()
+	decorateTypeaheadMetadata(&field)
+	field.normalizeMetadata()
+	field.normalizeUIHints()
+	return field, nil
+}
+
+func (b *Builder) fieldFromPrimitive(name string, schema schema.Schema, required bool) Field {
 	field := Field{
 		Name:        name,
 		Type:        mapType(schema.Type),
@@ -234,10 +285,10 @@ func (b *Builder) fieldFromPrimitive(name string, schema pkgopenapi.Schema, requ
 		field.Default = schema.Default
 	}
 	applyValidations(&field, schema)
-	primitiveExt := metadataFromExtensions(schema.Extensions)
-	mergeMetadata(field.ensureMetadata(), primitiveExt)
+	primitiveMeta, primitiveHints := ParseUIExtensions(schema.Extensions)
+	mergeMetadata(field.ensureMetadata(), primitiveMeta)
 	field.Relationship = relationshipFromExtensions(schema.Extensions)
-	field.UIHints = mergeUIHints(field.UIHints, filterUIHints(primitiveExt))
+	field.UIHints = mergeUIHints(field.UIHints, primitiveHints)
 	applyFormatHints(&field)
 	applyRelationshipHints(&field)
 	field.applyUIHintAttributes()
@@ -264,16 +315,32 @@ func mapType(schemaType string) FieldType {
 	}
 }
 
-func applyValidations(field *Field, schema pkgopenapi.Schema) {
+func discriminatorValue(option schema.Schema) (string, bool) {
+	prop, ok := option.Properties["_type"]
+	if !ok {
+		return "", false
+	}
+	if value, ok := prop.Const.(string); ok && strings.TrimSpace(value) != "" {
+		return value, true
+	}
+	if len(prop.Enum) == 1 {
+		if value, ok := prop.Enum[0].(string); ok && strings.TrimSpace(value) != "" {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+func applyValidations(field *Field, input schema.Schema) {
 	if field == nil {
 		return
 	}
 
-	if schema.Minimum != nil {
+	if input.Minimum != nil {
 		params := map[string]string{
-			"value": formatFloat(*schema.Minimum),
+			"value": formatFloat(*input.Minimum),
 		}
-		if schema.ExclusiveMinimum {
+		if input.ExclusiveMinimum {
 			params["exclusive"] = "true"
 		}
 		field.Validations = append(field.Validations, ValidationRule{
@@ -282,11 +349,11 @@ func applyValidations(field *Field, schema pkgopenapi.Schema) {
 		})
 	}
 
-	if schema.Maximum != nil {
+	if input.Maximum != nil {
 		params := map[string]string{
-			"value": formatFloat(*schema.Maximum),
+			"value": formatFloat(*input.Maximum),
 		}
-		if schema.ExclusiveMaximum {
+		if input.ExclusiveMaximum {
 			params["exclusive"] = "true"
 		}
 		field.Validations = append(field.Validations, ValidationRule{
@@ -295,29 +362,29 @@ func applyValidations(field *Field, schema pkgopenapi.Schema) {
 		})
 	}
 
-	if schema.MinLength != nil {
+	if input.MinLength != nil {
 		field.Validations = append(field.Validations, ValidationRule{
 			Kind: ValidationRuleMinLength,
 			Params: map[string]string{
-				"value": strconv.Itoa(*schema.MinLength),
+				"value": strconv.Itoa(*input.MinLength),
 			},
 		})
 	}
 
-	if schema.MaxLength != nil {
+	if input.MaxLength != nil {
 		field.Validations = append(field.Validations, ValidationRule{
 			Kind: ValidationRuleMaxLength,
 			Params: map[string]string{
-				"value": strconv.Itoa(*schema.MaxLength),
+				"value": strconv.Itoa(*input.MaxLength),
 			},
 		})
 	}
 
-	if schema.Pattern != "" {
+	if input.Pattern != "" {
 		field.Validations = append(field.Validations, ValidationRule{
 			Kind: ValidationRulePattern,
 			Params: map[string]string{
-				"pattern": schema.Pattern,
+				"pattern": input.Pattern,
 			},
 		})
 	}
@@ -346,6 +413,9 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 				continue
 			}
 			for nestedKey, nestedValue := range nested {
+				if nestedKey == "forms" {
+					continue
+				}
 				if str, ok := CanonicalizeExtensionValue(nestedValue); ok {
 					result[nestedKey] = str
 					if nestedKey == "label-field" {
@@ -357,6 +427,9 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 		}
 		if strings.HasPrefix(key, extensionNamespace+"-") {
 			trimmed := strings.TrimPrefix(key, extensionNamespace+"-")
+			if trimmed == "forms" {
+				continue
+			}
 			if str, ok := CanonicalizeExtensionValue(value); ok {
 				result[trimmed] = str
 				if trimmed == "label-field" {
