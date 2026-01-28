@@ -5,5 +5,6 @@ package model
 func ParseUIExtensions(ext map[string]any) (map[string]string, map[string]string) {
 	metadata := metadataFromExtensions(ext)
 	uiHints := filterUIHints(metadata)
+	uiHints = mergeUIHints(uiHints, gridHintsFromExtensions(ext))
 	return metadata, uiHints
 }
