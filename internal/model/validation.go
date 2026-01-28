@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/schema"
 )
 
 var (
@@ -13,23 +13,23 @@ var (
 	errOperationMethodMissing = errors.New("model builder: operation method is required")
 )
 
-func validateOperation(op pkgopenapi.Operation) error {
-	if op.ID == "" {
+func validateForm(form schema.Form) error {
+	if form.ID == "" {
 		return errOperationIDMissing
 	}
-	if op.Path == "" {
+	if form.Endpoint == "" {
 		return errOperationPathMissing
 	}
-	if op.Method == "" {
+	if form.Method == "" {
 		return errOperationMethodMissing
 	}
-	if err := validateSchema(op.RequestBody); err != nil {
+	if err := validateSchema(form.Schema); err != nil {
 		return fmt.Errorf("model builder: invalid request body: %w", err)
 	}
 	return nil
 }
 
-func validateSchema(schema pkgopenapi.Schema) error {
+func validateSchema(schema schema.Schema) error {
 	if schema.Type == "array" && schema.Items == nil {
 		return errors.New("array schema requires items")
 	}
