@@ -105,6 +105,16 @@ func (a *Adapter) Normalize(ctx context.Context, doc schema.Document, opts schem
 		return schema.SchemaIR{}, err
 	}
 
+	if len(opts.Overlay) > 0 {
+		overlay, err := ParseOverlay(opts.Overlay)
+		if err != nil {
+			return schema.SchemaIR{}, err
+		}
+		if err := ApplyOverlay(resolved, overlay); err != nil {
+			return schema.SchemaIR{}, err
+		}
+	}
+
 	canonical, err := schemaFromJSONSchema(resolved, "#")
 	if err != nil {
 		return schema.SchemaIR{}, err

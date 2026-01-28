@@ -85,6 +85,7 @@ func TestAdapterNormalize_BlockUnionRequiresType(t *testing.T) {
   "properties": {
     "blocks": {
       "type": "array",
+      "x-formgen": { "widget": "block" },
       "items": {
         "oneOf": [
           { "type": "object", "properties": { "headline": { "type": "string" } } }
@@ -98,5 +99,30 @@ func TestAdapterNormalize_BlockUnionRequiresType(t *testing.T) {
 	_, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
 	if err == nil {
 		t.Fatalf("expected error for missing _type discriminator")
+	}
+}
+
+func TestAdapterNormalize_BlockUnionRequiresWidget(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "com.example.page",
+  "type": "object",
+  "properties": {
+    "blocks": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "object", "properties": { "_type": { "const": "hero" } } }
+        ]
+      }
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	_, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err == nil {
+		t.Fatalf("expected error for missing block widget")
 	}
 }

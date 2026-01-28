@@ -79,6 +79,13 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 	if err != nil {
 		return schema.Schema{}, err
 	}
+	if schemaType == "" {
+		if _, ok := payload["items"]; ok {
+			schemaType = "array"
+		} else if _, ok := payload["properties"]; ok {
+			schemaType = "object"
+		}
+	}
 
 	out := schema.Schema{
 		Type:        schemaType,
@@ -279,6 +286,10 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 	}
 
 	if err := applyDiscriminatorRules(&out, path, ctx.requireDiscriminator); err != nil {
+		return schema.Schema{}, err
+	}
+
+	if err := enforceBlockWidget(out, path); err != nil {
 		return schema.Schema{}, err
 	}
 
@@ -517,6 +528,60 @@ func applyDiscriminatorRules(target *schema.Schema, path string, required bool) 
 		target.Required = append(target.Required, "_type")
 	}
 	return nil
+}
+
+func enforceBlockWidget(target schema.Schema, path string) error {
+	if target.Type != "array" || target.Items == nil || len(target.Items.OneOf) == 0 {
+		return nil
+	}
+	if hasBlockWidget(target.Extensions) {
+		return nil
+	}
+	return fmt.Errorf("jsonschema: oneOf blocks require x-formgen.widget=block at %s", path)
+}
+
+func hasBlockWidget(ext map[string]any) bool {
+	return hasWidget(ext, "x-formgen") || hasWidget(ext, "x-admin") ||
+		hasWidgetValue(ext, "x-formgen-widget") || hasWidgetValue(ext, "x-admin-widget")
+}
+
+func hasWidget(ext map[string]any, key string) bool {
+	if len(ext) == 0 {
+		return false
+	}
+	raw, ok := ext[key]
+	if !ok {
+		return false
+	}
+	mapped, ok := raw.(map[string]any)
+	if !ok {
+		return false
+	}
+	widget := strings.TrimSpace(strings.ToLower(readString(mapped, "widget")))
+	return widget == "block"
+}
+
+func hasWidgetValue(ext map[string]any, key string) bool {
+	if len(ext) == 0 {
+		return false
+	}
+	value, ok := ext[key]
+	if !ok {
+		return false
+	}
+	widget := strings.TrimSpace(strings.ToLower(toString(value)))
+	return widget == "block"
+}
+
+func toString(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return ""
+	}
 }
 
 func discriminatorValue(prop schema.Schema) (string, bool) {
