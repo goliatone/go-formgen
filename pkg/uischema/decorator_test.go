@@ -353,6 +353,67 @@ func TestDecorator_OverlayPrecedence(t *testing.T) {
 	}
 }
 
+func TestDecorator_OneOfOverlay(t *testing.T) {
+	store := loadStore(t, "oneof_overlay")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "blockExample",
+		Fields: []pkgmodel.Field{
+			{
+				Name: "blocks",
+				Type: pkgmodel.FieldTypeArray,
+				Items: &pkgmodel.Field{
+					Name: "blocksItem",
+					Type: pkgmodel.FieldTypeObject,
+					OneOf: []pkgmodel.Field{
+						{
+							Name:  "hero",
+							Type:  pkgmodel.FieldTypeObject,
+							Label: "Hero",
+							Nested: []pkgmodel.Field{
+								{Name: "headline", Type: pkgmodel.FieldTypeString, Label: "Headline"},
+							},
+						},
+						{
+							Name:  "callout",
+							Type:  pkgmodel.FieldTypeObject,
+							Label: "Callout",
+							Nested: []pkgmodel.Field{
+								{Name: "text", Type: pkgmodel.FieldTypeString, Label: "Text"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	blocks := mustField(t, form.Fields, "blocks")
+	if blocks.Items == nil {
+		t.Fatalf("blocks items missing")
+	}
+	hero := mustField(t, blocks.Items.OneOf, "hero")
+	if hero.Label != "Hero Block" {
+		t.Fatalf("expected hero label override, got %q", hero.Label)
+	}
+	if got := hero.Metadata["custom"]; got != "hero" {
+		t.Fatalf("expected hero metadata override, got %q", got)
+	}
+
+	headline := mustField(t, hero.Nested, "headline")
+	if headline.Label != "Hero Headline" {
+		t.Fatalf("expected headline label override, got %q", headline.Label)
+	}
+	if got := headline.UIHints["placeholder"]; got != "Add a headline" {
+		t.Fatalf("expected headline placeholder override, got %q", got)
+	}
+}
+
 func mustField(t *testing.T, fields []pkgmodel.Field, name string) pkgmodel.Field {
 	t.Helper()
 	for _, field := range fields {

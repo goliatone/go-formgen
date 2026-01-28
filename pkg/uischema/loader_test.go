@@ -152,7 +152,7 @@ func TestNormalizeFieldPath(t *testing.T) {
 		"tags[].id":           "tags.items.id",
 		"manager.address":     "manager.address",
 		" settings.name ":     "settings.name",
-		"tags[0].label":       "tags.0.label",
+		"tags[0].label":       "tags.items.label",
 		"nested[].items[].id": "nested.items.items.id",
 	}
 
