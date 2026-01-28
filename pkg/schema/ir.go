@@ -14,6 +14,9 @@ type NormalizeOptions struct {
 	DefaultFormSuffix string
 	// FormID optionally pins normalization to a specific form identifier.
 	FormID string
+	// Overlay supplies a JSON Schema UI overlay document (x-ui-overlay/v1).
+	// Non-JSON Schema adapters ignore this value.
+	Overlay []byte
 }
 
 // Form describes a normalized form entry extracted from a source document.
