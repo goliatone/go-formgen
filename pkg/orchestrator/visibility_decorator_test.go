@@ -7,6 +7,7 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/schema"
 	"github.com/goliatone/go-formgen/pkg/visibility"
 	visibilityexpr "github.com/goliatone/go-formgen/pkg/visibility/expr"
 )
@@ -169,7 +170,7 @@ type visibilityBuilder struct {
 	form model.FormModel
 }
 
-func (b visibilityBuilder) Build(openapi.Operation) (model.FormModel, error) {
+func (b visibilityBuilder) Build(schema.Form) (model.FormModel, error) {
 	return b.form, nil
 }
 

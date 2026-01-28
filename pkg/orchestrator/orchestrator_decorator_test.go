@@ -8,6 +8,7 @@ import (
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
 	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/schema"
 )
 
 func TestOrchestrator_AppliesUIDecorators(t *testing.T) {
@@ -63,7 +64,7 @@ type stubFormBuilder struct {
 	form model.FormModel
 }
 
-func (s *stubFormBuilder) Build(pkgopenapi.Operation) (model.FormModel, error) {
+func (s *stubFormBuilder) Build(schema.Form) (model.FormModel, error) {
 	return s.form, nil
 }
 

@@ -7,12 +7,15 @@ import (
 	"io/fs"
 	"strings"
 
+	jsonschemaLoader "github.com/goliatone/go-formgen/internal/jsonschema/loader"
 	internalLoader "github.com/goliatone/go-formgen/internal/openapi/loader"
 	internalParser "github.com/goliatone/go-formgen/internal/openapi/parser"
+	pkgjsonschema "github.com/goliatone/go-formgen/pkg/jsonschema"
 	"github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
+	"github.com/goliatone/go-formgen/pkg/schema"
 	"github.com/goliatone/go-formgen/pkg/uischema"
 	"github.com/goliatone/go-formgen/pkg/visibility"
 	"github.com/goliatone/go-formgen/pkg/widgets"
@@ -35,6 +38,52 @@ func WithLoader(loader pkgopenapi.Loader) Option {
 func WithParser(parser pkgopenapi.Parser) Option {
 	return func(o *Orchestrator) {
 		o.parser = parser
+	}
+}
+
+// WithJSONSchemaLoader injects a custom JSON Schema loader.
+func WithJSONSchemaLoader(loader pkgjsonschema.Loader) Option {
+	return func(o *Orchestrator) {
+		o.jsonSchemaLoader = loader
+	}
+}
+
+// WithJSONSchemaResolverOptions configures resolver options for the default JSON Schema adapter.
+func WithJSONSchemaResolverOptions(options pkgjsonschema.ResolveOptions) Option {
+	return func(o *Orchestrator) {
+		o.jsonSchemaResolveOptions = options
+	}
+}
+
+// WithAdapterRegistry injects a format adapter registry.
+func WithAdapterRegistry(registry *AdapterRegistry) Option {
+	return func(o *Orchestrator) {
+		if registry == nil {
+			return
+		}
+		o.adapterRegistry = registry
+	}
+}
+
+// WithFormatAdapter registers a format adapter on the orchestrator registry.
+func WithFormatAdapter(adapter FormatAdapter) Option {
+	return func(o *Orchestrator) {
+		if adapter == nil {
+			return
+		}
+		if o.adapterRegistry == nil {
+			o.adapterRegistry = NewAdapterRegistry()
+		}
+		if err := o.adapterRegistry.Register(adapter); err != nil {
+			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
+		}
+	}
+}
+
+// WithDefaultAdapter overrides the default format adapter name.
+func WithDefaultAdapter(name string) Option {
+	return func(o *Orchestrator) {
+		o.defaultAdapter = strings.TrimSpace(name)
 	}
 }
 
@@ -158,23 +207,27 @@ func WithVisibilityEvaluator(evaluator visibility.Evaluator) Option {
 // output. It applies sensible defaults (vanilla renderer, embedded templates)
 // while remaining open to dependency injection for advanced callers.
 type Orchestrator struct {
-	loader                pkgopenapi.Loader
-	parser                pkgopenapi.Parser
-	builder               model.Builder
-	registry              *render.Registry
-	defaultRenderer       string
-	themeSelector         theme.ThemeSelector
-	themeFallbacks        map[string]string
-	widgetRegistry        *widgets.Registry
-	initialiseErr         error
-	defaultsApplied       bool
-	endpointOverrides     map[string][]EndpointOverride
-	decorators            []model.Decorator
-	uiSchemaFS            fs.FS
-	uiSchemaSpecified     bool
-	uiDecoratorConfigured bool
-	transformer           Transformer
-	visibilityEvaluator   visibility.Evaluator
+	loader                   pkgopenapi.Loader
+	parser                   pkgopenapi.Parser
+	jsonSchemaLoader         pkgjsonschema.Loader
+	jsonSchemaResolveOptions pkgjsonschema.ResolveOptions
+	builder                  model.Builder
+	adapterRegistry          *AdapterRegistry
+	defaultAdapter           string
+	registry                 *render.Registry
+	defaultRenderer          string
+	themeSelector            theme.ThemeSelector
+	themeFallbacks           map[string]string
+	widgetRegistry           *widgets.Registry
+	initialiseErr            error
+	defaultsApplied          bool
+	endpointOverrides        map[string][]EndpointOverride
+	decorators               []model.Decorator
+	uiSchemaFS               fs.FS
+	uiSchemaSpecified        bool
+	uiDecoratorConfigured    bool
+	transformer              Transformer
+	visibilityEvaluator      visibility.Evaluator
 }
 
 // New constructs an Orchestrator applying any provided options. Missing
@@ -228,16 +281,26 @@ func (o *Orchestrator) SetVisibilityEvaluator(evaluator visibility.Evaluator) {
 // Request describes the inputs required to render a form from an OpenAPI
 // operation.
 type Request struct {
-	// Source identifies where the OpenAPI document lives. Optional when Document
-	// is supplied.
+	// Source identifies where the schema document lives. Optional when Document
+	// or SchemaDocument is supplied.
 	Source pkgopenapi.Source
 
 	// Document allows callers to bypass the loader when they already have a
-	// parsed payload.
+	// parsed OpenAPI payload.
 	Document *pkgopenapi.Document
 
-	// OperationID selects which OpenAPI operation to render into a form.
+	// SchemaDocument allows callers to bypass the loader for non-OpenAPI sources.
+	SchemaDocument *schema.Document
+
+	// OperationID selects which form to render. OpenAPI adapters map this to an
+	// operationId; JSON Schema adapters use derived form IDs.
 	OperationID string
+
+	// Format explicitly selects a registered adapter by name.
+	Format string
+
+	// NormalizeOptions supplies format-specific normalization hints.
+	NormalizeOptions schema.NormalizeOptions
 
 	// Renderer names the renderer to use. If empty, the orchestrator falls back
 	// to the configured default renderer.
@@ -280,41 +343,49 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 		return nil, errors.New("orchestrator: operation id is required")
 	}
 
-	doc, err := o.resolveDocument(ctx, req)
+	adapter, err := o.resolveAdapter(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	operations, err := o.parser.Operations(ctx, doc)
+	doc, err := o.resolveSchemaDocument(ctx, req, adapter)
 	if err != nil {
-		return nil, fmt.Errorf("orchestrator: parse operations: %w", err)
+		return nil, err
 	}
 
-	op, ok := operations[req.OperationID]
+	ir, err := adapter.Normalize(ctx, doc, req.NormalizeOptions)
+	if err != nil {
+		return nil, fmt.Errorf("orchestrator: normalize schema: %w", err)
+	}
+	form, ok := ir.Form(req.OperationID)
 	if !ok {
-		return nil, fmt.Errorf("orchestrator: operation %q not found", req.OperationID)
+		available, listErr := adapter.Forms(ctx, ir)
+		if listErr != nil {
+			return nil, fmt.Errorf("orchestrator: form %q not found (list forms: %w)", req.OperationID, listErr)
+		}
+		return nil, fmt.Errorf("orchestrator: form %q not found (available: %s)", req.OperationID, formatFormRefs(available))
 	}
 
-	form, err := o.builder.Build(op)
+	formModel, err := o.builder.Build(form)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build form model: %w", err)
 	}
 
-	o.applyEndpointOverrides(req.OperationID, &form)
-	if err := o.applyTransformer(ctx, &form); err != nil {
+	o.applyEndpointOverrides(req.OperationID, &formModel)
+	if err := o.applyTransformer(ctx, &formModel); err != nil {
 		return nil, err
 	}
-	if err := o.applyDecorators(&form); err != nil {
+	if err := o.applyDecorators(&formModel); err != nil {
 		return nil, err
 	}
-	render.ApplySubset(&form, req.RenderOptions.Subset)
-	if err := applyVisibility(&form, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
+	render.ApplySubset(&formModel, req.RenderOptions.Subset)
+	if err := applyVisibility(&formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
 		return nil, err
 	}
 
 	renderOptions := req.RenderOptions
-	render.LocalizeFormModel(&form, renderOptions)
-	mappedErrors := render.MapErrorPayload(form, renderOptions.Errors)
+	render.LocalizeFormModel(&formModel, renderOptions)
+	mappedErrors := render.MapErrorPayload(formModel, renderOptions.Errors)
 	renderOptions.Errors = mappedErrors.Fields
 	renderOptions.FormErrors = render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)
 	if renderOptions.Theme == nil {
@@ -334,7 +405,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 		renderOptions.TopPadding = 5
 	}
 
-	output, err := renderer.Render(ctx, form, renderOptions)
+	output, err := renderer.Render(ctx, formModel, renderOptions)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: render output: %w", err)
 	}
@@ -355,20 +426,6 @@ func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererC
 	}
 	cfg := selection.RendererTheme(o.themeFallbacks)
 	return &cfg, nil
-}
-
-func (o *Orchestrator) resolveDocument(ctx context.Context, req Request) (pkgopenapi.Document, error) {
-	if req.Document != nil {
-		return *req.Document, nil
-	}
-	if req.Source == nil {
-		return pkgopenapi.Document{}, errors.New("orchestrator: source or document is required")
-	}
-	doc, err := o.loader.Load(ctx, req.Source)
-	if err != nil {
-		return pkgopenapi.Document{}, fmt.Errorf("orchestrator: load document: %w", err)
-	}
-	return doc, nil
 }
 
 func (o *Orchestrator) rendererFor(name string) (render.Renderer, error) {
@@ -433,14 +490,35 @@ func (o *Orchestrator) applyDefaults() {
 		return
 	}
 
+	if o.adapterRegistry == nil {
+		o.adapterRegistry = NewAdapterRegistry()
+	}
 	if o.loader == nil {
 		o.loader = internalLoader.New(pkgopenapi.NewLoaderOptions())
+	}
+	if o.jsonSchemaLoader == nil {
+		o.jsonSchemaLoader = jsonschemaLoader.New(pkgjsonschema.NewLoaderOptions())
 	}
 	if o.parser == nil {
 		o.parser = internalParser.New(pkgopenapi.NewParserOptions())
 	}
 	if o.builder == nil {
 		o.builder = model.NewBuilder()
+	}
+	if o.adapterRegistry != nil && !o.adapterRegistry.Has(pkgopenapi.DefaultAdapterName) {
+		adapter := pkgopenapi.NewAdapter(o.loader, o.parser)
+		if err := o.adapterRegistry.Register(adapter); err != nil {
+			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
+		}
+	}
+	if o.adapterRegistry != nil && !o.adapterRegistry.Has(pkgjsonschema.DefaultAdapterName) {
+		adapter := pkgjsonschema.NewAdapter(o.jsonSchemaLoader, pkgjsonschema.WithResolverOptions(o.jsonSchemaResolveOptions))
+		if err := o.adapterRegistry.Register(adapter); err != nil {
+			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
+		}
+	}
+	if o.defaultAdapter == "" {
+		o.defaultAdapter = pkgopenapi.DefaultAdapterName
 	}
 	if o.widgetRegistry == nil {
 		o.widgetRegistry = widgets.NewRegistry()
@@ -467,6 +545,7 @@ func (o *Orchestrator) applyDefaults() {
 	}
 
 	o.ensureUIDecorator()
+	o.ensureUIDecoratorOrder()
 
 	o.defaultsApplied = true
 }
@@ -494,4 +573,24 @@ func (o *Orchestrator) ensureUIDecorator() {
 	}
 
 	o.decorators = append(o.decorators, uischema.NewDecorator(store))
+}
+
+func (o *Orchestrator) ensureUIDecoratorOrder() {
+	if len(o.decorators) < 2 {
+		return
+	}
+
+	var overlays []model.Decorator
+	var others []model.Decorator
+	for _, decorator := range o.decorators {
+		if _, ok := decorator.(*uischema.Decorator); ok {
+			overlays = append(overlays, decorator)
+			continue
+		}
+		others = append(others, decorator)
+	}
+	if len(overlays) == 0 {
+		return
+	}
+	o.decorators = append(others, overlays...)
 }

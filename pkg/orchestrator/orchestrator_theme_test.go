@@ -7,6 +7,7 @@ import (
 	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/schema"
 	theme "github.com/goliatone/go-theme"
 )
 
@@ -209,7 +210,7 @@ type stubBuilder struct {
 	err  error
 }
 
-func (s stubBuilder) Build(pkgopenapi.Operation) (pkgmodel.FormModel, error) {
+func (s stubBuilder) Build(schema.Form) (pkgmodel.FormModel, error) {
 	if s.err != nil {
 		return pkgmodel.FormModel{}, s.err
 	}
