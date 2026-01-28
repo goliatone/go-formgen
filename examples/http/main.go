@@ -1149,7 +1149,7 @@ func (s *formServer) buildFormModel(ctx context.Context, document pkgopenapi.Doc
 	if !ok {
 		return model.FormModel{}, fmt.Errorf("operation %q not found", operation)
 	}
-	form, err := s.builder.Build(op)
+	form, err := s.builder.Build(pkgopenapi.FormFromOperation(op))
 	if err != nil {
 		return model.FormModel{}, fmt.Errorf("build form model: %w", err)
 	}
