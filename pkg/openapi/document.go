@@ -7,23 +7,6 @@ import (
 	"fmt"
 )
 
-// Source identifies where an OpenAPI document originated. It mirrors the Source
-// abstraction outlined in go-form-gen.md:304-331 so loaders can operate on
-// files, fs.FS entries, or URLs without leaking implementation details.
-type Source interface {
-	Kind() SourceKind
-	Location() string
-}
-
-// SourceKind enumerates the loader modalities.
-type SourceKind string
-
-const (
-	SourceKindFile SourceKind = "file"
-	SourceKindFS   SourceKind = "fs"
-	SourceKindURL  SourceKind = "url"
-)
-
 // Document wraps the raw OpenAPI payload and its origin. By exposing this type
 // instead of kin-openapi structs we keep the public API decoupled, as committed
 // in go-form-gen.md:25-77.
