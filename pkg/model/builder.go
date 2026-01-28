@@ -4,13 +4,13 @@ import (
 	"errors"
 
 	internalmodel "github.com/goliatone/go-formgen/internal/model"
-	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	"github.com/goliatone/go-formgen/pkg/schema"
 )
 
-// Builder converts OpenAPI operations into form models and applies optional
-// decorators for UI schema overlays.
+// Builder converts normalized schema forms into form models and applies
+// optional decorators for UI schema overlays.
 type Builder interface {
-	Build(op pkgopenapi.Operation) (FormModel, error)
+	Build(form schema.Form) (FormModel, error)
 	Decorate(form *FormModel) error
 }
 
@@ -65,11 +65,11 @@ type builder struct {
 	decorators []Decorator
 }
 
-func (b *builder) Build(op pkgopenapi.Operation) (FormModel, error) {
+func (b *builder) Build(form schema.Form) (FormModel, error) {
 	if b == nil || b.delegate == nil {
 		return FormModel{}, errors.New("model: builder delegate is nil")
 	}
-	return b.delegate.Build(op)
+	return b.delegate.Build(form)
 }
 
 func (b *builder) Decorate(form *FormModel) error {
