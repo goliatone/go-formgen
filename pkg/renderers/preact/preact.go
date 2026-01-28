@@ -318,6 +318,7 @@ type orderedField struct {
 	Enum         []any               `json:"enum,omitempty"`
 	Nested       []orderedField      `json:"nested,omitempty"`
 	Items        *orderedField       `json:"items,omitempty"`
+	OneOf        []orderedField      `json:"oneOf,omitempty"`
 	Validations  []orderedRule       `json:"validations,omitempty"`
 	Metadata     orderedMap          `json:"metadata,omitempty"`
 	UIHints      orderedMap          `json:"uiHints,omitempty"`
@@ -369,6 +370,14 @@ func toOrderedField(field model.Field) orderedField {
 		items = &v
 	}
 
+	var oneOf []orderedField
+	if len(field.OneOf) > 0 {
+		oneOf = make([]orderedField, len(field.OneOf))
+		for i, option := range field.OneOf {
+			oneOf[i] = toOrderedField(option)
+		}
+	}
+
 	var rules []orderedRule
 	if len(field.Validations) > 0 {
 		rules = make([]orderedRule, len(field.Validations))
@@ -394,6 +403,7 @@ func toOrderedField(field model.Field) orderedField {
 		Enum:         field.Enum,
 		Nested:       nested,
 		Items:        items,
+		OneOf:        oneOf,
 		Validations:  rules,
 		Metadata:     newOrderedMap(field.Metadata),
 		UIHints:      newOrderedMap(field.UIHints),
