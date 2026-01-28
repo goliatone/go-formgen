@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
+	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
@@ -82,7 +83,7 @@ func TestBuilder_CreatePet(t *testing.T) {
 	op := operations["createPet"]
 
 	builder := pkgmodel.NewBuilder()
-	form, err := builder.Build(op)
+	form, err := builder.Build(pkgopenapi.FormFromOperation(op))
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -183,7 +184,7 @@ func TestBuilder_CreateWidgetExtensions(t *testing.T) {
 	op := operations["createWidget"]
 
 	builder := pkgmodel.NewBuilder()
-	form, err := builder.Build(op)
+	form, err := builder.Build(pkgopenapi.FormFromOperation(op))
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -308,7 +309,7 @@ func TestBuilder_Relationships(t *testing.T) {
 	op := operations["createArticle"]
 
 	builder := pkgmodel.NewBuilder()
-	form, err := builder.Build(op)
+	form, err := builder.Build(pkgopenapi.FormFromOperation(op))
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
