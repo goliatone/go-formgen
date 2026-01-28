@@ -9,16 +9,19 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 - [Form Customization Guide](docs/GUIDE_CUSTOMIZATION.md) — Action buttons, sections, widgets, behaviors
 - [API Reference](https://pkg.go.dev/github.com/goliatone/go-formgen)
 - [Task & Roadmap Notes](TODO.md)
+- [JSON Schema Adapter Guide](docs/README_JSON_SCHEMA.md)
 
 ## Features
 
 - OpenAPI 3.x → typed `FormModel` (fields, validations, relationships, metadata/UI hints)
+- JSON Schema Draft 2020-12 adapter with deterministic `$ref` resolution and form discovery
 - Loaders for file, `fs.FS`, or HTTP; parser wraps kin-openapi output in stable domain types and merges `allOf`
 - Pluggable renderers: vanilla (Go templates), Preact (hydrated, embedded assets), and TUI/CLI
 - Orchestrator wiring with renderer registry, widget registry, endpoint overrides, and visibility evaluators
 - UI schema overlays (JSON/YAML) for sections, layout, icons, actions, and component overrides without touching templates
 - Optional i18n: UI schema `*Key` fields + render-time localization and template helpers
 - Render options: subsets (groups/tags/sections), prefill + provenance/readonly/disabled, hidden fields, server errors, visibility context
+- Block-union support (`oneOf` + `_type`) for modular content blocks via JSON Schema (`x-formgen.widget=block`)
 - Theme integration via `go-theme` selectors/providers + partial fallbacks; reuse or override embedded templates/assets
 - Transformers (JSON presets or JS runner seam) to mutate form models before decoration
 - Contract/golden tests cover parser, builder, renderers, and CLI paths
