@@ -298,6 +298,61 @@ func TestDecorator_ResponsiveGridBreakpoints(t *testing.T) {
 	}
 }
 
+func TestDecorator_OverlayPrecedence(t *testing.T) {
+	store := loadStore(t, "overlay_precedence")
+	decorator := uischema.NewDecorator(store)
+
+	form := pkgmodel.FormModel{
+		OperationID: "overrideExample",
+		Fields: []pkgmodel.Field{
+			{
+				Name:  "title",
+				Label: "Inline Title",
+				Metadata: map[string]string{
+					"admin.widget": "inline",
+					"label":        "Inline Title",
+					"widget":       "inline",
+				},
+				UIHints: map[string]string{
+					"label":          "Inline Title",
+					"visibilityRule": "inline == true",
+					"widget":         "inline",
+				},
+			},
+		},
+	}
+
+	if err := decorator.Decorate(&form); err != nil {
+		t.Fatalf("decorate: %v", err)
+	}
+
+	titleField := mustField(t, form.Fields, "title")
+	if titleField.Label != "Overlay Title" {
+		t.Fatalf("expected label override, got %q", titleField.Label)
+	}
+	if got := titleField.UIHints["label"]; got != "Overlay Title" {
+		t.Fatalf("expected label uiHint override, got %q", got)
+	}
+	if got := titleField.Metadata["label"]; got != "Overlay Title" {
+		t.Fatalf("expected label metadata override, got %q", got)
+	}
+	if got := titleField.UIHints["widget"]; got != "textarea" {
+		t.Fatalf("expected widget uiHint override, got %q", got)
+	}
+	if got := titleField.Metadata["widget"]; got != "textarea" {
+		t.Fatalf("expected widget metadata override, got %q", got)
+	}
+	if got := titleField.Metadata["admin.widget"]; got != "textarea" {
+		t.Fatalf("expected admin.widget override, got %q", got)
+	}
+	if got := titleField.UIHints["visibilityRule"]; got != "overlay == true" {
+		t.Fatalf("expected visibilityRule override, got %q", got)
+	}
+	if got := titleField.Metadata["custom"]; got != "overlay" {
+		t.Fatalf("expected custom metadata override, got %q", got)
+	}
+}
+
 func mustField(t *testing.T, fields []pkgmodel.Field, name string) pkgmodel.Field {
 	t.Helper()
 	for _, field := range fields {

@@ -304,6 +304,10 @@ func applyGridHints(field *pkgmodel.Field, cfg FieldConfig, columns int, op Oper
 func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if cfg.Label != "" {
 		field.Label = cfg.Label
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["label"] = cfg.Label
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["label"] = cfg.Label
 	}
 	if cfg.LabelKey != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
@@ -311,6 +315,10 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	}
 	if cfg.Description != "" {
 		field.Description = cfg.Description
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["hint"] = cfg.Description
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["hint"] = cfg.Description
 	}
 	if cfg.DescriptionKey != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
@@ -318,6 +326,10 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	}
 	if cfg.Placeholder != "" {
 		field.Placeholder = cfg.Placeholder
+		field.UIHints = ensureUIHints(field.UIHints)
+		field.UIHints["placeholder"] = cfg.Placeholder
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["placeholder"] = cfg.Placeholder
 	}
 	if cfg.PlaceholderKey != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
@@ -326,6 +338,8 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if cfg.HelpText != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
 		field.UIHints["helpText"] = cfg.HelpText
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["helpText"] = cfg.HelpText
 	}
 	if cfg.HelpTextKey != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
@@ -334,6 +348,9 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if cfg.Widget != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
 		field.UIHints["widget"] = cfg.Widget
+		field.Metadata = ensureMetadata(field.Metadata)
+		field.Metadata["widget"] = cfg.Widget
+		field.Metadata["admin.widget"] = cfg.Widget
 	}
 	if cfg.Component != "" {
 		field.UIHints = ensureUIHints(field.UIHints)
