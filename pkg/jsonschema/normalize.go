@@ -75,18 +75,19 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 		return schema.Schema{}, err
 	}
 
+	schemaType, _, err := parseType(payload, path)
+	if err != nil {
+		return schema.Schema{}, err
+	}
+
 	out := schema.Schema{
-		Type:        strings.TrimSpace(readString(payload, "type")),
+		Type:        schemaType,
 		Title:       strings.TrimSpace(readString(payload, "title")),
 		Description: strings.TrimSpace(readString(payload, "description")),
 		Default:     payload["default"],
 		Const:       payload["const"],
 		Format:      strings.TrimSpace(readString(payload, "format")),
 		Extensions:  extensions,
-	}
-
-	if out.Type != "" && !isAllowedType(out.Type) {
-		return schema.Schema{}, fmt.Errorf("jsonschema: unsupported type %q at %s", out.Type, path)
 	}
 
 	if enumRaw, ok := payload["enum"]; ok {
@@ -210,15 +211,32 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 			return schema.Schema{}, fmt.Errorf("jsonschema: properties must be an object at %s", path)
 		}
 		out.Properties = make(map[string]schema.Schema, len(props))
+		nullableProps := make(map[string]struct{})
 		keys := sortedKeys(props)
 		for _, key := range keys {
 			child := props[key]
+			if hasNullableType(child) {
+				nullableProps[key] = struct{}{}
+			}
 			childPath := joinPath(path, "properties", key)
 			converted, err := schemaFromJSONSchemaWithContext(child, childPath, childCtx)
 			if err != nil {
 				return schema.Schema{}, err
 			}
 			out.Properties[key] = converted
+		}
+		if len(nullableProps) > 0 && len(out.Required) > 0 {
+			filtered := out.Required[:0]
+			for _, entry := range out.Required {
+				if _, ok := nullableProps[entry]; !ok {
+					filtered = append(filtered, entry)
+				}
+			}
+			if len(filtered) == 0 {
+				out.Required = nil
+			} else {
+				out.Required = filtered
+			}
 		}
 	}
 
@@ -298,6 +316,95 @@ func extractExtensions(payload map[string]any) map[string]any {
 		extensions[key] = payload[key]
 	}
 	return extensions
+}
+
+func parseType(payload map[string]any, path string) (string, bool, error) {
+	if payload == nil {
+		return "", false, nil
+	}
+	raw, ok := payload["type"]
+	if !ok {
+		return "", false, nil
+	}
+
+	switch value := raw.(type) {
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return "", false, fmt.Errorf("jsonschema: type must be a string at %s", path)
+		}
+		if !isAllowedType(trimmed) {
+			return "", false, fmt.Errorf("jsonschema: unsupported type %q at %s", trimmed, path)
+		}
+		return trimmed, false, nil
+	case []any:
+		var types []string
+		nullable := false
+		for idx, entry := range value {
+			str, ok := entry.(string)
+			if !ok {
+				return "", false, fmt.Errorf("jsonschema: type[%d] must be a string at %s", idx, path)
+			}
+			trimmed := strings.TrimSpace(str)
+			if trimmed == "" {
+				return "", false, fmt.Errorf("jsonschema: type[%d] must be a string at %s", idx, path)
+			}
+			if trimmed == "null" {
+				nullable = true
+				continue
+			}
+			types = append(types, trimmed)
+		}
+		if len(types) == 0 {
+			if nullable {
+				return "", true, fmt.Errorf("jsonschema: type must include a non-null value at %s", path)
+			}
+			return "", false, fmt.Errorf("jsonschema: type must include at least one value at %s", path)
+		}
+		if len(types) > 1 {
+			return "", false, fmt.Errorf("jsonschema: unsupported type union at %s", path)
+		}
+		primary := types[0]
+		if !isAllowedType(primary) {
+			return "", false, fmt.Errorf("jsonschema: unsupported type %q at %s", primary, path)
+		}
+		return primary, nullable, nil
+	default:
+		return "", false, fmt.Errorf("jsonschema: type must be a string or array at %s", path)
+	}
+}
+
+func hasNullableType(node any) bool {
+	payload, ok := node.(map[string]any)
+	if !ok || payload == nil {
+		return false
+	}
+	raw, ok := payload["type"]
+	if !ok {
+		return false
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+	hasNull := false
+	hasOther := false
+	for _, entry := range list {
+		str, ok := entry.(string)
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(str)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "null" {
+			hasNull = true
+		} else {
+			hasOther = true
+		}
+	}
+	return hasNull && hasOther
 }
 
 func toFloat(value any) (float64, bool) {
