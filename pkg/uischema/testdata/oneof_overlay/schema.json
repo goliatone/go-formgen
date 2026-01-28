@@ -1,0 +1,20 @@
+{
+  "operations": {
+    "blockExample": {
+      "fields": {
+        "blocks.items.oneOf.hero": {
+          "label": "Hero Block",
+          "metadata": {
+            "custom": "hero"
+          }
+        },
+        "blocks.items.oneOf.hero.headline": {
+          "label": "Hero Headline",
+          "uiHints": {
+            "placeholder": "Add a headline"
+          }
+        }
+      }
+    }
+  }
+}
