@@ -1457,7 +1457,7 @@ func resolveComponentName(field model.Field) string {
 		return "select"
 	case widgets.WidgetCodeEditor:
 		return "textarea"
-	case "wysiwyg":
+	case "wysiwyg", "rich-text":
 		return "wysiwyg"
 	case "file_uploader":
 		return "file_uploader"
