@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.16.1](https://github.com/goliatone/go-formgen/compare/v0.16.0...v0.16.1) - (2026-01-29)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Case precedence, add non canonical forms for wisiwyg ([9622fd4](https://github.com/goliatone/go-formgen/commit/9622fd483c33805aa889d2d29d5aaea02ffafc1b))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.16.1 ([6dccb28](https://github.com/goliatone/go-formgen/commit/6dccb2832405b56d9608e687d6db4170bebbe8e3))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Rich-text component type ([eb63d34](https://github.com/goliatone/go-formgen/commit/eb63d342ac89a8a03ae26a3b72a3f6f009c31ccb))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.16.0 ([c7f9640](https://github.com/goliatone/go-formgen/commit/c7f96405fe0ce47c18b85cb2ae3ec6de0a86227f))  - (goliatone)
+
 # [0.16.0](https://github.com/goliatone/go-formgen/compare/v0.15.0...v0.16.0) - (2026-01-28)
 
 ## <!-- 1 -->🐛 Bug Fixes
