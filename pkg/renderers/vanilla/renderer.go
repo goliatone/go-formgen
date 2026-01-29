@@ -814,9 +814,9 @@ func relationshipCurrentPayload(value any) string {
 		return ""
 	case string:
 		return typed
-	case fmt.Stringer:
-		return typed.String()
 	case json.Number:
+		return typed.String()
+	case fmt.Stringer:
 		return typed.String()
 	case []string:
 		return marshalStringSlice(typed)
@@ -1457,7 +1457,7 @@ func resolveComponentName(field model.Field) string {
 		return "select"
 	case widgets.WidgetCodeEditor:
 		return "textarea"
-	case "wysiwyg", "rich-text":
+	case "wysiwyg", "rich-text", "rich_text":
 		return "wysiwyg"
 	case "file_uploader":
 		return "file_uploader"

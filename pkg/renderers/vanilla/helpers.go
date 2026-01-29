@@ -59,7 +59,7 @@ func componentHandlesChrome(componentName string) bool {
 // (e.g., uses description as placeholder instead of rendering it separately).
 func componentHandlesDescription(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case "wysiwyg":
+	case "wysiwyg", "rich-text", "rich_text":
 		return true
 	default:
 		return false
