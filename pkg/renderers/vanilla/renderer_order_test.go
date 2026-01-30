@@ -196,31 +196,31 @@ func (n *noopTemplateRenderer) GlobalContext(any) error {
 
 func simpleComponentRegistry() *components.Registry {
 	registry := components.New()
-	registry.MustRegister("input", components.Descriptor{
+	registry.MustRegister(components.NameInput, components.Descriptor{
 		Renderer: func(buf *bytes.Buffer, field model.Field, _ components.ComponentData) error {
 			buf.WriteString(field.Name)
 			return nil
 		},
 	})
-	registry.MustRegister("object", components.Descriptor{
+	registry.MustRegister(components.NameObject, components.Descriptor{
 		Renderer: func(buf *bytes.Buffer, field model.Field, _ components.ComponentData) error {
 			buf.WriteString(field.Name)
 			return nil
 		},
 	})
-	registry.MustRegister("array", components.Descriptor{
+	registry.MustRegister(components.NameArray, components.Descriptor{
 		Renderer: func(buf *bytes.Buffer, field model.Field, _ components.ComponentData) error {
 			buf.WriteString(field.Name)
 			return nil
 		},
 	})
-	registry.MustRegister("select", components.Descriptor{
+	registry.MustRegister(components.NameSelect, components.Descriptor{
 		Renderer: func(buf *bytes.Buffer, field model.Field, _ components.ComponentData) error {
 			buf.WriteString(field.Name)
 			return nil
 		},
 	})
-	registry.MustRegister("boolean", components.Descriptor{
+	registry.MustRegister(components.NameBoolean, components.Descriptor{
 		Renderer: func(buf *bytes.Buffer, field model.Field, _ components.ComponentData) error {
 			buf.WriteString(field.Name)
 			return nil

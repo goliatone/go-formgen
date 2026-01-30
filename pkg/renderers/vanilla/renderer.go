@@ -128,7 +128,8 @@ func WithComponentRegistry(reg *components.Registry) Option {
 }
 
 // WithComponentOverrides specifies component names for particular fields using
-// either simple field names or dot-paths for nested fields.
+// either simple field names or dot-paths for nested fields. Component names
+// should use the canonical constants in the components package.
 func WithComponentOverrides(overrides map[string]string) Option {
 	return func(cfg *config) {
 		if len(overrides) == 0 {
@@ -1434,6 +1435,12 @@ func gridColumnsFromHints(hints map[string]string) int {
 	return value
 }
 
+// resolveComponentName maps widget hints to canonical component names.
+// Component overrides (UIHints["component"] or Metadata["component.name"]) should
+// supply canonical names from components.* constants. Widget hints accept a
+// limited alias set (case-insensitive): textarea, json-editor, toggle, select,
+// chips, code-editor, wysiwyg, rich-text, rich_text, file_uploader,
+// datetime-range, datetime_range.
 func resolveComponentName(field model.Field) string {
 	if field.UIHints != nil {
 		if name := strings.TrimSpace(field.UIHints["component"]); name != "" {
@@ -1447,22 +1454,22 @@ func resolveComponentName(field model.Field) string {
 	}
 
 	switch strings.TrimSpace(strings.ToLower(widgetHint(field))) {
-	case "textarea":
-		return "textarea"
+	case components.NameTextarea:
+		return components.NameTextarea
 	case widgets.WidgetJSONEditor:
-		return "json_editor"
+		return components.NameJSONEditor
 	case widgets.WidgetToggle:
-		return "boolean"
+		return components.NameBoolean
 	case widgets.WidgetSelect, widgets.WidgetChips:
-		return "select"
+		return components.NameSelect
 	case widgets.WidgetCodeEditor:
-		return "textarea"
-	case "wysiwyg", "rich-text", "rich_text":
-		return "wysiwyg"
-	case "file_uploader":
-		return "file_uploader"
-	case "datetime-range", "datetime_range":
-		return "datetime-range"
+		return components.NameTextarea
+	case components.NameWysiwyg, "rich-text", "rich_text":
+		return components.NameWysiwyg
+	case components.NameFileUploader:
+		return components.NameFileUploader
+	case components.NameDatetimeRange, "datetime_range":
+		return components.NameDatetimeRange
 	}
 
 	hint := func(key string) string {
@@ -1474,25 +1481,25 @@ func resolveComponentName(field model.Field) string {
 
 	switch {
 	case field.Type == model.FieldTypeObject || hint("input") == "subform":
-		return "object"
+		return components.NameObject
 	case field.Type == model.FieldTypeArray || hint("input") == "collection":
 		renderer := hint("collectionRenderer")
-		if renderer == "select" || renderer == "chips" {
-			return "select"
+		if renderer == components.NameSelect || renderer == widgets.WidgetChips {
+			return components.NameSelect
 		}
-		return "array"
+		return components.NameArray
 	case field.Type == model.FieldTypeBoolean:
-		return "boolean"
+		return components.NameBoolean
 	case len(field.Enum) > 0:
-		return "select"
-	case hint("widget") == "textarea":
-		return "textarea"
-	case hint("input") == "select":
-		return "select"
+		return components.NameSelect
+	case hint("widget") == components.NameTextarea:
+		return components.NameTextarea
+	case hint("input") == components.NameSelect:
+		return components.NameSelect
 	case field.Relationship != nil:
-		return "select"
+		return components.NameSelect
 	default:
-		return "input"
+		return components.NameInput
 	}
 }
 

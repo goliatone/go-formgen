@@ -32,14 +32,14 @@ func TestRegistryAssetsDeduplicates(t *testing.T) {
 	reg := New()
 	renderer := func(buf *bytes.Buffer, field model.Field, data ComponentData) error { return nil }
 
-	reg.MustRegister("input", Descriptor{
+	reg.MustRegister(NameInput, Descriptor{
 		Renderer:    renderer,
 		Stylesheets: []string{"/shared.css", "/input.css"},
 		Scripts: []Script{
 			{Src: "/shared.js"},
 		},
 	})
-	reg.MustRegister("select", Descriptor{
+	reg.MustRegister(NameSelect, Descriptor{
 		Renderer:    renderer,
 		Stylesheets: []string{"/shared.css", "/select.css"},
 		Scripts: []Script{
@@ -48,7 +48,7 @@ func TestRegistryAssetsDeduplicates(t *testing.T) {
 		},
 	})
 
-	styles, scripts := reg.Assets([]string{"input", "select"})
+	styles, scripts := reg.Assets([]string{NameInput, NameSelect})
 	if len(styles) != 3 {
 		t.Fatalf("expected 3 unique stylesheets, got %d: %v", len(styles), styles)
 	}

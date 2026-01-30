@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 )
 
 func TestBuildFieldMarkupUsesChromePartials(t *testing.T) {
@@ -26,7 +27,7 @@ func TestBuildFieldMarkupUsesChromePartials(t *testing.T) {
 		},
 	}
 
-	html := buildFieldMarkup(renderer, field, "input", `<input id="fg-title">`)
+	html := buildFieldMarkup(renderer, field, components.NameInput, `<input id="fg-title">`)
 	if !strings.Contains(html, "partial-label") {
 		t.Fatalf("expected label partial output, got:\n%s", html)
 	}
@@ -65,7 +66,7 @@ func TestBuildFieldMarkupFallsBackWhenPartialsFail(t *testing.T) {
 		},
 	}
 
-	html := buildFieldMarkup(renderer, field, "input", `<input id="fg-title">`)
+	html := buildFieldMarkup(renderer, field, components.NameInput, `<input id="fg-title">`)
 	if !strings.Contains(html, `for="fg-title"`) {
 		t.Fatalf("expected fallback label markup with control binding, got:\n%s", html)
 	}
@@ -105,7 +106,7 @@ func TestBuildFieldMarkupVisuallyHidesLabel(t *testing.T) {
 		},
 	}
 
-	html := buildFieldMarkup(renderer, field, "input", `<input id="fg-hidden">`)
+	html := buildFieldMarkup(renderer, field, components.NameInput, `<input id="fg-hidden">`)
 	if !strings.Contains(html, "sr-only") {
 		t.Fatalf("expected visually hidden class on label, got:\n%s", html)
 	}
@@ -120,7 +121,7 @@ func TestBuildFieldMarkupHonoursChromeSkipMetadata(t *testing.T) {
 		Metadata: map[string]string{componentChromeMetadataKey: componentChromeSkipKeyword},
 	}
 	control := `<input id="fg-raw">`
-	html := buildFieldMarkup(nil, field, "input", control)
+	html := buildFieldMarkup(nil, field, components.NameInput, control)
 	if html != control {
 		t.Fatalf("expected chrome skip to return control markup only, got: %q", html)
 	}
@@ -131,7 +132,7 @@ func TestBuildFieldMarkupIncludesErrorPlaceholder(t *testing.T) {
 		Name:  "title",
 		Label: "Title",
 	}
-	html := buildFieldMarkup(nil, field, "input", `<input id="fg-title">`)
+	html := buildFieldMarkup(nil, field, components.NameInput, `<input id="fg-title">`)
 	if !strings.Contains(html, `data-relationship-error="true"`) {
 		t.Fatalf("expected error placeholder markup, got:\n%s", html)
 	}
@@ -146,7 +147,7 @@ func TestBuildFieldMarkupRendersInlineErrorMessage(t *testing.T) {
 		Label:    "Title",
 		Metadata: map[string]string{"validation.message": "Title is required"},
 	}
-	html := buildFieldMarkup(nil, field, "input", `<input id="fg-title">`)
+	html := buildFieldMarkup(nil, field, components.NameInput, `<input id="fg-title">`)
 	if !strings.Contains(html, "Title is required") {
 		t.Fatalf("expected inline error message, got:\n%s", html)
 	}

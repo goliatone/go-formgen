@@ -11,6 +11,7 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/render"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 	"github.com/goliatone/go-formgen/pkg/testsupport"
 	theme "github.com/goliatone/go-theme"
 )
@@ -155,7 +156,7 @@ func TestRenderer_RenderContractWysiwygOnlyInjectsRuntime(t *testing.T) {
 				Type:  model.FieldTypeString,
 				Label: "Body",
 				UIHints: map[string]string{
-					"component": "wysiwyg",
+					"component": components.NameWysiwyg,
 				},
 			},
 		},

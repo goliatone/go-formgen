@@ -20,42 +20,42 @@ const (
 func NewDefaultRegistry() *Registry {
 	registry := New()
 
-	registry.MustRegister("input", Descriptor{
+	registry.MustRegister(NameInput, Descriptor{
 		Renderer: templateComponentRenderer("forms.input", templatePrefix+"input.tmpl"),
 	})
-	registry.MustRegister("textarea", Descriptor{
+	registry.MustRegister(NameTextarea, Descriptor{
 		Renderer: templateComponentRenderer("forms.textarea", templatePrefix+"textarea.tmpl"),
 	})
-	registry.MustRegister("select", Descriptor{
+	registry.MustRegister(NameSelect, Descriptor{
 		Renderer: templateComponentRenderer("forms.select", templatePrefix+"select.tmpl"),
 	})
-	registry.MustRegister("boolean", Descriptor{
+	registry.MustRegister(NameBoolean, Descriptor{
 		Renderer: templateComponentRenderer("forms.checkbox", templatePrefix+"boolean.tmpl"),
 	})
-	registry.MustRegister("object", Descriptor{
+	registry.MustRegister(NameObject, Descriptor{
 		Renderer: objectRenderer,
 	})
-	registry.MustRegister("array", Descriptor{
+	registry.MustRegister(NameArray, Descriptor{
 		Renderer: arrayRenderer,
 	})
-	registry.MustRegister("datetime-range", Descriptor{
+	registry.MustRegister(NameDatetimeRange, Descriptor{
 		Renderer: datetimeRangeRenderer,
 	})
-	registry.MustRegister("wysiwyg", Descriptor{
+	registry.MustRegister(NameWysiwyg, Descriptor{
 		Renderer: templateComponentRenderer("forms.wysiwyg", templatePrefix+"wysiwyg.tmpl"),
 		Scripts: []Script{
 			{Src: runtimeScript, Defer: true},
 			{Inline: runtimeInit},
 		},
 	})
-	registry.MustRegister("file_uploader", Descriptor{
+	registry.MustRegister(NameFileUploader, Descriptor{
 		Renderer: templateComponentRenderer("forms.file-uploader", templatePrefix+"file_uploader.tmpl"),
 		Scripts: []Script{
 			{Src: runtimeScript, Defer: true},
 			{Inline: runtimeInit},
 		},
 	})
-	registry.MustRegister("json_editor", jsonEditorDescriptor())
+	registry.MustRegister(NameJSONEditor, jsonEditorDescriptor())
 
 	return registry
 }

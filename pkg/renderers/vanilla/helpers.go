@@ -1,6 +1,10 @@
 package vanilla
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
+)
 
 func componentControlID(name string) string {
 	trimmed := strings.TrimSpace(name)
@@ -39,7 +43,7 @@ func sanitizeClassList(value string) string {
 
 func labelSupportsFor(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case "object", "array", "datetime-range":
+	case components.NameObject, components.NameArray, components.NameDatetimeRange:
 		return false
 	default:
 		return true
@@ -48,7 +52,7 @@ func labelSupportsFor(componentName string) bool {
 
 func componentHandlesChrome(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case "object", "array", "datetime-range":
+	case components.NameObject, components.NameArray, components.NameDatetimeRange:
 		return true
 	default:
 		return false
@@ -59,7 +63,7 @@ func componentHandlesChrome(componentName string) bool {
 // (e.g., uses description as placeholder instead of rendering it separately).
 func componentHandlesDescription(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case "wysiwyg", "rich-text", "rich_text":
+	case components.NameWysiwyg, "rich-text", "rich_text":
 		return true
 	default:
 		return false

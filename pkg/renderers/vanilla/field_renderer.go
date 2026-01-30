@@ -60,7 +60,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 		componentName = resolveComponentName(field)
 	}
 	if componentName == "" {
-		componentName = "input"
+		componentName = components.NameInput
 	}
 
 	descriptor, ok := r.registry.Descriptor(componentName)

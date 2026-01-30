@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 	"github.com/goliatone/go-formgen/pkg/widgets"
 )
 
@@ -20,10 +21,10 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 			in: model.Field{
 				Type: model.FieldTypeString,
 				Metadata: map[string]string{
-					"widget": "textarea",
+					"widget": components.NameTextarea,
 				},
 			},
-			want: "textarea",
+			want: components.NameTextarea,
 		},
 		{
 			name: "code editor widget maps to textarea",
@@ -33,7 +34,7 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 					"widget": widgets.WidgetCodeEditor,
 				},
 			},
-			want: "textarea",
+			want: components.NameTextarea,
 		},
 		{
 			name: "select widget maps to select",
@@ -43,7 +44,7 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 					"widget": widgets.WidgetSelect,
 				},
 			},
-			want: "select",
+			want: components.NameSelect,
 		},
 		{
 			name: "chips widget maps to select",
@@ -53,7 +54,7 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 					"widget": widgets.WidgetChips,
 				},
 			},
-			want: "select",
+			want: components.NameSelect,
 		},
 		{
 			name: "toggle widget maps to boolean",
@@ -63,7 +64,7 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 					"widget": widgets.WidgetToggle,
 				},
 			},
-			want: "boolean",
+			want: components.NameBoolean,
 		},
 		{
 			name: "json editor widget maps to json_editor",
@@ -73,37 +74,37 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 					"widget": widgets.WidgetJSONEditor,
 				},
 			},
-			want: "json_editor",
+			want: components.NameJSONEditor,
 		},
 		{
 			name: "wysiwyg widget maps to wysiwyg component",
 			in: model.Field{
 				Type: model.FieldTypeString,
 				Metadata: map[string]string{
-					"widget": "wysiwyg",
+					"widget": components.NameWysiwyg,
 				},
 			},
-			want: "wysiwyg",
+			want: components.NameWysiwyg,
 		},
 		{
 			name: "file_uploader widget maps to file_uploader component",
 			in: model.Field{
 				Type: model.FieldTypeString,
 				Metadata: map[string]string{
-					"widget": "file_uploader",
+					"widget": components.NameFileUploader,
 				},
 			},
-			want: "file_uploader",
+			want: components.NameFileUploader,
 		},
 		{
 			name: "datetime-range widget maps to datetime-range component",
 			in: model.Field{
 				Type: model.FieldTypeString,
 				Metadata: map[string]string{
-					"widget": "datetime-range",
+					"widget": components.NameDatetimeRange,
 				},
 			},
-			want: "datetime-range",
+			want: components.NameDatetimeRange,
 		},
 	}
 
