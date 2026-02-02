@@ -21,6 +21,10 @@ import (
 	theme "github.com/goliatone/go-theme"
 )
 
+// DefaultFormClass is the CSS class list applied to the root <form> element
+// when RenderOptions.ChromeClasses.Form is empty.
+const DefaultFormClass = "max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700"
+
 type Option func(*config)
 
 type config struct {
@@ -369,6 +373,17 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		templateTheme = nil
 	}
 
+	chromeClasses := map[string]string{}
+	if renderOptions.ChromeClasses != nil {
+		chromeClasses["form"] = strings.TrimSpace(renderOptions.ChromeClasses.Form)
+		chromeClasses["header"] = strings.TrimSpace(renderOptions.ChromeClasses.Header)
+		chromeClasses["section"] = strings.TrimSpace(renderOptions.ChromeClasses.Section)
+		chromeClasses["fieldset"] = strings.TrimSpace(renderOptions.ChromeClasses.Fieldset)
+		chromeClasses["actions"] = strings.TrimSpace(renderOptions.ChromeClasses.Actions)
+		chromeClasses["errors"] = strings.TrimSpace(renderOptions.ChromeClasses.Errors)
+		chromeClasses["grid"] = strings.TrimSpace(renderOptions.ChromeClasses.Grid)
+	}
+
 	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
 		"locale":                 renderOptions.Locale,
 		"form":                   decorated,
@@ -380,12 +395,14 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"component_scripts":      componentScriptPayload,
 		"theme":                  templateTheme,
 		"top_padding":            strings.Repeat("\n", topPadding),
+		"default_form_class":     DefaultFormClass,
 		"render_options": map[string]any{
 			"method_attr":     templateOptions.MethodAttr,
 			"method_override": templateOptions.MethodOverride,
 			"form_errors":     templateOptions.FormErrors,
 			"hidden_fields":   templateOptions.HiddenFields,
 			"locale":          renderOptions.Locale,
+			"chrome_classes":  chromeClasses,
 		},
 	})
 	if err != nil {
