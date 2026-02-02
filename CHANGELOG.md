@@ -1,5 +1,27 @@
 # Changelog
 
+# [0.17.0](https://github.com/goliatone/go-formgen/compare/v0.16.1...v0.17.0) - (2026-02-02)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.17.0 ([fa99f8c](https://github.com/goliatone/go-formgen/commit/fa99f8c8759bac93be631a50e2983b5c0eadf3cd))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Chrome class options ([5a83d2c](https://github.com/goliatone/go-formgen/commit/5a83d2c364fd3f5c6ce3dce5cb7d24e25eafee9b))  - (goliatone)
+
+## <!-- 2 -->🚜 Refactor
+
+- Use canonical component names ([83bcb7a](https://github.com/goliatone/go-formgen/commit/83bcb7ae022710ec4d25edc159c6b078196d0fe2))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.16.1 ([eed78c6](https://github.com/goliatone/go-formgen/commit/eed78c6b94643ffa93be88de743c8cbf980f892b))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update test ([555f1b5](https://github.com/goliatone/go-formgen/commit/555f1b5292f600f43898af6a636c3ff93818ce9b))  - (goliatone)
+
 # [0.16.1](https://github.com/goliatone/go-formgen/compare/v0.16.0...v0.16.1) - (2026-01-29)
 
 ## <!-- 1 -->🐛 Bug Fixes
