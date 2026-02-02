@@ -30,6 +30,21 @@ This gives you:
 - **Padding and rounded corners**
 - **Dark mode support**
 
+### Request scoped chrome overrides
+
+You can override high level chrome classes (form, header, section, grid, actions, errors)
+per render without replacing templates. Overrides replace defaults entirely:
+
+```go
+output, _ := renderer.Render(ctx, form, render.RenderOptions{
+    ChromeClasses: &render.ChromeClasses{
+        Form: "space-y-6", // chrome-free form wrapper for embeds
+    },
+})
+```
+
+To extend the defaults, compose your own string using `vanilla.DefaultFormClass`.
+
 ---
 
 ## 2. Custom Inline Styles
@@ -309,6 +324,7 @@ Themes can override specific component templates:
 manifest := &theme.Manifest{
     Name: "acme",
     Templates: map[string]string{
+        "forms.form":          "themes/acme/form.tmpl",
         "forms.input":         "themes/acme/input.tmpl",
         "forms.select":        "themes/acme/select.tmpl",
         "forms.textarea":      "themes/acme/textarea.tmpl",
@@ -320,6 +336,10 @@ manifest := &theme.Manifest{
     },
 }
 ```
+
+The `forms.form` partial overrides the root form template (formerly only
+overrideable via `WithTemplatesFS`). Use it when you need to customize the
+wrapper chrome or layout structure globally for a theme.
 
 **Template lookup order:**
 
@@ -334,6 +354,7 @@ manifest := &theme.Manifest{
 gen := formgen.NewOrchestrator(
     orchestrator.WithThemeProvider(provider, "acme", "dark"),
     orchestrator.WithThemeFallbacks(map[string]string{
+        "forms.form":          "templates/form.tmpl",
         "forms.input":         "templates/components/input.tmpl",
         "forms.select":        "templates/components/select.tmpl",
         "forms.textarea":      "templates/components/textarea.tmpl",
