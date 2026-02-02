@@ -458,6 +458,23 @@ type SectionConfig struct {
 - `"fieldset": true` — Wraps fields in `<fieldset>`, adds border and padding
 - `"fieldset": false` — Plain `<div>` wrapper, no visual grouping
 
+### Chrome class overrides (per request)
+
+If you want to reuse the same UI schema but change the chrome styling (form
+wrapper, section box, grid, errors, actions), you can do so via
+`RenderOptions.ChromeClasses`:
+
+```go
+html, err := renderer.Render(ctx, form, render.RenderOptions{
+  ChromeClasses: &render.ChromeClasses{
+    Form:    "space-y-6",             // remove outer border/padding
+    Section: "space-y-4",             // section wrapper
+    Grid:    "grid gap-4",            // field grid
+    Actions: "flex gap-x-2 pt-4",     // action row
+  },
+})
+```
+
 ---
 
 ## 5. Field Customization
