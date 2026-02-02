@@ -24,6 +24,26 @@ type MissingTranslationHandler func(locale, key string, args []any, err error) s
 
 var ErrMissingTranslator = errors.New("render: missing translator")
 
+// ChromeClasses overrides high-level class lists in renderer templates. When a
+// field is non-empty the value replaces the renderer's default classes
+// entirely.
+type ChromeClasses struct {
+	// Form overrides the CSS class attribute on the root <form> element.
+	Form string
+	// Header overrides the header wrapping title/subtitle chrome.
+	Header string
+	// Section overrides the section wrapper used for grouped fields.
+	Section string
+	// Fieldset overrides the section wrapper when section.fieldset is true.
+	Fieldset string
+	// Actions overrides the action row container class list.
+	Actions string
+	// Errors overrides the top-of-form error summary class list.
+	Errors string
+	// Grid overrides the grid container used for field layouts.
+	Grid string
+}
+
 // RenderOptions describe per-request data that renderers can use to customise
 // their output without mutating the form model pipeline.
 type RenderOptions struct {
@@ -75,6 +95,9 @@ type RenderOptions struct {
 	// bodies) that will be embedded in a page where the parent already supplies
 	// these assets.
 	OmitAssets bool
+	// ChromeClasses overrides high-level CSS class lists in renderer templates.
+	// When nil or empty, renderer defaults are used.
+	ChromeClasses *ChromeClasses
 }
 
 func missingTranslationDefault(locale, key string, args []any, err error) string {
