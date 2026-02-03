@@ -289,6 +289,42 @@ func TestRenderer_ThemeAssetURLHelper_NoTheme(t *testing.T) {
 	}
 }
 
+func TestRenderer_ThemeFormTemplateOverride(t *testing.T) {
+	form := testsupport.MustLoadFormModel(t, filepath.Join("testdata", "form_model.json"))
+
+	stub := &stubTemplateRenderer{
+		renderTemplateFunc: func(name string, data any, out ...io.Writer) (string, error) {
+			switch name {
+			case "templates/custom_form.tmpl":
+				return "custom-output", nil
+			case "templates/form.tmpl":
+				return "default-output", nil
+			default:
+				return "<component />", nil
+			}
+		},
+	}
+
+	renderer, err := vanilla.New(vanilla.WithTemplateRenderer(stub))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: &theme.RendererConfig{
+			Partials: map[string]string{
+				"forms.form": "templates/custom_form.tmpl",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "custom-output" {
+		t.Fatalf("unexpected output: %q", got)
+	}
+}
+
 type stubTemplateRenderer struct {
 	called             bool
 	renderTemplateFunc func(name string, data any, out ...io.Writer) (string, error)

@@ -31,11 +31,11 @@
 {% if not grid_gutter -%}
 {% set grid_gutter = 'md' -%}
 {% endif %}
-{% set grid_gap_class = 'gap-6' -%}
+{% set grid_gap = '1.5rem' -%}
 {% if grid_gutter == 'sm' -%}
-{% set grid_gap_class = 'gap-4' -%}
+{% set grid_gap = '1rem' -%}
 {% elif grid_gutter == 'lg' -%}
-{% set grid_gap_class = 'gap-8' -%}
+{% set grid_gap = '2rem' -%}
 {% endif -%}
 {% set chrome_classes = render_options.chrome_classes -%}
 <form class="{% if chrome_classes.form %}{{ chrome_classes.form }}{% else %}{{ default_form_class }}{% endif %}" method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
@@ -48,7 +48,7 @@
     {% endfor %}
     {% endif %}
     {% if render_options.form_errors %}
-    <div class="{% if chrome_classes.errors %}{{ chrome_classes.errors }}{% else %}rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800{% endif %}" role="alert">
+    <div class="{% if chrome_classes.errors %}{{ chrome_classes.errors }}{% else %}{{ default_errors_class }}{% endif %}" role="alert">
         <ul class="list-disc space-y-1 pl-4">
         {% for message in render_options.form_errors %}
             <li>{{ message }}</li>
@@ -57,7 +57,7 @@
     </div>
     {% endif %}
     {% if form.uiHints and (form.uiHints['layout.title'] or form.uiHints['layout.subtitle']) %}
-    <header class="{% if chrome_classes.header %}{{ chrome_classes.header }}{% else %}space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700{% endif %}">
+    <header class="{% if chrome_classes.header %}{{ chrome_classes.header }}{% else %}{{ default_header_class }}{% endif %}">
         {% if form.uiHints['layout.title'] %}
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form.uiHints['layout.title'] }}</h1>
         {% endif %}
@@ -68,7 +68,11 @@
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}grid {{ grid_gap_class }}{% endif %}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+    {% if chrome_classes.grid %}
+    <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+    {% else %}
+    <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
+    {% endif %}
         {% for field in layout.unsectioned %}
         <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
@@ -79,7 +83,7 @@
 
     {% if layout.sections %}
     {% for section in layout.sections %}
-    <section class="{% if section.fieldset %}{% if chrome_classes.fieldset %}{{ chrome_classes.fieldset }}{% else %}space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700{% endif %}{% else %}{% if chrome_classes.section %}{{ chrome_classes.section }}{% else %}space-y-4{% endif %}{% endif %}">
+    <section class="{% if section.fieldset %}{% if chrome_classes.fieldset %}{{ chrome_classes.fieldset }}{% else %}{{ default_fieldset_class }}{% endif %}{% else %}{% if chrome_classes.section %}{{ chrome_classes.section }}{% else %}{{ default_section_class }}{% endif %}{% endif %}">
         {% if section.title or section.description %}
         <header class="space-y-1">
             {% if section.title %}
@@ -92,7 +96,11 @@
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}grid {{ grid_gap_class }}{% endif %}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+            {% if chrome_classes.grid %}
+            <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+            {% else %}
+            <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
+            {% endif %}
                 {% for field in section.fields %}
                 <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
@@ -101,7 +109,11 @@
             </div>
         </fieldset>
         {% else %}
-        <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}grid {{ grid_gap_class }}{% endif %}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+        {% if chrome_classes.grid %}
+        <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
+        {% else %}
+        <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
+        {% endif %}
             {% for field in section.fields %}
             <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
@@ -113,7 +125,7 @@
     {% endfor %}
     {% endif %}
 
-    <div class="{% if chrome_classes.actions %}{{ chrome_classes.actions }}{% else %}flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700{% endif %}">
+    <div class="{% if chrome_classes.actions %}{{ chrome_classes.actions }}{% else %}{{ default_actions_class }}{% endif %}">
         {% if actions and actions|length > 0 %}
             {% for action in actions %}
                 {% if action.href %}

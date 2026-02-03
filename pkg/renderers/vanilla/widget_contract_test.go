@@ -77,6 +77,13 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 			want: components.NameJSONEditor,
 		},
 		{
+			name: "schemaless object defaults to json_editor",
+			in: model.Field{
+				Type: model.FieldTypeObject,
+			},
+			want: components.NameJSONEditor,
+		},
+		{
 			name: "wysiwyg widget maps to wysiwyg component",
 			in: model.Field{
 				Type: model.FieldTypeString,

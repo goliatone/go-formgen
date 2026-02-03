@@ -2,7 +2,7 @@
 
 
 
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700" method="post" action="/articles" data-formgen-auto-init="true">
+<form class="formgen-form" method="post" action="/articles" data-formgen-auto-init="true">
     
     <input type="hidden" name="_method" value="PATCH">
     
@@ -16,7 +16,7 @@
     
     
     
-    <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+    <div class="formgen-errors" role="alert">
         <ul class="list-disc space-y-1 pl-4">
         
             <li>Unable to save article</li>
@@ -27,7 +27,7 @@
     </div>
     
     
-    <header class="space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700">
+    <header class="formgen-header">
         
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create Editorial Article</h1>
         
@@ -41,7 +41,7 @@
 
     
     
-    <section class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700">
+    <section class="formgen-fieldset">
         
         <header class="space-y-1">
             
@@ -54,7 +54,7 @@
         
         
         <fieldset>
-            <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+            <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
                 
                 <div style="grid-column: span 8 / span 8">
                     <div class="flex flex-col gap-2" data-component="input">
@@ -226,7 +226,7 @@
         
     </section>
     
-    <section class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700">
+    <section class="formgen-fieldset">
         
         <header class="space-y-1">
             
@@ -239,7 +239,7 @@
         
         
         <fieldset>
-            <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+            <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
                 
                 <div style="grid-column: span 12 / span 12">
                     <div class="flex flex-col gap-2" data-component="input">
@@ -362,7 +362,7 @@
         
     </section>
     
-    <section class="space-y-4">
+    <section class="formgen-section">
         
         <header class="space-y-1">
             
@@ -374,7 +374,7 @@
         </header>
         
         
-        <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+        <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
             
             <div style="grid-column: span 6 / span 6">
                 <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
@@ -512,7 +512,7 @@
         
     </section>
     
-    <section class="space-y-4">
+    <section class="formgen-section">
         
         <header class="space-y-1">
             
@@ -524,7 +524,7 @@
         </header>
         
         
-        <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+        <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
             
             <div style="grid-column: span 12 / span 12">
                 <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
@@ -600,7 +600,7 @@
     
     
 
-    <div class="flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+    <div class="formgen-actions">
         
             
                 

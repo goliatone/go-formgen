@@ -21,10 +21,6 @@ import (
 	theme "github.com/goliatone/go-theme"
 )
 
-// DefaultFormClass is the CSS class list applied to the root <form> element
-// when RenderOptions.ChromeClasses.Form is empty.
-const DefaultFormClass = "max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700"
-
 type Option func(*config)
 
 type config struct {
@@ -373,6 +369,13 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		templateTheme = nil
 	}
 
+	formTemplateName := "templates/form.tmpl"
+	if renderOptions.Theme != nil {
+		if candidate := strings.TrimSpace(renderOptions.Theme.Partials["forms.form"]); candidate != "" {
+			formTemplateName = candidate
+		}
+	}
+
 	chromeClasses := map[string]string{}
 	if renderOptions.ChromeClasses != nil {
 		chromeClasses["form"] = strings.TrimSpace(renderOptions.ChromeClasses.Form)
@@ -384,7 +387,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		chromeClasses["grid"] = strings.TrimSpace(renderOptions.ChromeClasses.Grid)
 	}
 
-	result, err := r.templates.RenderTemplate("templates/form.tmpl", map[string]any{
+	result, err := r.templates.RenderTemplate(formTemplateName, map[string]any{
 		"locale":                 renderOptions.Locale,
 		"form":                   decorated,
 		"layout":                 layout,
@@ -396,6 +399,12 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"theme":                  templateTheme,
 		"top_padding":            strings.Repeat("\n", topPadding),
 		"default_form_class":     DefaultFormClass,
+		"default_header_class":   DefaultHeaderClass,
+		"default_section_class":  DefaultSectionClass,
+		"default_fieldset_class": DefaultFieldsetClass,
+		"default_actions_class":  DefaultActionsClass,
+		"default_errors_class":   DefaultErrorsClass,
+		"default_grid_class":     DefaultGridClass,
 		"render_options": map[string]any{
 			"method_attr":     templateOptions.MethodAttr,
 			"method_override": templateOptions.MethodOverride,
@@ -1487,6 +1496,11 @@ func resolveComponentName(field model.Field) string {
 		return components.NameFileUploader
 	case components.NameDatetimeRange, "datetime_range":
 		return components.NameDatetimeRange
+	}
+
+	// Schemaless objects should fall back to the JSON editor.
+	if field.Type == model.FieldTypeObject && field.Relationship == nil && len(field.Nested) == 0 {
+		return components.NameJSONEditor
 	}
 
 	hint := func(key string) string {
