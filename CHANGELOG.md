@@ -1,5 +1,29 @@
 # Changelog
 
+# [0.18.0](https://github.com/goliatone/go-formgen/compare/v0.17.1...v0.18.0) - (2026-02-03)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Include classes for button style ([77fa078](https://github.com/goliatone/go-formgen/commit/77fa078ce463080b088089aa9d567c4a342c1053))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.18.0 ([7a2475a](https://github.com/goliatone/go-formgen/commit/7a2475a490bfd49851843370e6df28cb50bf572f))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Update render to support initial active view ([cc0d5f4](https://github.com/goliatone/go-formgen/commit/cc0d5f44e5e3ab2ac59630a3a88a7a41ce4933c9))  - (goliatone)
+- Udpated runtime assets ([6a3827d](https://github.com/goliatone/go-formgen/commit/6a3827d7522d2f69f3153fd512a7456f80e2acc0))  - (goliatone)
+- Support for JSON editor GUI styling ([31b9825](https://github.com/goliatone/go-formgen/commit/31b982574858a1dcb1793e7b2ce554849ecaab65))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.17.1 ([7a6572a](https://github.com/goliatone/go-formgen/commit/7a6572ab60855d7392c50bac85a9ab2fef6fe5e1))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update test ([dabadb7](https://github.com/goliatone/go-formgen/commit/dabadb7aa3b924100a4b3f7d0f85787877a7cdd2))  - (goliatone)
+
 # [0.17.1](https://github.com/goliatone/go-formgen/compare/v0.17.0...v0.17.1) - (2026-02-03)
 
 ## <!-- 1 -->🐛 Bug Fixes
