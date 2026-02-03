@@ -603,6 +603,59 @@ The vanilla renderer ships a component registry (`pkg/renderers/vanilla/componen
 
 Use `componentOptions` to configure components; it is serialized into `field.metadata["component.config"]` and exposed to the component renderer as `components.ComponentData.Config`.
 
+### JSON Editor Component
+
+The `json_editor` component renders the JSON editor (raw textarea, GUI editor, or hybrid toggle).
+
+**Active view (hybrid only):**
+- Valid values: `raw`, `gui`.
+- Default: `raw` (backwards compatible).
+- If `mode` is `gui` (GUI-only), the active view is always `gui` regardless of hints.
+
+**Configuration precedence (highest → lowest):**
+1. `uiHints.editorActiveView` / `uiHints.editorMode`
+2. `metadata["editor.activeView"]` / `metadata["editor.mode"]`
+3. `componentOptions.activeView` / `componentOptions.mode`
+
+Other supported hints:
+- `schemaHint` (`uiHints.schemaHint`, `metadata["schema.hint"]`, `componentOptions.schemaHint`)
+- `jsonExample` (`uiHints.jsonExample`, `metadata["schema.example"]`, `componentOptions.example`)
+- `collapsed` (`uiHints.collapsed`, `metadata["json.collapsed"]`, `componentOptions.collapsed`)
+
+**Example (UI hints):**
+
+```json
+{
+  "fields": {
+    "settings": {
+      "widget": "json-editor",
+      "uiHints": {
+        "editorMode": "hybrid",
+        "editorActiveView": "gui",
+        "schemaHint": "Key/value configuration for the app",
+        "jsonExample": "{ \"enabled\": true }"
+      }
+    }
+  }
+}
+```
+
+**Example (componentOptions):**
+
+```json
+{
+  "fields": {
+    "settings": {
+      "component": "json_editor",
+      "componentOptions": {
+        "mode": "hybrid",
+        "activeView": "gui"
+      }
+    }
+  }
+}
+```
+
 ### Example: WYSIWYG Component
 
 ```json
