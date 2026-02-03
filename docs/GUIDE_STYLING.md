@@ -19,16 +19,15 @@ renderer, _ := vanilla.New(
 )
 ```
 
-**Default form container classes** ([form.tmpl:31](../pkg/renderers/vanilla/templates/form.tmpl#L31)):
+**Default form container class** ([form.tmpl:31](../pkg/renderers/vanilla/templates/form.tmpl#L31)):
 ```html
-<form class="max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700">
+<form class="formgen-form">
 ```
 
 This gives you:
-- **Fixed max width** (`max-w-4xl`) — form won't exceed 56rem
-- **Centered** (`mx-auto`)
-- **Padding and rounded corners**
-- **Dark mode support**
+- **Fixed max width** via `--container-max-width` (defaults to 56rem)
+- **Centered**, padded, and rounded container
+- **Dark mode support** via `prefers-color-scheme` fallbacks and theme tokens
 
 ### Request scoped chrome overrides
 
@@ -38,7 +37,7 @@ per render without replacing templates. Overrides replace defaults entirely:
 ```go
 output, _ := renderer.Render(ctx, form, render.RenderOptions{
     ChromeClasses: &render.ChromeClasses{
-        Form: "space-y-6", // chrome-free form wrapper for embeds
+        Form: "formgen-form formgen-form--embed", // add your own override class
     },
 })
 ```
@@ -103,7 +102,7 @@ Your `my-templates/templates/form.tmpl` could start with:
 
 ```html
 <div class="w-full">  <!-- fluid wrapper -->
-  <form class="space-y-6" method="{{ .render_options.method_attr }}" action="{{ .form.endpoint }}">
+  <form class="formgen-form" method="{{ .render_options.method_attr }}" action="{{ .form.endpoint }}">
     <!-- rest of form -->
   </form>
 </div>
@@ -589,7 +588,7 @@ gen := formgen.NewOrchestrator(
 Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/vanilla/templates/form.tmpl#L61)):
 
 ```html
-<div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+<div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
 ```
 
 **Control grid columns** via UI schema metadata:
@@ -649,35 +648,39 @@ Apply via theme tokens or inline styles.
 
 ### Scenario 1: Fluid-Width Forms
 
-**Problem:** Default form container is `max-w-4xl` (56rem max width).
+**Problem:** Default form container is `formgen-form` with
+`--container-max-width` defaulting to 56rem.
 
-**Solution A: Custom template**
+**Solution A: Theme tokens / CSS vars**
 
-Create `templates/form.tmpl` with dynamic class:
-
-```html
-{% set container_class = theme.tokens['container-class'] | default('max-w-4xl mx-auto') %}
-<form class="{{ container_class }} space-y-6 p-6 bg-white rounded-xl border">
-```
-
-Then pass via theme:
+Set a token that maps to the CSS variable:
 
 ```go
 Tokens: map[string]string{
-    "container-class": "w-full",  // fluid
+    "container-max-width": "100%", // fluid
 }
 ```
 
-**Solution B: CSS override**
+**Solution B: Custom template**
+
+Create `templates/form.tmpl` with a custom wrapper:
+
+```html
+<form class="formgen-form formgen-form--fluid">
+```
+
+Then add CSS for your modifier class.
+
+**Solution C: CSS override**
 
 ```css
-form[data-formgen-auto-init] {
+.formgen-form {
   max-width: none !important;  /* fluid */
   width: 100%;
 }
 ```
 
-**Solution C: Wrapper element**
+**Solution D: Wrapper element**
 
 Wrap the form with a custom div in your template partial override:
 
@@ -693,18 +696,18 @@ Wrap the form with a custom div in your template partial override:
 
 ```css
 @media (min-width: 1024px) {
-  form[data-formgen-auto-init] .grid {
+  .formgen-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
 }
 ```
 
-**Approach 2: Tailwind responsive classes**
+**Approach 2: Template override with custom class**
 
 Override [form.tmpl:61](../pkg/renderers/vanilla/templates/form.tmpl#L61):
 
 ```html
-<div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
+<div class="formgen-grid formgen-grid--two-col">
 ```
 
 **Approach 3: Dynamic grid columns via UI schema**
@@ -956,7 +959,7 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 | Token | Purpose | Example |
 |-------|---------|---------|
 | `container-max-width` | Form container max width | `"100%"` |
-| `container-class` | Form container classes | `"w-full"` |
+| `container-class` | Form container classes (template override only) | `"w-full"` |
 | `grid-columns-mobile` | Mobile grid columns | `"1"` |
 | `grid-columns-desktop` | Desktop grid columns | `"2"` |
 | `primary-color` | Primary brand color | `"#3b82f6"` |
@@ -974,7 +977,7 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 | **Override templates** | `vanilla.WithTemplatesFS(customFS)` |
 | **Theme system** | `orchestrator.WithThemeProvider(provider, theme, variant)` |
 | **Fluid container** | Override form template or CSS `max-width: none` |
-| **Responsive grid** | UI schema `grid.breakpoints` (or media queries / Tailwind responsive classes) |
+| **Responsive grid** | UI schema `grid.breakpoints` (or media queries / template overrides) |
 | **Per-field layout** | UI schema `grid.span/start/row` (+ `grid.breakpoints`) |
 | **Component overrides** | `WithComponentRegistry()` or theme partials |
 
