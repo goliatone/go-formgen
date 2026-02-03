@@ -23,7 +23,7 @@ describe("theme build", () => {
   it("emits the default theme stylesheet", async () => {
     const css = await readFile(themeOutput, "utf8");
     expect(css.length).toBeGreaterThan(0);
-    expect(css).toContain(".max-w-4xl");
+    expect(css).toContain(".formgen-form");
     expect(css).toContain(".ring-blue-500");
     expect(css).toContain(".shadow-xl");
   });
