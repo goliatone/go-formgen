@@ -13,7 +13,8 @@
 <style data-formgen-responsive-grid>{{ responsive_grid_styles|safe }}</style>
 {% endif -%}
 {%- if inline_styles -%}
-<style data-formgen-default-style>{{ inline_styles|safe }}</style>
+<style data-formgen-default-style>{{ inline_styles|safe }}
+</style>
 
 
 {% endif -%}
@@ -68,11 +69,7 @@
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    {% if chrome_classes.grid %}
-    <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
-    {% else %}
-    <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
-    {% endif %}
+    <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
         {% for field in layout.unsectioned %}
         <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
@@ -96,11 +93,7 @@
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            {% if chrome_classes.grid %}
-            <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
-            {% else %}
-            <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
-            {% endif %}
+            <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
                 {% for field in section.fields %}
                 <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
@@ -109,11 +102,7 @@
             </div>
         </fieldset>
         {% else %}
-        {% if chrome_classes.grid %}
-        <div class="{{ chrome_classes.grid }}"{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}>
-        {% else %}
-        <div class="{{ default_grid_class }}"{% if grid_columns and grid_columns > 1 %} style="--formgen-grid-gap: {{ grid_gap }}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% else %} style="--formgen-grid-gap: {{ grid_gap }}"{% endif %}>
-        {% endif %}
+        <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
             {% for field in section.fields %}
             <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
