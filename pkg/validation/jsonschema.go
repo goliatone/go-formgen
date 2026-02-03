@@ -18,7 +18,7 @@ type SchemaIssue struct {
 
 // SchemaValidationResult captures validation outcomes for builder previews.
 type SchemaValidationResult struct {
-	Valid  bool         `json:"valid"`
+	Valid  bool          `json:"valid"`
 	Issues []SchemaIssue `json:"issues,omitempty"`
 }
 
