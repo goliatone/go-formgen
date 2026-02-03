@@ -57,6 +57,7 @@ func jsonEditorRenderer() Renderer {
 			"valid":       valid,
 			"example":     cfg.Example,
 			"mode":        string(cfg.Mode),
+			"active_view_from_payload": cfg.ActiveView,
 			"show_raw":    cfg.Mode == JSONEditorModeRaw || cfg.Mode == JSONEditorModeHybrid,
 			"show_gui":    cfg.Mode == JSONEditorModeGUI || cfg.Mode == JSONEditorModeHybrid,
 			"show_toggle": cfg.Mode == JSONEditorModeHybrid,
@@ -89,6 +90,7 @@ type jsonEditorConfig struct {
 	Collapsed  bool
 	Example    string
 	Mode       JSONEditorMode
+	ActiveView string
 }
 
 func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConfig {
@@ -96,6 +98,7 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 	example := strings.TrimSpace(field.Placeholder)
 	collapsed := false
 	mode := JSONEditorModeRaw // Default to raw for backwards compatibility
+	activeView := "raw"
 
 	if field.UIHints != nil {
 		if value := strings.TrimSpace(field.UIHints["schemaHint"]); value != "" {
@@ -109,6 +112,11 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		}
 		if value := strings.TrimSpace(field.UIHints["editorMode"]); value != "" {
 			mode = parseJSONEditorMode(value)
+		}
+		if value := strings.TrimSpace(field.UIHints["editorActiveView"]); value != "" {
+			if parsed, ok := parseJSONEditorActiveView(value); ok {
+				activeView = parsed
+			}
 		}
 	}
 	if field.Metadata != nil {
@@ -124,6 +132,11 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		if value := strings.TrimSpace(field.Metadata["editor.mode"]); value != "" {
 			mode = parseJSONEditorMode(value)
 		}
+		if value := strings.TrimSpace(field.Metadata["editor.activeView"]); value != "" {
+			if parsed, ok := parseJSONEditorActiveView(value); ok {
+				activeView = parsed
+			}
+		}
 	}
 	if cfg != nil {
 		if value := strings.TrimSpace(stringify(cfg["schemaHint"])); value != "" {
@@ -138,6 +151,11 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		if value := strings.TrimSpace(stringify(cfg["mode"])); value != "" {
 			mode = parseJSONEditorMode(value)
 		}
+		if value := strings.TrimSpace(stringify(cfg["activeView"])); value != "" {
+			if parsed, ok := parseJSONEditorActiveView(value); ok {
+				activeView = parsed
+			}
+		}
 	}
 
 	if hint == "" {
@@ -149,6 +167,7 @@ func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConf
 		Collapsed:  collapsed,
 		Example:    example,
 		Mode:       mode,
+		ActiveView: activeView,
 	}
 }
 
@@ -160,6 +179,17 @@ func parseJSONEditorMode(value string) JSONEditorMode {
 		return JSONEditorModeHybrid
 	default:
 		return JSONEditorModeRaw
+	}
+}
+
+func parseJSONEditorActiveView(value string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "gui":
+		return "gui", true
+	case "raw":
+		return "raw", true
+	default:
+		return "", false
 	}
 }
 

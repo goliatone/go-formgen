@@ -7,6 +7,7 @@ import (
 	"html"
 	"io/fs"
 	"os"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -190,6 +191,7 @@ const (
 	componentNameMetadataKey   = "component.name"
 	componentConfigMetadataKey = "component.config"
 	componentChromeMetadataKey = "component.chrome"
+	controlIDMetadataKey       = "control.id"
 	behaviorNamesMetadataKey   = "behavior.names"
 	behaviorConfigMetadataKey  = "behavior.config"
 	defaultGridColumns         = 12
@@ -805,6 +807,11 @@ func assignFieldValue(field *model.Field, value any) {
 	switch {
 	case field.Relationship != nil:
 		applyRelationshipCurrent(field, value)
+		return
+	case field.Type == model.FieldTypeArray:
+		if applyArrayValue(field, value) {
+			return
+		}
 	case field.Type == model.FieldTypeBoolean:
 		if boolValue, ok := toBool(value); ok {
 			field.Default = boolValue
@@ -822,6 +829,77 @@ func assignFieldValue(field *model.Field, value any) {
 			field.Default = scalar
 		}
 	}
+}
+
+func applyArrayValue(field *model.Field, value any) bool {
+	values, ok := toAnySlice(value)
+	if !ok {
+		field.Default = []any{value}
+		return true
+	}
+	if len(values) == 0 {
+		field.Default = []any{}
+		return true
+	}
+	if field != nil && field.Items != nil {
+		switch field.Items.Type {
+		case model.FieldTypeObject, model.FieldTypeArray:
+			field.Default = values
+			return true
+		}
+		if len(field.Items.Nested) > 0 {
+			field.Default = values
+			return true
+		}
+	}
+	field.Default = normalizeArrayValues(field, values)
+	return true
+}
+
+func normalizeArrayValues(field *model.Field, values []any) []any {
+	if len(values) == 0 {
+		return nil
+	}
+	itemType := model.FieldTypeString
+	if field != nil && field.Items != nil {
+		itemType = field.Items.Type
+	}
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		switch itemType {
+		case model.FieldTypeString:
+			if str, ok := stringifyScalar(value); ok {
+				out = append(out, str)
+			}
+		case model.FieldTypeInteger, model.FieldTypeNumber:
+			if num, ok := toFloat(value); ok {
+				out = append(out, num)
+			}
+		case model.FieldTypeBoolean:
+			if b, ok := toBool(value); ok {
+				out = append(out, b)
+			}
+		default:
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func toAnySlice(value any) ([]any, bool) {
+	if value == nil {
+		return nil, false
+	}
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil, false
+	}
+	length := rv.Len()
+	out := make([]any, length)
+	for i := 0; i < length; i++ {
+		out[i] = rv.Index(i).Interface()
+	}
+	return out, true
 }
 
 func applyRelationshipCurrent(field *model.Field, value any) {
@@ -977,6 +1055,36 @@ func toBool(value any) (bool, bool) {
 	return false, false
 }
 
+func toFloat(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case float32:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case uint:
+		return float64(typed), true
+	case uint64:
+		return float64(typed), true
+	case uint32:
+		return float64(typed), true
+	case json.Number:
+		if parsed, err := typed.Float64(); err == nil {
+			return parsed, true
+		}
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64); err == nil {
+			return parsed, true
+		}
+	}
+	return 0, false
+}
+
 func applyServerErrors(form *model.FormModel, errors map[string][]string) {
 	if form == nil || len(errors) == 0 {
 		return
@@ -1020,8 +1128,29 @@ func applyErrorsToFields(fields []model.Field, errors map[string][]string, paren
 		if len(fields[i].Nested) > 0 {
 			fields[i].Nested = applyErrorsToFields(fields[i].Nested, errors, path)
 		}
+		if fields[i].Items != nil {
+			item := applyErrorsToItem(*fields[i].Items, errors, path)
+			fields[i].Items = &item
+		}
 	}
 	return fields
+}
+
+func applyErrorsToItem(item model.Field, errors map[string][]string, parentPath string) model.Field {
+	if name := strings.TrimSpace(item.Name); name != "" {
+		itemPath := joinPath(parentPath, name)
+		if messages, ok := errors[itemPath]; ok {
+			setFieldError(&item, messages)
+		}
+	}
+	if len(item.Nested) > 0 {
+		item.Nested = applyErrorsToFields(item.Nested, errors, parentPath)
+	}
+	if item.Items != nil {
+		nested := applyErrorsToItem(*item.Items, errors, parentPath)
+		item.Items = &nested
+	}
+	return item
 }
 
 func setFieldError(field *model.Field, messages []string) {

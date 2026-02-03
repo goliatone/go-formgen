@@ -3,10 +3,14 @@
 {% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
 {% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
 {% set provenance = field.metadata["prefill.provenance"] -%}
+{% set control_id = field.metadata["control.id"] -%}
+{% if not control_id %}
+{% set control_id = "fg-" ~ field.name %}
+{% endif %}
 <div class="flex items-center">
     <input
         type="checkbox"
-        id="fg-{{ field.name }}"
+        id="{{ control_id }}"
         name="{{ field.name }}"
         class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
         {% if field.default %}checked{% endif %}
@@ -17,6 +21,6 @@
         {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
     >
     {% if field.label %}
-    <label for="fg-{{ field.name }}" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">{{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}</label>
+    <label for="{{ control_id }}" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">{{ field.label }}{% if field.required %}<span class="text-red-500 ms-1" aria-hidden="true">*</span>{% endif %}</label>
     {% endif %}
 </div>

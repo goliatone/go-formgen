@@ -263,7 +263,7 @@ func renderChromePartial(renderer template.TemplateRenderer, templateName string
 }
 
 func buildChromeContext(field model.Field, componentName string) map[string]any {
-	controlID := buildControlID(field.Name)
+	controlID := fieldControlID(field)
 	context := map[string]any{
 		"controlID": controlID,
 	}
@@ -271,7 +271,7 @@ func buildChromeContext(field model.Field, componentName string) map[string]any 
 		context["visuallyHiddenLabel"] = true
 	}
 
-	if labelID := componentLabelID(field.Name); labelID != "" {
+	if labelID := fieldLabelID(field); labelID != "" {
 		context["labelID"] = labelID
 	}
 	if labelSupportsFor(componentName) && controlID != "" {
@@ -286,6 +286,21 @@ func buildChromeContext(field model.Field, componentName string) map[string]any 
 	}
 
 	return context
+}
+
+func fieldControlID(field model.Field) string {
+	if id := strings.TrimSpace(stringFromMap(field.Metadata, controlIDMetadataKey)); id != "" {
+		return id
+	}
+	return buildControlID(field.Name)
+}
+
+func fieldLabelID(field model.Field) string {
+	controlID := fieldControlID(field)
+	if controlID == "" {
+		return ""
+	}
+	return controlID + "-label"
 }
 
 func buildControlID(name string) string {

@@ -4,10 +4,14 @@
 {% set readonly_value = field.readonly or field.uiHints.readonly == "true" or field.metadata.readonly == "true" or field.metadata["prefill.readonly"] == "true" -%}
 {% set disabled_value = field.disabled or field.uiHints.disabled == "true" or field.metadata.disabled == "true" or field.metadata["prefill.disabled"] == "true" -%}
 {% set provenance = field.metadata["prefill.provenance"] -%}
+{% set control_id = field.metadata["control.id"] -%}
+{% if not control_id %}
+{% set control_id = "fg-" ~ field.name %}
+{% endif %}
 
 <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
   <textarea
-      id="fg-{{ field.name }}"
+      id="{{ control_id }}"
       name="{{ field.name }}"
       class="sr-only"
       data-fg-component="wysiwyg"
@@ -22,5 +26,5 @@
       {% if provenance %}data-prefill-provenance="{{ provenance }}"{% endif %}
       {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
   >{% if field.default %}{{ field.default }}{% endif %}</textarea>
-  <div id="fg-{{ field.name }}-editor" class="wysiwyg-editor"></div>
+  <div id="{{ control_id }}-editor" class="wysiwyg-editor"></div>
 </div>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"reflect"
 	"strings"
 
 	"github.com/goliatone/go-formgen/pkg/model"
@@ -110,7 +111,7 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 	}
 
 	builder.WriteString(`<fieldset`)
-	if id := componentControlID(field.Name); id != "" {
+	if id := componentControlID(field); id != "" {
 		builder.WriteString(` id="`)
 		builder.WriteString(html.EscapeString(id))
 		builder.WriteString(`"`)
@@ -121,7 +122,7 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 	writeRelationshipAttributes(&builder, field.Relationship)
 	labelID := ""
 	if strings.TrimSpace(field.Label) != "" {
-		labelID = componentLabelID(field.Name)
+		labelID = componentLabelID(field)
 	}
 	if labelID != "" {
 		builder.WriteString(` aria-labelledby="`)
@@ -174,10 +175,10 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 	label := strings.TrimSpace(field.Label)
 	labelID := ""
 	if label != "" {
-		labelID = componentLabelID(field.Name)
+		labelID = componentLabelID(field)
 	}
 	builder.WriteString(`<div`)
-	if id := componentControlID(field.Name); id != "" {
+	if id := componentControlID(field); id != "" {
 		builder.WriteString(` id="`)
 		builder.WriteString(html.EscapeString(id))
 		builder.WriteString(`"`)
@@ -233,12 +234,28 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 			builder.WriteString(`"`)
 		}
 		builder.WriteString(`>`)
-
-		child, err := data.RenderChild(*field.Items)
-		if err != nil {
-			return err
+		itemValues := coerceSlice(field.Default)
+		if len(itemValues) == 0 {
+			child, err := data.RenderChild(*field.Items)
+			if err != nil {
+				return err
+			}
+			builder.WriteString(child)
+		} else {
+			baseID := componentControlID(*field.Items)
+			for idx, value := range itemValues {
+				item := cloneField(*field.Items)
+				item = applyArrayItemValue(item, value)
+				if baseID != "" {
+					applyControlIDPrefix(&item, fmt.Sprintf("%s-%d", baseID, idx+1))
+				}
+				child, err := data.RenderChild(item)
+				if err != nil {
+					return err
+				}
+				builder.WriteString(child)
+			}
 		}
-		builder.WriteString(child)
 		builder.WriteString(`</div>`)
 
 		if cardinality == "many" {
@@ -267,7 +284,7 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 func datetimeRangeRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
 	builder.WriteString(`<div`)
-	if id := componentControlID(field.Name); id != "" {
+	if id := componentControlID(field); id != "" {
 		builder.WriteString(` id="`)
 		builder.WriteString(html.EscapeString(id))
 		builder.WriteString(`"`)
@@ -355,16 +372,23 @@ func writeRelationshipAttributes(builder *strings.Builder, rel *model.Relationsh
 	}
 }
 
-func componentControlID(name string) string {
-	trimmed := strings.TrimSpace(name)
+const controlIDMetadataKey = "control.id"
+
+func componentControlID(field model.Field) string {
+	if field.Metadata != nil {
+		if id := strings.TrimSpace(field.Metadata[controlIDMetadataKey]); id != "" {
+			return id
+		}
+	}
+	trimmed := strings.TrimSpace(field.Name)
 	if trimmed == "" {
 		return ""
 	}
 	return "fg-" + trimmed
 }
 
-func componentLabelID(name string) string {
-	controlID := componentControlID(name)
+func componentLabelID(field model.Field) string {
+	controlID := componentControlID(field)
 	if controlID == "" {
 		return ""
 	}
@@ -388,4 +412,154 @@ func sanitizeClassList(value string) string {
 		keep = append(keep, token)
 	}
 	return strings.Join(keep, " ")
+}
+
+func coerceSlice(value any) []any {
+	if value == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil
+	}
+	out := make([]any, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		out[i] = rv.Index(i).Interface()
+	}
+	return out
+}
+
+func applyArrayItemValue(field model.Field, value any) model.Field {
+	switch typed := value.(type) {
+	case map[string]any:
+		if len(field.Nested) > 0 {
+			field.Nested = applyValuesToNested(field.Nested, typed)
+			return field
+		}
+	case map[string]string:
+		if len(field.Nested) > 0 {
+			coerced := make(map[string]any, len(typed))
+			for key, val := range typed {
+				coerced[key] = val
+			}
+			field.Nested = applyValuesToNested(field.Nested, coerced)
+			return field
+		}
+	}
+	field.Default = value
+	return field
+}
+
+func applyValuesToNested(fields []model.Field, values map[string]any) []model.Field {
+	if len(fields) == 0 || len(values) == 0 {
+		return fields
+	}
+	for i := range fields {
+		if value, ok := values[fields[i].Name]; ok {
+			fields[i] = applyArrayItemValue(fields[i], value)
+		}
+	}
+	return fields
+}
+
+func applyControlIDPrefix(field *model.Field, prefix string) {
+	if field == nil {
+		return
+	}
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 1)
+	}
+	field.Metadata[controlIDMetadataKey] = prefix
+	if len(field.Nested) > 0 {
+		for i := range field.Nested {
+			childPrefix := prefix + "-" + sanitizeID(field.Nested[i].Name)
+			applyControlIDPrefix(&field.Nested[i], childPrefix)
+		}
+	}
+	if field.Items != nil {
+		itemPrefix := prefix + "-" + sanitizeID(field.Items.Name)
+		if itemPrefix == prefix+"-" {
+			itemPrefix = prefix + "-items"
+		}
+		applyControlIDPrefix(field.Items, itemPrefix)
+	}
+}
+
+func sanitizeID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var builder strings.Builder
+	builder.Grow(len(value))
+	lastDash := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+			lastDash = false
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				builder.WriteRune('-')
+				lastDash = true
+			}
+		}
+	}
+	return strings.Trim(builder.String(), "-")
+}
+
+func cloneField(field model.Field) model.Field {
+	cloned := field
+	if len(field.Enum) > 0 {
+		cloned.Enum = append([]any(nil), field.Enum...)
+	}
+	if len(field.Validations) > 0 {
+		cloned.Validations = append([]model.ValidationRule(nil), field.Validations...)
+	}
+	if field.Metadata != nil {
+		cloned.Metadata = make(map[string]string, len(field.Metadata))
+		for key, value := range field.Metadata {
+			cloned.Metadata[key] = value
+		}
+	}
+	if field.UIHints != nil {
+		cloned.UIHints = make(map[string]string, len(field.UIHints))
+		for key, value := range field.UIHints {
+			cloned.UIHints[key] = value
+		}
+	}
+	if field.Relationship != nil {
+		rel := *field.Relationship
+		cloned.Relationship = &rel
+	}
+	if field.Items != nil {
+		item := cloneField(*field.Items)
+		cloned.Items = &item
+	}
+	if len(field.Nested) > 0 {
+		cloned.Nested = make([]model.Field, len(field.Nested))
+		for i := range field.Nested {
+			cloned.Nested[i] = cloneField(field.Nested[i])
+		}
+	}
+	if len(field.OneOf) > 0 {
+		cloned.OneOf = make([]model.Field, len(field.OneOf))
+		for i := range field.OneOf {
+			cloned.OneOf[i] = cloneField(field.OneOf[i])
+		}
+	}
+	return cloned
 }
