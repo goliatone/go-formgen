@@ -199,7 +199,7 @@ Notes for the built-in vanilla renderer:
 **Rendered output:**
 
 ```html
-<div class="flex gap-x-2 pt-4 border-t border-gray-200">
+<div class="formgen-actions">
   <a class="... bg-white text-gray-800 ..." href="/pets">Cancel</a>
   <button type="submit" class="... bg-blue-600 text-white ...">Create Pet</button>
 </div>
@@ -332,10 +332,11 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 }
 ```
 
-The built-in vanilla template honors `layout.gutter` and maps it to Tailwind gap classes:
-- `"sm"` → `gap-4`
-- `"md"` (default) → `gap-6`
-- `"lg"` → `gap-8`
+The built-in vanilla template honors `layout.gutter` and maps it to
+`--formgen-grid-gap`:
+- `"sm"` → `1rem`
+- `"md"` (default) → `1.5rem`
+- `"lg"` → `2rem`
 
 ### Form Title and Subtitle
 
@@ -355,7 +356,7 @@ The built-in vanilla template honors `layout.gutter` and maps it to Tailwind gap
 **Rendered output:**
 
 ```html
-<header class="space-y-2 pb-4 border-b">
+<header class="formgen-header">
   <h1 class="text-2xl font-bold">Add New Pet</h1>
   <p class="text-sm text-gray-600">Fill in the details below to register a new pet</p>
 </header>
@@ -430,24 +431,24 @@ type SectionConfig struct {
 **Rendered output:**
 
 ```html
-<section class="space-y-4 p-4 border border-gray-200 rounded-lg">
+<section class="formgen-fieldset">
   <header class="space-y-1">
     <h2 class="text-lg font-semibold">Basic Information</h2>
     <p class="text-sm text-gray-600">Article title and metadata</p>
   </header>
   <fieldset>
-    <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+    <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
       <!-- title and slug fields -->
     </div>
   </fieldset>
 </section>
 
-<section class="space-y-4">
+<section class="formgen-section">
   <header class="space-y-1">
     <h2 class="text-lg font-semibold">Content</h2>
     <p class="text-sm text-gray-600">Article body and images</p>
   </header>
-  <div class="grid gap-6" style="grid-template-columns: repeat(12, minmax(0, 1fr))">
+  <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
     <!-- body field -->
   </div>
 </section>
@@ -467,10 +468,10 @@ wrapper, section box, grid, errors, actions), you can do so via
 ```go
 html, err := renderer.Render(ctx, form, render.RenderOptions{
   ChromeClasses: &render.ChromeClasses{
-    Form:    "space-y-6",             // remove outer border/padding
-    Section: "space-y-4",             // section wrapper
-    Grid:    "grid gap-4",            // field grid
-    Actions: "flex gap-x-2 pt-4",     // action row
+    Form:    vanilla.DefaultFormClass + " formgen-form--embed",
+    Section: vanilla.DefaultSectionClass,
+    Grid:    vanilla.DefaultGridClass,
+    Actions: vanilla.DefaultActionsClass,
   },
 })
 ```
@@ -1471,7 +1472,7 @@ operations:
 | Field | Type | Description |
 |-------|------|-------------|
 | `gridColumns` | `int` | Number of grid columns (1-12) |
-| `gutter` | `string` | Grid spacing (`"sm"` → `gap-4`, `"md"` → `gap-6`, `"lg"` → `gap-8`) |
+| `gutter` | `string` | Grid spacing (`"sm"` → `1rem`, `"md"` → `1.5rem`, `"lg"` → `2rem`) |
 
 ### Section Configuration
 
