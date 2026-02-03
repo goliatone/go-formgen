@@ -139,6 +139,7 @@ func WithThemeFallbacks(fallbacks map[string]string) Option {
 
 func defaultThemeFallbacks() map[string]string {
 	return map[string]string{
+		"forms.form":          "templates/form.tmpl",
 		"forms.input":         "templates/components/input.tmpl",
 		"forms.select":        "templates/components/select.tmpl",
 		"forms.checkbox":      "templates/components/boolean.tmpl",
