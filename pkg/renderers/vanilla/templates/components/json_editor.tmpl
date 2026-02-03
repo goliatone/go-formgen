@@ -5,9 +5,9 @@
 {% set provenance = field.metadata["prefill.provenance"] -%}
 {% set control_id = field.metadata["control.id"] -%}
 {% if not control_id %}
-{% set control_id = "fg-" ~ field.name %}
+{% set control_id = "fg-"|add:field.name %}
 {% endif %}
-{% set label_id = control_id ~ "-label" -%}
+{% set label_id = control_id|add:"-label" -%}
 {% if collapsed %}{% set collapsed_attr = "true" %}{% else %}{% set collapsed_attr = "false" %}{% endif %}
 {% set state_value = "invalid" -%}
 {% if valid %}{% set state_value = "valid" %}{% endif %}

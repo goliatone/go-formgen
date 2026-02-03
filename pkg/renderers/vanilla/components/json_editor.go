@@ -48,19 +48,19 @@ func jsonEditorRenderer() Renderer {
 		}
 
 		payload := map[string]any{
-			"field":       field,
-			"config":      data.Config,
-			"theme":       data.Theme,
-			"value":       value,
-			"schema_hint": cfg.SchemaHint,
-			"collapsed":   cfg.Collapsed,
-			"valid":       valid,
-			"example":     cfg.Example,
-			"mode":        string(cfg.Mode),
+			"field":                    field,
+			"config":                   data.Config,
+			"theme":                    data.Theme,
+			"value":                    value,
+			"schema_hint":              cfg.SchemaHint,
+			"collapsed":                cfg.Collapsed,
+			"valid":                    valid,
+			"example":                  cfg.Example,
+			"mode":                     string(cfg.Mode),
 			"active_view_from_payload": cfg.ActiveView,
-			"show_raw":    cfg.Mode == JSONEditorModeRaw || cfg.Mode == JSONEditorModeHybrid,
-			"show_gui":    cfg.Mode == JSONEditorModeGUI || cfg.Mode == JSONEditorModeHybrid,
-			"show_toggle": cfg.Mode == JSONEditorModeHybrid,
+			"show_raw":                 cfg.Mode == JSONEditorModeRaw || cfg.Mode == JSONEditorModeHybrid,
+			"show_gui":                 cfg.Mode == JSONEditorModeGUI || cfg.Mode == JSONEditorModeHybrid,
+			"show_toggle":              cfg.Mode == JSONEditorModeHybrid,
 		}
 
 		rendered, err := data.Template.RenderTemplate(templateName, payload)

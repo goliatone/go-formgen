@@ -12,7 +12,7 @@
 {% set provenance = field.metadata["prefill.provenance"] -%}
 {% set control_id = field.metadata["control.id"] -%}
 {% if not control_id %}
-{% set control_id = "fg-" ~ field.name %}
+{% set control_id = "fg-"|add:field.name %}
 {% endif %}
 
 {% if has_icon %}
