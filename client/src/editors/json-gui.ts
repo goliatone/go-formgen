@@ -923,9 +923,11 @@ function setActiveView(state: EditorState, view: "raw" | "gui"): void {
     btn.classList.toggle("bg-blue-600", isActive);
     btn.classList.toggle("text-white", isActive);
     btn.classList.toggle("border-blue-600", isActive);
+    btn.classList.toggle("hover:bg-blue-700", isActive);
     btn.classList.toggle("bg-white", !isActive);
     btn.classList.toggle("text-gray-700", !isActive);
     btn.classList.toggle("border-gray-200", !isActive);
+    btn.classList.toggle("hover:bg-gray-50", !isActive);
   });
 
   // Sync data when switching views
