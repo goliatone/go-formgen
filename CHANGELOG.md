@@ -14,6 +14,24 @@
 
 - Use canonical component names ([83bcb7a](https://github.com/goliatone/go-formgen/commit/83bcb7ae022710ec4d25edc159c6b078196d0fe2))  - (goliatone)
 
+## <!-- 15 -->⚠️ Breaking Changes
+
+Semantic-only chrome classes for the vanilla renderer. Tailwind utility lists
+were replaced with stable `.formgen-*` classes and equivalent CSS. `ChromeClasses`
+overrides continue to replace the class string as before.
+
+Class mapping (old → new):
+
+| Chrome element | Old Tailwind classes | New semantic class |
+| --- | --- | --- |
+| Form | `max-w-4xl mx-auto space-y-6 p-6 bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-gray-700` | `.formgen-form` |
+| Header | `space-y-2 pb-4 border-b border-gray-200 dark:border-gray-700` | `.formgen-header` |
+| Section | `space-y-4` | `.formgen-section` |
+| Fieldset | `space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700` | `.formgen-fieldset` |
+| Actions | `flex gap-x-2 pt-4 border-t border-gray-200 dark:border-gray-700` | `.formgen-actions` |
+| Errors | `rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800` | `.formgen-errors` |
+| Grid | `grid gap-4` / `grid gap-6` / `grid gap-8` | `.formgen-grid` (`--formgen-grid-gap` handles spacing) |
+
 ## <!-- 3 -->📚 Documentation
 
 - Update changelog for v0.16.1 ([eed78c6](https://github.com/goliatone/go-formgen/commit/eed78c6b94643ffa93be88de743c8cbf980f892b))  - (goliatone)
@@ -508,5 +526,4 @@
 - Update docs ([c739a07](https://github.com/goliatone/go-formgen/commit/c739a070a3d676177d4bea247ad8ae3759749491))  - (goliatone)
 - Add examples ([5a70dcf](https://github.com/goliatone/go-formgen/commit/5a70dcf2f24911eac8568a492d102d98e3cf043a))  - (goliatone)
 - Initial commit ([2f71c45](https://github.com/goliatone/go-formgen/commit/2f71c459a7a959c9890c21cc43ec9fec88eb161a))  - (goliatone)
-
 
