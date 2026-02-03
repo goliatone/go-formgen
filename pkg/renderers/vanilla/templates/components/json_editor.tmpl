@@ -24,6 +24,7 @@
 {% if not mode_value %}{% set mode_value = "raw" %}{% endif %}
 {% set active_view = active_view_from_payload %}
 {% if not active_view %}{% set active_view = "raw" %}{% endif %}
+{% if active_view != "gui" and active_view != "raw" %}{% set active_view = "raw" %}{% endif %}
 {% if mode_value == "gui" %}{% set active_view = "gui" %}{% endif %}
 <div class="space-y-2" data-json-editor="true" data-json-editor-collapsed="{{ collapsed_attr }}" data-json-editor-state="{{ state_value }}" data-json-editor-mode="{{ mode_value }}" data-json-editor-active="{{ active_view }}"{% if readonly_value %} data-json-editor-readonly="true"{% endif %}{% if disabled_value %} data-json-editor-disabled="true"{% endif %}>
     <div class="flex items-start justify-between gap-2">
