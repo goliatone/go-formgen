@@ -141,6 +141,23 @@ func TestBuildFieldMarkupIncludesErrorPlaceholder(t *testing.T) {
 	}
 }
 
+func TestBuildFieldMarkupIncludesComponentConfigAttributes(t *testing.T) {
+	field := model.Field{
+		Name: "asset",
+		Metadata: map[string]string{
+			componentConfigMetadataKey: `{"valueMode":"id","itemEndpoint":"/admin/api/media/library/:id"}`,
+		},
+	}
+
+	html := buildFieldMarkup(nil, field, components.NameMediaPicker, `<input id="fg-asset">`)
+	if !strings.Contains(html, `data-component="media_picker"`) {
+		t.Fatalf("expected media picker component wrapper, got:\n%s", html)
+	}
+	if !strings.Contains(html, `data-component-config='{&#34;valueMode&#34;:&#34;id&#34;,&#34;itemEndpoint&#34;:&#34;/admin/api/media/library/:id&#34;}'`) {
+		t.Fatalf("expected serialized component config, got:\n%s", html)
+	}
+}
+
 func TestBuildFieldMarkupRendersInlineErrorMessage(t *testing.T) {
 	field := model.Field{
 		Name:     "title",

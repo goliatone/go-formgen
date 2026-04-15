@@ -94,6 +94,16 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 			want: components.NameWysiwyg,
 		},
 		{
+			name: "media-picker widget maps to media_picker component",
+			in: model.Field{
+				Type: model.FieldTypeString,
+				Metadata: map[string]string{
+					"widget": "media-picker",
+				},
+			},
+			want: components.NameMediaPicker,
+		},
+		{
 			name: "file_uploader widget maps to file_uploader component",
 			in: model.Field{
 				Type: model.FieldTypeString,

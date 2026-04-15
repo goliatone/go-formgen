@@ -42,6 +42,13 @@ func NewDefaultRegistry() *Registry {
 	registry.MustRegister(NameDatetimeRange, Descriptor{
 		Renderer: datetimeRangeRenderer,
 	})
+	registry.MustRegister(NameMediaPicker, Descriptor{
+		Renderer: templateComponentRenderer("forms.media-picker", templatePrefix+"media_picker.tmpl"),
+		Scripts: []Script{
+			{Src: runtimeScript, Defer: true},
+			{Inline: runtimeInit},
+		},
+	})
 	registry.MustRegister(NameWysiwyg, Descriptor{
 		Renderer: templateComponentRenderer("forms.wysiwyg", templatePrefix+"wysiwyg.tmpl"),
 		Scripts: []Script{

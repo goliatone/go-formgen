@@ -9,6 +9,7 @@ const (
 	NameObject        = "object"
 	NameArray         = "array"
 	NameDatetimeRange = "datetime-range"
+	NameMediaPicker   = "media_picker"
 	NameWysiwyg       = "wysiwyg"
 	NameFileUploader  = "file_uploader"
 	NameJSONEditor    = "json_editor"

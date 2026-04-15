@@ -54,6 +54,37 @@ func TestComponentRendererUsesThemePartial(t *testing.T) {
 	}
 }
 
+func TestComponentRendererUsesMediaPickerThemePartial(t *testing.T) {
+	template := &recordingTemplateRenderer{}
+	renderer := newComponentRenderer(
+		template,
+		components.NewDefaultRegistry(),
+		nil,
+		rendererTheme{Partials: map[string]string{
+			"forms.media-picker": "themes/custom/media-picker.tmpl",
+		}},
+		nil,
+	)
+
+	_, err := renderer.render(model.Field{
+		Name: "hero",
+		Type: model.FieldTypeString,
+		Metadata: map[string]string{
+			componentNameMetadataKey: components.NameMediaPicker,
+		},
+	}, "hero")
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	if len(template.calls) == 0 {
+		t.Fatalf("expected template renderer to be called")
+	}
+	if got := template.calls[0]; got != "themes/custom/media-picker.tmpl" {
+		t.Fatalf("theme partial not applied, got %q", got)
+	}
+}
+
 func TestJSONEditorComponentRendersPrettyValue(t *testing.T) {
 	engine, err := gotemplate.New(
 		gotemplate.WithFS(TemplatesFS()),

@@ -1595,7 +1595,7 @@ func gridColumnsFromHints(hints map[string]string) int {
 // supply canonical names from components.* constants. Widget hints accept a
 // limited alias set (case-insensitive): textarea, json-editor, toggle, select,
 // chips, code-editor, wysiwyg, rich-text, rich_text, file_uploader,
-// datetime-range, datetime_range.
+// media-picker, media_picker, datetime-range, datetime_range.
 func resolveComponentName(field model.Field) string {
 	if field.UIHints != nil {
 		if name := strings.TrimSpace(field.UIHints["component"]); name != "" {
@@ -1621,6 +1621,8 @@ func resolveComponentName(field model.Field) string {
 		return components.NameTextarea
 	case components.NameWysiwyg, "rich-text", "rich_text":
 		return components.NameWysiwyg
+	case "media-picker", components.NameMediaPicker:
+		return components.NameMediaPicker
 	case components.NameFileUploader:
 		return components.NameFileUploader
 	case components.NameDatetimeRange, "datetime_range":

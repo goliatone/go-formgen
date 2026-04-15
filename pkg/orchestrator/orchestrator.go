@@ -145,6 +145,7 @@ func defaultThemeFallbacks() map[string]string {
 		"forms.checkbox":      "templates/components/boolean.tmpl",
 		"forms.radio":         "templates/components/boolean.tmpl",
 		"forms.textarea":      "templates/components/textarea.tmpl",
+		"forms.media-picker":  "templates/components/media_picker.tmpl",
 		"forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
 		"forms.json-editor":   "templates/components/json_editor.tmpl",
 		"forms.file-uploader": "templates/components/file_uploader.tmpl",
