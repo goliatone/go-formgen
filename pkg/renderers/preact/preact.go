@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -195,9 +196,7 @@ func New(options ...Option) (*Renderer, error) {
 		var templateFuncs map[string]any
 		if len(cfg.templateFuncs) > 0 {
 			templateFuncs = make(map[string]any, len(cfg.templateFuncs))
-			for key, fn := range cfg.templateFuncs {
-				templateFuncs[key] = fn
-			}
+			maps.Copy(templateFuncs, cfg.templateFuncs)
 		}
 
 		options := []gotemplate.Option{
@@ -418,9 +417,7 @@ func newOrderedMap(values map[string]string) orderedMap {
 		return nil
 	}
 	result := make(map[string]string, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
+	maps.Copy(result, values)
 	return orderedMap(result)
 }
 
@@ -587,9 +584,7 @@ func copyStringMap(in map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 

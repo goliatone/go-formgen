@@ -207,7 +207,7 @@ func wrapStringValidator(fn func(string) error) survey.Validator {
 	if fn == nil {
 		return nil
 	}
-	return func(ans interface{}) error {
+	return func(ans any) error {
 		str, _ := ans.(string)
 		return fn(str)
 	}

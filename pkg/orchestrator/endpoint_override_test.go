@@ -3,6 +3,7 @@ package orchestrator_test
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -241,9 +242,7 @@ func gatherFieldMetadata(t *testing.T, fixture string, opts ...orchestrator.Opti
 	}
 
 	metadata := make(map[string]string, len(field.Metadata))
-	for key, value := range field.Metadata {
-		metadata[key] = value
-	}
+	maps.Copy(metadata, field.Metadata)
 	return metadata
 }
 

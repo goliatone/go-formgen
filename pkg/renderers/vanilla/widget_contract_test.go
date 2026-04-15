@@ -126,7 +126,6 @@ func TestResolveComponentNameHonorsWidgetHint(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if got := resolveComponentName(tc.in); got != tc.want {
 				t.Fatalf("resolveComponentName() = %q, want %q", got, tc.want)

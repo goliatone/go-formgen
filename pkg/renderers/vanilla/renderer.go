@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
+	"maps"
 	"os"
 	"reflect"
 	"sort"
@@ -273,9 +274,7 @@ func New(options ...Option) (*Renderer, error) {
 		var templateFuncs map[string]any
 		if len(cfg.templateFuncs) > 0 {
 			templateFuncs = make(map[string]any, len(cfg.templateFuncs))
-			for key, fn := range cfg.templateFuncs {
-				templateFuncs[key] = fn
-			}
+			maps.Copy(templateFuncs, cfg.templateFuncs)
 		}
 
 		options := []gotemplate.Option{
@@ -497,9 +496,7 @@ func copyStringMap(in map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 
@@ -896,7 +893,7 @@ func toAnySlice(value any) ([]any, bool) {
 	}
 	length := rv.Len()
 	out := make([]any, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		out[i] = rv.Index(i).Interface()
 	}
 	return out, true
@@ -1739,9 +1736,7 @@ func cloneMetadata(src map[string]string) map[string]string {
 		return nil
 	}
 	cloned := make(map[string]string, len(src))
-	for key, value := range src {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, src)
 	return cloned
 }
 

@@ -286,8 +286,8 @@ func (s *resolveSession) resolveFragment(doc *resolvedDocument, fragment string)
 	if !ok {
 		return nil, fmt.Errorf("jsonschema resolver: anchor %q not found", fragment)
 	}
-	if strings.HasPrefix(pointer, "#") {
-		pointer = strings.TrimPrefix(pointer, "#")
+	if after, ok0 := strings.CutPrefix(pointer, "#"); ok0 {
+		pointer = after
 	}
 	if pointer == "" {
 		return cloneAny(doc.data), nil

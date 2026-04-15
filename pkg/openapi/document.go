@@ -5,6 +5,7 @@ package openapi
 import (
 	"errors"
 	"fmt"
+	"maps"
 )
 
 // Document wraps the raw OpenAPI payload and its origin. By exposing this type
@@ -150,9 +151,7 @@ func (s Schema) Clone() Schema {
 	}
 	if len(s.Extensions) > 0 {
 		cloned.Extensions = make(map[string]any, len(s.Extensions))
-		for k, v := range s.Extensions {
-			cloned.Extensions[k] = v
-		}
+		maps.Copy(cloned.Extensions, s.Extensions)
 	}
 	if s.Minimum != nil {
 		value := *s.Minimum

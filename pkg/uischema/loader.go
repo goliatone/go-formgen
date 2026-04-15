@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -154,27 +155,19 @@ func cloneFieldConfig(cfg FieldConfig) FieldConfig {
 	}
 	if len(cfg.UIHints) > 0 {
 		out.UIHints = make(map[string]string, len(cfg.UIHints))
-		for k, v := range cfg.UIHints {
-			out.UIHints[k] = v
-		}
+		maps.Copy(out.UIHints, cfg.UIHints)
 	}
 	if len(cfg.Metadata) > 0 {
 		out.Metadata = make(map[string]string, len(cfg.Metadata))
-		for k, v := range cfg.Metadata {
-			out.Metadata[k] = v
-		}
+		maps.Copy(out.Metadata, cfg.Metadata)
 	}
 	if len(cfg.ComponentOptions) > 0 {
 		out.ComponentOptions = make(map[string]any, len(cfg.ComponentOptions))
-		for k, v := range cfg.ComponentOptions {
-			out.ComponentOptions[k] = v
-		}
+		maps.Copy(out.ComponentOptions, cfg.ComponentOptions)
 	}
 	if len(cfg.Behaviors) > 0 {
 		out.Behaviors = make(map[string]any, len(cfg.Behaviors))
-		for k, v := range cfg.Behaviors {
-			out.Behaviors[k] = v
-		}
+		maps.Copy(out.Behaviors, cfg.Behaviors)
 	}
 	return out
 }
@@ -184,9 +177,7 @@ func cloneAnyMap(src map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(src))
-	for key, value := range src {
-		out[key] = value
-	}
+	maps.Copy(out, src)
 	return out
 }
 

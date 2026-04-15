@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -538,15 +539,11 @@ func cloneField(field model.Field) model.Field {
 	}
 	if field.Metadata != nil {
 		cloned.Metadata = make(map[string]string, len(field.Metadata))
-		for key, value := range field.Metadata {
-			cloned.Metadata[key] = value
-		}
+		maps.Copy(cloned.Metadata, field.Metadata)
 	}
 	if field.UIHints != nil {
 		cloned.UIHints = make(map[string]string, len(field.UIHints))
-		for key, value := range field.UIHints {
-			cloned.UIHints[key] = value
-		}
+		maps.Copy(cloned.UIHints, field.UIHints)
 	}
 	if field.Relationship != nil {
 		rel := *field.Relationship

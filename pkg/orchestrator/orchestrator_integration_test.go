@@ -131,7 +131,6 @@ func TestOrchestrator_Integration_MultiRenderer(t *testing.T) {
 	collected := make(map[string][]byte)
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			src := defaultSource
 			if tc.sourcePath != "" {

@@ -147,8 +147,8 @@ func normalizeSegment(segment string) []string {
 	}
 
 	base := segment
-	if idx := strings.Index(segment, "["); idx >= 0 {
-		base = segment[:idx]
+	if before, _, ok := strings.Cut(segment, "["); ok {
+		base = before
 	}
 	tail := ""
 	if last := strings.LastIndex(segment, "]"); last >= 0 && last+1 < len(segment) {

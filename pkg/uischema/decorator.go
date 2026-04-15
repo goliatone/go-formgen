@@ -3,6 +3,7 @@ package uischema
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -393,15 +394,11 @@ func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 func mergeFieldMaps(field *pkgmodel.Field, cfg FieldConfig) {
 	if len(cfg.UIHints) > 0 {
 		field.UIHints = ensureUIHints(field.UIHints)
-		for key, value := range cfg.UIHints {
-			field.UIHints[key] = value
-		}
+		maps.Copy(field.UIHints, cfg.UIHints)
 	}
 	if len(cfg.Metadata) > 0 {
 		field.Metadata = ensureMetadata(field.Metadata)
-		for key, value := range cfg.Metadata {
-			field.Metadata[key] = value
-		}
+		maps.Copy(field.Metadata, cfg.Metadata)
 	}
 }
 
@@ -771,9 +768,7 @@ func mergeBehaviorMaps(dst, src map[string]any) map[string]any {
 	if dst == nil {
 		dst = make(map[string]any, len(src))
 	}
-	for key, value := range src {
-		dst[key] = value
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 
@@ -831,9 +826,7 @@ func mergeStringMap(dst, src map[string]string) map[string]string {
 	if dst == nil {
 		dst = make(map[string]string, len(src))
 	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 
@@ -842,9 +835,7 @@ func cloneStringMap(src map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
+	maps.Copy(out, src)
 	return out
 }
 

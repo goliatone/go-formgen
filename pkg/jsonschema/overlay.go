@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 )
@@ -139,8 +140,8 @@ func resolveOverlayTarget(root map[string]any, pointer string) (map[string]any, 
 	if trimmed == "" {
 		return nil, fmt.Errorf("path is empty")
 	}
-	if strings.HasPrefix(trimmed, "#") {
-		trimmed = strings.TrimPrefix(trimmed, "#")
+	if after, ok := strings.CutPrefix(trimmed, "#"); ok {
+		trimmed = after
 	}
 	if trimmed == "" || trimmed == "/" {
 		return root, nil
@@ -208,14 +209,10 @@ func mergeExtensionMap(target map[string]any, key string, override map[string]an
 	existing, _ := target[key].(map[string]any)
 	if existing == nil {
 		cloned := make(map[string]any, len(override))
-		for nestedKey, value := range override {
-			cloned[nestedKey] = value
-		}
+		maps.Copy(cloned, override)
 		target[key] = cloned
 		return
 	}
-	for nestedKey, value := range override {
-		existing[nestedKey] = value
-	}
+	maps.Copy(existing, override)
 	target[key] = existing
 }

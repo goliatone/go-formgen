@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -611,10 +612,5 @@ func ensureReadonlyExtension(ext map[string]any) map[string]any {
 }
 
 func containsString(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, value)
 }

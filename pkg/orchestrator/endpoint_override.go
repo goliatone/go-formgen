@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"sort"
 	"strings"
@@ -98,9 +99,7 @@ func cloneStringMap(in map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 
@@ -148,9 +147,7 @@ func (o *Orchestrator) applyEndpointOverrides(operationID string, form *pkgmodel
 		if target.Metadata == nil {
 			target.Metadata = make(map[string]string, len(metadata))
 		}
-		for key, value := range metadata {
-			target.Metadata[key] = value
-		}
+		maps.Copy(target.Metadata, metadata)
 		ensureTypeaheadDefaults(target)
 	}
 }
