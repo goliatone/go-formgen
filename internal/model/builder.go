@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"sort"
 	"strconv"
@@ -425,8 +426,8 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 			}
 			continue
 		}
-		if strings.HasPrefix(key, extensionNamespace+"-") {
-			trimmed := strings.TrimPrefix(key, extensionNamespace+"-")
+		if after, ok := strings.CutPrefix(key, extensionNamespace+"-"); ok {
+			trimmed := after
 			if trimmed == "forms" {
 				continue
 			}
@@ -1066,9 +1067,7 @@ func cloneStringMap(in map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 
@@ -1076,9 +1075,7 @@ func toAnyMap(value any) map[string]any {
 	switch mapped := value.(type) {
 	case map[string]any:
 		cloned := make(map[string]any, len(mapped))
-		for key, val := range mapped {
-			cloned[key] = val
-		}
+		maps.Copy(cloned, mapped)
 		return cloned
 	case map[string]string:
 		cloned := make(map[string]any, len(mapped))

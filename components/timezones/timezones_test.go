@@ -1,6 +1,7 @@
 package timezones
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -93,10 +94,5 @@ func TestSearchOptions_MapsValueAndLabel(t *testing.T) {
 }
 
 func containsString(haystack []string, needle string) bool {
-	for _, item := range haystack {
-		if item == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }

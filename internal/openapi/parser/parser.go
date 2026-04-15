@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -441,9 +442,7 @@ func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, v
 			if target.Extensions == nil {
 				target.Extensions = make(map[string]any, len(ext))
 			}
-			for key, value := range ext {
-				target.Extensions[key] = value
-			}
+			maps.Copy(target.Extensions, ext)
 		}
 		mergeAllOfExtensions(target, ref.Value.AllOf, visited)
 	}
@@ -455,8 +454,6 @@ func cloneMap(value any) (map[string]any, bool) {
 		return nil, false
 	}
 	cloned := make(map[string]any, len(mapped))
-	for k, v := range mapped {
-		cloned[k] = v
-	}
+	maps.Copy(cloned, mapped)
 	return cloned, true
 }

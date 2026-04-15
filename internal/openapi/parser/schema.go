@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"maps"
 	"strings"
 	"unicode"
 
@@ -123,9 +124,7 @@ func propagateRelationshipMetadata(props map[string]pkgopenapi.Schema) map[strin
 	}
 
 	updated := make(map[string]pkgopenapi.Schema, len(props))
-	for name, schema := range props {
-		updated[name] = schema
-	}
+	maps.Copy(updated, props)
 
 	for name, schema := range props {
 		hostName, ok := hostField(schema, name, updated)
