@@ -1,5 +1,25 @@
 # Changelog
 
+# [0.19.0](https://github.com/goliatone/go-formgen/compare/v0.18.0...v0.19.0) - (2026-04-15)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.19.0 ([ab395bd](https://github.com/goliatone/go-formgen/commit/ab395bd11f4c6b925d3afd0013674b2e4b15dd31))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Media picker component ([f7e7e65](https://github.com/goliatone/go-formgen/commit/f7e7e654bb423d7b199d6aec8bc289f1f57bba12))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.18.0 ([7c80e73](https://github.com/goliatone/go-formgen/commit/7c80e73ef35e815667168073aa605185d06519c0))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Fix code ([44d2c3a](https://github.com/goliatone/go-formgen/commit/44d2c3af344b36f3194928d988e268e5ce1c9011))  - (goliatone)
+- Update docs ([83a6bba](https://github.com/goliatone/go-formgen/commit/83a6bba7f4e23719c96376765810420db96bb515))  - (goliatone)
+- Update guides ([068439a](https://github.com/goliatone/go-formgen/commit/068439aa2930d236866424a638676c143947d3a8))  - (goliatone)
+
 # [0.18.0](https://github.com/goliatone/go-formgen/compare/v0.17.1...v0.18.0) - (2026-02-03)
 
 ## <!-- 1 -->🐛 Bug Fixes
