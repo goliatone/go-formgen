@@ -10,12 +10,19 @@ import { renderFieldError, clearFieldError } from "../../errors";
 type FileUploaderVariant = "input" | "image" | "dropzone";
 
 export interface UploadedFile {
+  id?: string;
   name: string;
   originalName: string;
   size: number;
   contentType: string;
   url: string;
   thumbnail?: string;
+  type?: string;
+  status?: string;
+  workflowStatus?: string;
+  workflowError?: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
 }
 
 export interface FileSerializerHookContext {
@@ -308,12 +315,39 @@ class FileUploader {
       throw new Error("Upload response missing url.");
     }
     return {
+      id: typeof payload.id === "string" ? payload.id : undefined,
       name: payload.name ?? payload.url,
       originalName: payload.originalName ?? file.name,
       size: payload.size ?? file.size,
-      contentType: payload.contentType ?? file.type,
+      contentType:
+        (typeof payload.contentType === "string" ? payload.contentType : undefined) ??
+        (typeof (payload as { mime_type?: unknown }).mime_type === "string"
+          ? ((payload as { mime_type?: string }).mime_type as string)
+          : undefined) ??
+        file.type,
       url: payload.url,
       thumbnail: payload.thumbnail,
+      type: typeof (payload as { type?: unknown }).type === "string" ? ((payload as { type?: string }).type as string) : undefined,
+      status:
+        typeof (payload as { status?: unknown }).status === "string"
+          ? ((payload as { status?: string }).status as string)
+          : undefined,
+      workflowStatus:
+        typeof (payload as { workflow_status?: unknown }).workflow_status === "string"
+          ? ((payload as { workflow_status?: string }).workflow_status as string)
+          : undefined,
+      workflowError:
+        typeof (payload as { workflow_error?: unknown }).workflow_error === "string"
+          ? ((payload as { workflow_error?: string }).workflow_error as string)
+          : undefined,
+      metadata:
+        (payload as { metadata?: unknown }).metadata && typeof (payload as { metadata?: unknown }).metadata === "object"
+          ? ((payload as { metadata?: Record<string, unknown> }).metadata as Record<string, unknown>)
+          : undefined,
+      createdAt:
+        typeof (payload as { created_at?: unknown }).created_at === "string"
+          ? ((payload as { created_at?: string }).created_at as string)
+          : undefined,
     };
   }
 

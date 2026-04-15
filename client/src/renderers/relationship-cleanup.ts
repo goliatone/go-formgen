@@ -8,7 +8,6 @@ interface Registration<T> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const registrations: Registration<any>[] = [];
-const HAS_HTML_ELEMENT = typeof HTMLElement !== "undefined";
 
 let observer: MutationObserver | null = null;
 
@@ -39,7 +38,11 @@ function ensureObserver(): void {
 }
 
 function handleRemovedNode(node: Node): void {
-  if (!HAS_HTML_ELEMENT || !(node instanceof HTMLElement)) {
+  const HTMLElementCtor =
+    typeof globalThis !== "undefined"
+      ? (globalThis as { HTMLElement?: typeof HTMLElement }).HTMLElement
+      : undefined;
+  if (typeof HTMLElementCtor !== "function" || !(node instanceof HTMLElementCtor)) {
     return;
   }
 
@@ -57,9 +60,14 @@ function handleRemovedNode(node: Node): void {
 }
 
 function collectMatchingSelects(node: HTMLElement, renderer: string): HTMLSelectElement[] {
+  const HTMLSelectElementCtor =
+    typeof globalThis !== "undefined"
+      ? (globalThis as { HTMLSelectElement?: typeof HTMLSelectElement }).HTMLSelectElement
+      : undefined;
   const results = new Set<HTMLSelectElement>();
   if (
-    node instanceof HTMLSelectElement &&
+    typeof HTMLSelectElementCtor === "function" &&
+    node instanceof HTMLSelectElementCtor &&
     node.dataset.endpointRenderer === renderer
   ) {
     results.add(node);

@@ -1,4 +1,5 @@
 import { fileUploaderFactory } from "./file-uploader";
+import { mediaPickerFactory } from "./media-picker";
 
 type Teardown = (() => void) | void;
 
@@ -108,6 +109,12 @@ function normalize(name: string): string {
 function registerDefaultComponents(): void {
   if (!factories.has("datetime-range")) {
     factories.set("datetime-range", datetimeRangeFactory);
+  }
+  if (!factories.has("media_picker")) {
+    factories.set("media_picker", mediaPickerFactory);
+  }
+  if (!factories.has("media-picker")) {
+    factories.set("media-picker", mediaPickerFactory);
   }
   if (!factories.has("file_uploader")) {
     factories.set("file_uploader", fileUploaderFactory);

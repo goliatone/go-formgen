@@ -166,6 +166,75 @@ describe("file uploader component", () => {
     expect(preview?.hidden).toBe(true);
   });
 
+  it("accepts richer uploaded media payloads without changing URL serialization", async () => {
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:preview"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    try {
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: "asset-1",
+            name: "uploads/avatar.jpg",
+            originalName: "avatar.jpg",
+            size: 1234,
+            mime_type: "image/jpeg",
+            url: "/uploads/avatar.jpg",
+            thumbnail: "/uploads/avatar-thumb.jpg",
+            type: "image",
+            status: "ready",
+            workflow_status: "complete",
+            metadata: { source: "test" },
+            created_at: "2026-04-14T12:00:00Z",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+      vi.stubGlobal("fetch", fetchSpy as unknown as typeof fetch);
+
+      document.body.innerHTML = `
+        <form data-formgen-auto-init>
+          <div data-component="file_uploader" data-component-config='{"variant":"image","uploadEndpoint":"/api/uploads","preview":true}'>
+            <input type="text" name="avatar" id="avatar">
+          </div>
+        </form>
+      `;
+
+      initComponents(document);
+
+      const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+      const file = new File(["hello"], "avatar.jpg", { type: "image/jpeg" });
+      setInputFiles(fileInput!, [file]);
+      fileInput!.dispatchEvent(new Event("change"));
+      await flushAsync();
+
+      const hidden = document.querySelector<HTMLInputElement>('input[name="avatar"]');
+      expect(hidden?.value).toBe("/uploads/avatar.jpg");
+      const preview = document.querySelector<HTMLImageElement>("img");
+      expect(preview?.getAttribute("src")).toBe("/uploads/avatar-thumb.jpg");
+    } finally {
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectURL,
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectURL,
+      });
+    }
+  });
+
   it("hydrates repeated field[] inputs in multiple mode and preserves runtime-owned serialization", () => {
     document.body.innerHTML = `
       <form data-formgen-auto-init>

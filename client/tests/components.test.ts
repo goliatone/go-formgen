@@ -63,4 +63,48 @@ describe("component registry", () => {
     const hidden = document.querySelector("[data-fg-uploader-hidden]");
     expect(hidden).not.toBeNull();
   });
+
+  it("boots media picker component via registry", async () => {
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/media/capabilities")) {
+        return new Response(
+          JSON.stringify({
+            operations: { list: true, resolve: true },
+            upload: { direct_upload: false, presign: false },
+            picker: { value_modes: ["url"], default_value_mode: "url" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/api/media/resolve")) {
+        return new Response(
+          JSON.stringify({
+            id: "hero-1",
+            name: "Hero",
+            url: "/assets/hero.jpg",
+            thumbnail: "/assets/hero-thumb.jpg",
+            type: "image",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchSpy as unknown as typeof fetch);
+
+    document.body.innerHTML = `
+      <form data-formgen-auto-init>
+        <div data-component="media_picker" data-component-config='{"libraryPath":"/api/media/library","resolveEndpoint":"/api/media/resolve","capabilitiesEndpoint":"/api/media/capabilities"}'>
+          <input type="text" name="hero" id="hero" value="/assets/hero.jpg">
+        </div>
+      </form>
+    `;
+
+    initComponents(document);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.querySelector("[data-media-picker-selections]")).not.toBeNull();
+    expect(document.querySelector("[data-media-picker-selection]")).not.toBeNull();
+  });
 });
