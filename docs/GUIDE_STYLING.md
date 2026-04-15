@@ -332,6 +332,7 @@ manifest := &theme.Manifest{
         "forms.wysiwyg":       "themes/acme/wysiwyg.tmpl",
         "forms.json-editor":   "themes/acme/json_editor.tmpl",
         "forms.file-uploader": "themes/acme/file-uploader.tmpl",
+        "forms.media-picker": "themes/acme/media-picker.tmpl",
     },
 }
 ```
@@ -362,6 +363,7 @@ gen := formgen.NewOrchestrator(
         "forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
         "forms.json-editor":   "templates/components/json_editor.tmpl",
         "forms.file-uploader": "templates/components/file_uploader.tmpl",
+        "forms.media-picker": "templates/components/media_picker.tmpl",
     }),
 )
 ```
@@ -875,6 +877,7 @@ my-templates/
 │       ├── object.tmpl              # Nested objects
 │       ├── wysiwyg.tmpl             # Rich text editors
 │       ├── file_uploader.tmpl       # File uploads
+│       ├── media_picker.tmpl        # Media library picker
 │       └── json_editor.tmpl         # JSON editors
 ```
 

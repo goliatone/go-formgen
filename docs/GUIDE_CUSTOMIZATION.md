@@ -673,7 +673,7 @@ Other supported hints:
 }
 ```
 
-Runtime note: the WYSIWYG editor is implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `wysiwyg` and `file_uploader` components inject this runtime automatically; if you render relationship fields without either component, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
+Runtime note: the WYSIWYG editor and runtime-backed form widgets are implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `wysiwyg`, `file_uploader`, and `media_picker` components inject this runtime automatically; if you render relationship fields without one of those components, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
 
 ### Example: File Uploader Component
 
@@ -697,6 +697,38 @@ Runtime note: the WYSIWYG editor is implemented in the browser runtime bundle `f
 ```
 
 `file_uploader` options are defined by the runtime’s `FileUploaderConfig` (see `pkg/runtime/assets/formgen-relationships.min.js.map`).
+
+### Example: Media Picker Component
+
+```json
+{
+  "fields": {
+    "heroImage": {
+      "component": "media_picker",
+      "label": "Hero Image",
+      "componentOptions": {
+        "libraryPath": "/admin/api/media/library",
+        "itemEndpoint": "/admin/api/media/library/:id",
+        "resolveEndpoint": "/admin/api/media/resolve",
+        "capabilitiesEndpoint": "/admin/api/media/capabilities",
+        "uploadEndpoint": "/admin/api/media/upload",
+        "presignEndpoint": "/admin/api/media/presign",
+        "confirmEndpoint": "/admin/api/media/confirm",
+        "valueMode": "url",
+        "acceptedKinds": ["image"]
+      }
+    }
+  }
+}
+```
+
+`media_picker` expects the host to normalize any schema-specific metadata into `component` plus `componentOptions` before rendering. The runtime reads only the serialized `component.config` payload on the rendered field wrapper.
+
+- `valueMode` defaults to `url`; enable `id` only when the host also exposes `itemEndpoint` or `resolveEndpoint` for ID hydration.
+- `capabilitiesEndpoint` should expose request-scoped operations, upload limits, and supported picker value modes. The runtime uses that payload to decide whether it should upload with multipart or presign+confirm.
+- `multiple: true` mirrors `file_uploader` behavior and serializes repeated hidden inputs using the field’s logical name plus `[]`.
+- `libraryPath` is used for browsing only. Current value hydration goes through `itemEndpoint` or `resolveEndpoint` so the picker never scans the whole library just to render one selected item.
+- The future cleanup path is to retire the legacy `go-admin` `formgen/file_uploader` asset once supported hosts have moved to the shared `media_picker` contract.
 
 ### Example: Custom Component
 
@@ -1558,7 +1590,7 @@ operations:
 | `placeholder` | `string` | Input placeholder |
 | `placeholderKey` | `string` | Optional i18n key for `placeholder` |
 | `widget` | `string` | Widget hint (renderer/runtime-dependent) |
-| `component` | `string` | Vanilla component name (e.g. `wysiwyg`, `file_uploader`) |
+| `component` | `string` | Vanilla component name (e.g. `wysiwyg`, `file_uploader`, `media_picker`) |
 | `componentOptions` | `object` | Component configuration (serialized into `component.config`) |
 | `icon` | `string` | Icon identifier (emitted as `data-icon`) |
 | `iconSource` | `string` | Free-form source hint (emitted as `data-icon-source`) |
