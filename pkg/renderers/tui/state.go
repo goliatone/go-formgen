@@ -169,7 +169,11 @@ func setMapPathValue(node map[string]any, segments []string, value any, fullPath
 	}
 
 	nextSegment := segments[1]
-	if idx, ok := parsePathIndex(nextSegment, fullPath); ok {
+	idx, ok, err := parsePathIndex(nextSegment, fullPath)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		return setMapSlicePathValue(node, segment, idx, segments[2:], value, fullPath)
 	}
 
@@ -225,15 +229,15 @@ func setSlicePathValue(node []any, segments []string, value any, fullPath string
 	return node, nil
 }
 
-func parsePathIndex(segment, fullPath string) (int, bool) {
+func parsePathIndex(segment, fullPath string) (int, bool, error) {
 	idx, err := strconv.Atoi(segment)
 	if err != nil {
-		return 0, false
+		return 0, false, nil
 	}
 	if idx < 0 {
-		return 0, false
+		return 0, false, fmt.Errorf("tui: negative index in path %q", fullPath)
 	}
-	return idx, true
+	return idx, true, nil
 }
 
 func ensureSlice(value any, idx int) []any {

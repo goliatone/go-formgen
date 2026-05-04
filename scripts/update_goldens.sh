@@ -29,12 +29,14 @@ elif [[ "${GOMODCACHE}" != /* ]]; then
 fi
 
 runs_all=false
-for arg in "${ARGS[@]}"; do
-  if [[ "${arg}" == "./..." ]]; then
-    runs_all=true
-    break
-  fi
-done
+if [[ "${#ARGS[@]}" -gt 0 ]]; then
+  for arg in "${ARGS[@]}"; do
+    if [[ "${arg}" == "./..." ]]; then
+      runs_all=true
+      break
+    fi
+  done
+fi
 
 if [[ "${runs_all}" == false ]]; then
   for pkg in "${GOLDEN_PACKAGES[@]}"; do
@@ -42,7 +44,11 @@ if [[ "${runs_all}" == false ]]; then
   done
 fi
 
-"${GO_BIN}" test "${ARGS[@]:-./...}"
+if [[ "${#ARGS[@]}" -eq 0 ]]; then
+  "${GO_BIN}" test ./...
+else
+  "${GO_BIN}" test "${ARGS[@]}"
+fi
 
 # Update client goldens if the script exists and can run.
 if [[ -x "${ROOT_DIR}/client/scripts/update_goldens.sh" ]]; then
