@@ -63,7 +63,7 @@ type SectionConfig struct {
 	DescriptionKey string            `json:"descriptionKey,omitempty" yaml:"descriptionKey,omitempty"`
 	Order          *int              `json:"order,omitempty" yaml:"order,omitempty"`
 	Fieldset       *bool             `json:"fieldset,omitempty" yaml:"fieldset,omitempty"`
-	OrderPreset    OrderPreset       `json:"orderPreset,omitempty" yaml:"orderPreset,omitempty"`
+	OrderPreset    OrderPreset       `json:"orderPreset" yaml:"orderPreset,omitempty"`
 	XFormgen       map[string]any    `json:"x-formgen,omitempty" yaml:"x-formgen,omitempty"`
 	XAdmin         map[string]any    `json:"x-admin,omitempty" yaml:"x-admin,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`

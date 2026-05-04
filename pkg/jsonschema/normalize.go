@@ -76,16 +76,9 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 		return schema.Schema{}, err
 	}
 
-	schemaType, _, err := parseType(payload, path)
+	schemaType, err := inferSchemaType(payload, path)
 	if err != nil {
 		return schema.Schema{}, err
-	}
-	if schemaType == "" {
-		if _, ok := payload["items"]; ok {
-			schemaType = "array"
-		} else if _, ok := payload["properties"]; ok {
-			schemaType = "object"
-		}
 	}
 
 	out := schema.Schema{
@@ -98,192 +91,23 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 		Extensions:  extensions,
 	}
 
-	if enumRaw, ok := payload["enum"]; ok {
-		enumList, ok := enumRaw.([]any)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: enum must be an array at %s", path)
-		}
-		out.Enum = append([]any(nil), enumList...)
-	}
-
-	if requiredRaw, ok := payload["required"]; ok {
-		list, ok := requiredRaw.([]any)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: required must be an array at %s", path)
-		}
-		required := make([]string, 0, len(list))
-		for idx, item := range list {
-			str, ok := item.(string)
-			if !ok || strings.TrimSpace(str) == "" {
-				return schema.Schema{}, fmt.Errorf("jsonschema: required[%d] must be a string at %s", idx, path)
-			}
-			required = append(required, str)
-		}
-		out.Required = required
-	}
-
-	if minRaw, ok := payload["minimum"]; ok {
-		value, ok := toFloat(minRaw)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: minimum must be a number at %s", path)
-		}
-		out.Minimum = &value
-	}
-
-	if maxRaw, ok := payload["maximum"]; ok {
-		value, ok := toFloat(maxRaw)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: maximum must be a number at %s", path)
-		}
-		out.Maximum = &value
-	}
-
-	if exclusiveMinRaw, ok := payload["exclusiveMinimum"]; ok {
-		switch value := exclusiveMinRaw.(type) {
-		case bool:
-			out.ExclusiveMinimum = value
-		default:
-			number, ok := toFloat(exclusiveMinRaw)
-			if !ok {
-				return schema.Schema{}, fmt.Errorf("jsonschema: exclusiveMinimum must be a number at %s", path)
-			}
-			if out.Minimum != nil {
-				return schema.Schema{}, fmt.Errorf("jsonschema: minimum conflicts with exclusiveMinimum at %s", path)
-			}
-			out.Minimum = &number
-			out.ExclusiveMinimum = true
-		}
-	}
-
-	if exclusiveMaxRaw, ok := payload["exclusiveMaximum"]; ok {
-		switch value := exclusiveMaxRaw.(type) {
-		case bool:
-			out.ExclusiveMaximum = value
-		default:
-			number, ok := toFloat(exclusiveMaxRaw)
-			if !ok {
-				return schema.Schema{}, fmt.Errorf("jsonschema: exclusiveMaximum must be a number at %s", path)
-			}
-			if out.Maximum != nil {
-				return schema.Schema{}, fmt.Errorf("jsonschema: maximum conflicts with exclusiveMaximum at %s", path)
-			}
-			out.Maximum = &number
-			out.ExclusiveMaximum = true
-		}
-	}
-
-	if minLenRaw, ok := payload["minLength"]; ok {
-		value, ok := toInt(minLenRaw)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: minLength must be an integer at %s", path)
-		}
-		out.MinLength = &value
-	}
-
-	if maxLenRaw, ok := payload["maxLength"]; ok {
-		value, ok := toInt(maxLenRaw)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: maxLength must be an integer at %s", path)
-		}
-		out.MaxLength = &value
-	}
-
-	if patternRaw, ok := payload["pattern"]; ok {
-		pattern, ok := patternRaw.(string)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: pattern must be a string at %s", path)
-		}
-		out.Pattern = pattern
+	if err := applyScalarSchemaKeywords(&out, payload, path); err != nil {
+		return schema.Schema{}, err
 	}
 
 	childCtx := ctx.forChild()
 
-	if defsRaw, ok := payload["$defs"]; ok {
-		defs, ok := defsRaw.(map[string]any)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: $defs must be an object at %s", path)
-		}
-		keys := sortedKeys(defs)
-		for _, key := range keys {
-			child := defs[key]
-			childPath := joinPath(path, "$defs", key)
-			if _, err := schemaFromJSONSchemaWithContext(child, childPath, childCtx); err != nil {
-				return schema.Schema{}, err
-			}
-		}
+	if err := validateDefs(payload, path, childCtx); err != nil {
+		return schema.Schema{}, err
 	}
-
-	if propertiesRaw, ok := payload["properties"]; ok {
-		props, ok := propertiesRaw.(map[string]any)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: properties must be an object at %s", path)
-		}
-		out.Properties = make(map[string]schema.Schema, len(props))
-		nullableProps := make(map[string]struct{})
-		keys := sortedKeys(props)
-		for _, key := range keys {
-			child := props[key]
-			if hasNullableType(child) {
-				nullableProps[key] = struct{}{}
-			}
-			childPath := joinPath(path, "properties", key)
-			converted, err := schemaFromJSONSchemaWithContext(child, childPath, childCtx)
-			if err != nil {
-				return schema.Schema{}, err
-			}
-			out.Properties[key] = converted
-		}
-		if len(nullableProps) > 0 && len(out.Required) > 0 {
-			filtered := out.Required[:0]
-			for _, entry := range out.Required {
-				if _, ok := nullableProps[entry]; !ok {
-					filtered = append(filtered, entry)
-				}
-			}
-			if len(filtered) == 0 {
-				out.Required = nil
-			} else {
-				out.Required = filtered
-			}
-		}
+	if err := applyProperties(&out, payload, path, childCtx); err != nil {
+		return schema.Schema{}, err
 	}
-
-	if itemsRaw, ok := payload["items"]; ok {
-		switch typed := itemsRaw.(type) {
-		case map[string]any:
-			childPath := joinPath(path, "items")
-			converted, err := schemaFromJSONSchemaWithContext(typed, childPath, ctx.forItems())
-			if err != nil {
-				return schema.Schema{}, err
-			}
-			out.Items = &converted
-		case []any:
-			return schema.Schema{}, fmt.Errorf("jsonschema: tuple items are not supported at %s", path)
-		default:
-			return schema.Schema{}, fmt.Errorf("jsonschema: items must be an object at %s", path)
-		}
+	if err := applyItems(&out, payload, path, ctx.forItems()); err != nil {
+		return schema.Schema{}, err
 	}
-
-	if oneOfRaw, ok := payload["oneOf"]; ok {
-		if !ctx.allowOneOf {
-			return schema.Schema{}, fmt.Errorf("jsonschema: oneOf is only supported for array items at %s", path)
-		}
-		list, ok := oneOfRaw.([]any)
-		if !ok {
-			return schema.Schema{}, fmt.Errorf("jsonschema: oneOf must be an array at %s", path)
-		}
-		if len(list) == 0 {
-			return schema.Schema{}, fmt.Errorf("jsonschema: oneOf must include at least one schema at %s", path)
-		}
-		out.OneOf = make([]schema.Schema, 0, len(list))
-		for idx, entry := range list {
-			childPath := joinPath(path, "oneOf", fmt.Sprintf("%d", idx))
-			converted, err := schemaFromJSONSchemaWithContext(entry, childPath, ctx.forOneOfVariant())
-			if err != nil {
-				return schema.Schema{}, err
-			}
-			out.OneOf = append(out.OneOf, converted)
-		}
+	if err := applyOneOf(&out, payload, path, ctx); err != nil {
+		return schema.Schema{}, err
 	}
 
 	if err := applyDiscriminatorRules(&out, path, ctx.requireDiscriminator); err != nil {
@@ -295,6 +119,276 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 	}
 
 	return out, nil
+}
+
+func inferSchemaType(payload map[string]any, path string) (string, error) {
+	schemaType, _, err := parseType(payload, path)
+	if err != nil {
+		return "", err
+	}
+	if schemaType != "" {
+		return schemaType, nil
+	}
+	if _, ok := payload["items"]; ok {
+		return "array", nil
+	}
+	if _, ok := payload["properties"]; ok {
+		return "object", nil
+	}
+	return "", nil
+}
+
+func applyScalarSchemaKeywords(out *schema.Schema, payload map[string]any, path string) error {
+	if err := applyEnum(out, payload, path); err != nil {
+		return err
+	}
+	if err := applyRequired(out, payload, path); err != nil {
+		return err
+	}
+	if err := applyNumericKeywords(out, payload, path); err != nil {
+		return err
+	}
+	return applyStringKeywords(out, payload, path)
+}
+
+func applyEnum(out *schema.Schema, payload map[string]any, path string) error {
+	enumRaw, ok := payload["enum"]
+	if !ok {
+		return nil
+	}
+	enumList, ok := enumRaw.([]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: enum must be an array at %s", path)
+	}
+	out.Enum = append([]any(nil), enumList...)
+	return nil
+}
+
+func applyRequired(out *schema.Schema, payload map[string]any, path string) error {
+	requiredRaw, ok := payload["required"]
+	if !ok {
+		return nil
+	}
+	list, ok := requiredRaw.([]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: required must be an array at %s", path)
+	}
+	required := make([]string, 0, len(list))
+	for idx, item := range list {
+		str, ok := item.(string)
+		if !ok || strings.TrimSpace(str) == "" {
+			return fmt.Errorf("jsonschema: required[%d] must be a string at %s", idx, path)
+		}
+		required = append(required, str)
+	}
+	out.Required = required
+	return nil
+}
+
+func applyNumericKeywords(out *schema.Schema, payload map[string]any, path string) error {
+	if err := applyNumberBound(&out.Minimum, payload, "minimum", path); err != nil {
+		return err
+	}
+	if err := applyNumberBound(&out.Maximum, payload, "maximum", path); err != nil {
+		return err
+	}
+	if err := applyExclusiveNumberBound(out, payload, "exclusiveMinimum", path); err != nil {
+		return err
+	}
+	return applyExclusiveNumberBound(out, payload, "exclusiveMaximum", path)
+}
+
+func applyNumberBound(target **float64, payload map[string]any, key, path string) error {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	value, ok := toFloat(raw)
+	if !ok {
+		return fmt.Errorf("jsonschema: %s must be a number at %s", key, path)
+	}
+	*target = &value
+	return nil
+}
+
+func applyExclusiveNumberBound(out *schema.Schema, payload map[string]any, key, path string) error {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	if value, isBool := raw.(bool); isBool {
+		setExclusiveFlag(out, key, value)
+		return nil
+	}
+	number, ok := toFloat(raw)
+	if !ok {
+		return fmt.Errorf("jsonschema: %s must be a number at %s", key, path)
+	}
+	return setExclusiveNumber(out, key, number, path)
+}
+
+func setExclusiveFlag(out *schema.Schema, key string, value bool) {
+	if key == "exclusiveMinimum" {
+		out.ExclusiveMinimum = value
+		return
+	}
+	out.ExclusiveMaximum = value
+}
+
+func setExclusiveNumber(out *schema.Schema, key string, number float64, path string) error {
+	if key == "exclusiveMinimum" {
+		if out.Minimum != nil {
+			return fmt.Errorf("jsonschema: minimum conflicts with exclusiveMinimum at %s", path)
+		}
+		out.Minimum = &number
+		out.ExclusiveMinimum = true
+		return nil
+	}
+	if out.Maximum != nil {
+		return fmt.Errorf("jsonschema: maximum conflicts with exclusiveMaximum at %s", path)
+	}
+	out.Maximum = &number
+	out.ExclusiveMaximum = true
+	return nil
+}
+
+func applyStringKeywords(out *schema.Schema, payload map[string]any, path string) error {
+	if err := applyLengthBound(&out.MinLength, payload, "minLength", path); err != nil {
+		return err
+	}
+	if err := applyLengthBound(&out.MaxLength, payload, "maxLength", path); err != nil {
+		return err
+	}
+	patternRaw, ok := payload["pattern"]
+	if !ok {
+		return nil
+	}
+	pattern, ok := patternRaw.(string)
+	if !ok {
+		return fmt.Errorf("jsonschema: pattern must be a string at %s", path)
+	}
+	out.Pattern = pattern
+	return nil
+}
+
+func applyLengthBound(target **int, payload map[string]any, key, path string) error {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	value, ok := toInt(raw)
+	if !ok {
+		return fmt.Errorf("jsonschema: %s must be an integer at %s", key, path)
+	}
+	*target = &value
+	return nil
+}
+
+func validateDefs(payload map[string]any, path string, ctx normalizeContext) error {
+	defsRaw, ok := payload["$defs"]
+	if !ok {
+		return nil
+	}
+	defs, ok := defsRaw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: $defs must be an object at %s", path)
+	}
+	for _, key := range sortedKeys(defs) {
+		childPath := joinPath(path, "$defs", key)
+		if _, err := schemaFromJSONSchemaWithContext(defs[key], childPath, ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyProperties(out *schema.Schema, payload map[string]any, path string, ctx normalizeContext) error {
+	propertiesRaw, ok := payload["properties"]
+	if !ok {
+		return nil
+	}
+	props, ok := propertiesRaw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: properties must be an object at %s", path)
+	}
+	out.Properties = make(map[string]schema.Schema, len(props))
+	nullableProps := make(map[string]struct{})
+	for _, key := range sortedKeys(props) {
+		if hasNullableType(props[key]) {
+			nullableProps[key] = struct{}{}
+		}
+		childPath := joinPath(path, "properties", key)
+		converted, err := schemaFromJSONSchemaWithContext(props[key], childPath, ctx)
+		if err != nil {
+			return err
+		}
+		out.Properties[key] = converted
+	}
+	removeNullableRequired(out, nullableProps)
+	return nil
+}
+
+func removeNullableRequired(out *schema.Schema, nullableProps map[string]struct{}) {
+	if len(nullableProps) == 0 || len(out.Required) == 0 {
+		return
+	}
+	filtered := out.Required[:0]
+	for _, entry := range out.Required {
+		if _, ok := nullableProps[entry]; !ok {
+			filtered = append(filtered, entry)
+		}
+	}
+	out.Required = filtered
+	if len(out.Required) == 0 {
+		out.Required = nil
+	}
+}
+
+func applyItems(out *schema.Schema, payload map[string]any, path string, ctx normalizeContext) error {
+	itemsRaw, ok := payload["items"]
+	if !ok {
+		return nil
+	}
+	typed, ok := itemsRaw.(map[string]any)
+	if !ok {
+		if _, isTuple := itemsRaw.([]any); isTuple {
+			return fmt.Errorf("jsonschema: tuple items are not supported at %s", path)
+		}
+		return fmt.Errorf("jsonschema: items must be an object at %s", path)
+	}
+	converted, err := schemaFromJSONSchemaWithContext(typed, joinPath(path, "items"), ctx)
+	if err != nil {
+		return err
+	}
+	out.Items = &converted
+	return nil
+}
+
+func applyOneOf(out *schema.Schema, payload map[string]any, path string, ctx normalizeContext) error {
+	oneOfRaw, ok := payload["oneOf"]
+	if !ok {
+		return nil
+	}
+	if !ctx.allowOneOf {
+		return fmt.Errorf("jsonschema: oneOf is only supported for array items at %s", path)
+	}
+	list, ok := oneOfRaw.([]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: oneOf must be an array at %s", path)
+	}
+	if len(list) == 0 {
+		return fmt.Errorf("jsonschema: oneOf must include at least one schema at %s", path)
+	}
+	out.OneOf = make([]schema.Schema, 0, len(list))
+	for idx, entry := range list {
+		childPath := joinPath(path, "oneOf", fmt.Sprintf("%d", idx))
+		converted, err := schemaFromJSONSchemaWithContext(entry, childPath, ctx.forOneOfVariant())
+		if err != nil {
+			return err
+		}
+		out.OneOf = append(out.OneOf, converted)
+	}
+	return nil
 }
 
 func validateKeywords(payload map[string]any, path string) error {

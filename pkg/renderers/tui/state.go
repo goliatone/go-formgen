@@ -142,120 +142,122 @@ func setPath(root map[string]any, path string, value any) error {
 	if len(segments) == 0 {
 		return nil
 	}
+	_, err := setPathValue(root, segments, value, path)
+	return err
+}
 
-	var (
-		current     any = root
-		parentMap   map[string]any
-		parentSlice []any
-		parentKey   string
-		parentIndex = -1
-	)
-
-	for i, segment := range segments {
-		last := i == len(segments)-1
-		switch node := current.(type) {
-		case map[string]any:
-			if last {
-				node[segment] = value
-				return nil
-			}
-
-			nextSegment := segments[i+1]
-			if idx, err := strconv.Atoi(nextSegment); err == nil {
-				child, ok := node[segment].([]any)
-				if !ok {
-					child = make([]any, idx+1)
-				} else if len(child) <= idx {
-					child = append(child, make([]any, idx+1-len(child))...)
-				}
-				// If the next segment is the last, write directly into the slice and return.
-				if i+2 == len(segments) {
-					child[idx] = value
-					node[segment] = child
-					return nil
-				}
-				node[segment] = child
-				parentMap, parentKey = node, segment
-				if last {
-					return nil
-				}
-				if child[idx] == nil {
-					child[idx] = make(map[string]any)
-				}
-				current = child[idx]
-				parentSlice = child
-				parentIndex = idx
-			} else {
-				child, ok := node[segment].(map[string]any)
-				if !ok || child == nil {
-					child = make(map[string]any)
-					node[segment] = child
-				}
-				parentMap, parentSlice, parentKey, parentIndex = node, nil, segment, -1
-				current = child
-			}
-
-		case []any:
-			idx, err := strconv.Atoi(segment)
-			if err != nil {
-				return fmt.Errorf("tui: expected numeric segment, got %q", segment)
-			}
-			if idx < 0 {
-				return fmt.Errorf("tui: negative index in path %q", path)
-			}
-
-			if len(node) <= idx {
-				node = append(node, make([]any, idx+1-len(node))...)
-				if parentMap != nil {
-					parentMap[parentKey] = node
-				} else if parentSlice != nil && parentIndex >= 0 {
-					parentSlice[parentIndex] = node
-				}
-			}
-
-			if last {
-				node[idx] = value
-				if parentMap != nil {
-					parentMap[parentKey] = node
-				} else if parentSlice != nil && parentIndex >= 0 {
-					parentSlice[parentIndex] = node
-				}
-				return nil
-			}
-
-			nextSegment := segments[i+1]
-			if _, err := strconv.Atoi(nextSegment); err == nil {
-				child, ok := node[idx].([]any)
-				if !ok {
-					child = []any{}
-				}
-				node[idx] = child
-				if parentMap != nil {
-					parentMap[parentKey] = node
-				} else if parentSlice != nil && parentIndex >= 0 {
-					parentSlice[parentIndex] = node
-				}
-				parentMap, parentSlice, parentKey, parentIndex = nil, node, "", idx
-				current = child
-			} else {
-				child, ok := node[idx].(map[string]any)
-				if !ok || child == nil {
-					child = make(map[string]any)
-				}
-				node[idx] = child
-				if parentMap != nil {
-					parentMap[parentKey] = node
-				} else if parentSlice != nil && parentIndex >= 0 {
-					parentSlice[parentIndex] = node
-				}
-				parentMap, parentSlice, parentKey, parentIndex = nil, node, "", idx
-				current = child
-			}
-
-		default:
-			return fmt.Errorf("tui: unexpected container for segment %q", segment)
-		}
+func setPathValue(current any, segments []string, value any, fullPath string) (any, error) {
+	if len(segments) == 0 {
+		return value, nil
 	}
 
-	return nil
+	switch node := current.(type) {
+	case map[string]any:
+		return setMapPathValue(node, segments, value, fullPath)
+	case []any:
+		return setSlicePathValue(node, segments, value, fullPath)
+	default:
+		return nil, fmt.Errorf("tui: unexpected container for segment %q", segments[0])
+	}
+}
+
+func setMapPathValue(node map[string]any, segments []string, value any, fullPath string) (any, error) {
+	segment := segments[0]
+	if len(segments) == 1 {
+		node[segment] = value
+		return node, nil
+	}
+
+	nextSegment := segments[1]
+	if idx, ok := parsePathIndex(nextSegment, fullPath); ok {
+		return setMapSlicePathValue(node, segment, idx, segments[2:], value, fullPath)
+	}
+
+	child := ensureMap(node[segment])
+	updated, err := setPathValue(child, segments[1:], value, fullPath)
+	if err != nil {
+		return nil, err
+	}
+	node[segment] = updated
+	return node, nil
+}
+
+func setMapSlicePathValue(node map[string]any, segment string, idx int, rest []string, value any, fullPath string) (any, error) {
+	child := ensureSlice(node[segment], idx)
+	if len(rest) == 0 {
+		child[idx] = value
+		node[segment] = child
+		return node, nil
+	}
+	if child[idx] == nil {
+		child[idx] = containerForNext(rest[0])
+	}
+	updated, err := setPathValue(child[idx], rest, value, fullPath)
+	if err != nil {
+		return nil, err
+	}
+	child[idx] = updated
+	node[segment] = child
+	return node, nil
+}
+
+func setSlicePathValue(node []any, segments []string, value any, fullPath string) (any, error) {
+	idx, err := strconv.Atoi(segments[0])
+	if err != nil {
+		return nil, fmt.Errorf("tui: expected numeric segment, got %q", segments[0])
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("tui: negative index in path %q", fullPath)
+	}
+	node = ensureSlice(node, idx)
+	if len(segments) == 1 {
+		node[idx] = value
+		return node, nil
+	}
+	if node[idx] == nil {
+		node[idx] = containerForNext(segments[1])
+	}
+	updated, err := setPathValue(node[idx], segments[1:], value, fullPath)
+	if err != nil {
+		return nil, err
+	}
+	node[idx] = updated
+	return node, nil
+}
+
+func parsePathIndex(segment, fullPath string) (int, bool) {
+	idx, err := strconv.Atoi(segment)
+	if err != nil {
+		return 0, false
+	}
+	if idx < 0 {
+		return 0, false
+	}
+	return idx, true
+}
+
+func ensureSlice(value any, idx int) []any {
+	child, ok := value.([]any)
+	if !ok {
+		child = []any{}
+	}
+	if len(child) <= idx {
+		child = append(child, make([]any, idx+1-len(child))...)
+	}
+	return child
+}
+
+func ensureMap(value any) map[string]any {
+	child, ok := value.(map[string]any)
+	if !ok || child == nil {
+		return make(map[string]any)
+	}
+	return child
+}
+
+func containerForNext(next string) any {
+	if _, err := strconv.Atoi(next); err == nil {
+		return []any{}
+	}
+	return make(map[string]any)
 }

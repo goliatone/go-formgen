@@ -146,87 +146,97 @@ func (s *resolveSession) prepareRoot(doc schema.Document, payload map[string]any
 func (s *resolveSession) resolveNode(ctx context.Context, doc *resolvedDocument, node any, state *resolveState) (any, error) {
 	switch typed := node.(type) {
 	case map[string]any:
-		if ref := strings.TrimSpace(readString(typed, "$ref")); ref != "" {
-			refKey, refDoc, target, err := s.resolveRefTarget(ctx, doc, ref)
-			if err != nil {
-				return nil, err
-			}
-			if len(state.stack) >= s.opts.MaxRefDepth {
-				return nil, fmt.Errorf("jsonschema resolver: ref depth exceeds %d", s.opts.MaxRefDepth)
-			}
-			if state.contains(refKey) {
-				return nil, fmt.Errorf("jsonschema resolver: ref cycle detected at %s", ref)
-			}
-			merged, err := mergeRefTarget(target, typed)
-			if err != nil {
-				return nil, err
-			}
-			state.push(refKey)
-			resolved, err := s.resolveNode(ctx, refDoc, merged, state)
-			state.pop(refKey)
-			if err != nil {
-				return nil, err
-			}
-			return resolved, nil
-		}
-
-		resolved := make(map[string]any, len(typed))
-		for key, value := range typed {
-			switch key {
-			case "$defs", "properties":
-				items, ok := value.(map[string]any)
-				if !ok {
-					resolved[key] = value
-					continue
-				}
-				child := make(map[string]any, len(items))
-				for childKey, childValue := range items {
-					resolvedChild, err := s.resolveNode(ctx, doc, childValue, state)
-					if err != nil {
-						return nil, err
-					}
-					child[childKey] = resolvedChild
-				}
-				resolved[key] = child
-			case "items":
-				resolvedChild, err := s.resolveNode(ctx, doc, value, state)
-				if err != nil {
-					return nil, err
-				}
-				resolved[key] = resolvedChild
-			case "oneOf", "anyOf", "allOf":
-				list, ok := value.([]any)
-				if !ok {
-					resolved[key] = value
-					continue
-				}
-				out := make([]any, 0, len(list))
-				for _, entry := range list {
-					resolvedChild, err := s.resolveNode(ctx, doc, entry, state)
-					if err != nil {
-						return nil, err
-					}
-					out = append(out, resolvedChild)
-				}
-				resolved[key] = out
-			default:
-				resolved[key] = value
-			}
-		}
-		return resolved, nil
+		return s.resolveMapNode(ctx, doc, typed, state)
 	case []any:
-		out := make([]any, 0, len(typed))
-		for _, entry := range typed {
-			resolvedChild, err := s.resolveNode(ctx, doc, entry, state)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, resolvedChild)
-		}
-		return out, nil
+		return s.resolveListNode(ctx, doc, typed, state)
 	default:
 		return node, nil
 	}
+}
+
+func (s *resolveSession) resolveMapNode(ctx context.Context, doc *resolvedDocument, node map[string]any, state *resolveState) (any, error) {
+	if ref := strings.TrimSpace(readString(node, "$ref")); ref != "" {
+		return s.resolveRefNode(ctx, doc, ref, node, state)
+	}
+	resolved := make(map[string]any, len(node))
+	for key, value := range node {
+		resolvedValue, err := s.resolveMapValue(ctx, doc, key, value, state)
+		if err != nil {
+			return nil, err
+		}
+		resolved[key] = resolvedValue
+	}
+	return resolved, nil
+}
+
+func (s *resolveSession) resolveRefNode(ctx context.Context, doc *resolvedDocument, ref string, node map[string]any, state *resolveState) (any, error) {
+	refKey, refDoc, target, err := s.resolveRefTarget(ctx, doc, ref)
+	if err != nil {
+		return nil, err
+	}
+	if len(state.stack) >= s.opts.MaxRefDepth {
+		return nil, fmt.Errorf("jsonschema resolver: ref depth exceeds %d", s.opts.MaxRefDepth)
+	}
+	if state.contains(refKey) {
+		return nil, fmt.Errorf("jsonschema resolver: ref cycle detected at %s", ref)
+	}
+	merged, err := mergeRefTarget(target, node)
+	if err != nil {
+		return nil, err
+	}
+	state.push(refKey)
+	resolved, err := s.resolveNode(ctx, refDoc, merged, state)
+	state.pop(refKey)
+	return resolved, err
+}
+
+func (s *resolveSession) resolveMapValue(ctx context.Context, doc *resolvedDocument, key string, value any, state *resolveState) (any, error) {
+	switch key {
+	case "$defs", "properties":
+		return s.resolveNamedChildren(ctx, doc, value, state)
+	case "items":
+		return s.resolveNode(ctx, doc, value, state)
+	case "oneOf", "anyOf", "allOf":
+		return s.resolveListValue(ctx, doc, value, state)
+	default:
+		return value, nil
+	}
+}
+
+func (s *resolveSession) resolveNamedChildren(ctx context.Context, doc *resolvedDocument, value any, state *resolveState) (any, error) {
+	items, ok := value.(map[string]any)
+	if !ok {
+		return value, nil
+	}
+	child := make(map[string]any, len(items))
+	for childKey, childValue := range items {
+		resolvedChild, err := s.resolveNode(ctx, doc, childValue, state)
+		if err != nil {
+			return nil, err
+		}
+		child[childKey] = resolvedChild
+	}
+	return child, nil
+}
+
+func (s *resolveSession) resolveListValue(ctx context.Context, doc *resolvedDocument, value any, state *resolveState) (any, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return value, nil
+	}
+	return s.resolveListNode(ctx, doc, list, state)
+}
+
+func (s *resolveSession) resolveListNode(ctx context.Context, doc *resolvedDocument, list []any, state *resolveState) ([]any, error) {
+	out := make([]any, 0, len(list))
+	for _, entry := range list {
+		resolvedChild, err := s.resolveNode(ctx, doc, entry, state)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, resolvedChild)
+	}
+	return out, nil
 }
 
 func (s *resolveSession) resolveRefTarget(ctx context.Context, doc *resolvedDocument, ref string) (string, *resolvedDocument, any, error) {
@@ -257,9 +267,9 @@ func (s *resolveSession) resolveRefTarget(ctx context.Context, doc *resolvedDocu
 	case parsed.Scheme != "":
 		return "", nil, nil, fmt.Errorf("jsonschema resolver: unsupported ref scheme %q", parsed.Scheme)
 	default:
-		src, err := s.resolveRelativeSource(doc, parsed.Path)
-		if err != nil {
-			return "", nil, nil, err
+		src, sourceErr := s.resolveRelativeSource(doc, parsed.Path)
+		if sourceErr != nil {
+			return "", nil, nil, sourceErr
 		}
 		target, err = s.loadDocument(ctx, src)
 		if err != nil {

@@ -374,15 +374,15 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	}
 
 	o.applyEndpointOverrides(req.OperationID, &formModel)
-	if err := o.applyTransformer(ctx, &formModel); err != nil {
-		return nil, err
+	if transformErr := o.applyTransformer(ctx, &formModel); transformErr != nil {
+		return nil, transformErr
 	}
-	if err := o.applyDecorators(&formModel); err != nil {
-		return nil, err
+	if decorateErr := o.applyDecorators(&formModel); decorateErr != nil {
+		return nil, decorateErr
 	}
 	render.ApplySubset(&formModel, req.RenderOptions.Subset)
-	if err := applyVisibility(&formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
-		return nil, err
+	if visibilityErr := applyVisibility(&formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); visibilityErr != nil {
+		return nil, visibilityErr
 	}
 
 	renderOptions := req.RenderOptions
@@ -391,9 +391,9 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	renderOptions.Errors = mappedErrors.Fields
 	renderOptions.FormErrors = render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)
 	if renderOptions.Theme == nil {
-		themeConfig, err := o.resolveTheme(req.ThemeName, req.ThemeVariant)
-		if err != nil {
-			return nil, err
+		themeConfig, themeErr := o.resolveTheme(req.ThemeName, req.ThemeVariant)
+		if themeErr != nil {
+			return nil, themeErr
 		}
 		renderOptions.Theme = themeConfig
 	}

@@ -91,28 +91,9 @@ func (a *Adapter) Normalize(ctx context.Context, doc schema.Document, opts schem
 		return schema.SchemaIR{}, errors.New("jsonschema adapter: empty document")
 	}
 
-	payload, err := parseJSONSchema(raw)
+	payload, resolved, err := a.resolvePayload(ctx, doc, raw, opts)
 	if err != nil {
 		return schema.SchemaIR{}, err
-	}
-
-	if err := validateDialect(payload); err != nil {
-		return schema.SchemaIR{}, err
-	}
-
-	resolved, err := a.resolver.Resolve(ctx, doc, payload)
-	if err != nil {
-		return schema.SchemaIR{}, err
-	}
-
-	if len(opts.Overlay) > 0 {
-		overlay, err := ParseOverlay(opts.Overlay)
-		if err != nil {
-			return schema.SchemaIR{}, err
-		}
-		if err := ApplyOverlay(resolved, overlay); err != nil {
-			return schema.SchemaIR{}, err
-		}
 	}
 
 	canonical, err := schemaFromJSONSchema(resolved, "#")
@@ -120,28 +101,59 @@ func (a *Adapter) Normalize(ctx context.Context, doc schema.Document, opts schem
 		return schema.SchemaIR{}, err
 	}
 
+	forms, err := discoverAdapterForms(payload, opts)
+	if err != nil {
+		return schema.SchemaIR{}, err
+	}
+
+	return schemaIRFromForms(forms, canonical, opts), nil
+}
+
+func (a *Adapter) resolvePayload(ctx context.Context, doc schema.Document, raw []byte, opts schema.NormalizeOptions) (map[string]any, map[string]any, error) {
+	payload, err := parseJSONSchema(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateDialect(payload); err != nil {
+		return nil, nil, err
+	}
+	resolved, err := a.resolver.Resolve(ctx, doc, payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(opts.Overlay) == 0 {
+		return payload, resolved, nil
+	}
+	overlay, err := ParseOverlay(opts.Overlay)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := ApplyOverlay(resolved, overlay); err != nil {
+		return nil, nil, err
+	}
+	return payload, resolved, nil
+}
+
+func discoverAdapterForms(payload map[string]any, opts schema.NormalizeOptions) ([]schema.FormRef, error) {
 	forms, err := DiscoverFormsFromMap(payload, FormDiscoveryOptions{
 		Slug:         opts.ContentTypeSlug,
 		FormIDSuffix: opts.DefaultFormSuffix,
 	})
 	if err != nil {
-		return schema.SchemaIR{}, err
+		return nil, err
 	}
-
-	if opts.FormID != "" {
-		filtered := make([]schema.FormRef, 0, 1)
-		for _, ref := range forms {
-			if ref.ID == opts.FormID {
-				filtered = append(filtered, ref)
-				break
-			}
-		}
-		if len(filtered) == 0 {
-			return schema.SchemaIR{}, fmt.Errorf("jsonschema adapter: form %q not found", opts.FormID)
-		}
-		forms = filtered
+	if opts.FormID == "" {
+		return forms, nil
 	}
+	for _, ref := range forms {
+		if ref.ID == opts.FormID {
+			return []schema.FormRef{ref}, nil
+		}
+	}
+	return nil, fmt.Errorf("jsonschema adapter: form %q not found", opts.FormID)
+}
 
+func schemaIRFromForms(forms []schema.FormRef, canonical schema.Schema, opts schema.NormalizeOptions) schema.SchemaIR {
 	ir := schema.NewSchemaIR()
 	for _, ref := range forms {
 		form := schema.Form{
@@ -161,8 +173,7 @@ func (a *Adapter) Normalize(ctx context.Context, doc schema.Document, opts schem
 		}
 		ir.Forms[form.ID] = form
 	}
-
-	return ir, nil
+	return ir
 }
 
 // Forms returns the list of available form references.

@@ -41,73 +41,108 @@ func (e OverlayError) Error() string {
 
 // ParseOverlay parses a raw overlay document and extracts extension overrides.
 func ParseOverlay(raw []byte) (Overlay, error) {
-	if len(raw) == 0 || len(strings.TrimSpace(string(raw))) == 0 {
-		return Overlay{}, OverlayError{Message: "overlay document is empty"}
+	payload, err := parseOverlayPayload(raw)
+	if err != nil {
+		return Overlay{}, err
 	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return Overlay{}, OverlayError{Message: fmt.Sprintf("parse overlay: %v", err)}
+	list, ok, err := overlayOverrideList(payload)
+	if err != nil {
+		return Overlay{}, err
 	}
-	if payload == nil {
-		return Overlay{}, OverlayError{Message: "overlay document is nil"}
-	}
-
-	schema := strings.TrimSpace(readString(payload, "$schema"))
-	schema = strings.TrimSuffix(schema, "#")
-	if schema == "" {
-		return Overlay{}, OverlayError{Message: "$schema is required"}
-	}
-	if schema != overlaySchemaID {
-		return Overlay{}, OverlayError{Message: fmt.Sprintf("unsupported $schema %q", schema)}
-	}
-
-	rawOverrides, ok := payload["overrides"]
 	if !ok {
 		return Overlay{}, nil
-	}
-	list, ok := rawOverrides.([]any)
-	if !ok {
-		return Overlay{}, OverlayError{Message: "overrides must be an array"}
 	}
 
 	overrides := make([]OverlayOverride, 0, len(list))
 	for idx, item := range list {
-		entry, ok := item.(map[string]any)
+		override, ok, err := parseOverlayOverride(idx, item)
+		if err != nil {
+			return Overlay{}, err
+		}
 		if !ok {
-			return Overlay{}, OverlayError{Message: fmt.Sprintf("overrides[%d] must be an object", idx)}
-		}
-		path := strings.TrimSpace(readString(entry, "path"))
-		if path == "" {
-			return Overlay{}, OverlayError{Message: fmt.Sprintf("overrides[%d].path is required", idx)}
-		}
-
-		extensions := make(map[string]any)
-		for key, value := range entry {
-			switch {
-			case key == "path":
-				continue
-			case key == "x-formgen" || key == "x-admin":
-				if _, ok := value.(map[string]any); !ok {
-					return Overlay{}, OverlayError{Path: path, Message: fmt.Sprintf("%s must be an object", key)}
-				}
-				extensions[key] = value
-			case strings.HasPrefix(key, "x-formgen-") || strings.HasPrefix(key, "x-admin-"):
-				extensions[key] = value
-			}
-		}
-
-		if len(extensions) == 0 {
 			continue
 		}
-
-		overrides = append(overrides, OverlayOverride{
-			Path:       path,
-			Extensions: extensions,
-		})
+		overrides = append(overrides, override)
 	}
 
 	return Overlay{Overrides: overrides}, nil
+}
+
+func parseOverlayPayload(raw []byte) (map[string]any, error) {
+	if len(raw) == 0 || len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, OverlayError{Message: "overlay document is empty"}
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, OverlayError{Message: fmt.Sprintf("parse overlay: %v", err)}
+	}
+	if payload == nil {
+		return nil, OverlayError{Message: "overlay document is nil"}
+	}
+	return payload, validateOverlaySchema(payload)
+}
+
+func validateOverlaySchema(payload map[string]any) error {
+	schema := strings.TrimSpace(readString(payload, "$schema"))
+	schema = strings.TrimSuffix(schema, "#")
+	if schema == "" {
+		return OverlayError{Message: "$schema is required"}
+	}
+	if schema != overlaySchemaID {
+		return OverlayError{Message: fmt.Sprintf("unsupported $schema %q", schema)}
+	}
+	return nil
+}
+
+func overlayOverrideList(payload map[string]any) ([]any, bool, error) {
+	rawOverrides, ok := payload["overrides"]
+	if !ok {
+		return nil, false, nil
+	}
+	list, ok := rawOverrides.([]any)
+	if !ok {
+		return nil, false, OverlayError{Message: "overrides must be an array"}
+	}
+	return list, true, nil
+}
+
+func parseOverlayOverride(idx int, item any) (OverlayOverride, bool, error) {
+	entry, ok := item.(map[string]any)
+	if !ok {
+		return OverlayOverride{}, false, OverlayError{Message: fmt.Sprintf("overrides[%d] must be an object", idx)}
+	}
+	path := strings.TrimSpace(readString(entry, "path"))
+	if path == "" {
+		return OverlayOverride{}, false, OverlayError{Message: fmt.Sprintf("overrides[%d].path is required", idx)}
+	}
+	extensions, err := overlayExtensions(path, entry)
+	if err != nil {
+		return OverlayOverride{}, false, err
+	}
+	if len(extensions) == 0 {
+		return OverlayOverride{}, false, nil
+	}
+	return OverlayOverride{Path: path, Extensions: extensions}, true, nil
+}
+
+func overlayExtensions(path string, entry map[string]any) (map[string]any, error) {
+	extensions := make(map[string]any)
+	for key, value := range entry {
+		if key == "path" {
+			continue
+		}
+		if key == "x-formgen" || key == "x-admin" {
+			if _, ok := value.(map[string]any); !ok {
+				return nil, OverlayError{Path: path, Message: fmt.Sprintf("%s must be an object", key)}
+			}
+			extensions[key] = value
+			continue
+		}
+		if strings.HasPrefix(key, "x-formgen-") || strings.HasPrefix(key, "x-admin-") {
+			extensions[key] = value
+		}
+	}
+	return extensions, nil
 }
 
 // ApplyOverlay mutates the resolved schema payload with overlay overrides.
