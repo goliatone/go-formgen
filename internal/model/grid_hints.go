@@ -2,6 +2,7 @@ package model
 
 import (
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -79,44 +80,37 @@ func applyGridValue(target map[string]string, key string, value any) {
 }
 
 func toIntValue(value any) (int, bool) {
-	switch v := value.(type) {
-	case int:
-		return v, true
-	case int8:
-		return int(v), true
-	case int16:
-		return int(v), true
-	case int32:
-		return int(v), true
-	case int64:
-		return int(v), true
-	case uint:
-		return int(v), true
-	case uint8:
-		return int(v), true
-	case uint16:
-		return int(v), true
-	case uint32:
-		return int(v), true
-	case uint64:
-		return int(v), true
-	case float64:
-		if v == math.Trunc(v) {
-			return int(v), true
-		}
-	case float32:
-		if float64(v) == math.Trunc(float64(v)) {
-			return int(v), true
-		}
-	case string:
-		trimmed := strings.TrimSpace(v)
+	if str, ok := value.(string); ok {
+		trimmed := strings.TrimSpace(str)
 		if trimmed == "" {
 			return 0, false
 		}
-		value, err := strconv.Atoi(trimmed)
-		if err == nil {
-			return value, true
-		}
+		parsed, err := strconv.Atoi(trimmed)
+		return parsed, err == nil
 	}
+
+	number := reflect.ValueOf(value)
+	if !number.IsValid() {
+		return 0, false
+	}
+
+	switch number.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return int(number.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		unsigned := number.Uint()
+		if unsigned > uint64(int(^uint(0)>>1)) {
+			return 0, false
+		}
+		return int(unsigned), true
+	case reflect.Float32, reflect.Float64:
+		floatValue := number.Float()
+		if floatValue == math.Trunc(floatValue) {
+			return int(floatValue), true
+		}
+	default:
+		return 0, false
+	}
+
 	return 0, false
 }

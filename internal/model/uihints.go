@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"sort"
 	"strconv"
 )
@@ -66,81 +67,59 @@ func IsAllowedUIHintKey(key string) bool {
 func CanonicalizeExtensionValue(value any) (string, bool) {
 	switch v := value.(type) {
 	case string:
-		if v == "" {
-			return "", false
-		}
-		return v, true
+		return nonEmptyString(v)
 	case interface{ String() string }:
-		s := v.String()
-		if s == "" {
-			return "", false
-		}
-		return s, true
+		return nonEmptyString(v.String())
 	case bool:
 		if v {
 			return "true", true
 		}
 		return "false", true
-	case int:
-		return strconv.Itoa(v), true
-	case int8:
-		return strconv.FormatInt(int64(v), 10), true
-	case int16:
-		return strconv.FormatInt(int64(v), 10), true
-	case int32:
-		return strconv.FormatInt(int64(v), 10), true
-	case int64:
-		return strconv.FormatInt(v, 10), true
-	case uint:
-		return strconv.FormatUint(uint64(v), 10), true
-	case uint8:
-		return strconv.FormatUint(uint64(v), 10), true
-	case uint16:
-		return strconv.FormatUint(uint64(v), 10), true
-	case uint32:
-		return strconv.FormatUint(uint64(v), 10), true
-	case uint64:
-		return strconv.FormatUint(v, 10), true
-	case float32:
-		return strconv.FormatFloat(float64(v), 'f', -1, 64), true
-	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64), true
 	case map[string]any:
-		if len(v) == 0 {
-			return "", false
-		}
-		payload, err := json.Marshal(v)
-		if err != nil {
-			return "", false
-		}
-		return string(payload), true
+		return marshalNonEmpty(v)
 	case map[string]string:
-		if len(v) == 0 {
-			return "", false
-		}
-		payload, err := json.Marshal(v)
-		if err != nil {
-			return "", false
-		}
-		return string(payload), true
+		return marshalNonEmpty(v)
 	case []any:
-		if len(v) == 0 {
-			return "", false
-		}
-		payload, err := json.Marshal(v)
-		if err != nil {
-			return "", false
-		}
-		return string(payload), true
+		return marshalNonEmpty(v)
 	case []string:
-		if len(v) == 0 {
-			return "", false
-		}
-		payload, err := json.Marshal(v)
-		if err != nil {
-			return "", false
-		}
-		return string(payload), true
+		return marshalNonEmpty(v)
+	}
+
+	return canonicalizeNumericValue(value)
+}
+
+func nonEmptyString(value string) (string, bool) {
+	if value == "" {
+		return "", false
+	}
+	return value, true
+}
+
+func marshalNonEmpty(value any) (string, bool) {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() || reflected.Len() == 0 {
+		return "", false
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return "", false
+	}
+	return string(payload), true
+}
+
+func canonicalizeNumericValue(value any) (string, bool) {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return "", false
+	}
+
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(reflected.Int(), 10), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return strconv.FormatUint(reflected.Uint(), 10), true
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(reflected.Float(), 'f', -1, 64), true
 	default:
 		return "", false
 	}

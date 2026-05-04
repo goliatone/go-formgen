@@ -143,32 +143,38 @@ func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[strin
 		if ref == nil {
 			continue
 		}
-		var schema pkgopenapi.Schema
-		if ref.Value == nil {
-			schema = pkgopenapi.Schema{Ref: ref.Ref}
-		} else {
-			content := ref.Value.Content
-			if len(content) == 0 {
-				continue
-			}
-			if mt, ok := content["application/json"]; ok {
-				schema = convertSchema(mt.Schema)
-			} else {
-				for _, mt := range content {
-					schema = convertSchema(mt.Schema)
-					break
-				}
-			}
-			if schema.Description == "" && ref.Value.Description != nil {
-				schema.Description = *ref.Value.Description
-			}
-		}
-		if schema.Ref == "" && schema.Type == "" && schema.Items == nil && len(schema.Properties) == 0 {
+		schema, ok := responseSchema(ref)
+		if !ok {
 			continue
 		}
 		result[status] = schema
 	}
 	return result
+}
+
+func responseSchema(ref *openapi3.ResponseRef) (pkgopenapi.Schema, bool) {
+	if ref.Value == nil {
+		return pkgopenapi.Schema{Ref: ref.Ref}, true
+	}
+	content := ref.Value.Content
+	if len(content) == 0 {
+		return pkgopenapi.Schema{}, false
+	}
+	schema := convertSchema(preferredMediaTypeSchema(content))
+	if schema.Description == "" && ref.Value.Description != nil {
+		schema.Description = *ref.Value.Description
+	}
+	return schema, schema.Ref != "" || schema.Type != "" || schema.Items != nil || len(schema.Properties) > 0
+}
+
+func preferredMediaTypeSchema(content openapi3.Content) *openapi3.SchemaRef {
+	if mt, ok := content["application/json"]; ok {
+		return mt.Schema
+	}
+	for _, mt := range content {
+		return mt.Schema
+	}
+	return nil
 }
 
 func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
@@ -198,20 +204,39 @@ func convertSchemaWithState(
 	}
 	active[src] = struct{}{}
 
+	schema := baseSchemaFromOpenAPI(ref.Ref, src)
+	applySchemaChildren(&schema, src, cache, active)
+	applySchemaNumberBounds(&schema, src)
+	applyExclusiveMinimum(&schema, src.ExclusiveMin)
+	applyExclusiveMaximum(&schema, src.ExclusiveMax)
+	applySchemaStringBounds(&schema, src)
+	schema.Extensions = extractExtensions(src.Extensions)
+	mergeAllOfSchemas(&schema, src.AllOf, cache, active)
+	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
+
+	delete(active, src)
+	cache[src] = schema
+	return schema
+}
+
+func baseSchemaFromOpenAPI(ref string, src *openapi3.Schema) pkgopenapi.Schema {
 	schema := pkgopenapi.Schema{
-		Ref:         ref.Ref,
+		Ref:         ref,
 		Type:        firstSchemaType(src.Type),
 		Format:      src.Format,
 		Description: src.Description,
 		Default:     src.Default,
 	}
-
 	if len(src.Required) > 0 {
 		schema.Required = append([]string(nil), src.Required...)
 	}
 	if len(src.Enum) > 0 {
 		schema.Enum = append([]any(nil), src.Enum...)
 	}
+	return schema
+}
+
+func applySchemaChildren(schema *pkgopenapi.Schema, src *openapi3.Schema, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}) {
 	if len(src.Properties) > 0 {
 		properties := make(map[string]pkgopenapi.Schema, len(src.Properties))
 		for name, property := range src.Properties {
@@ -223,6 +248,9 @@ func convertSchemaWithState(
 		items := convertSchemaWithState(src.Items, cache, active)
 		schema.Items = &items
 	}
+}
+
+func applySchemaNumberBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 	if src.Min != nil {
 		value := *src.Min
 		schema.Minimum = &value
@@ -231,8 +259,9 @@ func convertSchemaWithState(
 		value := *src.Max
 		schema.Maximum = &value
 	}
-	applyExclusiveMinimum(&schema, src.ExclusiveMin)
-	applyExclusiveMaximum(&schema, src.ExclusiveMax)
+}
+
+func applySchemaStringBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 	if src.MinLength != 0 {
 		value := int(src.MinLength)
 		schema.MinLength = &value
@@ -244,13 +273,6 @@ func convertSchemaWithState(
 	if src.Pattern != "" {
 		schema.Pattern = src.Pattern
 	}
-	schema.Extensions = extractExtensions(src.Extensions)
-	mergeAllOfSchemas(&schema, src.AllOf, cache, active)
-	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
-
-	delete(active, src)
-	cache[src] = schema
-	return schema
 }
 
 func applyExclusiveMinimum(schema *pkgopenapi.Schema, bound openapi3.ExclusiveBound) {
@@ -315,45 +337,59 @@ func mergeSchema(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 		target.Default = source.Default
 	}
 
-	if len(source.Required) > 0 {
-		required := make(map[string]struct{}, len(target.Required)+len(source.Required))
-		for _, name := range target.Required {
-			required[name] = struct{}{}
-		}
-		for _, name := range source.Required {
-			required[name] = struct{}{}
-		}
-		if len(required) > 0 {
-			keys := make([]string, 0, len(required))
-			for name := range required {
-				keys = append(keys, name)
-			}
-			sort.Strings(keys)
-			target.Required = target.Required[:0]
-			target.Required = append(target.Required, keys...)
-		}
-	}
-
-	if len(source.Properties) > 0 {
-		if target.Properties == nil {
-			target.Properties = make(map[string]pkgopenapi.Schema, len(source.Properties))
-		}
-		for name, schema := range source.Properties {
-			if _, exists := target.Properties[name]; !exists {
-				target.Properties[name] = schema
-			}
-		}
-	}
-
+	mergeRequired(target, source.Required)
+	mergeProperties(target, source.Properties)
 	if target.Items == nil && source.Items != nil {
 		items := source.Items.Clone()
 		target.Items = &items
 	}
-
 	if len(target.Enum) == 0 && len(source.Enum) > 0 {
 		target.Enum = append([]any(nil), source.Enum...)
 	}
 
+	mergeNumericConstraints(target, source)
+	mergeStringConstraints(target, source)
+	mergeSchemaExtensions(target, source.Extensions)
+}
+
+func mergeRequired(target *pkgopenapi.Schema, source []string) {
+	if len(source) == 0 {
+		return
+	}
+	required := make(map[string]struct{}, len(target.Required)+len(source))
+	for _, name := range target.Required {
+		required[name] = struct{}{}
+	}
+	for _, name := range source {
+		required[name] = struct{}{}
+	}
+	target.Required = sortedSet(required)
+}
+
+func sortedSet(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for name := range values {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func mergeProperties(target *pkgopenapi.Schema, source map[string]pkgopenapi.Schema) {
+	if len(source) == 0 {
+		return
+	}
+	if target.Properties == nil {
+		target.Properties = make(map[string]pkgopenapi.Schema, len(source))
+	}
+	for name, schema := range source {
+		if _, exists := target.Properties[name]; !exists {
+			target.Properties[name] = schema
+		}
+	}
+}
+
+func mergeNumericConstraints(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 	if target.Minimum == nil && source.Minimum != nil {
 		value := *source.Minimum
 		target.Minimum = &value
@@ -368,6 +404,9 @@ func mergeSchema(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 	if !target.ExclusiveMaximum && source.ExclusiveMaximum {
 		target.ExclusiveMaximum = true
 	}
+}
+
+func mergeStringConstraints(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 	if target.MinLength == nil && source.MinLength != nil {
 		value := *source.MinLength
 		target.MinLength = &value
@@ -379,15 +418,18 @@ func mergeSchema(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 	if target.Pattern == "" {
 		target.Pattern = source.Pattern
 	}
+}
 
-	if len(source.Extensions) > 0 {
-		if target.Extensions == nil {
-			target.Extensions = make(map[string]any, len(source.Extensions))
-		}
-		for key, value := range source.Extensions {
-			if _, exists := target.Extensions[key]; !exists {
-				target.Extensions[key] = value
-			}
+func mergeSchemaExtensions(target *pkgopenapi.Schema, source map[string]any) {
+	if len(source) == 0 {
+		return
+	}
+	if target.Extensions == nil {
+		target.Extensions = make(map[string]any, len(source))
+	}
+	for key, value := range source {
+		if _, exists := target.Extensions[key]; !exists {
+			target.Extensions[key] = value
 		}
 	}
 }
@@ -421,37 +463,31 @@ func extractExtensions(raw map[string]any) map[string]any {
 
 	result := make(map[string]any)
 	for key, value := range raw {
-		switch {
-		case key == extensionNamespace:
-			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
-				result[key] = mapped
-			}
-		case strings.HasPrefix(key, extensionNamespace+"-"):
-			result[key] = value
-		case key == adminExtensionNamespace:
-			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
-				result[key] = mapped
-			}
-		case strings.HasPrefix(key, adminExtensionNamespace+"-"):
-			result[key] = value
-		case key == relationshipExtensionKey:
-			if metadata := normaliseRelationshipExtension(value); len(metadata) > 0 {
-				result[key] = metadata
-			}
-		case key == endpointExtensionKey:
-			if mapped, ok := cloneMap(value); ok && len(mapped) > 0 {
-				result[key] = mapped
-			}
-		case key == currentValueExtensionKey:
-			if value != nil {
-				result[key] = value
-			}
+		if extensionValue, ok := normaliseExtensionValue(key, value); ok {
+			result[key] = extensionValue
 		}
 	}
 	if len(result) == 0 {
 		return nil
 	}
 	return result
+}
+
+func normaliseExtensionValue(key string, value any) (any, bool) {
+	switch {
+	case key == extensionNamespace || key == adminExtensionNamespace || key == endpointExtensionKey:
+		mapped, ok := cloneMap(value)
+		return mapped, ok && len(mapped) > 0
+	case strings.HasPrefix(key, extensionNamespace+"-") || strings.HasPrefix(key, adminExtensionNamespace+"-"):
+		return value, true
+	case key == relationshipExtensionKey:
+		metadata := normaliseRelationshipExtension(value)
+		return metadata, len(metadata) > 0
+	case key == currentValueExtensionKey:
+		return value, value != nil
+	default:
+		return nil, false
+	}
 }
 
 func mergeAllOfExtensions(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, visited map[*openapi3.Schema]struct{}) {

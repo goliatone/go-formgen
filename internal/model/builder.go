@@ -404,44 +404,12 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 		return nil
 	}
 
-	result := make(map[string]string)
-	var labelField string
-
-	for key, value := range ext {
-		if key == extensionNamespace {
-			nested, ok := value.(map[string]any)
-			if !ok {
-				continue
-			}
-			for nestedKey, nestedValue := range nested {
-				if nestedKey == "forms" {
-					continue
-				}
-				if str, ok := CanonicalizeExtensionValue(nestedValue); ok {
-					result[nestedKey] = str
-					if nestedKey == "label-field" {
-						labelField = str
-					}
-				}
-			}
-			continue
-		}
-		if after, ok := strings.CutPrefix(key, extensionNamespace+"-"); ok {
-			trimmed := after
-			if trimmed == "forms" {
-				continue
-			}
-			if str, ok := CanonicalizeExtensionValue(value); ok {
-				result[trimmed] = str
-				if trimmed == "label-field" {
-					labelField = str
-				}
-			}
-			continue
-		}
-	}
+	result, labelField := formgenMetadataFromExtensions(ext)
 
 	adminMeta := adminMetadataFromExtensions(ext)
+	if len(result) == 0 && len(adminMeta) > 0 {
+		result = make(map[string]string, len(adminMeta))
+	}
 	mergeMetadata(result, adminMeta)
 
 	if endpointMeta := endpointMetadataFromExtensions(ext); len(endpointMeta) > 0 {
@@ -471,6 +439,47 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 	return result
 }
 
+func formgenMetadataFromExtensions(ext map[string]any) (map[string]string, string) {
+	result := make(map[string]string)
+	var labelField string
+	add := func(key string, value any) {
+		if key == "forms" {
+			return
+		}
+		str, ok := CanonicalizeExtensionValue(value)
+		if !ok {
+			return
+		}
+		result[key] = str
+		if key == "label-field" {
+			labelField = str
+		}
+	}
+
+	if nested, ok := ext[extensionNamespace].(map[string]any); ok {
+		for key, value := range nested {
+			add(key, value)
+		}
+	}
+	for key, value := range ext {
+		if after, ok := strings.CutPrefix(key, extensionNamespace+"-"); ok {
+			add(after, value)
+		}
+	}
+	return result, labelField
+}
+
+var adminMetadataAliases = map[string][]string{
+	"group":          {"admin.group", "group"},
+	"tags":           {"admin.tags", "tags"},
+	"widget":         {"admin.widget", "widget"},
+	"visibilityrule": {"admin.visibilityRule", "visibilityRule"},
+	"help":           {"admin.help", "helpText"},
+	"placeholder":    {"admin.placeholder", "placeholder"},
+	"readonly":       {"admin.readonly", "readonly"},
+	"order":          {"admin.order", "order"},
+}
+
 func adminMetadataFromExtensions(ext map[string]any) map[string]string {
 	if len(ext) == 0 {
 		return nil
@@ -486,31 +495,8 @@ func adminMetadataFromExtensions(ext map[string]any) map[string]string {
 			return
 		}
 
-		switch key {
-		case "group":
-			result["admin.group"] = str
-			result["group"] = str
-		case "tags":
-			result["admin.tags"] = str
-			result["tags"] = str
-		case "widget":
-			result["admin.widget"] = str
-			result["widget"] = str
-		case "visibilityrule":
-			result["admin.visibilityRule"] = str
-			result["visibilityRule"] = str
-		case "help":
-			result["admin.help"] = str
-			result["helpText"] = str
-		case "placeholder":
-			result["admin.placeholder"] = str
-			result["placeholder"] = str
-		case "readonly":
-			result["admin.readonly"] = str
-			result["readonly"] = str
-		case "order":
-			result["admin.order"] = str
-			result["order"] = str
+		for _, alias := range adminMetadataAliases[key] {
+			result[alias] = str
 		}
 	}
 
@@ -631,46 +617,8 @@ func applyRelationshipHints(field *Field) {
 	}
 
 	hints := make(map[string]string)
-	switch strings.ToLower(string(field.Relationship.Kind)) {
-	case "belongsto", "hasone":
-		switch field.Type {
-		case FieldTypeArray:
-			hints["input"] = "collection"
-		case FieldTypeObject:
-			if shouldRenderObjectRelationshipAsSelect(field) {
-				field.Type = FieldTypeString
-				hints["input"] = "select"
-			} else {
-				hints["input"] = "subform"
-			}
-		default:
-			hints["input"] = "select"
-		}
-	case "hasmany":
-		switch field.Type {
-		case FieldTypeArray:
-			hints["input"] = "collection"
-		case FieldTypeObject:
-			if shouldRenderObjectRelationshipAsSelect(field) {
-				field.Type = FieldTypeString
-				hints["input"] = "select"
-			} else {
-				hints["input"] = "subform"
-			}
-		default:
-			hints["input"] = "collection"
-		}
-	default:
-		if field.Relationship.Cardinality == "many" {
-			hints["input"] = "collection"
-		} else if field.Type == FieldTypeArray {
-			hints["input"] = "collection"
-		} else if shouldRenderObjectRelationshipAsSelect(field) {
-			field.Type = FieldTypeString
-			hints["input"] = "select"
-		} else {
-			hints["input"] = "select"
-		}
+	if input := relationshipInputHint(field); input != "" {
+		hints["input"] = input
 	}
 
 	if card := field.Relationship.Cardinality; card != "" {
@@ -700,6 +648,57 @@ func applyRelationshipHints(field *Field) {
 		return
 	}
 	field.UIHints = mergeUIHints(field.UIHints, hints)
+}
+
+func relationshipInputHint(field *Field) string {
+	switch strings.ToLower(string(field.Relationship.Kind)) {
+	case "belongsto", "hasone":
+		return singleRelationshipInput(field)
+	case "hasmany":
+		return manyRelationshipInput(field)
+	default:
+		return defaultRelationshipInput(field)
+	}
+}
+
+func singleRelationshipInput(field *Field) string {
+	switch field.Type {
+	case FieldTypeArray:
+		return "collection"
+	case FieldTypeObject:
+		return objectRelationshipInput(field)
+	default:
+		return "select"
+	}
+}
+
+func manyRelationshipInput(field *Field) string {
+	switch field.Type {
+	case FieldTypeArray:
+		return "collection"
+	case FieldTypeObject:
+		return objectRelationshipInput(field)
+	default:
+		return "collection"
+	}
+}
+
+func defaultRelationshipInput(field *Field) string {
+	if field.Relationship.Cardinality == "many" || field.Type == FieldTypeArray {
+		return "collection"
+	}
+	if shouldRenderObjectRelationshipAsSelect(field) {
+		field.Type = FieldTypeString
+	}
+	return "select"
+}
+
+func objectRelationshipInput(field *Field) string {
+	if shouldRenderObjectRelationshipAsSelect(field) {
+		field.Type = FieldTypeString
+		return "select"
+	}
+	return "subform"
 }
 
 func shouldRenderObjectRelationshipAsSelect(field *Field) bool {
@@ -822,26 +821,35 @@ func decorateRelationshipSiblings(fields []Field) {
 		field.Relationship = cloned
 		applyRelationshipHints(field)
 
-		if field.Label != "" {
-			host.Label = field.Label
-		}
-		if field.Description != "" && host.Description == "" {
-			host.Description = field.Description
-		}
-		if len(field.UIHints) > 0 {
-			if value, ok := field.UIHints["placeholder"]; ok && value != "" && host.Placeholder == "" {
-				host.Placeholder = value
-			}
-			if value, ok := field.UIHints["label"]; ok && value != "" {
-				host.Label = value
-			}
-			if value, ok := field.UIHints["hint"]; ok && value != "" && host.Description == "" {
-				host.Description = value
-			}
-			if value, ok := field.UIHints["helpText"]; ok && value != "" {
-				host.ensureMetadata()["helpText"] = value
-			}
-		}
+		applyRelationshipSiblingCopy(host, field)
+	}
+}
+
+func applyRelationshipSiblingCopy(host, field *Field) {
+	if field.Label != "" {
+		host.Label = field.Label
+	}
+	if field.Description != "" && host.Description == "" {
+		host.Description = field.Description
+	}
+	applyRelationshipSiblingUIHints(host, field.UIHints)
+}
+
+func applyRelationshipSiblingUIHints(host *Field, hints map[string]string) {
+	if len(hints) == 0 {
+		return
+	}
+	if value := hints["placeholder"]; value != "" && host.Placeholder == "" {
+		host.Placeholder = value
+	}
+	if value := hints["label"]; value != "" {
+		host.Label = value
+	}
+	if value := hints["hint"]; value != "" && host.Description == "" {
+		host.Description = value
+	}
+	if value := hints["helpText"]; value != "" {
+		host.ensureMetadata()["helpText"] = value
 	}
 }
 
@@ -984,40 +992,52 @@ func endpointMetadataFromExtensions(ext map[string]any) map[string]string {
 	add("relationship.endpoint.searchParam", strings.TrimSpace(toString(endpointMap["searchParam"])))
 	add("relationship.endpoint.submitAs", strings.TrimSpace(toString(endpointMap["submitAs"])))
 
-	if params := toStringMap(endpointMap["params"]); len(params) > 0 {
-		for _, key := range sortedKeys(params) {
-			add("relationship.endpoint.params."+key, params[key])
-		}
-	}
-	dynamicParams := toStringMap(endpointMap["dynamicParams"])
-	if len(dynamicParams) > 0 {
-		for _, key := range sortedKeys(dynamicParams) {
-			add("relationship.endpoint.dynamicParams."+key, dynamicParams[key])
-		}
-		if refs := extractFieldReferences(dynamicParams); len(refs) > 0 {
-			add("relationship.endpoint.refreshOn", strings.Join(refs, ","))
-		}
-	}
-
-	if mapping := toStringMap(endpointMap["mapping"]); len(mapping) > 0 {
-		if valuePath := strings.TrimSpace(mapping["value"]); valuePath != "" {
-			add("relationship.endpoint.mapping.value", valuePath)
-		}
-		if labelPath := strings.TrimSpace(mapping["label"]); labelPath != "" {
-			add("relationship.endpoint.mapping.label", labelPath)
-		}
-	}
-
-	if auth := toStringMap(endpointMap["auth"]); len(auth) > 0 {
-		add("relationship.endpoint.auth.strategy", strings.TrimSpace(auth["strategy"]))
-		add("relationship.endpoint.auth.header", strings.TrimSpace(auth["header"]))
-		add("relationship.endpoint.auth.source", strings.TrimSpace(auth["source"]))
-	}
+	addEndpointParams(meta, endpointMap)
+	addEndpointMapping(meta, endpointMap)
+	addEndpointAuth(meta, endpointMap)
 
 	if len(meta) == 0 {
 		return nil
 	}
 	return meta
+}
+
+func addEndpointParams(meta map[string]string, endpointMap map[string]any) {
+	params := toStringMap(endpointMap["params"])
+	for _, key := range sortedKeys(params) {
+		meta["relationship.endpoint.params."+key] = params[key]
+	}
+
+	dynamicParams := toStringMap(endpointMap["dynamicParams"])
+	for _, key := range sortedKeys(dynamicParams) {
+		meta["relationship.endpoint.dynamicParams."+key] = dynamicParams[key]
+	}
+	if refs := extractFieldReferences(dynamicParams); len(refs) > 0 {
+		meta["relationship.endpoint.refreshOn"] = strings.Join(refs, ",")
+	}
+}
+
+func addEndpointMapping(meta map[string]string, endpointMap map[string]any) {
+	mapping := toStringMap(endpointMap["mapping"])
+	if valuePath := strings.TrimSpace(mapping["value"]); valuePath != "" {
+		meta["relationship.endpoint.mapping.value"] = valuePath
+	}
+	if labelPath := strings.TrimSpace(mapping["label"]); labelPath != "" {
+		meta["relationship.endpoint.mapping.label"] = labelPath
+	}
+}
+
+func addEndpointAuth(meta map[string]string, endpointMap map[string]any) {
+	auth := toStringMap(endpointMap["auth"])
+	for source, target := range map[string]string{
+		"strategy": "relationship.endpoint.auth.strategy",
+		"header":   "relationship.endpoint.auth.header",
+		"source":   "relationship.endpoint.auth.source",
+	} {
+		if value := strings.TrimSpace(auth[source]); value != "" {
+			meta[target] = value
+		}
+	}
 }
 
 func currentValueFromExtensions(ext map[string]any) (string, bool) {
