@@ -301,39 +301,13 @@ func (r *Renderer) promptEnum(ctx context.Context, field model.Field, path strin
 }
 
 func (r *Renderer) promptArray(ctx context.Context, field model.Field, path string, state *State, rulesCache map[string]validationRules, relCache map[string][]relOption) error {
-	// Enum-backed array -> multiselect of known options
 	if len(field.Enum) > 0 {
-		label := displayLabel(field)
-		help := displayHelp(field)
-		rules := collectValidationRules(field, rulesCache)
-		options := stringifyEnum(field.Enum)
-		defaults := indicesOf(options, stringifySlice(getArrayValue(state, path)))
-
-		for {
-			indices, err := r.driver.MultiSelect(ctx, SelectConfig{
-				Message:  label,
-				Options:  options,
-				Defaults: defaults,
-				Help:     help,
-			})
-			if err != nil {
-				return err
-			}
-			selected := valuesFromIndices(options, indices)
-			if err := rules.validateArray(toAnySlice(selected)); err != nil {
-				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
-				continue
-			}
-			_ = state.SetValue(path, toAnySlice(selected))
-			return nil
-		}
+		return r.promptEnumArray(ctx, field, path, state, rulesCache)
 	}
 
-	// Non-enum arrays: prompt items sequentially.
 	rules := collectValidationRules(field, rulesCache)
 	var items []any
 
-	// seed existing values if present
 	if existing, ok := state.GetValue(path); ok {
 		items = append(items, coerceAnySlice(existing)...)
 	}
@@ -382,6 +356,33 @@ func (r *Renderer) promptArray(ctx context.Context, field model.Field, path stri
 		return err
 	}
 	return state.SetValue(path, items)
+}
+
+func (r *Renderer) promptEnumArray(ctx context.Context, field model.Field, path string, state *State, rulesCache map[string]validationRules) error {
+	label := displayLabel(field)
+	help := displayHelp(field)
+	rules := collectValidationRules(field, rulesCache)
+	options := stringifyEnum(field.Enum)
+	defaults := indicesOf(options, stringifySlice(getArrayValue(state, path)))
+
+	for {
+		indices, err := r.driver.MultiSelect(ctx, SelectConfig{
+			Message:  label,
+			Options:  options,
+			Defaults: defaults,
+			Help:     help,
+		})
+		if err != nil {
+			return err
+		}
+		selected := valuesFromIndices(options, indices)
+		if err := rules.validateArray(toAnySlice(selected)); err != nil {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+			continue
+		}
+		_ = state.SetValue(path, toAnySlice(selected))
+		return nil
+	}
 }
 
 func (r *Renderer) promptObject(ctx context.Context, field model.Field, path string, state *State, rulesCache map[string]validationRules, relCache map[string][]relOption) error {
@@ -561,123 +562,135 @@ func (r *Renderer) promptRelationship(ctx context.Context, field model.Field, pa
 	cfg, _ := parseRelConfig(field.Metadata)
 	options := r.relationshipOptions(ctx, cfg, relCache)
 
-	// apply relationship.current when state lacks value
-	if _, ok := state.GetValue(path); !ok {
-		if current := parseRelationshipCurrent(field.Metadata); len(current) > 0 {
-			if rel.Kind == model.RelationshipHasMany || strings.EqualFold(rel.Cardinality, "many") || field.Type == model.FieldTypeArray {
-				_ = state.SetValue(path, toAnySlice(current))
-			} else {
-				_ = state.SetValue(path, current[0])
-			}
-		}
-	}
-
 	isMany := rel.Kind == model.RelationshipHasMany || strings.EqualFold(rel.Cardinality, "many") || field.Type == model.FieldTypeArray
+	applyRelationshipCurrent(state, path, field, isMany)
 
 	if isMany {
-		// use multiselect if options available, else manual id input loop
-		if len(options) > 0 {
-			defaults := indicesOfValues(options, stringifySlice(getArrayValue(state, path)))
-			for {
-				indices, err := r.driver.MultiSelect(ctx, SelectConfig{
-					Message:  label,
-					Options:  labels(options),
-					Defaults: defaults,
-					Help:     help,
-				})
-				if err != nil {
-					return err
-				}
-				selected := valuesFromOptionIndices(options, indices)
-				if err := rules.validateArray(toAnySlice(selected)); err != nil {
-					_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
-					continue
-				}
-				return state.SetValue(path, toAnySlice(selected))
-			}
-		}
-
-		// manual entry when no options
-		var entries []string
-		if existing := getArrayValue(state, path); len(existing) > 0 {
-			entries = stringifySlice(existing)
-		}
-
-		if len(entries) == 0 && rules.required {
-			_ = r.driver.Info(ctx, fmt.Sprintf("%s is required; enter at least one id", label))
-		}
-
-		for {
-			val, err := r.driver.Input(ctx, InputConfig{
-				Message: fmt.Sprintf("%s id", label),
-				Help:    help,
-			})
-			if err != nil {
-				return err
-			}
-			val = strings.TrimSpace(val)
-			if val != "" {
-				entries = append(entries, val)
-			}
-
-			if validateErr := rules.validateArray(toAnySlice(entries)); validateErr != nil {
-				// If required and empty, keep prompting.
-				if errors.Is(validateErr, ErrAborted) {
-					return validateErr
-				}
-				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, validateErr))
-			}
-
-			more, err := r.driver.Confirm(ctx, ConfirmConfig{
-				Message: "Add another?",
-				Default: false,
-			})
-			if err != nil {
-				return err
-			}
-			if !more {
-				if err := rules.validateArray(toAnySlice(entries)); err != nil {
-					_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
-					continue
-				}
-				return state.SetValue(path, toAnySlice(entries))
-			}
-		}
+		return r.promptManyRelationship(ctx, label, help, path, state, rules, options)
 	}
 
-	// Single-cardinality
 	if len(options) > 0 {
-		defaultVal := defaultStringValue(state, path, nil)
-		defaultIdx := indexOfValue(options, defaultVal)
-		for {
-			idx, err := r.driver.Select(ctx, SelectConfig{
-				Message:      label,
-				Options:      labels(options),
-				DefaultIndex: defaultIdx,
-				Help:         help,
-			})
-			if err != nil {
-				return err
-			}
-			if idx < 0 || idx >= len(options) {
-				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s selection", path))
-				continue
-			}
-			selected := options[idx].Value
-			if err := rules.validateString(selected); err != nil {
-				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
-				continue
-			}
-			return state.SetValue(path, selected)
-		}
+		return r.promptSingleRelationshipSelect(ctx, label, help, path, state, rules, options)
 	}
+	return r.promptSingleRelationshipInput(ctx, label, help, path, state, rules)
+}
 
-	// Fallback to plain input when no options
+func applyRelationshipCurrent(state *State, path string, field model.Field, isMany bool) {
+	if _, ok := state.GetValue(path); ok {
+		return
+	}
+	current := parseRelationshipCurrent(field.Metadata)
+	if len(current) == 0 {
+		return
+	}
+	if isMany {
+		_ = state.SetValue(path, toAnySlice(current))
+		return
+	}
+	_ = state.SetValue(path, current[0])
+}
+
+func (r *Renderer) promptManyRelationship(ctx context.Context, label, help, path string, state *State, rules validationRules, options []relOption) error {
+	if len(options) > 0 {
+		return r.promptManyRelationshipSelect(ctx, label, help, path, state, rules, options)
+	}
+	return r.promptManyRelationshipInput(ctx, label, help, path, state, rules)
+}
+
+func (r *Renderer) promptManyRelationshipSelect(ctx context.Context, label, help, path string, state *State, rules validationRules, options []relOption) error {
+	defaults := indicesOfValues(options, stringifySlice(getArrayValue(state, path)))
+	for {
+		indices, err := r.driver.MultiSelect(ctx, SelectConfig{
+			Message:  label,
+			Options:  labels(options),
+			Defaults: defaults,
+			Help:     help,
+		})
+		if err != nil {
+			return err
+		}
+		selected := valuesFromOptionIndices(options, indices)
+		if err := rules.validateArray(toAnySlice(selected)); err != nil {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+			continue
+		}
+		return state.SetValue(path, toAnySlice(selected))
+	}
+}
+
+func (r *Renderer) promptManyRelationshipInput(ctx context.Context, label, help, path string, state *State, rules validationRules) error {
+	entries := stringifySlice(getArrayValue(state, path))
+	if len(entries) == 0 && rules.required {
+		_ = r.driver.Info(ctx, fmt.Sprintf("%s is required; enter at least one id", label))
+	}
 	for {
 		val, err := r.driver.Input(ctx, InputConfig{
-			Message: label,
+			Message: fmt.Sprintf("%s id", label),
 			Help:    help,
 		})
+		if err != nil {
+			return err
+		}
+		if val = strings.TrimSpace(val); val != "" {
+			entries = append(entries, val)
+		}
+		validationErr, err := validateRelationshipEntries(ctx, r, path, rules, entries)
+		if err != nil {
+			return err
+		}
+		more, err := r.driver.Confirm(ctx, ConfirmConfig{Message: "Add another?", Default: false})
+		if err != nil {
+			return err
+		}
+		if !more {
+			if validationErr != nil {
+				continue
+			}
+			return state.SetValue(path, toAnySlice(entries))
+		}
+	}
+}
+
+func validateRelationshipEntries(ctx context.Context, r *Renderer, path string, rules validationRules, entries []string) (error, error) {
+	if err := rules.validateArray(toAnySlice(entries)); err != nil {
+		if errors.Is(err, ErrAborted) {
+			return err, err
+		}
+		_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+		return err, nil
+	}
+	return nil, nil
+}
+
+func (r *Renderer) promptSingleRelationshipSelect(ctx context.Context, label, help, path string, state *State, rules validationRules, options []relOption) error {
+	defaultVal := defaultStringValue(state, path, nil)
+	defaultIdx := indexOfValue(options, defaultVal)
+	for {
+		idx, err := r.driver.Select(ctx, SelectConfig{
+			Message:      label,
+			Options:      labels(options),
+			DefaultIndex: defaultIdx,
+			Help:         help,
+		})
+		if err != nil {
+			return err
+		}
+		if idx < 0 || idx >= len(options) {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s selection", path))
+			continue
+		}
+		selected := options[idx].Value
+		if err := rules.validateString(selected); err != nil {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+			continue
+		}
+		return state.SetValue(path, selected)
+	}
+}
+
+func (r *Renderer) promptSingleRelationshipInput(ctx context.Context, label, help, path string, state *State, rules validationRules) error {
+	for {
+		val, err := r.driver.Input(ctx, InputConfig{Message: label, Help: help})
 		if err != nil {
 			return err
 		}

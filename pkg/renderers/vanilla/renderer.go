@@ -342,62 +342,20 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		return nil, fmt.Errorf("vanilla renderer: build layout: %w", err)
 	}
 	actions := parseActions(decorated.Metadata)
-
-	componentStyles, componentScripts := componentRenderer.assets()
-	stylesheets := append([]string(nil), r.stylesheets...)
-	if len(componentStyles) > 0 {
-		stylesheets = append(stylesheets, componentStyles...)
-	}
-	stylesheets = resolveAssets(stylesheets, assetResolver)
-	for idx := range componentScripts {
-		componentScripts[idx] = resolveScriptAsset(componentScripts[idx], assetResolver)
-	}
-	componentScriptPayload := scriptPayloads(componentScripts)
-	templateTheme := buildTemplateThemeContext(themeCtx, assetResolver)
-	responsiveGridStyles := ""
-	if layout.HasResponsiveGrid {
-		responsiveGridStyles = strings.TrimSpace(responsiveGridCSS)
-	}
-
-	// When OmitAssets is set, skip stylesheets, inline styles, and scripts to
-	// avoid duplication when the form is embedded in a parent page.
-	inlineStyles := r.inlineStyle
-	if renderOptions.OmitAssets {
-		stylesheets = nil
-		inlineStyles = ""
-		responsiveGridStyles = ""
-		componentScriptPayload = nil
-		templateTheme = nil
-	}
-
-	formTemplateName := "templates/form.tmpl"
-	if renderOptions.Theme != nil {
-		if candidate := strings.TrimSpace(renderOptions.Theme.Partials["forms.form"]); candidate != "" {
-			formTemplateName = candidate
-		}
-	}
-
-	chromeClasses := map[string]string{}
-	if renderOptions.ChromeClasses != nil {
-		chromeClasses["form"] = strings.TrimSpace(renderOptions.ChromeClasses.Form)
-		chromeClasses["header"] = strings.TrimSpace(renderOptions.ChromeClasses.Header)
-		chromeClasses["section"] = strings.TrimSpace(renderOptions.ChromeClasses.Section)
-		chromeClasses["fieldset"] = strings.TrimSpace(renderOptions.ChromeClasses.Fieldset)
-		chromeClasses["actions"] = strings.TrimSpace(renderOptions.ChromeClasses.Actions)
-		chromeClasses["errors"] = strings.TrimSpace(renderOptions.ChromeClasses.Errors)
-		chromeClasses["grid"] = strings.TrimSpace(renderOptions.ChromeClasses.Grid)
-	}
+	assets := r.renderAssets(componentRenderer, renderOptions, layout, assetResolver)
+	formTemplateName := formTemplateName(renderOptions.Theme)
+	chromeClasses := chromeClassMap(renderOptions.ChromeClasses)
 
 	result, err := r.templates.RenderTemplate(formTemplateName, map[string]any{
 		"locale":                 renderOptions.Locale,
 		"form":                   decorated,
 		"layout":                 layout,
 		"actions":                actions,
-		"stylesheets":            stylesheets,
-		"inline_styles":          inlineStyles,
-		"responsive_grid_styles": responsiveGridStyles,
-		"component_scripts":      componentScriptPayload,
-		"theme":                  templateTheme,
+		"stylesheets":            assets.stylesheets,
+		"inline_styles":          assets.inlineStyles,
+		"responsive_grid_styles": assets.responsiveGridStyles,
+		"component_scripts":      assets.componentScripts,
+		"theme":                  assets.templateTheme,
 		"top_padding":            strings.Repeat("\n", topPadding),
 		"default_form_class":     DefaultFormClass,
 		"default_header_class":   DefaultHeaderClass,
@@ -422,6 +380,60 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		result += "\n\n"
 	}
 	return []byte(result), nil
+}
+
+type renderAssetBundle struct {
+	stylesheets          []string
+	inlineStyles         string
+	responsiveGridStyles string
+	componentScripts     []map[string]any
+	templateTheme        map[string]any
+}
+
+func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOptions render.RenderOptions, layout layoutContext, assetResolver func(string) string) renderAssetBundle {
+	componentStyles, componentScripts := componentRenderer.assets()
+	stylesheets := append([]string(nil), r.stylesheets...)
+	stylesheets = append(stylesheets, componentStyles...)
+	for idx := range componentScripts {
+		componentScripts[idx] = resolveScriptAsset(componentScripts[idx], assetResolver)
+	}
+	assets := renderAssetBundle{
+		stylesheets:      resolveAssets(stylesheets, assetResolver),
+		inlineStyles:     r.inlineStyle,
+		componentScripts: scriptPayloads(componentScripts),
+		templateTheme:    buildTemplateThemeContext(buildThemeContext(renderOptions.Theme), assetResolver),
+	}
+	if layout.HasResponsiveGrid {
+		assets.responsiveGridStyles = strings.TrimSpace(responsiveGridCSS)
+	}
+	if renderOptions.OmitAssets {
+		return renderAssetBundle{}
+	}
+	return assets
+}
+
+func formTemplateName(cfg *theme.RendererConfig) string {
+	if cfg != nil {
+		if candidate := strings.TrimSpace(cfg.Partials["forms.form"]); candidate != "" {
+			return candidate
+		}
+	}
+	return "templates/form.tmpl"
+}
+
+func chromeClassMap(classes *render.ChromeClasses) map[string]string {
+	chromeClasses := map[string]string{}
+	if classes == nil {
+		return chromeClasses
+	}
+	chromeClasses["form"] = strings.TrimSpace(classes.Form)
+	chromeClasses["header"] = strings.TrimSpace(classes.Header)
+	chromeClasses["section"] = strings.TrimSpace(classes.Section)
+	chromeClasses["fieldset"] = strings.TrimSpace(classes.Fieldset)
+	chromeClasses["actions"] = strings.TrimSpace(classes.Actions)
+	chromeClasses["errors"] = strings.TrimSpace(classes.Errors)
+	chromeClasses["grid"] = strings.TrimSpace(classes.Grid)
+	return chromeClasses
 }
 
 func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
@@ -674,65 +686,66 @@ type prefillValue struct {
 }
 
 func flattenPrefillValues(values map[string]any) map[string]prefillValue {
-	result := make(map[string]prefillValue)
-	var walk func(prefix string, value any, meta prefillValue)
-
-	walk = func(prefix string, value any, meta prefillValue) {
-		switch typed := value.(type) {
-		case map[string]any:
-			for key, val := range typed {
-				key = strings.TrimSpace(key)
-				if key == "" {
-					continue
-				}
-				next := joinPath(prefix, key)
-				walk(next, val, meta)
-			}
-			if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
-				if _, exists := result[prefix]; !exists {
-					result[prefix] = meta
-				}
-			}
-		case map[string]string:
-			for key, val := range typed {
-				key = strings.TrimSpace(key)
-				if key == "" {
-					continue
-				}
-				next := joinPath(prefix, key)
-				result[next] = prefillValue{
-					value:      val,
-					provenance: meta.provenance,
-					readonly:   meta.readonly,
-					disabled:   meta.disabled,
-				}
-			}
-		case render.ValueWithProvenance:
-			meta.provenance = typed.Provenance
-			meta.readonly = typed.Readonly
-			meta.disabled = typed.Disabled
-			walk(prefix, typed.Value, meta)
-		case *render.ValueWithProvenance:
-			meta.provenance = typed.Provenance
-			meta.readonly = typed.Readonly
-			meta.disabled = typed.Disabled
-			walk(prefix, typed.Value, meta)
-		default:
-			if prefix != "" {
-				meta.value = typed
-				result[prefix] = meta
-			}
-		}
-	}
-
+	flattener := prefillFlattener{result: make(map[string]prefillValue)}
 	for key, value := range values {
 		key = strings.TrimSpace(key)
 		if key == "" {
 			continue
 		}
-		walk(key, value, prefillValue{})
+		flattener.walk(key, value, prefillValue{})
 	}
-	return result
+	return flattener.result
+}
+
+type prefillFlattener struct {
+	result map[string]prefillValue
+}
+
+func (f prefillFlattener) walk(prefix string, value any, meta prefillValue) {
+	switch typed := value.(type) {
+	case map[string]any:
+		f.walkAnyMap(prefix, typed, meta)
+	case map[string]string:
+		f.walkStringMap(prefix, typed, meta)
+	case render.ValueWithProvenance:
+		f.walk(prefix, typed.Value, prefillMetaFromValue(typed, meta))
+	case *render.ValueWithProvenance:
+		f.walk(prefix, typed.Value, prefillMetaFromValue(*typed, meta))
+	default:
+		if prefix != "" {
+			meta.value = typed
+			f.result[prefix] = meta
+		}
+	}
+}
+
+func (f prefillFlattener) walkAnyMap(prefix string, values map[string]any, meta prefillValue) {
+	for key, val := range values {
+		if key = strings.TrimSpace(key); key != "" {
+			f.walk(joinPath(prefix, key), val, meta)
+		}
+	}
+	if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
+		if _, exists := f.result[prefix]; !exists {
+			f.result[prefix] = meta
+		}
+	}
+}
+
+func (f prefillFlattener) walkStringMap(prefix string, values map[string]string, meta prefillValue) {
+	for key, val := range values {
+		if key = strings.TrimSpace(key); key != "" {
+			next := joinPath(prefix, key)
+			f.result[next] = prefillValue{value: val, provenance: meta.provenance, readonly: meta.readonly, disabled: meta.disabled}
+		}
+	}
+}
+
+func prefillMetaFromValue(value render.ValueWithProvenance, meta prefillValue) prefillValue {
+	meta.provenance = value.Provenance
+	meta.readonly = value.Readonly
+	meta.disabled = value.Disabled
+	return meta
 }
 
 func applyValuesToFields(fields []model.Field, values map[string]prefillValue, parentPath string) []model.Field {
@@ -806,11 +819,7 @@ func assignFieldValue(field *model.Field, value any) {
 		if boolValue, ok := toBool(value); ok {
 			field.Default = boolValue
 		}
-	case len(field.Enum) > 0:
-		if scalar, ok := stringifyScalar(value); ok {
-			field.Default = scalar
-		}
-	case field.Type == model.FieldTypeString || field.Type == model.FieldTypeInteger || field.Type == model.FieldTypeNumber || field.Type == model.FieldTypeArray:
+	case len(field.Enum) > 0 || isScalarFieldType(field.Type):
 		if scalar, ok := stringifyScalar(value); ok {
 			field.Default = scalar
 		}
@@ -819,6 +828,10 @@ func assignFieldValue(field *model.Field, value any) {
 			field.Default = scalar
 		}
 	}
+}
+
+func isScalarFieldType(fieldType model.FieldType) bool {
+	return fieldType == model.FieldTypeString || fieldType == model.FieldTypeInteger || fieldType == model.FieldTypeNumber
 }
 
 func applyArrayValue(field *model.Field, value any) bool {
@@ -988,37 +1001,32 @@ func stringifyScalar(value any) (string, bool) {
 		return typed.String(), true
 	case fmt.Stringer:
 		return typed.String(), true
-	case int:
-		return strconv.Itoa(typed), true
-	case int8:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int16:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int32:
-		return strconv.FormatInt(int64(typed), 10), true
-	case int64:
-		return strconv.FormatInt(typed, 10), true
-	case uint:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint8:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint16:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint32:
-		return strconv.FormatUint(uint64(typed), 10), true
-	case uint64:
-		return strconv.FormatUint(typed, 10), true
-	case float32:
-		return strconv.FormatFloat(float64(typed), 'f', -1, 32), true
-	case float64:
-		return strconv.FormatFloat(typed, 'f', -1, 64), true
 	case bool:
 		if typed {
 			return "true", true
 		}
 		return "false", true
+	}
+	if scalar, ok := stringifyReflectScalar(value); ok {
+		return scalar, true
+	}
+	return fmt.Sprintf("%v", value), true
+}
+
+func stringifyReflectScalar(value any) (string, bool) {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return "", false
+	}
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(reflected.Int(), 10), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return strconv.FormatUint(reflected.Uint(), 10), true
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(reflected.Float(), 'f', -1, 64), true
 	default:
-		return fmt.Sprintf("%v", value), true
+		return "", false
 	}
 }
 
@@ -1172,26 +1180,61 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 
 	metas := parseSectionsMetadata(stringFromMap(form.Metadata, layoutSectionsMetadataKey))
 	if len(metas) == 0 {
-		for _, field := range form.Fields {
-			rendered, err := renderer.render(field, field.Name)
-			if err != nil {
-				return layoutContext{}, err
-			}
-			if strings.TrimSpace(rendered) == "" {
-				continue
-			}
-			attrs, responsive := gridWrapperAttributes(field, ctx.GridColumns)
-			if responsive {
-				ctx.HasResponsiveGrid = true
-			}
-			ctx.Unsectioned = append(ctx.Unsectioned, renderedField{
-				HTML:  rendered,
-				Style: attrs,
-			})
+		fields, responsive, err := renderUnsectionedFields(form.Fields, renderer, ctx.GridColumns)
+		if err != nil {
+			return layoutContext{}, err
 		}
+		ctx.Unsectioned = fields
+		ctx.HasResponsiveGrid = responsive
 		return ctx, nil
 	}
 
+	index := initialiseSections(&ctx, metas)
+
+	sectionOrders := parseFieldOrderMetadata(form.Metadata)
+	sectionOutputs := make(map[string][]renderedSectionField, len(index))
+	fallbackCounter := 0
+
+	sectioned := collectSectionedFields(form.Fields, "")
+	if len(sectioned) > 0 {
+		responsive, err := collectSectionedOutputs(sectioned, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx)
+		if err != nil {
+			return layoutContext{}, err
+		}
+		ctx.HasResponsiveGrid = ctx.HasResponsiveGrid || responsive
+	} else {
+		responsive, err := collectTopLevelSectionOutputs(form.Fields, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx)
+		if err != nil {
+			return layoutContext{}, err
+		}
+		ctx.HasResponsiveGrid = ctx.HasResponsiveGrid || responsive
+	}
+
+	for id, group := range index {
+		order := sectionOrders[id]
+		group.Fields = orderRenderedFields(sectionOutputs[id], order)
+	}
+
+	return ctx, nil
+}
+
+func renderUnsectionedFields(fields []model.Field, renderer *componentRenderer, columns int) ([]renderedField, bool, error) {
+	var out []renderedField
+	responsiveGrid := false
+	for _, field := range fields {
+		item, responsive, ok, err := renderLayoutField(renderer, field, field.Name, columns)
+		if err != nil {
+			return nil, false, err
+		}
+		if ok {
+			responsiveGrid = responsiveGrid || responsive
+			out = append(out, item)
+		}
+	}
+	return out, responsiveGrid, nil
+}
+
+func initialiseSections(ctx *layoutContext, metas []sectionMeta) map[string]*sectionGroup {
 	ctx.Sections = make([]sectionGroup, len(metas))
 	index := make(map[string]*sectionGroup, len(metas))
 	for i, meta := range metas {
@@ -1205,81 +1248,63 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 		}
 		index[meta.ID] = &ctx.Sections[i]
 	}
+	return index
+}
 
-	sectionOrders := parseFieldOrderMetadata(form.Metadata)
-	sectionOutputs := make(map[string][]renderedSectionField, len(index))
-	fallbackCounter := 0
+func collectSectionedOutputs(sectioned []sectionedField, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) (bool, error) {
+	responsiveGrid := false
+	for _, sf := range sectioned {
+		item, responsive, ok, err := renderLayoutField(renderer, sf.field, sf.path, columns)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			continue
+		}
+		responsiveGrid = responsiveGrid || responsive
+		if _, ok := index[sf.sectionID]; ok {
+			*fallbackCounter = *fallbackCounter + 1
+			outputs[sf.sectionID] = append(outputs[sf.sectionID], renderedSectionField{path: sf.path, field: item, fallback: *fallbackCounter})
+			continue
+		}
+		ctx.Unsectioned = append(ctx.Unsectioned, item)
+	}
+	return responsiveGrid, nil
+}
 
-	// Collect all fields that have section assignments, including nested fields
-	sectioned := collectSectionedFields(form.Fields, "")
-	if len(sectioned) > 0 {
-		// We have nested fields with section metadata - render them individually
-		for _, sf := range sectioned {
-			rendered, err := renderer.render(sf.field, sf.path)
-			if err != nil {
-				return layoutContext{}, err
-			}
-			if strings.TrimSpace(rendered) == "" {
+func collectTopLevelSectionOutputs(fields []model.Field, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) (bool, error) {
+	responsiveGrid := false
+	for _, field := range fields {
+		item, responsive, ok, err := renderLayoutField(renderer, field, field.Name, columns)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			continue
+		}
+		responsiveGrid = responsiveGrid || responsive
+		if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
+			if _, ok := index[sectionID]; ok {
+				*fallbackCounter = *fallbackCounter + 1
+				outputs[sectionID] = append(outputs[sectionID], renderedSectionField{path: field.Name, field: item, fallback: *fallbackCounter})
 				continue
 			}
-			attrs, responsive := gridWrapperAttributes(sf.field, ctx.GridColumns)
-			if responsive {
-				ctx.HasResponsiveGrid = true
-			}
-			item := renderedField{
-				HTML:  rendered,
-				Style: attrs,
-			}
-			if _, ok := index[sf.sectionID]; ok {
-				fallbackCounter++
-				sectionOutputs[sf.sectionID] = append(sectionOutputs[sf.sectionID], renderedSectionField{
-					path:     sf.path,
-					field:    item,
-					fallback: fallbackCounter,
-				})
-			} else {
-				ctx.Unsectioned = append(ctx.Unsectioned, item)
-			}
 		}
-	} else {
-		// Fall back to top-level field iteration
-		for _, field := range form.Fields {
-			rendered, err := renderer.render(field, field.Name)
-			if err != nil {
-				return layoutContext{}, err
-			}
-			if strings.TrimSpace(rendered) == "" {
-				continue
-			}
-			attrs, responsive := gridWrapperAttributes(field, ctx.GridColumns)
-			if responsive {
-				ctx.HasResponsiveGrid = true
-			}
-			item := renderedField{
-				HTML:  rendered,
-				Style: attrs,
-			}
-			if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
-				if _, ok := index[sectionID]; ok {
-					fallbackCounter++
-					sectionOutputs[sectionID] = append(sectionOutputs[sectionID], renderedSectionField{
-						path:     joinPath("", field.Name),
-						field:    item,
-						fallback: fallbackCounter,
-					})
-					continue
-				}
-			}
-			ctx.Unsectioned = append(ctx.Unsectioned, item)
-		}
+		ctx.Unsectioned = append(ctx.Unsectioned, item)
 	}
+	return responsiveGrid, nil
+}
 
-	for id, group := range index {
-		order := sectionOrders[id]
-		group.Fields = orderRenderedFields(sectionOutputs[id], order)
+func renderLayoutField(renderer *componentRenderer, field model.Field, path string, columns int) (renderedField, bool, bool, error) {
+	rendered, err := renderer.render(field, path)
+	if err != nil {
+		return renderedField{}, false, false, err
 	}
-
-	return ctx, nil
+	if strings.TrimSpace(rendered) == "" {
+		return renderedField{}, false, false, nil
+	}
+	attrs, responsive := gridWrapperAttributes(field, columns)
+	return renderedField{HTML: rendered, Style: attrs}, responsive, true, nil
 }
 
 func collectSectionedFields(fields []model.Field, parentPath string) []sectionedField {
@@ -1496,20 +1521,9 @@ const responsiveGridCSS = `
 `
 
 func gridWrapperAttributes(field model.Field, columns int) (string, bool) {
-	span := columns
-	if field.UIHints != nil {
-		if raw := strings.TrimSpace(field.UIHints[fieldLayoutSpanHintKey]); raw != "" {
-			if value, err := strconv.Atoi(raw); err == nil && value > 0 {
-				span = value
-			}
-		}
-	}
-	start := ""
-	row := ""
-	if field.UIHints != nil {
-		start = strings.TrimSpace(field.UIHints[fieldLayoutStartHintKey])
-		row = strings.TrimSpace(field.UIHints[fieldLayoutRowHintKey])
-	}
+	span := intHintOrDefault(field.UIHints, fieldLayoutSpanHintKey, columns)
+	start := strings.TrimSpace(field.UIHints[fieldLayoutStartHintKey])
+	row := strings.TrimSpace(field.UIHints[fieldLayoutRowHintKey])
 
 	parts := make([]string, 0, 12)
 	parts = append(parts, fmt.Sprintf("grid-column: span %d / span %d", span, span))
@@ -1520,32 +1534,8 @@ func gridWrapperAttributes(field model.Field, columns int) (string, bool) {
 		parts = append(parts, fmt.Sprintf("grid-row: %s", row))
 	}
 
-	breakpointParts := make([]string, 0, len(responsiveGridBreakpoints))
-	responsive := false
-	if field.UIHints != nil {
-		for _, breakpoint := range responsiveGridBreakpoints {
-			if raw := strings.TrimSpace(field.UIHints[fieldLayoutSpanHintKey+"."+breakpoint]); raw != "" {
-				if value, err := strconv.Atoi(raw); err == nil && value > 0 {
-					responsive = true
-					breakpointParts = append(breakpointParts, fmt.Sprintf("--fg-span-%s: %d", breakpoint, value))
-				}
-			}
-			if raw := strings.TrimSpace(field.UIHints[fieldLayoutStartHintKey+"."+breakpoint]); raw != "" {
-				if value, err := strconv.Atoi(raw); err == nil && value > 0 {
-					responsive = true
-					breakpointParts = append(breakpointParts, fmt.Sprintf("--fg-start-%s: %d", breakpoint, value))
-				}
-			}
-			if raw := strings.TrimSpace(field.UIHints[fieldLayoutRowHintKey+"."+breakpoint]); raw != "" {
-				if value, err := strconv.Atoi(raw); err == nil && value > 0 {
-					responsive = true
-					breakpointParts = append(breakpointParts, fmt.Sprintf("--fg-row-%s: %d", breakpoint, value))
-				}
-			}
-		}
-	}
-
-	if !responsive {
+	breakpointParts := responsiveGridParts(field.UIHints)
+	if len(breakpointParts) == 0 {
 		return ` style="` + strings.Join(parts, "; ") + `"`, false
 	}
 
@@ -1563,6 +1553,35 @@ func gridWrapperAttributes(field model.Field, columns int) (string, bool) {
 	parts = append(parts, breakpointParts...)
 
 	return ` class="fg-grid-responsive" style="` + strings.Join(parts, "; ") + `"`, true
+}
+
+func responsiveGridParts(hints map[string]string) []string {
+	parts := make([]string, 0, len(responsiveGridBreakpoints))
+	for _, breakpoint := range responsiveGridBreakpoints {
+		appendResponsiveGridPart(&parts, hints, fieldLayoutSpanHintKey, "--fg-span-", breakpoint)
+		appendResponsiveGridPart(&parts, hints, fieldLayoutStartHintKey, "--fg-start-", breakpoint)
+		appendResponsiveGridPart(&parts, hints, fieldLayoutRowHintKey, "--fg-row-", breakpoint)
+	}
+	return parts
+}
+
+func appendResponsiveGridPart(parts *[]string, hints map[string]string, keyPrefix, cssPrefix, breakpoint string) {
+	value := intHintOrDefault(hints, keyPrefix+"."+breakpoint, 0)
+	if value > 0 {
+		*parts = append(*parts, fmt.Sprintf("%s%s: %d", cssPrefix, breakpoint, value))
+	}
+}
+
+func intHintOrDefault(hints map[string]string, key string, fallback int) int {
+	raw := strings.TrimSpace(hints[key])
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func gridColumnsFromHints(hints map[string]string) int {
@@ -1587,72 +1606,88 @@ func gridColumnsFromHints(hints map[string]string) int {
 // chips, code-editor, wysiwyg, rich-text, rich_text, file_uploader,
 // media-picker, media_picker, datetime-range, datetime_range.
 func resolveComponentName(field model.Field) string {
-	if field.UIHints != nil {
-		if name := strings.TrimSpace(field.UIHints["component"]); name != "" {
-			return name
-		}
+	if name := explicitComponentName(field); name != "" {
+		return name
 	}
-	if field.Metadata != nil {
-		if name := strings.TrimSpace(field.Metadata[componentNameMetadataKey]); name != "" {
-			return name
-		}
+	if name := componentNameFromWidget(widgetHint(field)); name != "" {
+		return name
 	}
 
-	switch strings.TrimSpace(strings.ToLower(widgetHint(field))) {
-	case components.NameTextarea:
-		return components.NameTextarea
-	case widgets.WidgetJSONEditor:
-		return components.NameJSONEditor
-	case widgets.WidgetToggle:
-		return components.NameBoolean
-	case widgets.WidgetSelect, widgets.WidgetChips:
-		return components.NameSelect
-	case widgets.WidgetCodeEditor:
-		return components.NameTextarea
-	case components.NameWysiwyg, "rich-text", "rich_text":
-		return components.NameWysiwyg
-	case "media-picker", components.NameMediaPicker:
-		return components.NameMediaPicker
-	case components.NameFileUploader:
-		return components.NameFileUploader
-	case components.NameDatetimeRange, "datetime_range":
-		return components.NameDatetimeRange
-	}
-
-	// Schemaless objects should fall back to the JSON editor.
 	if field.Type == model.FieldTypeObject && field.Relationship == nil && len(field.Nested) == 0 {
 		return components.NameJSONEditor
 	}
-
-	hint := func(key string) string {
-		if field.UIHints == nil {
-			return ""
-		}
-		return strings.TrimSpace(field.UIHints[key])
+	if name := componentNameFromFieldType(field); name != "" {
+		return name
 	}
+	return componentNameFromHints(field)
+}
 
-	switch {
-	case field.Type == model.FieldTypeObject || hint("input") == "subform":
+func componentNameFromFieldType(field model.Field) string {
+	switch field.Type {
+	case model.FieldTypeObject:
 		return components.NameObject
-	case field.Type == model.FieldTypeArray || hint("input") == "collection":
-		renderer := hint("collectionRenderer")
+	case model.FieldTypeArray:
+		renderer := uiHint(field, "collectionRenderer")
 		if renderer == components.NameSelect || renderer == widgets.WidgetChips {
 			return components.NameSelect
 		}
 		return components.NameArray
-	case field.Type == model.FieldTypeBoolean:
+	case model.FieldTypeBoolean:
 		return components.NameBoolean
+	default:
+		return ""
+	}
+}
+
+func componentNameFromHints(field model.Field) string {
+	switch {
+	case uiHint(field, "input") == "subform":
+		return components.NameObject
+	case uiHint(field, "input") == "collection":
+		return components.NameArray
 	case len(field.Enum) > 0:
 		return components.NameSelect
-	case hint("widget") == components.NameTextarea:
+	case uiHint(field, "widget") == components.NameTextarea:
 		return components.NameTextarea
-	case hint("input") == components.NameSelect:
+	case uiHint(field, "input") == components.NameSelect:
 		return components.NameSelect
 	case field.Relationship != nil:
 		return components.NameSelect
 	default:
 		return components.NameInput
 	}
+}
+
+func explicitComponentName(field model.Field) string {
+	if name := strings.TrimSpace(field.UIHints["component"]); name != "" {
+		return name
+	}
+	return strings.TrimSpace(field.Metadata[componentNameMetadataKey])
+}
+
+var widgetComponentAliases = map[string]string{
+	components.NameTextarea:      components.NameTextarea,
+	widgets.WidgetJSONEditor:     components.NameJSONEditor,
+	widgets.WidgetToggle:         components.NameBoolean,
+	widgets.WidgetSelect:         components.NameSelect,
+	widgets.WidgetChips:          components.NameSelect,
+	widgets.WidgetCodeEditor:     components.NameTextarea,
+	components.NameWysiwyg:       components.NameWysiwyg,
+	"rich-text":                  components.NameWysiwyg,
+	"rich_text":                  components.NameWysiwyg,
+	"media-picker":               components.NameMediaPicker,
+	components.NameMediaPicker:   components.NameMediaPicker,
+	components.NameFileUploader:  components.NameFileUploader,
+	components.NameDatetimeRange: components.NameDatetimeRange,
+	"datetime_range":             components.NameDatetimeRange,
+}
+
+func componentNameFromWidget(widget string) string {
+	return widgetComponentAliases[strings.TrimSpace(strings.ToLower(widget))]
+}
+
+func uiHint(field model.Field, key string) string {
+	return strings.TrimSpace(field.UIHints[key])
 }
 
 func stringFromMap(values map[string]string, key string) string {
@@ -1754,56 +1789,7 @@ func buildDataAttributes(metadata map[string]string) string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		value := metadata[key]
-		switch {
-		case strings.HasPrefix(key, "relationship.endpoint."):
-			suffix := strings.TrimPrefix(key, "relationship.endpoint.")
-			switch {
-			case strings.HasPrefix(suffix, "auth."):
-				parts := strings.SplitN(strings.TrimPrefix(suffix, "auth."), ".", 2)
-				if len(parts) == 0 || parts[0] == "" {
-					continue
-				}
-				attr := "data-auth-" + toKebab(strings.Join(parts, "."))
-				attrs[attr] = value
-			case suffix == "refreshOn":
-				attrs["data-endpoint-refresh-on"] = value
-			default:
-				attr := "data-endpoint-" + toKebab(suffix)
-				attrs[attr] = value
-			}
-		case key == "icon":
-			if trimmed := strings.TrimSpace(value); trimmed != "" {
-				attrs["data-icon"] = trimmed
-			}
-		case key == "icon.source":
-			if trimmed := strings.TrimSpace(value); trimmed != "" {
-				attrs["data-icon-source"] = trimmed
-			}
-		case key == "icon.raw":
-			if trimmed := strings.TrimSpace(value); trimmed != "" {
-				attrs["data-icon-raw"] = trimmed
-			}
-		case strings.HasPrefix(key, "behavior."):
-			if key == behaviorNamesMetadataKey || key == behaviorConfigMetadataKey {
-				continue
-			}
-			suffix := strings.TrimPrefix(key, "behavior.")
-			suffix = strings.TrimSpace(suffix)
-			if suffix == "" {
-				continue
-			}
-			attr := "data-behavior-" + toKebab(suffix)
-			attrs[attr] = value
-		case strings.HasPrefix(key, "validation."):
-			suffix := strings.TrimPrefix(key, "validation.")
-			suffix = strings.TrimSpace(suffix)
-			if suffix == "" || value == "" {
-				continue
-			}
-			attr := "data-validation-" + toKebab(suffix)
-			attrs[attr] = value
-		}
+		addMetadataDataAttribute(attrs, key, metadata[key])
 	}
 
 	if current, ok := metadata["relationship.current"]; ok && current != "" {
@@ -1829,6 +1815,60 @@ func buildDataAttributes(metadata map[string]string) string {
 		builder.WriteByte('"')
 	}
 	return builder.String()
+}
+
+func addMetadataDataAttribute(attrs map[string]string, key, value string) {
+	switch {
+	case strings.HasPrefix(key, "relationship.endpoint."):
+		addEndpointDataAttribute(attrs, key, value)
+	case key == "icon":
+		addTrimmedAttribute(attrs, "data-icon", value)
+	case key == "icon.source":
+		addTrimmedAttribute(attrs, "data-icon-source", value)
+	case key == "icon.raw":
+		addTrimmedAttribute(attrs, "data-icon-raw", value)
+	case strings.HasPrefix(key, "behavior."):
+		addBehaviorDataAttribute(attrs, key, value)
+	case strings.HasPrefix(key, "validation."):
+		addPrefixedDataAttribute(attrs, "validation.", "data-validation-", key, value)
+	}
+}
+
+func addEndpointDataAttribute(attrs map[string]string, key, value string) {
+	suffix := strings.TrimPrefix(key, "relationship.endpoint.")
+	if after, ok := strings.CutPrefix(suffix, "auth."); ok {
+		authKey := after
+		if authKey != "" {
+			attrs["data-auth-"+toKebab(authKey)] = value
+		}
+		return
+	}
+	if suffix == "refreshOn" {
+		attrs["data-endpoint-refresh-on"] = value
+		return
+	}
+	attrs["data-endpoint-"+toKebab(suffix)] = value
+}
+
+func addBehaviorDataAttribute(attrs map[string]string, key, value string) {
+	if key == behaviorNamesMetadataKey || key == behaviorConfigMetadataKey {
+		return
+	}
+	addPrefixedDataAttribute(attrs, "behavior.", "data-behavior-", key, value)
+}
+
+func addPrefixedDataAttribute(attrs map[string]string, prefix, attrPrefix, key, value string) {
+	suffix := strings.TrimSpace(strings.TrimPrefix(key, prefix))
+	if suffix == "" || value == "" {
+		return
+	}
+	attrs[attrPrefix+toKebab(suffix)] = value
+}
+
+func addTrimmedAttribute(attrs map[string]string, key, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		attrs[key] = trimmed
+	}
 }
 
 func toKebab(input string) string {

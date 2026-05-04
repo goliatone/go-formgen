@@ -263,16 +263,26 @@ func applySchemaNumberBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 
 func applySchemaStringBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 	if src.MinLength != 0 {
-		value := int(src.MinLength)
-		schema.MinLength = &value
+		if value, ok := schemaLengthToInt(src.MinLength); ok {
+			schema.MinLength = &value
+		}
 	}
 	if src.MaxLength != nil {
-		value := int(*src.MaxLength)
-		schema.MaxLength = &value
+		if value, ok := schemaLengthToInt(*src.MaxLength); ok {
+			schema.MaxLength = &value
+		}
 	}
 	if src.Pattern != "" {
 		schema.Pattern = src.Pattern
 	}
+}
+
+func schemaLengthToInt(value uint64) (int, bool) {
+	const maxInt = int(^uint(0) >> 1)
+	if value > uint64(maxInt) {
+		return 0, false
+	}
+	return int(value), true
 }
 
 func applyExclusiveMinimum(schema *pkgopenapi.Schema, bound openapi3.ExclusiveBound) {

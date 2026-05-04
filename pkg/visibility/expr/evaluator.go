@@ -70,133 +70,145 @@ type token struct {
 }
 
 func tokenize(input string) ([]token, error) {
+	lexer := tokenLexer{input: input}
 	var tokens []token
-	i := 0
-
-	next := func() byte {
-		if i >= len(input) {
-			return 0
-		}
-		return input[i]
-	}
-
-	consume := func() byte {
-		if i >= len(input) {
-			return 0
-		}
-		ch := input[i]
-		i++
-		return ch
-	}
-
-	for i < len(input) {
-		ch := next()
+	for lexer.more() {
+		ch := lexer.next()
 		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
-			i++
+			lexer.pos++
 			continue
 		}
-
-		switch ch {
-		case '(':
-			consume()
-			tokens = append(tokens, token{kind: tokenLParen, raw: "("})
-			continue
-		case ')':
-			consume()
-			tokens = append(tokens, token{kind: tokenRParen, raw: ")"})
-			continue
-		case '!':
-			consume()
-			if next() == '=' {
-				consume()
-				tokens = append(tokens, token{kind: tokenNeq, raw: "!="})
-				continue
-			}
-			tokens = append(tokens, token{kind: tokenNot, raw: "!"})
-			continue
-		case '=':
-			consume()
-			if next() != '=' {
-				return nil, fmt.Errorf("visibility/expr: unexpected '='; use '=='")
-			}
-			consume()
-			tokens = append(tokens, token{kind: tokenEq, raw: "=="})
-			continue
-		case '&':
-			consume()
-			if next() != '&' {
-				return nil, fmt.Errorf("visibility/expr: unexpected '&'; use '&&'")
-			}
-			consume()
-			tokens = append(tokens, token{kind: tokenAnd, raw: "&&"})
-			continue
-		case '|':
-			consume()
-			if next() != '|' {
-				return nil, fmt.Errorf("visibility/expr: unexpected '|'; use '||'")
-			}
-			consume()
-			tokens = append(tokens, token{kind: tokenOr, raw: "||"})
-			continue
-		case '"', '\'':
-			quote := consume()
-			start := i
-			escaped := false
-			for i < len(input) {
-				c := consume()
-				if escaped {
-					escaped = false
-					continue
-				}
-				if c == '\\' {
-					escaped = true
-					continue
-				}
-				if c == quote {
-					// include quotes for strconv.Unquote
-					raw := string(quote) + input[start:i-1] + string(quote)
-					value, err := strconv.Unquote(raw)
-					if err != nil {
-						return nil, fmt.Errorf("visibility/expr: invalid string literal: %w", err)
-					}
-					tokens = append(tokens, token{kind: tokenString, raw: value})
-					goto nextToken
-				}
-			}
-			return nil, errors.New("visibility/expr: unterminated string literal")
-		default:
-			// identifier / number / keyword
-			start := i
-			for i < len(input) {
-				c := input[i]
-				if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '(' || c == ')' || c == '!' || c == '=' || c == '&' || c == '|' {
-					break
-				}
-				i++
-			}
-			raw := strings.TrimSpace(input[start:i])
-			if raw == "" {
-				continue
-			}
-			switch strings.ToLower(raw) {
-			case "true", "false":
-				tokens = append(tokens, token{kind: tokenBool, raw: strings.ToLower(raw)})
-			case "null", "nil":
-				tokens = append(tokens, token{kind: tokenNull, raw: "null"})
-			default:
-				if looksLikeNumber(raw) {
-					tokens = append(tokens, token{kind: tokenNumber, raw: raw})
-				} else {
-					tokens = append(tokens, token{kind: tokenIdentifier, raw: raw})
-				}
-			}
+		tok, ok, err := lexer.scanToken()
+		if err != nil {
+			return nil, err
 		}
-
-	nextToken:
-		continue
+		if ok {
+			tokens = append(tokens, tok)
+		}
 	}
-
 	return tokens, nil
+}
+
+type tokenLexer struct {
+	input string
+	pos   int
+}
+
+func (l *tokenLexer) more() bool {
+	return l.pos < len(l.input)
+}
+
+func (l *tokenLexer) next() byte {
+	if !l.more() {
+		return 0
+	}
+	return l.input[l.pos]
+}
+
+func (l *tokenLexer) consume() byte {
+	if !l.more() {
+		return 0
+	}
+	ch := l.input[l.pos]
+	l.pos++
+	return ch
+}
+
+func (l *tokenLexer) scanToken() (token, bool, error) {
+	switch l.next() {
+	case '(':
+		l.consume()
+		return token{kind: tokenLParen, raw: "("}, true, nil
+	case ')':
+		l.consume()
+		return token{kind: tokenRParen, raw: ")"}, true, nil
+	case '!':
+		return l.scanBang()
+	case '=':
+		return l.scanPair('=', tokenEq, "==", "visibility/expr: unexpected '='; use '=='")
+	case '&':
+		return l.scanPair('&', tokenAnd, "&&", "visibility/expr: unexpected '&'; use '&&'")
+	case '|':
+		return l.scanPair('|', tokenOr, "||", "visibility/expr: unexpected '|'; use '||'")
+	case '"', '\'':
+		return l.scanString()
+	default:
+		return l.scanBare()
+	}
+}
+
+func (l *tokenLexer) scanBang() (token, bool, error) {
+	l.consume()
+	if l.next() == '=' {
+		l.consume()
+		return token{kind: tokenNeq, raw: "!="}, true, nil
+	}
+	return token{kind: tokenNot, raw: "!"}, true, nil
+}
+
+func (l *tokenLexer) scanPair(expected byte, kind tokenKind, raw, message string) (token, bool, error) {
+	l.consume()
+	if l.next() != expected {
+		return token{}, false, errors.New(message)
+	}
+	l.consume()
+	return token{kind: kind, raw: raw}, true, nil
+}
+
+func (l *tokenLexer) scanString() (token, bool, error) {
+	quote := l.consume()
+	start := l.pos
+	escaped := false
+	for l.more() {
+		c := l.consume()
+		if escaped {
+			escaped = false
+			continue
+		}
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if c == quote {
+			raw := string(quote) + l.input[start:l.pos-1] + string(quote)
+			value, err := strconv.Unquote(raw)
+			if err != nil {
+				return token{}, false, fmt.Errorf("visibility/expr: invalid string literal: %w", err)
+			}
+			return token{kind: tokenString, raw: value}, true, nil
+		}
+	}
+	return token{}, false, errors.New("visibility/expr: unterminated string literal")
+}
+
+func (l *tokenLexer) scanBare() (token, bool, error) {
+	start := l.pos
+	for l.more() && !isTokenDelimiter(l.input[l.pos]) {
+		l.pos++
+	}
+	raw := strings.TrimSpace(l.input[start:l.pos])
+	if raw == "" {
+		return token{}, false, nil
+	}
+	return bareToken(raw), true, nil
+}
+
+func bareToken(raw string) token {
+	switch strings.ToLower(raw) {
+	case "true", "false":
+		return token{kind: tokenBool, raw: strings.ToLower(raw)}
+	case "null", "nil":
+		return token{kind: tokenNull, raw: "null"}
+	default:
+		if looksLikeNumber(raw) {
+			return token{kind: tokenNumber, raw: raw}
+		}
+		return token{kind: tokenIdentifier, raw: raw}
+	}
+}
+
+func isTokenDelimiter(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '(' || c == ')' || c == '!' || c == '=' || c == '&' || c == '|'
 }
 
 func looksLikeNumber(raw string) bool {
@@ -283,24 +295,11 @@ func (n exprCompare) eval(ctx visibility.Context) (bool, error) {
 
 	switch n.literal.kind {
 	case litNull:
-		isNull := value == nil
-		if n.op == tokenEq {
-			return isNull, nil
-		}
-		if n.op == tokenNeq {
-			return !isNull, nil
-		}
-		return false, fmt.Errorf("visibility/expr: unsupported operator %q for null literal", n.opString())
+		return compareLiteralResult(n.op, value == nil, "null", n.opString())
 	case litBool:
 		want := n.literal.raw == "true"
 		got, _ := coerceBool(value)
-		if n.op == tokenEq {
-			return got == want, nil
-		}
-		if n.op == tokenNeq {
-			return got != want, nil
-		}
-		return false, fmt.Errorf("visibility/expr: unsupported operator %q for bool literal", n.opString())
+		return compareLiteralResult(n.op, got == want, "bool", n.opString())
 	case litNumber:
 		want, err := strconv.ParseFloat(n.literal.raw, 64)
 		if err != nil {
@@ -310,25 +309,24 @@ func (n exprCompare) eval(ctx visibility.Context) (bool, error) {
 		if !ok {
 			got = 0
 		}
-		if n.op == tokenEq {
-			return got == want, nil
-		}
-		if n.op == tokenNeq {
-			return got != want, nil
-		}
-		return false, fmt.Errorf("visibility/expr: unsupported operator %q for number literal", n.opString())
+		return compareLiteralResult(n.op, got == want, "number", n.opString())
 	case litString:
 		want := n.literal.raw
 		got := coerceString(value)
-		if n.op == tokenEq {
-			return got == want, nil
-		}
-		if n.op == tokenNeq {
-			return got != want, nil
-		}
-		return false, fmt.Errorf("visibility/expr: unsupported operator %q for string literal", n.opString())
+		return compareLiteralResult(n.op, got == want, "string", n.opString())
 	default:
 		return false, fmt.Errorf("visibility/expr: unsupported literal")
+	}
+}
+
+func compareLiteralResult(op tokenKind, equal bool, literalType, opString string) (bool, error) {
+	switch op {
+	case tokenEq:
+		return equal, nil
+	case tokenNeq:
+		return !equal, nil
+	default:
+		return false, fmt.Errorf("visibility/expr: unsupported operator %q for %s literal", opString, literalType)
 	}
 }
 

@@ -172,44 +172,8 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 		builder.WriteString(`'`)
 	}
 
-	if rel := field.Relationship; rel != nil {
-		if rel.Kind != "" {
-			builder.WriteString(` data-relationship-type="`)
-			builder.WriteString(html.EscapeString(string(rel.Kind)))
-			builder.WriteString(`"`)
-		}
-		if rel.Target != "" {
-			builder.WriteString(` data-relationship-target="`)
-			builder.WriteString(html.EscapeString(rel.Target))
-			builder.WriteString(`"`)
-		}
-		if rel.ForeignKey != "" {
-			builder.WriteString(` data-relationship-foreign-key="`)
-			builder.WriteString(html.EscapeString(rel.ForeignKey))
-			builder.WriteString(`"`)
-		}
-		if rel.Cardinality != "" {
-			builder.WriteString(` data-relationship-cardinality="`)
-			builder.WriteString(html.EscapeString(rel.Cardinality))
-			builder.WriteString(`"`)
-		}
-		if rel.Inverse != "" {
-			builder.WriteString(` data-relationship-inverse="`)
-			builder.WriteString(html.EscapeString(rel.Inverse))
-			builder.WriteString(`"`)
-		}
-	}
-	if prov := strings.TrimSpace(stringFromMap(field.Metadata, "prefill.provenance")); prov != "" {
-		builder.WriteString(` data-prefill-provenance="`)
-		builder.WriteString(html.EscapeString(prov))
-		builder.WriteString(`"`)
-	}
-	if strings.TrimSpace(stringFromMap(field.Metadata, "prefill.readonly")) == "true" {
-		builder.WriteString(` data-prefill-readonly="true"`)
-	}
-	if strings.TrimSpace(stringFromMap(field.Metadata, "prefill.disabled")) == "true" {
-		builder.WriteString(` data-prefill-disabled="true"`)
-	}
+	writeFieldRelationshipAttrs(&builder, field.Relationship)
+	writeFieldPrefillAttrs(&builder, field.Metadata)
 
 	builder.WriteString(">\n")
 
@@ -245,6 +209,38 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 
 	builder.WriteString("</div>\n")
 	return builder.String()
+}
+
+func writeFieldRelationshipAttrs(builder *strings.Builder, rel *model.Relationship) {
+	if rel == nil {
+		return
+	}
+	writeDataAttr(builder, "data-relationship-type", string(rel.Kind))
+	writeDataAttr(builder, "data-relationship-target", rel.Target)
+	writeDataAttr(builder, "data-relationship-foreign-key", rel.ForeignKey)
+	writeDataAttr(builder, "data-relationship-cardinality", rel.Cardinality)
+	writeDataAttr(builder, "data-relationship-inverse", rel.Inverse)
+}
+
+func writeFieldPrefillAttrs(builder *strings.Builder, metadata map[string]string) {
+	writeDataAttr(builder, "data-prefill-provenance", strings.TrimSpace(stringFromMap(metadata, "prefill.provenance")))
+	if strings.TrimSpace(stringFromMap(metadata, "prefill.readonly")) == "true" {
+		builder.WriteString(` data-prefill-readonly="true"`)
+	}
+	if strings.TrimSpace(stringFromMap(metadata, "prefill.disabled")) == "true" {
+		builder.WriteString(` data-prefill-disabled="true"`)
+	}
+}
+
+func writeDataAttr(builder *strings.Builder, name, value string) {
+	if value == "" {
+		return
+	}
+	builder.WriteByte(' ')
+	builder.WriteString(name)
+	builder.WriteString(`="`)
+	builder.WriteString(html.EscapeString(value))
+	builder.WriteString(`"`)
 }
 
 func renderChromePartial(renderer template.TemplateRenderer, templateName string, field model.Field, context map[string]any, fallback func(model.Field, map[string]any) string) string {

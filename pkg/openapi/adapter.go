@@ -188,16 +188,24 @@ func detectOpenAPI(raw []byte) bool {
 		return false
 	}
 	if trimmed[0] == '{' {
-		var payload map[string]any
-		if err := json.Unmarshal(trimmed, &payload); err == nil {
-			if _, ok := payload["openapi"]; ok {
-				return true
-			}
-			if _, ok := payload["swagger"]; ok {
-				return true
-			}
-		}
+		return detectOpenAPIJSON(trimmed)
 	}
 	lower := strings.ToLower(string(trimmed))
 	return strings.Contains(lower, "openapi:") || strings.Contains(lower, "swagger:")
+}
+
+func detectOpenAPIJSON(raw []byte) bool {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	return hasOpenAPIMarker(payload)
+}
+
+func hasOpenAPIMarker(payload map[string]any) bool {
+	if _, ok := payload["openapi"]; ok {
+		return true
+	}
+	_, ok := payload["swagger"]
+	return ok
 }

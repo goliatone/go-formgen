@@ -94,81 +94,81 @@ type jsonEditorConfig struct {
 }
 
 func parseJSONEditorConfig(field model.Field, cfg map[string]any) jsonEditorConfig {
-	hint := strings.TrimSpace(field.Description)
-	example := strings.TrimSpace(field.Placeholder)
-	collapsed := false
-	mode := JSONEditorModeRaw // Default to raw for backwards compatibility
-	activeView := "raw"
+	config := jsonEditorConfig{
+		SchemaHint: strings.TrimSpace(field.Description),
+		Example:    strings.TrimSpace(field.Placeholder),
+		Mode:       JSONEditorModeRaw,
+		ActiveView: "raw",
+	}
+	applyJSONEditorStringMap(&config, field.UIHints, jsonEditorHintKeys{
+		hint: "schemaHint", example: "jsonExample", collapsed: "collapsed", mode: "editorMode", activeView: "editorActiveView",
+	})
+	applyJSONEditorStringMap(&config, field.Metadata, jsonEditorHintKeys{
+		hint: "schema.hint", example: "schema.example", collapsed: "json.collapsed", mode: "editor.mode", activeView: "editor.activeView",
+	})
+	applyJSONEditorAnyMap(&config, cfg)
 
-	if field.UIHints != nil {
-		if value := strings.TrimSpace(field.UIHints["schemaHint"]); value != "" {
-			hint = value
-		}
-		if value := strings.TrimSpace(field.UIHints["jsonExample"]); value != "" {
-			example = value
-		}
-		if asBool(field.UIHints["collapsed"]) {
-			collapsed = true
-		}
-		if value := strings.TrimSpace(field.UIHints["editorMode"]); value != "" {
-			mode = parseJSONEditorMode(value)
-		}
-		if value := strings.TrimSpace(field.UIHints["editorActiveView"]); value != "" {
-			if parsed, ok := parseJSONEditorActiveView(value); ok {
-				activeView = parsed
-			}
-		}
+	if config.SchemaHint == "" {
+		config.SchemaHint = "Provide a JSON object; unknown keys are preserved."
 	}
-	if field.Metadata != nil {
-		if value := strings.TrimSpace(field.Metadata["schema.hint"]); value != "" {
-			hint = value
-		}
-		if value := strings.TrimSpace(field.Metadata["schema.example"]); value != "" {
-			example = value
-		}
-		if asBool(field.Metadata["json.collapsed"]) {
-			collapsed = true
-		}
-		if value := strings.TrimSpace(field.Metadata["editor.mode"]); value != "" {
-			mode = parseJSONEditorMode(value)
-		}
-		if value := strings.TrimSpace(field.Metadata["editor.activeView"]); value != "" {
-			if parsed, ok := parseJSONEditorActiveView(value); ok {
-				activeView = parsed
-			}
-		}
-	}
-	if cfg != nil {
-		if value := strings.TrimSpace(stringify(cfg["schemaHint"])); value != "" {
-			hint = value
-		}
-		if value := strings.TrimSpace(stringify(cfg["example"])); value != "" {
-			example = value
-		}
-		if asBool(cfg["collapsed"]) {
-			collapsed = true
-		}
-		if value := strings.TrimSpace(stringify(cfg["mode"])); value != "" {
-			mode = parseJSONEditorMode(value)
-		}
-		if value := strings.TrimSpace(stringify(cfg["activeView"])); value != "" {
-			if parsed, ok := parseJSONEditorActiveView(value); ok {
-				activeView = parsed
-			}
-		}
-	}
+	return config
+}
 
-	if hint == "" {
-		hint = "Provide a JSON object; unknown keys are preserved."
-	}
+type jsonEditorHintKeys struct {
+	hint       string
+	example    string
+	collapsed  string
+	mode       string
+	activeView string
+}
 
-	return jsonEditorConfig{
-		SchemaHint: hint,
-		Collapsed:  collapsed,
-		Example:    example,
-		Mode:       mode,
-		ActiveView: activeView,
+func applyJSONEditorStringMap(config *jsonEditorConfig, values map[string]string, keys jsonEditorHintKeys) {
+	if value := strings.TrimSpace(values[keys.hint]); value != "" {
+		config.SchemaHint = value
 	}
+	if value := strings.TrimSpace(values[keys.example]); value != "" {
+		config.Example = value
+	}
+	if asBool(values[keys.collapsed]) {
+		config.Collapsed = true
+	}
+	if value := strings.TrimSpace(values[keys.mode]); value != "" {
+		config.Mode = parseJSONEditorMode(value)
+	}
+	applyJSONEditorActiveView(config, values[keys.activeView])
+}
+
+func applyJSONEditorAnyMap(config *jsonEditorConfig, values map[string]any) {
+	if values == nil {
+		return
+	}
+	if value := strings.TrimSpace(stringifyConfigValue(values, "schemaHint")); value != "" {
+		config.SchemaHint = value
+	}
+	if value := strings.TrimSpace(stringifyConfigValue(values, "example")); value != "" {
+		config.Example = value
+	}
+	if asBool(values["collapsed"]) {
+		config.Collapsed = true
+	}
+	if value := strings.TrimSpace(stringifyConfigValue(values, "mode")); value != "" {
+		config.Mode = parseJSONEditorMode(value)
+	}
+	applyJSONEditorActiveView(config, stringifyConfigValue(values, "activeView"))
+}
+
+func applyJSONEditorActiveView(config *jsonEditorConfig, value string) {
+	if parsed, ok := parseJSONEditorActiveView(strings.TrimSpace(value)); ok {
+		config.ActiveView = parsed
+	}
+}
+
+func stringifyConfigValue(values map[string]any, key string) string {
+	value, ok := values[key]
+	if !ok {
+		return ""
+	}
+	return stringify(value)
 }
 
 func parseJSONEditorMode(value string) JSONEditorMode {
@@ -271,52 +271,9 @@ func normalizeJSONValue(value any) (any, error) {
 func encodeStableJSON(buf *bytes.Buffer, value any, depth int) error {
 	switch typed := value.(type) {
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-
-		buf.WriteByte('{')
-		if len(keys) > 0 {
-			buf.WriteByte('\n')
-			indent := strings.Repeat("  ", depth+1)
-			for idx, key := range keys {
-				buf.WriteString(indent)
-				keyBytes, _ := json.Marshal(key)
-				buf.Write(keyBytes)
-				buf.WriteString(": ")
-				if err := encodeStableJSON(buf, typed[key], depth+1); err != nil {
-					return err
-				}
-				if idx < len(keys)-1 {
-					buf.WriteByte(',')
-				}
-				buf.WriteByte('\n')
-			}
-			buf.WriteString(strings.Repeat("  ", depth))
-		}
-		buf.WriteByte('}')
-		return nil
+		return encodeStableMap(buf, typed, depth)
 	case []any:
-		buf.WriteByte('[')
-		if len(typed) > 0 {
-			buf.WriteByte('\n')
-			indent := strings.Repeat("  ", depth+1)
-			for idx, item := range typed {
-				buf.WriteString(indent)
-				if err := encodeStableJSON(buf, item, depth+1); err != nil {
-					return err
-				}
-				if idx < len(typed)-1 {
-					buf.WriteByte(',')
-				}
-				buf.WriteByte('\n')
-			}
-			buf.WriteString(strings.Repeat("  ", depth))
-		}
-		buf.WriteByte(']')
-		return nil
+		return encodeStableList(buf, typed, depth)
 	case nil:
 		buf.WriteString("null")
 		return nil
@@ -328,6 +285,62 @@ func encodeStableJSON(buf *bytes.Buffer, value any, depth int) error {
 		buf.Write(valueBytes)
 		return nil
 	}
+}
+
+func encodeStableMap(buf *bytes.Buffer, value map[string]any, depth int) error {
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	buf.WriteByte('{')
+	if len(keys) == 0 {
+		buf.WriteByte('}')
+		return nil
+	}
+	buf.WriteByte('\n')
+	indent := strings.Repeat("  ", depth+1)
+	for idx, key := range keys {
+		buf.WriteString(indent)
+		keyBytes, _ := json.Marshal(key)
+		buf.Write(keyBytes)
+		buf.WriteString(": ")
+		if err := encodeStableJSON(buf, value[key], depth+1); err != nil {
+			return err
+		}
+		writeJSONCommaAndNewline(buf, idx, len(keys))
+	}
+	buf.WriteString(strings.Repeat("  ", depth))
+	buf.WriteByte('}')
+	return nil
+}
+
+func encodeStableList(buf *bytes.Buffer, value []any, depth int) error {
+	buf.WriteByte('[')
+	if len(value) == 0 {
+		buf.WriteByte(']')
+		return nil
+	}
+	buf.WriteByte('\n')
+	indent := strings.Repeat("  ", depth+1)
+	for idx, item := range value {
+		buf.WriteString(indent)
+		if err := encodeStableJSON(buf, item, depth+1); err != nil {
+			return err
+		}
+		writeJSONCommaAndNewline(buf, idx, len(value))
+	}
+	buf.WriteString(strings.Repeat("  ", depth))
+	buf.WriteByte(']')
+	return nil
+}
+
+func writeJSONCommaAndNewline(buf *bytes.Buffer, idx, count int) {
+	if idx < count-1 {
+		buf.WriteByte(',')
+	}
+	buf.WriteByte('\n')
 }
 
 func stringify(value any) string {

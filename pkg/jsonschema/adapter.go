@@ -114,8 +114,8 @@ func (a *Adapter) resolvePayload(ctx context.Context, doc schema.Document, raw [
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateDialect(payload); err != nil {
-		return nil, nil, err
+	if validateErr := validateDialect(payload); validateErr != nil {
+		return nil, nil, validateErr
 	}
 	resolved, err := a.resolver.Resolve(ctx, doc, payload)
 	if err != nil {

@@ -817,65 +817,66 @@ func applyPrefillValues(form *model.FormModel, values map[string]any) {
 }
 
 func flattenPrefillValues(values map[string]any) map[string]prefillValue {
-	result := make(map[string]prefillValue)
-	var walk func(prefix string, value any, meta prefillValue)
-
-	walk = func(prefix string, value any, meta prefillValue) {
-		switch typed := value.(type) {
-		case map[string]any:
-			for key, val := range typed {
-				key = strings.TrimSpace(key)
-				if key == "" {
-					continue
-				}
-				next := joinPath(prefix, key)
-				walk(next, val, meta)
-			}
-			if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
-				if _, exists := result[prefix]; !exists {
-					result[prefix] = meta
-				}
-			}
-		case map[string]string:
-			for key, val := range typed {
-				key = strings.TrimSpace(key)
-				if key == "" {
-					continue
-				}
-				next := joinPath(prefix, key)
-				result[next] = prefillValue{
-					value:      val,
-					provenance: meta.provenance,
-					readonly:   meta.readonly,
-					disabled:   meta.disabled,
-				}
-			}
-		case render.ValueWithProvenance:
-			meta.provenance = typed.Provenance
-			meta.readonly = typed.Readonly
-			meta.disabled = typed.Disabled
-			walk(prefix, typed.Value, meta)
-		case *render.ValueWithProvenance:
-			meta.provenance = typed.Provenance
-			meta.readonly = typed.Readonly
-			meta.disabled = typed.Disabled
-			walk(prefix, typed.Value, meta)
-		default:
-			if prefix != "" {
-				meta.value = typed
-				result[prefix] = meta
-			}
-		}
-	}
-
+	flattener := prefillFlattener{result: make(map[string]prefillValue)}
 	for key, value := range values {
 		key = strings.TrimSpace(key)
 		if key == "" {
 			continue
 		}
-		walk(key, value, prefillValue{})
+		flattener.walk(key, value, prefillValue{})
 	}
-	return result
+	return flattener.result
+}
+
+type prefillFlattener struct {
+	result map[string]prefillValue
+}
+
+func (f prefillFlattener) walk(prefix string, value any, meta prefillValue) {
+	switch typed := value.(type) {
+	case map[string]any:
+		f.walkAnyMap(prefix, typed, meta)
+	case map[string]string:
+		f.walkStringMap(prefix, typed, meta)
+	case render.ValueWithProvenance:
+		f.walk(prefix, typed.Value, prefillMetaFromValue(typed, meta))
+	case *render.ValueWithProvenance:
+		f.walk(prefix, typed.Value, prefillMetaFromValue(*typed, meta))
+	default:
+		if prefix != "" {
+			meta.value = typed
+			f.result[prefix] = meta
+		}
+	}
+}
+
+func (f prefillFlattener) walkAnyMap(prefix string, values map[string]any, meta prefillValue) {
+	for key, val := range values {
+		if key = strings.TrimSpace(key); key != "" {
+			f.walk(joinPath(prefix, key), val, meta)
+		}
+	}
+	if prefix != "" && (meta.provenance != "" || meta.readonly || meta.disabled) {
+		if _, exists := f.result[prefix]; !exists {
+			f.result[prefix] = meta
+		}
+	}
+}
+
+func (f prefillFlattener) walkStringMap(prefix string, values map[string]string, meta prefillValue) {
+	for key, val := range values {
+		if key = strings.TrimSpace(key); key != "" {
+			next := joinPath(prefix, key)
+			f.result[next] = prefillValue{value: val, provenance: meta.provenance, readonly: meta.readonly, disabled: meta.disabled}
+		}
+	}
+}
+
+func prefillMetaFromValue(value render.ValueWithProvenance, meta prefillValue) prefillValue {
+	meta.provenance = value.Provenance
+	meta.readonly = value.Readonly
+	meta.disabled = value.Disabled
+	return meta
 }
 
 func applyPrefillToFields(fields []model.Field, values map[string]prefillValue, parentPath string) []model.Field {

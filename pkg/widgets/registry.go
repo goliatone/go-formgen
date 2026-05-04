@@ -164,60 +164,51 @@ func explicitWidget(field model.Field) string {
 }
 
 func (r *Registry) registerBuiltins() {
-	r.Register(WidgetToggle, 90, func(field model.Field) bool {
-		return field.Type == model.FieldTypeBoolean
-	})
+	r.Register(WidgetToggle, 90, isToggleWidget)
+	r.Register(WidgetChips, 80, isChipsWidget)
+	r.Register(WidgetSelect, 70, isSelectWidget)
+	r.Register(WidgetCodeEditor, 60, isCodeEditorWidget)
+	r.Register(WidgetJSONEditor, 50, isJSONEditorWidget)
+	r.Register(WidgetKeyValue, 40, isKeyValueWidget)
+}
 
-	r.Register(WidgetChips, 80, func(field model.Field) bool {
-		if field.Type != model.FieldTypeArray {
-			return false
-		}
-		if len(field.Enum) > 0 {
-			return true
-		}
-		if field.Metadata != nil {
-			if mode := strings.TrimSpace(field.Metadata["relationship.endpoint.mode"]); mode != "" {
-				return true
-			}
-			if _, ok := field.Metadata["relationship.endpoint.url"]; ok {
-				return true
-			}
-		}
+func isToggleWidget(field model.Field) bool {
+	return field.Type == model.FieldTypeBoolean
+}
+
+func isChipsWidget(field model.Field) bool {
+	if field.Type != model.FieldTypeArray {
 		return false
-	})
+	}
+	if len(field.Enum) > 0 {
+		return true
+	}
+	if mode := strings.TrimSpace(field.Metadata["relationship.endpoint.mode"]); mode != "" {
+		return true
+	}
+	_, ok := field.Metadata["relationship.endpoint.url"]
+	return ok
+}
 
-	r.Register(WidgetSelect, 70, func(field model.Field) bool {
-		if field.Type == model.FieldTypeArray || field.Type == model.FieldTypeObject {
-			return false
-		}
-		return len(field.Enum) > 0 || field.Relationship != nil
-	})
-
-	r.Register(WidgetCodeEditor, 60, func(field model.Field) bool {
-		if field.Type != model.FieldTypeString {
-			return false
-		}
-		format := strings.TrimSpace(strings.ToLower(field.Format))
-		return format == "json" || format == "yaml" || format == "toml"
-	})
-
-	r.Register(WidgetJSONEditor, 50, func(field model.Field) bool {
-		if field.Type != model.FieldTypeObject {
-			return false
-		}
-		if field.Relationship != nil {
-			return false
-		}
-		return len(field.Nested) == 0
-	})
-
-	r.Register(WidgetKeyValue, 40, func(field model.Field) bool {
-		if field.Type != model.FieldTypeArray || field.Items == nil {
-			return false
-		}
-		if field.Items.Type == model.FieldTypeObject && len(field.Items.Nested) == 0 {
-			return true
-		}
+func isSelectWidget(field model.Field) bool {
+	if field.Type == model.FieldTypeArray || field.Type == model.FieldTypeObject {
 		return false
-	})
+	}
+	return len(field.Enum) > 0 || field.Relationship != nil
+}
+
+func isCodeEditorWidget(field model.Field) bool {
+	if field.Type != model.FieldTypeString {
+		return false
+	}
+	format := strings.TrimSpace(strings.ToLower(field.Format))
+	return format == "json" || format == "yaml" || format == "toml"
+}
+
+func isJSONEditorWidget(field model.Field) bool {
+	return field.Type == model.FieldTypeObject && field.Relationship == nil && len(field.Nested) == 0
+}
+
+func isKeyValueWidget(field model.Field) bool {
+	return field.Type == model.FieldTypeArray && field.Items != nil && field.Items.Type == model.FieldTypeObject && len(field.Items.Nested) == 0
 }

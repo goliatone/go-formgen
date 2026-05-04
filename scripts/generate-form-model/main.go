@@ -10,6 +10,7 @@ import (
 	"testing/fstest"
 
 	formgen "github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	"github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
@@ -36,7 +37,7 @@ func (r *snapshotRenderer) Render(_ context.Context, form model.FormModel, _ ren
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(r.path, payload, 0o644); err != nil {
+	if err := safefile.WriteFile(r.path, payload); err != nil {
 		return nil, err
 	}
 	return payload, nil
@@ -83,7 +84,7 @@ func main() {
 }
 
 func loadUIDecorator(path string) (model.Decorator, error) {
-	data, err := os.ReadFile(path)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read ui schema: %w", err)
 	}

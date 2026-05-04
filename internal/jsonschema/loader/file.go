@@ -3,8 +3,8 @@ package loader
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
+
+	"github.com/goliatone/go-formgen/internal/safefile"
 )
 
 func loadFile(ctx context.Context, path string) ([]byte, error) {
@@ -17,12 +17,7 @@ func loadFile(ctx context.Context, path string) ([]byte, error) {
 	default:
 	}
 
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := os.ReadFile(abs)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

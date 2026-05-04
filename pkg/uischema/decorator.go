@@ -263,7 +263,10 @@ func applyGridHints(field *pkgmodel.Field, cfg FieldConfig, columns int, op Oper
 	if len(cfg.Grid.Breakpoints) == 0 {
 		return nil
 	}
+	return applyGridBreakpoints(field, cfg, columns, op)
+}
 
+func applyGridBreakpoints(field *pkgmodel.Field, cfg FieldConfig, columns int, op Operation) error {
 	breakpointKeys := make([]string, 0, len(cfg.Grid.Breakpoints))
 	for key := range cfg.Grid.Breakpoints {
 		if strings.TrimSpace(key) != "" {
@@ -304,91 +307,95 @@ func applyGridHints(field *pkgmodel.Field, cfg FieldConfig, columns int, op Oper
 
 func applyFieldCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if cfg.Label != "" {
-		field.Label = cfg.Label
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["label"] = cfg.Label
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["label"] = cfg.Label
+		applyFieldCopyValue(field, &field.Label, "label", cfg.Label)
 	}
 	if cfg.LabelKey != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["labelKey"] = cfg.LabelKey
+		applyUIHint(field, "labelKey", cfg.LabelKey)
 	}
 	if cfg.Description != "" {
-		field.Description = cfg.Description
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["hint"] = cfg.Description
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["hint"] = cfg.Description
+		applyFieldCopyValue(field, &field.Description, "hint", cfg.Description)
 	}
 	if cfg.DescriptionKey != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["descriptionKey"] = cfg.DescriptionKey
+		applyUIHint(field, "descriptionKey", cfg.DescriptionKey)
 	}
 	if cfg.Placeholder != "" {
-		field.Placeholder = cfg.Placeholder
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["placeholder"] = cfg.Placeholder
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["placeholder"] = cfg.Placeholder
+		applyFieldCopyValue(field, &field.Placeholder, "placeholder", cfg.Placeholder)
 	}
 	if cfg.PlaceholderKey != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["placeholderKey"] = cfg.PlaceholderKey
+		applyUIHint(field, "placeholderKey", cfg.PlaceholderKey)
 	}
 	if cfg.HelpText != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["helpText"] = cfg.HelpText
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["helpText"] = cfg.HelpText
+		applyFieldCopyValue(field, nil, "helpText", cfg.HelpText)
 	}
 	if cfg.HelpTextKey != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["helpTextKey"] = cfg.HelpTextKey
+		applyUIHint(field, "helpTextKey", cfg.HelpTextKey)
 	}
 	if cfg.Widget != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["widget"] = cfg.Widget
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["widget"] = cfg.Widget
-		field.Metadata["admin.widget"] = cfg.Widget
+		applyWidgetCopy(field, cfg.Widget)
 	}
 	if cfg.Component != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["component"] = cfg.Component
+		applyUIHint(field, "component", cfg.Component)
 	}
 	if cfg.CSSClass != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["cssClass"] = cfg.CSSClass
+		applyUIHint(field, "cssClass", cfg.CSSClass)
 	}
-	if len(cfg.ComponentOptions) > 0 {
-		field.Metadata = ensureMetadata(field.Metadata)
-		payload, err := json.Marshal(cfg.ComponentOptions)
-		if err == nil {
-			field.Metadata[componentConfigKey] = string(payload)
-		}
-	}
+	applyComponentOptions(field, cfg.ComponentOptions)
+	applyIconCopy(field, cfg)
+}
 
+func applyFieldCopyValue(field *pkgmodel.Field, target *string, key, value string) {
+	if target != nil {
+		*target = value
+	}
+	field.UIHints = ensureUIHints(field.UIHints)
+	field.UIHints[key] = value
+	field.Metadata = ensureMetadata(field.Metadata)
+	field.Metadata[key] = value
+}
+
+func applyUIHint(field *pkgmodel.Field, key, value string) {
+	field.UIHints = ensureUIHints(field.UIHints)
+	field.UIHints[key] = value
+}
+
+func applyWidgetCopy(field *pkgmodel.Field, widget string) {
+	applyFieldCopyValue(field, nil, "widget", widget)
+	field.Metadata["admin.widget"] = widget
+}
+
+func applyComponentOptions(field *pkgmodel.Field, options map[string]any) {
+	if len(options) == 0 {
+		return
+	}
+	field.Metadata = ensureMetadata(field.Metadata)
+	payload, err := json.Marshal(options)
+	if err == nil {
+		field.Metadata[componentConfigKey] = string(payload)
+	}
+}
+
+func applyIconCopy(field *pkgmodel.Field, cfg FieldConfig) {
 	if icon := strings.TrimSpace(cfg.Icon); icon != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["icon"] = icon
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["icon"] = icon
+		applyFieldCopyValue(field, nil, "icon", icon)
 	}
-
 	if source := strings.TrimSpace(cfg.IconSource); source != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["iconSource"] = source
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["icon.source"] = source
+		applyIconSource(field, source)
 	}
-
 	if raw := sanitizeIconMarkup(cfg.IconRaw); raw != "" {
-		field.UIHints = ensureUIHints(field.UIHints)
-		field.UIHints["iconRaw"] = raw
-		field.Metadata = ensureMetadata(field.Metadata)
-		field.Metadata["icon.raw"] = raw
+		applyIconRaw(field, raw)
 	}
+}
+
+func applyIconSource(field *pkgmodel.Field, source string) {
+	applyUIHint(field, "iconSource", source)
+	field.Metadata = ensureMetadata(field.Metadata)
+	field.Metadata["icon.source"] = source
+}
+
+func applyIconRaw(field *pkgmodel.Field, raw string) {
+	applyUIHint(field, "iconRaw", raw)
+	field.Metadata = ensureMetadata(field.Metadata)
+	field.Metadata["icon.raw"] = raw
 }
 
 func mergeFieldMaps(field *pkgmodel.Field, cfg FieldConfig) {
@@ -478,59 +485,70 @@ func buildSectionFieldOrders(form *pkgmodel.FormModel, op Operation, fieldRefs m
 	presetOrders := make(map[string]int)
 
 	for _, section := range op.Sections {
-		id := strings.TrimSpace(section.ID)
-		if id == "" {
-			continue
-		}
-		paths := sectionFields[id]
-		if len(paths) == 0 || !section.OrderPreset.Defined() {
-			continue
-		}
-
-		pattern, err := section.OrderPreset.Pattern(op.FieldOrderPresets)
+		orders, err := resolveSectionPresetOrders(section, op, sectionFields, originals, explicitOrders)
 		if err != nil {
-			return nil, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
+			return nil, err
 		}
-		if len(pattern) == 0 {
+		if len(orders.paths) == 0 {
 			continue
 		}
 
-		resolved, err := resolveSectionOrder(pattern, paths, originals)
-		if err != nil {
-			return nil, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
-		}
-		if len(resolved) == 0 {
-			continue
-		}
-
-		sectionPresetOrders := make(map[string]int, len(resolved))
-		for idx, path := range resolved {
-			sectionPresetOrders[path] = idx
+		for idx, path := range orders.paths {
 			if _, exists := presetOrders[path]; !exists {
 				presetOrders[path] = idx
 			}
 		}
-
-		ordered := append([]string(nil), paths...)
-		sort.SliceStable(ordered, func(i, j int) bool {
-			return fieldOrderLess(ordered[i], ordered[j], explicitOrders, sectionPresetOrders, originals)
-		})
-		if len(ordered) == 0 {
-			continue
-		}
-
 		form.Metadata = ensureMetadata(form.Metadata)
-		payload, err := json.Marshal(ordered)
+		payload, err := json.Marshal(orders.ordered)
 		if err != nil {
-			return nil, fmt.Errorf("uischema: marshal field order metadata for section %q: %w", id, err)
+			return nil, fmt.Errorf("uischema: marshal field order metadata for section %q: %w", orders.id, err)
 		}
-		form.Metadata[layoutFieldOrderPrefix+id] = string(payload)
+		form.Metadata[layoutFieldOrderPrefix+orders.id] = string(payload)
 	}
 
 	if len(presetOrders) == 0 {
 		return nil, nil
 	}
 	return presetOrders, nil
+}
+
+type sectionPresetOrder struct {
+	id      string
+	paths   []string
+	ordered []string
+}
+
+func resolveSectionPresetOrders(section SectionConfig, op Operation, sectionFields map[string][]string, originals map[string]int, explicitOrders map[string]int) (sectionPresetOrder, error) {
+	id := strings.TrimSpace(section.ID)
+	if id == "" {
+		return sectionPresetOrder{}, nil
+	}
+	paths := sectionFields[id]
+	if len(paths) == 0 || !section.OrderPreset.Defined() {
+		return sectionPresetOrder{id: id}, nil
+	}
+	pattern, err := section.OrderPreset.Pattern(op.FieldOrderPresets)
+	if err != nil {
+		return sectionPresetOrder{}, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
+	}
+	resolved, err := resolveSectionOrder(pattern, paths, originals)
+	if err != nil {
+		return sectionPresetOrder{}, fmt.Errorf("uischema: operation %q (file %s) section %q: %w", op.ID, op.Source, id, err)
+	}
+	sectionPresetOrders := indexedPaths(resolved)
+	ordered := append([]string(nil), paths...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return fieldOrderLess(ordered[i], ordered[j], explicitOrders, sectionPresetOrders, originals)
+	})
+	return sectionPresetOrder{id: id, paths: resolved, ordered: ordered}, nil
+}
+
+func indexedPaths(paths []string) map[string]int {
+	index := make(map[string]int, len(paths))
+	for idx, path := range paths {
+		index[path] = idx
+	}
+	return index
 }
 
 func collectSectionFields(fieldRefs map[string]*pkgmodel.Field) map[string][]string {
@@ -553,74 +571,22 @@ func resolveSectionOrder(pattern []string, sectionFields []string, originals map
 		return nil, nil
 	}
 
-	allowed := make(map[string]struct{}, len(sectionFields))
-	for _, path := range sectionFields {
-		allowed[path] = struct{}{}
-	}
-
-	type token struct {
-		wildcard bool
-		path     string
-	}
-
-	tokens := make([]token, 0, len(pattern))
-	explicit := make(map[string]struct{})
-
-	for _, raw := range pattern {
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" {
-			continue
-		}
-		if trimmed == "*" {
-			tokens = append(tokens, token{wildcard: true})
-			continue
-		}
-		normalised := NormalizeFieldPath(trimmed)
-		if normalised == "" {
-			return nil, fmt.Errorf("field order entry %q resolves to empty path", raw)
-		}
-		if _, ok := allowed[normalised]; !ok {
-			return nil, fmt.Errorf("references unknown field %q", trimmed)
-		}
-		tokens = append(tokens, token{path: normalised})
-		explicit[normalised] = struct{}{}
+	tokens, explicit, err := sectionOrderTokens(pattern, sectionFields)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(tokens) == 0 {
-		// No usable tokens; fall back to the natural order.
-		out := append([]string(nil), sectionFields...)
-		sort.SliceStable(out, func(i, j int) bool {
-			return originals[out[i]] < originals[out[j]]
-		})
-		return out, nil
+		return naturalSectionOrder(sectionFields, originals), nil
 	}
 
-	ordered := append([]string(nil), sectionFields...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return originals[ordered[i]] < originals[ordered[j]]
-	})
-
+	ordered := naturalSectionOrder(sectionFields, originals)
 	used := make(map[string]bool, len(sectionFields))
 	resolved := make([]string, 0, len(sectionFields))
 
-	appendResidual := func(skipExplicit bool) {
-		for _, path := range ordered {
-			if used[path] {
-				continue
-			}
-			if skipExplicit {
-				if _, exists := explicit[path]; exists {
-					continue
-				}
-			}
-			used[path] = true
-			resolved = append(resolved, path)
-		}
-	}
-
 	for _, token := range tokens {
 		if token.wildcard {
-			appendResidual(true)
+			resolved = appendResidualSectionFields(resolved, ordered, used, explicit, true)
 			continue
 		}
 		if used[token.path] {
@@ -630,8 +596,77 @@ func resolveSectionOrder(pattern []string, sectionFields []string, originals map
 		resolved = append(resolved, token.path)
 	}
 
-	appendResidual(false)
+	resolved = appendResidualSectionFields(resolved, ordered, used, explicit, false)
 	return resolved, nil
+}
+
+type sectionOrderToken struct {
+	wildcard bool
+	path     string
+}
+
+func sectionOrderTokens(pattern []string, sectionFields []string) ([]sectionOrderToken, map[string]struct{}, error) {
+	allowed := make(map[string]struct{}, len(sectionFields))
+	for _, path := range sectionFields {
+		allowed[path] = struct{}{}
+	}
+	tokens := make([]sectionOrderToken, 0, len(pattern))
+	explicit := make(map[string]struct{})
+	for _, raw := range pattern {
+		token, ok, err := parseSectionOrderToken(raw, allowed)
+		if err != nil {
+			return nil, nil, err
+		}
+		if ok {
+			tokens = append(tokens, token)
+			if token.path != "" {
+				explicit[token.path] = struct{}{}
+			}
+		}
+	}
+	return tokens, explicit, nil
+}
+
+func parseSectionOrderToken(raw string, allowed map[string]struct{}) (sectionOrderToken, bool, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return sectionOrderToken{}, false, nil
+	}
+	if trimmed == "*" {
+		return sectionOrderToken{wildcard: true}, true, nil
+	}
+	normalised := NormalizeFieldPath(trimmed)
+	if normalised == "" {
+		return sectionOrderToken{}, false, fmt.Errorf("field order entry %q resolves to empty path", raw)
+	}
+	if _, ok := allowed[normalised]; !ok {
+		return sectionOrderToken{}, false, fmt.Errorf("references unknown field %q", trimmed)
+	}
+	return sectionOrderToken{path: normalised}, true, nil
+}
+
+func naturalSectionOrder(sectionFields []string, originals map[string]int) []string {
+	out := append([]string(nil), sectionFields...)
+	sort.SliceStable(out, func(i, j int) bool {
+		return originals[out[i]] < originals[out[j]]
+	})
+	return out
+}
+
+func appendResidualSectionFields(resolved []string, ordered []string, used map[string]bool, explicit map[string]struct{}, skipExplicit bool) []string {
+	for _, path := range ordered {
+		if used[path] {
+			continue
+		}
+		if skipExplicit {
+			if _, exists := explicit[path]; exists {
+				continue
+			}
+		}
+		used[path] = true
+		resolved = append(resolved, path)
+	}
+	return resolved
 }
 
 type behaviorMetadataPayload struct {

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/goliatone/go-formgen/internal/safefile"
 	"github.com/google/go-cmp/cmp"
 
 	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
@@ -36,7 +37,7 @@ func LoadDocumentFromPath(path string) (pkgopenapi.Document, error) {
 		return pkgopenapi.Document{}, errors.New("testsupport: document path is required")
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		return pkgopenapi.Document{}, fmt.Errorf("testsupport: read document: %w", err)
 	}
@@ -51,7 +52,7 @@ func LoadDocumentFromPath(path string) (pkgopenapi.Document, error) {
 func MustLoadOperations(t *testing.T, path string) map[string]pkgopenapi.Operation {
 	t.Helper()
 
-	data, err := os.ReadFile(path)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		t.Fatalf("load golden: %v", err)
 	}
@@ -79,7 +80,7 @@ func LoadFormModel(path string) (pkgmodel.FormModel, error) {
 	if path == "" {
 		return pkgmodel.FormModel{}, errors.New("testsupport: form model path is required")
 	}
-	data, err := os.ReadFile(path)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		return pkgmodel.FormModel{}, fmt.Errorf("testsupport: read form model: %w", err)
 	}
@@ -103,10 +104,10 @@ func WriteFormModel(t *testing.T, path string, value pkgmodel.FormModel) {
 	if err != nil {
 		t.Fatalf("marshal form model: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := safefile.MkdirAll(filepath.Dir(path)); err != nil {
 		t.Fatalf("mkdir golden dir: %v", err)
 	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
+	if err := safefile.WriteFile(path, payload); err != nil {
 		t.Fatalf("write golden: %v", err)
 	}
 }
@@ -122,10 +123,10 @@ func WriteGolden(t *testing.T, path string, value any) {
 	if err != nil {
 		t.Fatalf("marshal golden: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := safefile.MkdirAll(filepath.Dir(path)); err != nil {
 		t.Fatalf("mkdir golden dir: %v", err)
 	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
+	if err := safefile.WriteFile(path, payload); err != nil {
 		t.Fatalf("write golden: %v", err)
 	}
 }
@@ -138,7 +139,7 @@ func CompareGolden(want, got any) string {
 // MustReadGolden reads a golden file and returns its raw bytes.
 func MustReadGolden(t *testing.T, path string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := safefile.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -152,10 +153,10 @@ func WriteMaybeGolden(t *testing.T, path string, data []byte) bool {
 	if os.Getenv("UPDATE_GOLDENS") == "" {
 		return false
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := safefile.MkdirAll(filepath.Dir(path)); err != nil {
 		t.Fatalf("mkdir golden dir: %v", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := safefile.WriteFile(path, data); err != nil {
 		t.Fatalf("write golden: %v", err)
 	}
 	return true

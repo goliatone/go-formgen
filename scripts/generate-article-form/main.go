@@ -6,6 +6,7 @@ import (
 	"os"
 
 	formgen "github.com/goliatone/go-formgen"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
@@ -26,7 +27,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(outputPath, html, 0o644); err != nil {
+	if err := safefile.WriteFile(outputPath, html); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write output: %v\n", err)
 		os.Exit(1)
 	}

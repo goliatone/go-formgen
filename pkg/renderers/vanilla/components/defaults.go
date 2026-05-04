@@ -98,6 +98,19 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 
 func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
 	var builder strings.Builder
+	labelID := objectLabelID(field)
+
+	writeObjectStart(&builder, field, labelID)
+	writeObjectCopy(&builder, field, labelID)
+	if err := writeObjectChildren(&builder, field, data); err != nil {
+		return err
+	}
+	builder.WriteString(`</fieldset>`)
+	buf.WriteString(builder.String())
+	return nil
+}
+
+func objectClasses(field model.Field) []string {
 	classes := []string{
 		"space-y-4",
 		"p-4",
@@ -109,15 +122,22 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 	if strings.TrimSpace(field.UIHints["accordion"]) == "true" {
 		classes = append(classes, "border-s-4", "border-s-blue-600")
 	}
-	if field.UIHints != nil {
-		if extra := sanitizeClassList(field.UIHints["cssClass"]); extra != "" {
-			classes = append(classes, extra)
-		}
-		if extra := sanitizeClassList(field.UIHints["class"]); extra != "" {
+	for _, key := range []string{"cssClass", "class"} {
+		if extra := sanitizeClassList(field.UIHints[key]); extra != "" {
 			classes = append(classes, extra)
 		}
 	}
+	return classes
+}
 
+func objectLabelID(field model.Field) string {
+	if strings.TrimSpace(field.Label) == "" {
+		return ""
+	}
+	return componentLabelID(field)
+}
+
+func writeObjectStart(builder *strings.Builder, field model.Field, labelID string) {
 	builder.WriteString(`<fieldset`)
 	if id := componentControlID(field); id != "" {
 		builder.WriteString(` id="`)
@@ -125,20 +145,18 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 		builder.WriteString(`"`)
 	}
 	builder.WriteString(` class="`)
-	builder.WriteString(html.EscapeString(strings.Join(classes, " ")))
+	builder.WriteString(html.EscapeString(strings.Join(objectClasses(field), " ")))
 	builder.WriteString(`"`)
-	writeRelationshipAttributes(&builder, field.Relationship)
-	labelID := ""
-	if strings.TrimSpace(field.Label) != "" {
-		labelID = componentLabelID(field)
-	}
+	writeRelationshipAttributes(builder, field.Relationship)
 	if labelID != "" {
 		builder.WriteString(` aria-labelledby="`)
 		builder.WriteString(html.EscapeString(labelID))
 		builder.WriteString(`"`)
 	}
 	builder.WriteString(`>`)
+}
 
+func writeObjectCopy(builder *strings.Builder, field model.Field, labelID string) {
 	if label := strings.TrimSpace(field.Label); label != "" {
 		builder.WriteString(`<legend`)
 		if labelID != "" {
@@ -160,7 +178,9 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 		builder.WriteString(html.EscapeString(hint))
 		builder.WriteString(`</p>`)
 	}
+}
 
+func writeObjectChildren(builder *strings.Builder, field model.Field, data ComponentData) error {
 	if data.RenderChild != nil {
 		builder.WriteString(`<div class="space-y-4">`)
 		for _, nested := range field.Nested {
@@ -172,9 +192,6 @@ func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) er
 		}
 		builder.WriteString(`</div>`)
 	}
-
-	builder.WriteString(`</fieldset>`)
-	buf.WriteString(builder.String())
 	return nil
 }
 
@@ -213,11 +230,9 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 
 	if label != "" {
 		builder.WriteString(`<div`)
-		if labelID != "" {
-			builder.WriteString(` id="`)
-			builder.WriteString(html.EscapeString(labelID))
-			builder.WriteString(`"`)
-		}
+		builder.WriteString(` id="`)
+		builder.WriteString(html.EscapeString(labelID))
+		builder.WriteString(`"`)
 		builder.WriteString(` class="text-sm font-medium text-gray-900 dark:text-white">`)
 		builder.WriteString(html.EscapeString(label))
 		builder.WriteString(`</div>`)
@@ -234,49 +249,8 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 	}
 
 	if field.Items != nil && data.RenderChild != nil {
-		cardinality := strings.TrimSpace(field.UIHints["cardinality"])
-		builder.WriteString(`<div class="space-y-3"`)
-		if cardinality != "" {
-			builder.WriteString(` data-relationship-collection="`)
-			builder.WriteString(html.EscapeString(cardinality))
-			builder.WriteString(`"`)
-		}
-		builder.WriteString(`>`)
-		itemValues := coerceSlice(field.Default)
-		if len(itemValues) == 0 {
-			child, err := data.RenderChild(*field.Items)
-			if err != nil {
-				return err
-			}
-			builder.WriteString(child)
-		} else {
-			baseID := componentControlID(*field.Items)
-			for idx, value := range itemValues {
-				item := cloneField(*field.Items)
-				item = applyArrayItemValue(item, value)
-				if baseID != "" {
-					applyControlIDPrefix(&item, fmt.Sprintf("%s-%d", baseID, idx+1))
-				}
-				child, err := data.RenderChild(item)
-				if err != nil {
-					return err
-				}
-				builder.WriteString(child)
-			}
-		}
-		builder.WriteString(`</div>`)
-
-		if cardinality == "many" {
-			builder.WriteString(`<button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">`)
-			builder.WriteString(`Add `)
-			if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
-				builder.WriteString(html.EscapeString(label))
-			} else if field.Label != "" {
-				builder.WriteString(html.EscapeString(field.Label))
-			} else {
-				builder.WriteString("item")
-			}
-			builder.WriteString(`</button>`)
+		if err := writeArrayItems(&builder, field, data); err != nil {
+			return err
 		}
 	} else {
 		builder.WriteString(`<p class="text-sm text-gray-500 dark:text-gray-400">Array field `)
@@ -287,6 +261,64 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 	builder.WriteString(`</div>`)
 	buf.WriteString(builder.String())
 	return nil
+}
+
+func writeArrayItems(builder *strings.Builder, field model.Field, data ComponentData) error {
+	cardinality := strings.TrimSpace(field.UIHints["cardinality"])
+	builder.WriteString(`<div class="space-y-3"`)
+	if cardinality != "" {
+		builder.WriteString(` data-relationship-collection="`)
+		builder.WriteString(html.EscapeString(cardinality))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(`>`)
+	if err := writeArrayItemFields(builder, field, data); err != nil {
+		return err
+	}
+	builder.WriteString(`</div>`)
+	if cardinality == "many" {
+		writeArrayAddButton(builder, field)
+	}
+	return nil
+}
+
+func writeArrayItemFields(builder *strings.Builder, field model.Field, data ComponentData) error {
+	itemValues := coerceSlice(field.Default)
+	if len(itemValues) == 0 {
+		child, err := data.RenderChild(*field.Items)
+		if err != nil {
+			return err
+		}
+		builder.WriteString(child)
+		return nil
+	}
+	baseID := componentControlID(*field.Items)
+	for idx, value := range itemValues {
+		item := cloneField(*field.Items)
+		item = applyArrayItemValue(item, value)
+		if baseID != "" {
+			applyControlIDPrefix(&item, fmt.Sprintf("%s-%d", baseID, idx+1))
+		}
+		child, err := data.RenderChild(item)
+		if err != nil {
+			return err
+		}
+		builder.WriteString(child)
+	}
+	return nil
+}
+
+func writeArrayAddButton(builder *strings.Builder, field model.Field) {
+	builder.WriteString(`<button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">`)
+	builder.WriteString(`Add `)
+	if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
+		builder.WriteString(html.EscapeString(label))
+	} else if field.Label != "" {
+		builder.WriteString(html.EscapeString(field.Label))
+	} else {
+		builder.WriteString("item")
+	}
+	builder.WriteString(`</button>`)
 }
 
 func datetimeRangeRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {

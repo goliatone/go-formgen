@@ -325,66 +325,105 @@ type Request struct {
 // Generate executes the loader → parser → model builder → renderer sequence and
 // returns the rendered bytes (HTML for the default vanilla renderer).
 func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error) {
+	if err := o.validateGenerateRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	formModel, err := o.generateFormModel(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	o.applyEndpointOverrides(req.OperationID, &formModel)
+	if pipelineErr := o.applyFormPipeline(ctx, &formModel, req); pipelineErr != nil {
+		return nil, pipelineErr
+	}
+
+	renderOptions, err := o.resolveRenderOptions(req, formModel)
+	if err != nil {
+		return nil, err
+	}
+	renderer, err := o.rendererFor(req.Renderer)
+	if err != nil {
+		return nil, err
+	}
+	if renderOptions.TopPadding == 0 && renderer.Name() == "vanilla" {
+		renderOptions.TopPadding = 5
+	}
+	output, err := renderer.Render(ctx, formModel, renderOptions)
+	if err != nil {
+		return nil, fmt.Errorf("orchestrator: render output: %w", err)
+	}
+	return output, nil
+}
+
+func (o *Orchestrator) validateGenerateRequest(ctx context.Context, req Request) error {
 	if ctx == nil {
-		return nil, errors.New("orchestrator: context is required")
+		return errors.New("orchestrator: context is required")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	if err := o.initialiseErr; err != nil {
-		return nil, err
+		return err
 	}
 	if !o.defaultsApplied {
 		o.applyDefaults()
 		if err := o.initialiseErr; err != nil {
-			return nil, err
+			return err
 		}
 	}
-
 	if req.OperationID == "" {
-		return nil, errors.New("orchestrator: operation id is required")
+		return errors.New("orchestrator: operation id is required")
 	}
+	return nil
+}
 
+func (o *Orchestrator) generateFormModel(ctx context.Context, req Request) (model.FormModel, error) {
 	adapter, err := o.resolveAdapter(ctx, req)
 	if err != nil {
-		return nil, err
+		return model.FormModel{}, err
 	}
-
 	doc, err := o.resolveSchemaDocument(ctx, req, adapter)
 	if err != nil {
-		return nil, err
+		return model.FormModel{}, err
 	}
-
 	ir, err := adapter.Normalize(ctx, doc, req.NormalizeOptions)
 	if err != nil {
-		return nil, fmt.Errorf("orchestrator: normalize schema: %w", err)
+		return model.FormModel{}, fmt.Errorf("orchestrator: normalize schema: %w", err)
 	}
 	form, ok := ir.Form(req.OperationID)
 	if !ok {
-		available, listErr := adapter.Forms(ctx, ir)
-		if listErr != nil {
-			return nil, fmt.Errorf("orchestrator: form %q not found (list forms: %w)", req.OperationID, listErr)
-		}
-		return nil, fmt.Errorf("orchestrator: form %q not found (available: %s)", req.OperationID, formatFormRefs(available))
+		return model.FormModel{}, o.formNotFoundError(ctx, adapter, ir, req.OperationID)
 	}
-
 	formModel, err := o.builder.Build(form)
 	if err != nil {
-		return nil, fmt.Errorf("orchestrator: build form model: %w", err)
+		return model.FormModel{}, fmt.Errorf("orchestrator: build form model: %w", err)
 	}
+	return formModel, nil
+}
 
-	o.applyEndpointOverrides(req.OperationID, &formModel)
-	if transformErr := o.applyTransformer(ctx, &formModel); transformErr != nil {
-		return nil, transformErr
+func (o *Orchestrator) formNotFoundError(ctx context.Context, adapter schema.FormatAdapter, ir schema.SchemaIR, operationID string) error {
+	available, err := adapter.Forms(ctx, ir)
+	if err != nil {
+		return fmt.Errorf("orchestrator: form %q not found (list forms: %w)", operationID, err)
 	}
-	if decorateErr := o.applyDecorators(&formModel); decorateErr != nil {
-		return nil, decorateErr
-	}
-	render.ApplySubset(&formModel, req.RenderOptions.Subset)
-	if visibilityErr := applyVisibility(&formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); visibilityErr != nil {
-		return nil, visibilityErr
-	}
+	return fmt.Errorf("orchestrator: form %q not found (available: %s)", operationID, formatFormRefs(available))
+}
 
+func (o *Orchestrator) applyFormPipeline(ctx context.Context, formModel *model.FormModel, req Request) error {
+	if transformErr := o.applyTransformer(ctx, formModel); transformErr != nil {
+		return transformErr
+	}
+	if decorateErr := o.applyDecorators(formModel); decorateErr != nil {
+		return decorateErr
+	}
+	render.ApplySubset(formModel, req.RenderOptions.Subset)
+	if err := applyVisibility(formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *Orchestrator) resolveRenderOptions(req Request, formModel model.FormModel) (render.RenderOptions, error) {
 	renderOptions := req.RenderOptions
 	render.LocalizeFormModel(&formModel, renderOptions)
 	mappedErrors := render.MapErrorPayload(formModel, renderOptions.Errors)
@@ -393,26 +432,11 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	if renderOptions.Theme == nil {
 		themeConfig, themeErr := o.resolveTheme(req.ThemeName, req.ThemeVariant)
 		if themeErr != nil {
-			return nil, themeErr
+			return render.RenderOptions{}, themeErr
 		}
 		renderOptions.Theme = themeConfig
 	}
-
-	renderer, err := o.rendererFor(req.Renderer)
-	if err != nil {
-		return nil, err
-	}
-
-	if renderOptions.TopPadding == 0 && renderer.Name() == "vanilla" {
-		renderOptions.TopPadding = 5
-	}
-
-	output, err := renderer.Render(ctx, formModel, renderOptions)
-	if err != nil {
-		return nil, fmt.Errorf("orchestrator: render output: %w", err)
-	}
-
-	return output, nil
+	return renderOptions, nil
 }
 
 func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererConfig, error) {
@@ -492,6 +516,14 @@ func (o *Orchestrator) applyDefaults() {
 		return
 	}
 
+	o.ensureCoreDefaults()
+	o.ensureDefaultAdapters()
+	o.ensureRendererDefaults()
+	o.ensureDecoratorDefaults()
+	o.defaultsApplied = true
+}
+
+func (o *Orchestrator) ensureCoreDefaults() {
 	if o.adapterRegistry == nil {
 		o.adapterRegistry = NewAdapterRegistry()
 	}
@@ -507,6 +539,15 @@ func (o *Orchestrator) applyDefaults() {
 	if o.builder == nil {
 		o.builder = model.NewBuilder()
 	}
+	if o.defaultAdapter == "" {
+		o.defaultAdapter = pkgopenapi.DefaultAdapterName
+	}
+	if o.widgetRegistry == nil {
+		o.widgetRegistry = widgets.NewRegistry()
+	}
+}
+
+func (o *Orchestrator) ensureDefaultAdapters() {
 	if o.adapterRegistry != nil && !o.adapterRegistry.Has(pkgopenapi.DefaultAdapterName) {
 		adapter := pkgopenapi.NewAdapter(o.loader, o.parser)
 		if err := o.adapterRegistry.Register(adapter); err != nil {
@@ -519,12 +560,9 @@ func (o *Orchestrator) applyDefaults() {
 			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
 		}
 	}
-	if o.defaultAdapter == "" {
-		o.defaultAdapter = pkgopenapi.DefaultAdapterName
-	}
-	if o.widgetRegistry == nil {
-		o.widgetRegistry = widgets.NewRegistry()
-	}
+}
+
+func (o *Orchestrator) ensureRendererDefaults() {
 	if o.registry == nil {
 		o.registry = render.NewRegistry()
 		renderer, err := vanilla.New()
@@ -537,19 +575,18 @@ func (o *Orchestrator) applyDefaults() {
 	if o.defaultRenderer == "" {
 		o.defaultRenderer = defaultRendererName
 	}
-
 	if o.themeSelector != nil && len(o.themeFallbacks) == 0 {
 		o.themeFallbacks = defaultThemeFallbacks()
 	}
+}
 
+func (o *Orchestrator) ensureDecoratorDefaults() {
 	if o.widgetRegistry != nil {
 		o.decorators = append([]model.Decorator{o.widgetRegistry}, o.decorators...)
 	}
 
 	o.ensureUIDecorator()
 	o.ensureUIDecoratorOrder()
-
-	o.defaultsApplied = true
 }
 
 func (o *Orchestrator) ensureUIDecorator() {

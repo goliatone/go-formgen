@@ -77,22 +77,35 @@ func resolveLocale(src any, key string) string {
 		return ""
 	}
 
+	if locale := localeFromKnownMap(src, key); locale != "" {
+		return locale
+	}
+	return localeFromReflection(src, key)
+}
+
+func localeFromKnownMap(src any, key string) string {
 	switch data := src.(type) {
 	case map[string]any:
-		if v, ok := data[key]; ok {
-			if str, ok := v.(string); ok {
-				return str
-			}
-			if str := strings.TrimSpace(fmt.Sprint(v)); str != "" {
-				return str
-			}
+		value, ok := data[key]
+		if !ok {
+			return ""
 		}
+		return localeFromAnyValue(value)
 	case map[string]string:
-		if v, ok := data[key]; ok {
-			return v
-		}
+		return data[key]
+	default:
+		return ""
 	}
+}
 
+func localeFromAnyValue(value any) string {
+	if str, ok := value.(string); ok {
+		return str
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func localeFromReflection(src any, key string) string {
 	value := reflect.ValueOf(src)
 	for value.IsValid() && value.Kind() == reflect.Pointer {
 		if value.IsNil() {
