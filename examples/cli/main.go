@@ -24,39 +24,30 @@ import (
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 )
 
+type cliConfig struct {
+	source     string
+	operation  string
+	renderer   string
+	output     string
+	timeout    time.Duration
+	inspect    bool
+	tuiFormat  string
+	tuiNoFetch bool
+}
+
 func main() {
-	defaultSource := exampleutil.FixturePath("petstore.json")
+	cfg := parseFlags()
 
-	var (
-		sourceFlag    = flag.String("source", defaultSource, "Path or URL to an OpenAPI document")
-		operationFlag = flag.String("operation", "createPet", "Operation ID to render")
-		rendererFlag  = flag.String("renderer", "vanilla", "Renderer to use (vanilla, preact, tui)")
-		outputFlag    = flag.String("output", "", "Optional file path for the generated markup (stdout when empty)")
-		timeoutFlag   = flag.Duration("timeout", 15*time.Second, "Generation timeout")
-		inspectFlag   = flag.Bool("inspect", false, "Print form metadata/UI hints as JSON (stderr)")
-		tuiFormatFlag = flag.String("tui-format", "json", "TUI output format (json, form, pretty)")
-		tuiNoFetch    = flag.Bool("tui-no-fetch", false, "Disable relationship HTTP fetches for TUI")
-		tuiTheme      = flag.String("tui-theme", "", "Optional TUI theme preset (unused placeholder)")
-		tuiNonTTY     = flag.Bool("tui-non-interactive", false, "Fail fast if TUI cannot attach to a TTY (placeholder)")
-	)
-	flag.Parse()
-
-	ctx, cancel := context.WithTimeout(context.Background(), *timeoutFlag)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
 	defer cancel()
 
 	registry := render.NewRegistry()
 	registry.MustRegister(mustVanilla())
 	registry.MustRegister(mustPreact())
 
-	tuiOpts := []tui.Option{tui.WithOutputFormat(parseTUIFormat(*tuiFormatFlag))}
-	if !*tuiNoFetch {
+	tuiOpts := []tui.Option{tui.WithOutputFormat(parseTUIFormat(cfg.tuiFormat))}
+	if !cfg.tuiNoFetch {
 		tuiOpts = append(tuiOpts, tui.WithHTTPClient(http.DefaultClient))
-	}
-	if *tuiTheme != "" {
-		// Placeholder: theme wiring can be added when themes are supported.
-	}
-	if *tuiNonTTY {
-		// Placeholder: non-interactive guard to be implemented alongside driver detection.
 	}
 	if tuiRenderer, err := tui.New(tuiOpts...); err == nil {
 		registry.MustRegister(tuiRenderer)
@@ -75,16 +66,16 @@ func main() {
 		orchestrator.WithParser(parser),
 		orchestrator.WithModelBuilder(builder),
 		orchestrator.WithRegistry(registry),
-		orchestrator.WithDefaultRenderer(*rendererFlag),
+		orchestrator.WithDefaultRenderer(cfg.renderer),
 	)
 
-	source, _, err := exampleutil.ResolveSource(*sourceFlag)
+	source, _, err := exampleutil.ResolveSource(cfg.source)
 	if err != nil {
 		log.Fatalf("resolve source: %v", err)
 	}
 
-	if !registry.Has(*rendererFlag) {
-		log.Fatalf("renderer %q not registered (available: %v)", *rendererFlag, registry.List())
+	if !registry.Has(cfg.renderer) {
+		log.Fatalf("renderer %q not registered (available: %v)", cfg.renderer, registry.List())
 	}
 
 	document, err := loader.Load(ctx, source)
@@ -94,8 +85,8 @@ func main() {
 
 	request := orchestrator.Request{
 		Document:    &document,
-		OperationID: *operationFlag,
-		Renderer:    *rendererFlag,
+		OperationID: cfg.operation,
+		Renderer:    cfg.renderer,
 	}
 
 	html, err := generator.Generate(ctx, request)
@@ -103,8 +94,8 @@ func main() {
 		log.Fatalf("generate: %v", err)
 	}
 
-	if *inspectFlag {
-		form, inspectErr := buildFormModel(ctx, parser, builder, document, *operationFlag)
+	if cfg.inspect {
+		form, inspectErr := buildFormModel(ctx, parser, builder, document, cfg.operation)
 		if inspectErr != nil {
 			log.Printf("inspect form: %v", inspectErr)
 		} else if err := writeInspection(os.Stderr, form); err != nil {
@@ -112,15 +103,40 @@ func main() {
 		}
 	}
 
-	if *outputFlag == "" {
+	if cfg.output == "" {
 		fmt.Println(string(html))
 		return
 	}
 
-	if err := writeFile(*outputFlag, html); err != nil {
+	if err := writeFile(cfg.output, html); err != nil {
 		log.Fatalf("write output: %v", err)
 	}
-	log.Printf("wrote %d bytes to %s", len(html), *outputFlag)
+	log.Printf("wrote %d bytes to %s", len(html), cfg.output)
+}
+
+func parseFlags() cliConfig {
+	defaultSource := exampleutil.FixturePath("petstore.json")
+
+	sourceFlag := flag.String("source", defaultSource, "Path or URL to an OpenAPI document")
+	operationFlag := flag.String("operation", "createPet", "Operation ID to render")
+	rendererFlag := flag.String("renderer", "vanilla", "Renderer to use (vanilla, preact, tui)")
+	outputFlag := flag.String("output", "", "Optional file path for the generated markup (stdout when empty)")
+	timeoutFlag := flag.Duration("timeout", 15*time.Second, "Generation timeout")
+	inspectFlag := flag.Bool("inspect", false, "Print form metadata/UI hints as JSON (stderr)")
+	tuiFormatFlag := flag.String("tui-format", "json", "TUI output format (json, form, pretty)")
+	tuiNoFetch := flag.Bool("tui-no-fetch", false, "Disable relationship HTTP fetches for TUI")
+	flag.Parse()
+
+	return cliConfig{
+		source:     *sourceFlag,
+		operation:  *operationFlag,
+		renderer:   *rendererFlag,
+		output:     *outputFlag,
+		timeout:    *timeoutFlag,
+		inspect:    *inspectFlag,
+		tuiFormat:  *tuiFormatFlag,
+		tuiNoFetch: *tuiNoFetch,
+	}
 }
 
 func parseTUIFormat(raw string) tui.OutputFormat {

@@ -1,5 +1,7 @@
 package main
 
+import "maps"
+
 import "github.com/goliatone/go-formgen/pkg/render"
 
 var articleSample = render.RenderOptions{
@@ -14,9 +16,9 @@ var articleSample = render.RenderOptions{
 		"read_time_minutes": 7,
 		// Relationship fields: use IDs that exist in the mock API dataset.
 		// Labels are resolved from the API response, not stored here.
-		"author_id":           "11111111-1111-4111-8111-111111111111", // Ada Lovelace
-		"manager_id":          "88888888-8888-4888-8888-888888888888", // Grace Hopper
-		"category_id":         "55555555-5555-4555-8555-555555555555", // Engineering
+		"author_id":           "11111111-1111-4111-8111-111111111111",                                                   // Ada Lovelace
+		"manager_id":          "88888888-8888-4888-8888-888888888888",                                                   // Grace Hopper
+		"category_id":         "55555555-5555-4555-8555-555555555555",                                                   // Engineering
 		"tags":                []string{"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}, // feature, announcement
 		"related_article_ids": []string{},
 		"published_at":        "2024-03-01T10:00:00Z",
@@ -87,9 +89,7 @@ func cloneAnyMap(source map[string]any) map[string]any {
 		return nil
 	}
 	result := make(map[string]any, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
+	maps.Copy(result, source)
 	return result
 }
 
