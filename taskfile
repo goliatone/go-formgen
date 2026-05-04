@@ -22,10 +22,280 @@ PATH=$(pwd)/client/node_modules/.bin:$PATH
 # This will make all scripts available in the ./src/bin directory
 PATH=$(pwd)/src/bin:$PATH
 
+GO_TOOLCHAIN="${GO_TOOLCHAIN:-local}"
+GO_GOLANGCI_LINT_VERSION="${GO_GOLANGCI_LINT_VERSION:-v2.11.3}"
+GO_GOLANGCI_LINT_VERSION_FILE="${GO_GOLANGCI_LINT_VERSION_FILE:-.golangci-lint-version}"
+GO_GOVULNCHECK_VERSION="${GO_GOVULNCHECK_VERSION:-v1.1.4}"
+GO_GOSEC_VERSION="${GO_GOSEC_VERSION:-v2.25.0}"
+GO_QUALITY_GOCACHE="${GO_QUALITY_GOCACHE:-$(pwd)/.tmp/go-cache}"
+GO_QUALITY_GOTMPDIR="${GO_QUALITY_GOTMPDIR:-$(pwd)/.tmp/go-tmp}"
+GO_QUALITY_MODULES="${GO_QUALITY_MODULES:-. examples/http}"
+GO_LINT_NEW_FROM_REV="${GO_LINT_NEW_FROM_REV:-origin/main}"
+
 function _go:exec {
     local gocache=${GOCACHE:-"$(pwd)/.gocache"}
     local gomodcache=${GOMODCACHE:-"$(pwd)/.gomodcache"}
     GOCACHE="${gocache}" GOMODCACHE="${gomodcache}" "$@"
+}
+
+function _go:bin {
+    if [ -n "${GO_BIN:-}" ] && [ -x "${GO_BIN}" ]; then
+        printf '%s\n' "${GO_BIN}"
+        return 0
+    fi
+
+    if command -v go >/dev/null 2>&1; then
+        command -v go
+        return 0
+    fi
+
+    if [ -x "/Users/goliatone/.g/go/bin/go" ]; then
+        printf '%s\n' "/Users/goliatone/.g/go/bin/go"
+        return 0
+    fi
+
+    echo "go binary not found in PATH, GO_BIN, or /Users/goliatone/.g/go/bin/go" >&2
+    return 1
+}
+
+function _go:quality:prepare_env {
+    export GOCACHE="${GOCACHE:-${GO_QUALITY_GOCACHE}}"
+    export GOTMPDIR="${GOTMPDIR:-${GO_QUALITY_GOTMPDIR}}"
+    mkdir -p "${GOCACHE}" "${GOTMPDIR}"
+}
+
+function _go:golangci_lint_version {
+    if [ -f "${GO_GOLANGCI_LINT_VERSION_FILE}" ]; then
+        awk 'NF { print $1; exit }' "${GO_GOLANGCI_LINT_VERSION_FILE}"
+        return 0
+    fi
+
+    printf '%s\n' "${GO_GOLANGCI_LINT_VERSION}"
+}
+
+function _go:tool_bin_dir {
+    local go_bin
+    local gobin
+    local gopath
+
+    go_bin=$(_go:bin) || return 1
+    gobin="$("${go_bin}" env GOBIN)"
+    if [ -n "${gobin}" ]; then
+        printf '%s\n' "${gobin}"
+        return 0
+    fi
+
+    gopath="$("${go_bin}" env GOPATH)"
+    if [ -n "${gopath}" ]; then
+        printf '%s\n' "${gopath%/}/bin"
+        return 0
+    fi
+
+    echo "unable to resolve Go tool bin directory" >&2
+    return 1
+}
+
+function _go:tool:path {
+    local name=$1
+    local bin_dir
+
+    if command -v "${name}" >/dev/null 2>&1; then
+        command -v "${name}"
+        return 0
+    fi
+
+    bin_dir=$(_go:tool_bin_dir) || return 1
+    if [ -x "${bin_dir}/${name}" ]; then
+        printf '%s\n' "${bin_dir}/${name}"
+        return 0
+    fi
+
+    return 1
+}
+
+function _go:tool:install {
+    local name=$1
+    local target=$2
+    local go_bin
+
+    go_bin=$(_go:bin) || return 1
+    _go:quality:prepare_env || return 1
+    echo "Installing ${name} (${target})" >&2
+    GOTOOLCHAIN="${GO_TOOLCHAIN}" "${go_bin}" install "${target}" || return 1
+    _go:tool:path "${name}" || return 1
+}
+
+function _go:tool:ensure {
+    local name=$1
+    local target=$2
+    local tool_path
+
+    if tool_path=$(_go:tool:path "${name}" 2>/dev/null); then
+        printf '%s\n' "${tool_path}"
+        return 0
+    fi
+
+    _go:tool:install "${name}" "${target}"
+}
+
+function _go:quality:modules {
+    local module
+
+    for module in ${GO_QUALITY_MODULES}; do
+        if [ -n "${module}" ]; then
+            printf '%s\n' "${module}"
+        fi
+    done
+}
+
+function _go:lint:patterns {
+    if [ "$#" -gt 0 ]; then
+        printf '%s\n' "$@"
+        return 0
+    fi
+
+    printf '%s\n' "./..."
+}
+
+function _go:files {
+    find . -type f -name '*.go' \
+        -not -path './.git/*' \
+        -not -path './.cache/*' \
+        -not -path './.gocache/*' \
+        -not -path './.gomodcache/*' \
+        -not -path './.gotmp/*' \
+        -not -path './.tmp/*' \
+        -not -path './client/node_modules/*' \
+        -not -path './client/dist/*' \
+        -not -path './examples/http/*' \
+        | sort
+}
+
+function _go:module:run {
+    local module=$1
+
+    shift
+    echo "==> ${module}: $*"
+    (
+        cd "${module}" || exit "$?"
+        "$@"
+    )
+}
+
+function _go:module:fmt {
+    local gofmt_bin
+    local -a files=()
+    local file
+
+    gofmt_bin="$(dirname "$(_go:bin)")/gofmt"
+    while IFS= read -r file; do
+        if [ -n "${file}" ]; then
+            files+=("${file}")
+        fi
+    done < <(_go:files)
+    if [ "${#files[@]}" -eq 0 ]; then
+        echo "No Go files found"
+        return 0
+    fi
+
+    "${gofmt_bin}" -w "${files[@]}"
+}
+
+function _go:module:fmt_check {
+    local gofmt_bin
+    local -a files=()
+    local file
+    local unformatted
+
+    gofmt_bin="$(dirname "$(_go:bin)")/gofmt"
+    while IFS= read -r file; do
+        if [ -n "${file}" ]; then
+            files+=("${file}")
+        fi
+    done < <(_go:files)
+    if [ "${#files[@]}" -eq 0 ]; then
+        echo "No Go files found"
+        return 0
+    fi
+
+    unformatted="$("${gofmt_bin}" -l "${files[@]}")"
+    if [ -n "${unformatted}" ]; then
+        echo "The following Go files need formatting:"
+        echo "${unformatted}"
+        return 1
+    fi
+}
+
+function _go:module:go_cmd {
+    local subcommand=$1
+    local -a patterns=()
+    local pattern
+    local go_bin
+
+    shift
+    go_bin=$(_go:bin) || return 1
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    _go:exec "${go_bin}" "${subcommand}" "${patterns[@]}"
+}
+
+function _go:module:test {
+    _go:module:go_cmd test "$@"
+}
+
+function _go:module:race {
+    local -a patterns=()
+    local pattern
+    local go_bin
+
+    go_bin=$(_go:bin) || return 1
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    _go:exec "${go_bin}" test -race -count=1 "${patterns[@]}"
+}
+
+function _go:module:cover {
+    local -a patterns=()
+    local pattern
+    local go_bin
+    local output_file=${GO_COVERPROFILE:-coverage.out}
+
+    go_bin=$(_go:bin) || return 1
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    _go:exec "${go_bin}" test -coverprofile="${output_file}" "${patterns[@]}" && "${go_bin}" tool cover -func "${output_file}"
+}
+
+function _go:module:vet {
+    _go:module:go_cmd vet "$@"
+}
+
+function _go:module:fix {
+    _go:module:go_cmd fix "$@"
+}
+
+function _go:for_each_module {
+    local callback=$1
+    local module
+
+    shift
+    while IFS= read -r module; do
+        if [ -n "${module}" ]; then
+            _go:module:run "${module}" "${callback}" "$@" || return 1
+        fi
+    done < <(_go:quality:modules)
 }
 
 
@@ -79,6 +349,228 @@ function _install:envset {
 # Application management
 ##########################################
 
+function go:tools:golangci-lint {
+    local version
+
+    version="$(_go:golangci_lint_version)" || return 1
+    _go:tool:install "golangci-lint" "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${version}"
+}
+
+function go:tools:govulncheck {
+    _go:tool:install "govulncheck" "golang.org/x/vuln/cmd/govulncheck@${GO_GOVULNCHECK_VERSION}"
+}
+
+function go:tools:gosec {
+    _go:tool:install "gosec" "github.com/securego/gosec/v2/cmd/gosec@${GO_GOSEC_VERSION}"
+}
+
+function go:tools:all {
+    go:tools:golangci-lint || return 1
+    go:tools:govulncheck || return 1
+    go:tools:gosec || return 1
+}
+
+function go:fmt {
+    _go:for_each_module _go:module:fmt
+}
+
+function go:fix {
+    _go:for_each_module _go:module:fix "$@"
+}
+
+function go:fmt:check {
+    _go:for_each_module _go:module:fmt_check
+}
+
+function go:test {
+    _go:for_each_module _go:module:test "$@"
+}
+
+function go:race {
+    _go:for_each_module _go:module:race "$@"
+}
+
+function go:cover {
+    _go:for_each_module _go:module:cover "$@"
+}
+
+function go:vet {
+    _go:for_each_module _go:module:vet "$@"
+}
+
+function _go:module:lint {
+    local golangci_lint_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${golangci_lint_bin}" run "${patterns[@]}"
+}
+
+function _go:module:lint_fix {
+    local golangci_lint_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${golangci_lint_bin}" run --fix "${patterns[@]}"
+}
+
+function _go:module:lint_new {
+    local golangci_lint_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${golangci_lint_bin}" run --new-from-rev="${GO_LINT_NEW_FROM_REV}" --whole-files "${patterns[@]}"
+}
+
+function _go:module:lint_report {
+    local golangci_lint_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${golangci_lint_bin}" run --issues-exit-code=0 "${patterns[@]}"
+}
+
+function go:lint {
+    local golangci_lint_bin
+    local version
+
+    version="$(_go:golangci_lint_version)" || return 1
+    golangci_lint_bin=$(_go:tool:ensure "golangci-lint" "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${version}") || return 1
+    _go:for_each_module _go:module:lint "${golangci_lint_bin}" "$@"
+}
+
+function go:lint:fix {
+    local golangci_lint_bin
+    local version
+
+    version="$(_go:golangci_lint_version)" || return 1
+    golangci_lint_bin=$(_go:tool:ensure "golangci-lint" "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${version}") || return 1
+    _go:for_each_module _go:module:lint_fix "${golangci_lint_bin}" "$@"
+}
+
+function go:lint:new {
+    local golangci_lint_bin
+    local version
+
+    version="$(_go:golangci_lint_version)" || return 1
+    golangci_lint_bin=$(_go:tool:ensure "golangci-lint" "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${version}") || return 1
+    _go:for_each_module _go:module:lint_new "${golangci_lint_bin}" "$@"
+}
+
+function go:lint:report {
+    local golangci_lint_bin
+    local version
+
+    version="$(_go:golangci_lint_version)" || return 1
+    golangci_lint_bin=$(_go:tool:ensure "golangci-lint" "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${version}") || return 1
+    _go:for_each_module _go:module:lint_report "${golangci_lint_bin}" "$@"
+}
+
+function go:lint:all {
+    go:lint "$@"
+}
+
+function go:lint:strict {
+    go:lint "$@"
+}
+
+function _go:module:govulncheck {
+    local govulncheck_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${govulncheck_bin}" "${patterns[@]}"
+}
+
+function _go:module:gosec {
+    local gosec_bin=$1
+    local -a patterns=()
+    local pattern
+
+    shift
+    _go:quality:prepare_env || return 1
+    while IFS= read -r pattern; do
+        if [ -n "${pattern}" ]; then
+            patterns+=("${pattern}")
+        fi
+    done < <(_go:lint:patterns "$@")
+    "${gosec_bin}" -exclude-dir=.tmp "${patterns[@]}"
+}
+
+function go:security:govulncheck {
+    local govulncheck_bin
+
+    govulncheck_bin=$(_go:tool:ensure "govulncheck" "golang.org/x/vuln/cmd/govulncheck@${GO_GOVULNCHECK_VERSION}") || return 1
+    _go:for_each_module _go:module:govulncheck "${govulncheck_bin}" "$@"
+}
+
+function go:security:gosec {
+    local gosec_bin
+
+    gosec_bin=$(_go:tool:ensure "gosec" "github.com/securego/gosec/v2/cmd/gosec@${GO_GOSEC_VERSION}") || return 1
+    _go:for_each_module _go:module:gosec "${gosec_bin}" "$@"
+}
+
+function go:security:all {
+    go:security:govulncheck "$@" || return 1
+    go:security:gosec "$@" || return 1
+}
+
+function go:quality:pr {
+    go:fmt:check || return 1
+    go:test "$@" || return 1
+    go:lint:new "$@" || return 1
+}
+
+function go:quality:all {
+    go:fmt || return 1
+    go:fix "$@" || return 1
+    go:fmt:check || return 1
+    go:test "$@" || return 1
+    go:race "$@" || return 1
+    go:lint "$@" || return 1
+    go:security:all "$@" || return 1
+}
+
+function go:all {
+    go:quality:all "$@"
+}
+
 function dev:install {
     cd "$(pwd)/src" || exit "$?"
 
@@ -96,13 +588,11 @@ function dev:env:load {
 }
 
 function dev:test {
-    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
-    _go:exec "${go_bin}" test ./...
+    go:test "$@"
 }
 
 function dev:cover {
-    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
-    "${go_bin}" test -coverprofile=coverage.out ./... && "${go_bin}" tool cover -func coverage.out
+    go:cover "$@"
 }
 
 function dev:test:contracts {
@@ -111,13 +601,8 @@ function dev:test:contracts {
 }
 
 function dev:lint {
-    local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
-    _go:exec "${go_bin}" vet ./...
-    if command -v golangci-lint >/dev/null 2>&1; then
-        golangci-lint run ./...
-    else
-        echo "golangci-lint not installed; skipping golangci-lint run" >&2
-    fi
+    go:vet "$@" || return 1
+    go:lint "$@"
 }
 
 function dev:lint:extensions {
@@ -139,7 +624,7 @@ function dev:goldens {
 }
 
 function dev:ci {
-    dev:test && dev:test:contracts && dev:test:examples && dev:lint && client:ci
+    go:quality:pr && dev:test:contracts && dev:test:examples && client:ci
 }
 
 ##
