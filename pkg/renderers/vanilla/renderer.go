@@ -751,13 +751,6 @@ func applyValuesToFields(fields []model.Field, values map[string]prefillValue, p
 		if len(fields[i].Nested) > 0 {
 			fields[i].Nested = applyValuesToFields(fields[i].Nested, values, path)
 		}
-		if fields[i].Items != nil && len(fields[i].Nested) == 0 {
-			// Array items render inside specialised components. Carry values for
-			// relationship-backed arrays via metadata on the parent field.
-			if _, ok := values[path]; ok {
-				continue
-			}
-		}
 	}
 
 	return fields

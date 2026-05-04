@@ -894,11 +894,6 @@ func applyPrefillToFields(fields []model.Field, values map[string]prefillValue, 
 		if len(fields[i].Nested) > 0 {
 			fields[i].Nested = applyPrefillToFields(fields[i].Nested, values, path)
 		}
-		if fields[i].Items != nil && len(fields[i].Nested) == 0 {
-			if _, ok := values[path]; ok {
-				continue
-			}
-		}
 	}
 
 	return fields

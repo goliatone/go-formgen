@@ -316,7 +316,7 @@ func writeIndentedBlock(builder *strings.Builder, block string) {
 	if strings.TrimSpace(block) == "" {
 		return
 	}
-	for _, line := range strings.Split(block, "\n") {
+	for line := range strings.SplitSeq(block, "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}

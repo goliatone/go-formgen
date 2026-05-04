@@ -145,10 +145,6 @@ func (r *Renderer) promptString(ctx context.Context, field model.Field, path str
 	isTextArea := field.Format == "textarea" || field.UIHints["input"] == "textarea"
 
 	for {
-		if !rules.required && defaultVal == "" && rulesCache != nil {
-			// allow skip by entering empty; prompt still shown once
-		}
-
 		var response string
 		var err error
 		cfg := InputConfig{
@@ -624,12 +620,12 @@ func (r *Renderer) promptRelationship(ctx context.Context, field model.Field, pa
 				entries = append(entries, val)
 			}
 
-			if err := rules.validateArray(toAnySlice(entries)); err != nil {
+			if validateErr := rules.validateArray(toAnySlice(entries)); validateErr != nil {
 				// If required and empty, keep prompting.
-				if errors.Is(err, ErrAborted) {
-					return err
+				if errors.Is(validateErr, ErrAborted) {
+					return validateErr
 				}
-				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+				_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, validateErr))
 			}
 
 			more, err := r.driver.Confirm(ctx, ConfirmConfig{
@@ -858,7 +854,9 @@ func (r *Renderer) fetchRelationshipOptions(ctx context.Context, cfg relConfig) 
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
@@ -902,7 +900,7 @@ func extractResults(payload any, path string) []any {
 	}
 	cur := payload
 	if path != "" {
-		for _, segment := range strings.Split(path, ".") {
+		for segment := range strings.SplitSeq(path, ".") {
 			switch node := cur.(type) {
 			case map[string]any:
 				cur = node[segment]
@@ -930,7 +928,7 @@ func pickValue(m map[string]any, path string) string {
 		return ""
 	}
 	cur := any(m)
-	for _, segment := range strings.Split(path, ".") {
+	for segment := range strings.SplitSeq(path, ".") {
 		switch node := cur.(type) {
 		case map[string]any:
 			cur = node[segment]
@@ -993,9 +991,6 @@ func (r validationRules) validateString(value string) error {
 }
 
 func (r validationRules) validateBool(value bool) error {
-	if r.required {
-		// bool is always set; nothing to do
-	}
 	return nil
 }
 

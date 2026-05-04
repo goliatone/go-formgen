@@ -112,8 +112,8 @@ func getPath(root map[string]any, path string) (any, bool) {
 		return nil, false
 	}
 	current := any(root)
-	segments := strings.Split(path, ".")
-	for _, segment := range segments {
+	segments := strings.SplitSeq(path, ".")
+	for segment := range segments {
 		switch node := current.(type) {
 		case map[string]any:
 			next, ok := node[segment]
@@ -175,7 +175,7 @@ func setPath(root map[string]any, path string, value any) error {
 					return nil
 				}
 				node[segment] = child
-				parentMap, parentSlice, parentKey, parentIndex = node, nil, segment, -1
+				parentMap, parentKey = node, segment
 				if last {
 					return nil
 				}

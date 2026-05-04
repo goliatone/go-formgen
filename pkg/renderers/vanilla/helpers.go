@@ -6,22 +6,6 @@ import (
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 )
 
-func componentControlID(name string) string {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return ""
-	}
-	return "fg-" + trimmed
-}
-
-func componentLabelID(name string) string {
-	controlID := componentControlID(name)
-	if controlID == "" {
-		return ""
-	}
-	return controlID + "-label"
-}
-
 func sanitizeClassList(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
