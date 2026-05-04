@@ -165,3 +165,122 @@ func TestConvertSchemaMergesAllOfSchemas(t *testing.T) {
 		t.Fatalf("required set missing email")
 	}
 }
+
+func TestConvertSchemaHandlesBooleanExclusiveBounds(t *testing.T) {
+	t.Parallel()
+
+	const document = `{
+  "openapi": "3.0.0",
+  "info": { "title": "Exclusive Bounds", "version": "1.0.0" },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Rating": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 5,
+        "exclusiveMinimum": true,
+        "exclusiveMaximum": true
+      }
+    }
+  }
+}`
+
+	converted := loadConvertedComponent(t, document, "Rating")
+	if converted.Minimum == nil || *converted.Minimum != 0 {
+		t.Fatalf("minimum = %v, want 0", converted.Minimum)
+	}
+	if converted.Maximum == nil || *converted.Maximum != 5 {
+		t.Fatalf("maximum = %v, want 5", converted.Maximum)
+	}
+	if !converted.ExclusiveMinimum {
+		t.Fatalf("exclusive minimum = false, want true")
+	}
+	if !converted.ExclusiveMaximum {
+		t.Fatalf("exclusive maximum = false, want true")
+	}
+}
+
+func TestConvertSchemaHandlesNumericExclusiveBounds(t *testing.T) {
+	t.Parallel()
+
+	const document = `{
+  "openapi": "3.1.0",
+  "info": { "title": "Exclusive Bounds", "version": "1.0.0" },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Percent": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "exclusiveMaximum": 100
+      }
+    }
+  }
+}`
+
+	converted := loadConvertedComponent(t, document, "Percent")
+	if converted.Minimum == nil || *converted.Minimum != 0 {
+		t.Fatalf("minimum = %v, want 0", converted.Minimum)
+	}
+	if converted.Maximum == nil || *converted.Maximum != 100 {
+		t.Fatalf("maximum = %v, want 100", converted.Maximum)
+	}
+	if !converted.ExclusiveMinimum {
+		t.Fatalf("exclusive minimum = false, want true")
+	}
+	if !converted.ExclusiveMaximum {
+		t.Fatalf("exclusive maximum = false, want true")
+	}
+}
+
+func TestConvertSchemaPrefersStricterMixedNumericBounds(t *testing.T) {
+	t.Parallel()
+
+	const document = `{
+  "openapi": "3.1.0",
+  "info": { "title": "Mixed Bounds", "version": "1.0.0" },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Threshold": {
+        "type": "number",
+        "minimum": 10,
+        "exclusiveMinimum": 5,
+        "maximum": 90,
+        "exclusiveMaximum": 100
+      }
+    }
+  }
+}`
+
+	converted := loadConvertedComponent(t, document, "Threshold")
+	if converted.Minimum == nil || *converted.Minimum != 10 {
+		t.Fatalf("minimum = %v, want stricter inclusive minimum 10", converted.Minimum)
+	}
+	if converted.ExclusiveMinimum {
+		t.Fatalf("exclusive minimum = true, want false for stricter inclusive minimum")
+	}
+	if converted.Maximum == nil || *converted.Maximum != 90 {
+		t.Fatalf("maximum = %v, want stricter inclusive maximum 90", converted.Maximum)
+	}
+	if converted.ExclusiveMaximum {
+		t.Fatalf("exclusive maximum = true, want false for stricter inclusive maximum")
+	}
+}
+
+func loadConvertedComponent(t *testing.T, document, name string) pkgopenapi.Schema {
+	t.Helper()
+
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromData([]byte(document))
+	if err != nil {
+		t.Fatalf("load schema: %v", err)
+	}
+
+	ref := doc.Components.Schemas[name]
+	if ref == nil {
+		t.Fatalf("schema %s not found", name)
+	}
+	return convertSchema(ref)
+}

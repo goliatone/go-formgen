@@ -231,8 +231,8 @@ func convertSchemaWithState(
 		value := *src.Max
 		schema.Maximum = &value
 	}
-	schema.ExclusiveMinimum = src.ExclusiveMin
-	schema.ExclusiveMaximum = src.ExclusiveMax
+	applyExclusiveMinimum(&schema, src.ExclusiveMin)
+	applyExclusiveMaximum(&schema, src.ExclusiveMax)
 	if src.MinLength != 0 {
 		value := int(src.MinLength)
 		schema.MinLength = &value
@@ -251,6 +251,36 @@ func convertSchemaWithState(
 	delete(active, src)
 	cache[src] = schema
 	return schema
+}
+
+func applyExclusiveMinimum(schema *pkgopenapi.Schema, bound openapi3.ExclusiveBound) {
+	if schema == nil {
+		return
+	}
+	if bound.Value != nil {
+		value := *bound.Value
+		if schema.Minimum == nil || value >= *schema.Minimum {
+			schema.Minimum = &value
+			schema.ExclusiveMinimum = true
+		}
+		return
+	}
+	schema.ExclusiveMinimum = bound.IsTrue()
+}
+
+func applyExclusiveMaximum(schema *pkgopenapi.Schema, bound openapi3.ExclusiveBound) {
+	if schema == nil {
+		return
+	}
+	if bound.Value != nil {
+		value := *bound.Value
+		if schema.Maximum == nil || value <= *schema.Maximum {
+			schema.Maximum = &value
+			schema.ExclusiveMaximum = true
+		}
+		return
+	}
+	schema.ExclusiveMaximum = bound.IsTrue()
 }
 
 func mergeAllOfSchemas(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}) {
