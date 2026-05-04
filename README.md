@@ -583,13 +583,19 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 ## Testing & Tooling
 
 ```
-./taskfile dev:test            # go test ./... with cached modules
+./taskfile go:tools:all        # install pinned golangci-lint, govulncheck, and gosec
+./taskfile go:quality:pr       # format check, tests, and new-code lint
+./taskfile go:quality:all      # fmt, fix, tests, race, lint, and security checks
+./taskfile go:lint:report      # report lint findings without failing the task
+./taskfile dev:test            # compatibility wrapper for go:test
 ./taskfile dev:test:contracts  # contract + integration suites (renderer coverage)
 ./taskfile dev:test:examples   # compile example binaries with -tags example (vanilla + Preact)
-./taskfile dev:ci              # vet + optional golangci-lint (includes example build)
+./taskfile dev:ci              # PR quality checks, contracts, examples, and client CI
 ./taskfile dev:goldens         # regenerate vanilla/Preact snapshots via scripts/update_goldens.sh
 ./scripts/update_goldens.sh    # refresh vanilla/Preact snapshots and rerun example builds
 ```
+
+The Go quality tasks cover the root module and `examples/http` by default. Override the module list with `GO_QUALITY_MODULES`, for example `GO_QUALITY_MODULES="." ./taskfile go:test`.
 
 ## Troubleshooting
 
