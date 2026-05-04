@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
+	"github.com/goliatone/go-formgen/internal/safefile"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
 	"github.com/goliatone/go-formgen/pkg/render"
@@ -53,7 +53,7 @@ func main() {
 	}
 
 	if *output != "" {
-		if err := os.WriteFile(*output, outputHTML, 0o644); err != nil {
+		if err := safefile.WriteFile(*output, outputHTML); err != nil {
 			log.Fatalf("Failed to write output: %v", err)
 		}
 		fmt.Printf("Form written to %s\n", *output)

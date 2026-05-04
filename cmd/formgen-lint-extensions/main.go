@@ -11,6 +11,7 @@ import (
 
 	"github.com/goliatone/go-formgen"
 	internalmodel "github.com/goliatone/go-formgen/internal/model"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
@@ -77,7 +78,7 @@ func main() {
 }
 
 func lintFile(ctx context.Context, parser pkgopenapi.Parser, path string) ([]violation, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := safefile.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
