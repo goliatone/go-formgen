@@ -32,7 +32,7 @@ func TestLoadFS_JSON(t *testing.T) {
 	if slugCfg.Behaviors == nil {
 		t.Fatalf("slug behaviors not parsed: %#v", slugCfg)
 	}
-	if _, ok := slugCfg.Behaviors["autoSlug"]; !ok {
+	if _, hasAutoSlug := slugCfg.Behaviors["autoSlug"]; !hasAutoSlug {
 		t.Fatalf("slug behaviors missing autoSlug entry: %#v", slugCfg.Behaviors)
 	}
 

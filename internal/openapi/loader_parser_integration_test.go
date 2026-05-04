@@ -25,8 +25,8 @@ func TestLoaderParserIntegration(t *testing.T) {
 
 	tmp := t.TempDir()
 	filePath := filepath.Join(tmp, "petstore.yaml")
-	if err := os.WriteFile(filePath, data, 0o644); err != nil {
-		t.Fatalf("write temp fixture: %v", err)
+	if writeErr := os.WriteFile(filePath, data, 0o644); writeErr != nil {
+		t.Fatalf("write temp fixture: %v", writeErr)
 	}
 
 	loader := formgen.NewLoader()
@@ -38,16 +38,16 @@ func TestLoaderParserIntegration(t *testing.T) {
 	}
 
 	parser := formgen.NewParser()
-	if _, err := parser.Operations(ctx, docFile); err != nil {
-		t.Fatalf("parse file document: %v", err)
+	if _, parseErr := parser.Operations(ctx, docFile); parseErr != nil {
+		t.Fatalf("parse file document: %v", parseErr)
 	}
 
 	// HTTP source
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(data); err != nil {
-			t.Fatalf("write response: %v", err)
+		if _, writeErr := w.Write(data); writeErr != nil {
+			t.Fatalf("write response: %v", writeErr)
 		}
 	}))
 	defer server.Close()
@@ -57,7 +57,7 @@ func TestLoaderParserIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load http: %v", err)
 	}
-	if _, err := parser.Operations(ctx, docHTTP); err != nil {
-		t.Fatalf("parse http document: %v", err)
+	if _, parseErr := parser.Operations(ctx, docHTTP); parseErr != nil {
+		t.Fatalf("parse http document: %v", parseErr)
 	}
 }
