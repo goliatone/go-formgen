@@ -26,9 +26,12 @@ import (
 	"github.com/gomarkdown/markdown"
 	mdhtml "github.com/gomarkdown/markdown/html"
 	mdparser "github.com/gomarkdown/markdown/parser"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/examples/internal/exampleutil"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	"github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
@@ -41,6 +44,34 @@ import (
 
 //go:embed README.md
 var readmeContent []byte
+
+const (
+	demoHTTPTimeout    = 15 * time.Second
+	maxDemoRequestBody = 64 << 20
+	multipartFormMem   = 32 << 20
+)
+
+const readmePageTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>go-formgen HTTP Demo</title>
+  <style>:root{--bg:#fff;--fg:#1a1a2e;--link:#2563eb;--code-bg:#f3f4f6;--border:#e5e7eb;--nav-bg:#f8fafc}@media(prefers-color-scheme:dark){:root{--bg:#1a1a2e;--fg:#e5e7eb;--link:#60a5fa;--code-bg:#2d2d44;--border:#374151;--nav-bg:#252542}}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;max-width:900px;margin:0 auto;padding:2rem;background:var(--bg);color:var(--fg)}a{color:var(--link)}pre,code{background:var(--code-bg);border-radius:6px}pre{padding:1rem;overflow-x:auto}code{padding:.2rem .4rem;font-size:.9em}pre code{background:none;padding:0}h1,h2,h3{margin-top:2rem}h1{border-bottom:2px solid var(--border);padding-bottom:.5rem}.nav-box{background:var(--nav-bg);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin:2rem 0}.nav-box h2{margin-top:0}.nav-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1rem}.nav-card{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1rem;text-decoration:none;color:inherit;transition:border-color .2s,box-shadow .2s}.nav-card:hover{border-color:var(--link);box-shadow:0 2px 8px rgba(0,0,0,.1)}.nav-card h3{margin:0 0 .5rem;color:var(--link)}.nav-card p{margin:0;font-size:.9rem;opacity:.9}</style>
+</head>
+<body>
+  <nav class="nav-box">
+    <h2>Quick Navigation</h2>
+    <div class="nav-grid">
+      <a href="/form" class="nav-card"><h3>/form</h3><p>Basic form rendering. Explore different renderers and operations via query params.</p></a>
+      <a href="/advanced" class="nav-card"><h3>/advanced</h3><p>Advanced create-action flow with modal forms, relationship fields, chips, and typeahead components.</p></a>
+      <a href="/form?renderer=preact" class="nav-card"><h3>/form?renderer=preact</h3><p>Same form using the Preact renderer for client-side hydration.</p></a>
+      <a href="/form?id=article-edit&amp;method=PATCH" class="nav-card"><h3>/form (Edit Mode)</h3><p>Edit/prefill flow with PATCH method, pre-populated values, and validation states.</p></a>
+    </div>
+  </nav>
+  %s
+</body>
+</html>`
 
 const vanillaRuntimeBootstrap = `
 <script src="/runtime/formgen-relationships.min.js" defer></script>
@@ -555,11 +586,13 @@ func resolveUISchemaFS(source string) (fs.FS, error) {
 		return nil, nil
 	}
 	if isURL(trimmed) {
-		resp, err := http.Get(trimmed)
+		resp, err := fetchRemoteUISchema(trimmed)
 		if err != nil {
-			return nil, fmt.Errorf("fetch ui schema %q: %w", trimmed, err)
+			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			return nil, fmt.Errorf("fetch ui schema %q: status %d", trimmed, resp.StatusCode)
 		}
@@ -584,13 +617,34 @@ func resolveUISchemaFS(source string) (fs.FS, error) {
 	if ext != ".json" && ext != ".yaml" && ext != ".yml" {
 		return nil, fmt.Errorf("ui schema %q: unsupported extension %q", trimmed, ext)
 	}
-	data, err := os.ReadFile(trimmed)
+	data, err := safefile.ReadFile(trimmed)
 	if err != nil {
 		return nil, fmt.Errorf("read ui schema %q: %w", trimmed, err)
 	}
 	return fstest.MapFS{
 		filepath.Base(trimmed): &fstest.MapFile{Data: data},
 	}, nil
+}
+
+func fetchRemoteUISchema(raw string) (*http.Response, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("fetch ui schema %q: invalid URL: %w", raw, err)
+	}
+	if parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, fmt.Errorf("fetch ui schema %q: unsupported URL", raw)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), demoHTTPTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch ui schema %q: build request: %w", raw, err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch ui schema %q: %w", raw, err)
+	}
+	return resp, nil
 }
 
 func uiSchemaFilenameFromURL(raw string, contentType string) string {
@@ -613,25 +667,14 @@ func isURL(value string) bool {
 }
 
 func main() {
-	defaultSource := defaultSchemaPath()
-
-	var (
-		addrFlag      = flag.String("addr", ":8383", "HTTP listen address")
-		sourceFlag    = flag.String("source", defaultSource, "Default OpenAPI source (file path or URL)")
-		uiSchemaFlag  = flag.String("ui", "", "UI schema directory or file (path or URL)")
-		templatesFlag = flag.String("templates", "", "Templates directory for advanced view (local path)")
-		rendererFlag  = flag.String("renderer", "vanilla", "Default renderer name")
-		operationFlag = flag.String("operation", "post-book:create", "Default operation ID")
-		shutdownGrace = flag.Duration("grace", 5*time.Second, "Shutdown grace period")
-	)
-	flag.Parse()
+	cfg := parseHTTPDemoFlags()
 
 	registry := render.NewRegistry()
 	registry.MustRegister(mustVanilla())
 	registry.MustRegister(mustPreact())
 
-	if !registry.Has(*rendererFlag) {
-		log.Fatalf("default renderer %q is not registered", *rendererFlag)
+	if !registry.Has(cfg.renderer) {
+		log.Fatalf("default renderer %q is not registered", cfg.renderer)
 	}
 
 	loader := formgen.NewLoader(
@@ -641,59 +684,18 @@ func main() {
 	parser := formgen.NewParser()
 	builder := model.NewBuilder()
 
-	uiSchemaSource := strings.TrimSpace(*uiSchemaFlag)
+	uiSchemaSource := strings.TrimSpace(cfg.uiSchema)
 	if uiSchemaSource == "" {
-		uiSchemaSource = defaultUISchemaDir(*sourceFlag)
+		uiSchemaSource = defaultUISchemaDir(cfg.source)
 	}
 
-	templatesDir := strings.TrimSpace(*templatesFlag)
+	templatesDir := strings.TrimSpace(cfg.templates)
 	if templatesDir == "" {
-		templatesDir = defaultTemplatesDir(*sourceFlag)
+		templatesDir = defaultTemplatesDir(cfg.source)
 	}
 
-	options := []orchestrator.Option{
-		orchestrator.WithLoader(loader),
-		orchestrator.WithParser(parser),
-		orchestrator.WithModelBuilder(builder),
-		orchestrator.WithRegistry(registry),
-		orchestrator.WithDefaultRenderer(*rendererFlag),
-	}
-	if uiSchemaSource != "" {
-		uiSchemaFS, err := resolveUISchemaFS(uiSchemaSource)
-		if err != nil {
-			log.Fatalf("ui schema: %v", err)
-		}
-		if uiSchemaFS != nil {
-			options = append(options, orchestrator.WithUISchemaFS(uiSchemaFS))
-		}
-	}
-
-	var templateEngine *gotemplate.Engine
-	if templatesDir != "" {
-		if isURL(templatesDir) {
-			log.Fatalf("templates: expected local directory, got URL %q", templatesDir)
-		}
-		info, err := os.Stat(templatesDir)
-		if err != nil {
-			log.Fatalf("templates: %v", err)
-		}
-		if !info.IsDir() {
-			log.Fatalf("templates: %q is not a directory", templatesDir)
-		}
-		engine, err := gotemplate.New(
-			gotemplate.WithBaseDir(templatesDir),
-			gotemplate.WithExtension(".tmpl"),
-		)
-		if err != nil {
-			log.Fatalf("templates: %v", err)
-		}
-		templateEngine = engine
-	}
-
-	defaultOperation := strings.TrimSpace(*operationFlag)
-	if defaultOperation == "" {
-		defaultOperation = "post-book:create"
-	}
+	options := mustOrchestratorOptions(loader, parser, builder, registry, cfg.renderer, uiSchemaSource)
+	templateEngine := mustTemplateEngine(templatesDir)
 
 	server := &formServer{
 		generator:        formgen.NewOrchestrator(options...),
@@ -703,38 +705,30 @@ func main() {
 		registry:         registry,
 		templates:        templateEngine,
 		cache:            newDocumentCache(),
-		defaultSource:    *sourceFlag,
-		defaultRenderer:  *rendererFlag,
-		defaultOperation: defaultOperation,
+		defaultSource:    cfg.source,
+		defaultRenderer:  cfg.renderer,
+		defaultOperation: cfg.operation,
 	}
 
 	relationships := newRelationshipDataset()
 
 	uploadsDir := filepath.Join(os.TempDir(), "formgen-uploads")
-	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+	if err := safefile.MkdirAll(uploadsDir); err != nil {
 		log.Fatalf("uploads dir: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	relationships.register(mux)
-	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
-	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServerFS(formgen.RuntimeAssetsFS())))
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
-	mux.HandleFunc("/api/uploads/", uploadHandler(uploadsDir))
-	mux.HandleFunc("/", readmeHandler)
-	mux.Handle("/form", server.formHandler())
-	mux.Handle("/advanced", server.advancedHandler())
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	mux := buildDemoMux(server, relationships, uploadsDir)
 
 	httpServer := &http.Server{
-		Addr:    *addrFlag,
-		Handler: mux,
+		Addr:              cfg.addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       demoHTTPTimeout,
+		WriteTimeout:      demoHTTPTimeout,
+		IdleTimeout:       2 * time.Minute,
 	}
 
-	log.Printf("listening on %s (default source %s renderer %s)", *addrFlag, *sourceFlag, *rendererFlag)
+	log.Printf("listening on %s (default source %s renderer %s)", cfg.addr, cfg.source, cfg.renderer)
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -752,12 +746,106 @@ func main() {
 	case <-ctx.Done():
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), *shutdownGrace)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.shutdownGrace)
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+type httpDemoConfig struct {
+	addr          string
+	source        string
+	uiSchema      string
+	templates     string
+	renderer      string
+	operation     string
+	shutdownGrace time.Duration
+}
+
+func parseHTTPDemoFlags() httpDemoConfig {
+	sourceFlag := flag.String("source", defaultSchemaPath(), "Default OpenAPI source (file path or URL)")
+	addrFlag := flag.String("addr", ":8383", "HTTP listen address")
+	uiSchemaFlag := flag.String("ui", "", "UI schema directory or file (path or URL)")
+	templatesFlag := flag.String("templates", "", "Templates directory for advanced view (local path)")
+	rendererFlag := flag.String("renderer", "vanilla", "Default renderer name")
+	operationFlag := flag.String("operation", "post-book:create", "Default operation ID")
+	shutdownGrace := flag.Duration("grace", 5*time.Second, "Shutdown grace period")
+	flag.Parse()
+
+	operation := strings.TrimSpace(*operationFlag)
+	if operation == "" {
+		operation = "post-book:create"
+	}
+	return httpDemoConfig{
+		addr:          *addrFlag,
+		source:        *sourceFlag,
+		uiSchema:      *uiSchemaFlag,
+		templates:     *templatesFlag,
+		renderer:      *rendererFlag,
+		operation:     operation,
+		shutdownGrace: *shutdownGrace,
+	}
+}
+
+func mustOrchestratorOptions(loader pkgopenapi.Loader, parser pkgopenapi.Parser, builder model.Builder, registry *render.Registry, rendererName, uiSchemaSource string) []orchestrator.Option {
+	options := []orchestrator.Option{
+		orchestrator.WithLoader(loader),
+		orchestrator.WithParser(parser),
+		orchestrator.WithModelBuilder(builder),
+		orchestrator.WithRegistry(registry),
+		orchestrator.WithDefaultRenderer(rendererName),
+	}
+	if uiSchemaSource == "" {
+		return options
+	}
+	uiSchemaFS, err := resolveUISchemaFS(uiSchemaSource)
+	if err != nil {
+		log.Fatalf("ui schema: %v", err)
+	}
+	if uiSchemaFS != nil {
+		options = append(options, orchestrator.WithUISchemaFS(uiSchemaFS))
+	}
+	return options
+}
+
+func mustTemplateEngine(templatesDir string) *gotemplate.Engine {
+	if templatesDir == "" {
+		return nil
+	}
+	if isURL(templatesDir) {
+		log.Fatalf("templates: expected local directory, got URL %q", templatesDir)
+	}
+	info, err := os.Stat(templatesDir)
+	if err != nil {
+		log.Fatalf("templates: %v", err)
+	}
+	if !info.IsDir() {
+		log.Fatalf("templates: %q is not a directory", templatesDir)
+	}
+	engine, err := gotemplate.New(gotemplate.WithBaseDir(templatesDir), gotemplate.WithExtension(".tmpl"))
+	if err != nil {
+		log.Fatalf("templates: %v", err)
+	}
+	return engine
+}
+
+func buildDemoMux(server *formServer, relationships *relationshipDataset, uploadsDir string) *http.ServeMux {
+	mux := http.NewServeMux()
+	relationships.register(mux)
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(preact.AssetsFS()))))
+	mux.Handle("/runtime/", http.StripPrefix("/runtime/", http.FileServerFS(formgen.RuntimeAssetsFS())))
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
+	mux.HandleFunc("/api/uploads/", uploadHandler(uploadsDir))
+	mux.HandleFunc("/", readmeHandler)
+	mux.Handle("/form", server.formHandler())
+	mux.Handle("/advanced", server.advancedHandler())
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	return mux
 }
 
 // readmeHandler serves the examples/http/README.md as an HTML page.
@@ -778,117 +866,7 @@ func readmeHandler(w http.ResponseWriter, r *http.Request) {
 	renderer := mdhtml.NewRenderer(opts)
 	htmlContent := markdown.Render(doc, renderer)
 
-	// Wrap in a styled HTML page
-	page := fmt.Sprintf(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>go-formgen HTTP Demo</title>
-  <style>
-    :root {
-      --bg: #ffffff;
-      --fg: #1a1a2e;
-      --link: #2563eb;
-      --code-bg: #f3f4f6;
-      --border: #e5e7eb;
-      --nav-bg: #f8fafc;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #1a1a2e;
-        --fg: #e5e7eb;
-        --link: #60a5fa;
-        --code-bg: #2d2d44;
-        --border: #374151;
-        --nav-bg: #252542;
-      }
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 2rem;
-      background: var(--bg);
-      color: var(--fg);
-    }
-    a { color: var(--link); }
-    pre {
-      background: var(--code-bg);
-      padding: 1rem;
-      border-radius: 6px;
-      overflow-x: auto;
-    }
-    code {
-      background: var(--code-bg);
-      padding: 0.2rem 0.4rem;
-      border-radius: 3px;
-      font-size: 0.9em;
-    }
-    pre code {
-      background: none;
-      padding: 0;
-    }
-    h1, h2, h3 { margin-top: 2rem; }
-    h1 { border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
-    .nav-box {
-      background: var(--nav-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin: 2rem 0;
-    }
-    .nav-box h2 { margin-top: 0; }
-    .nav-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-    .nav-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 1rem;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .nav-card:hover {
-      border-color: var(--link);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .nav-card h3 { margin: 0 0 0.5rem 0; color: var(--link); }
-    .nav-card p { margin: 0; font-size: 0.9rem; opacity: 0.9; }
-  </style>
-</head>
-<body>
-  <nav class="nav-box">
-    <h2>🚀 Quick Navigation</h2>
-    <div class="nav-grid">
-      <a href="/form" class="nav-card">
-        <h3>/form</h3>
-        <p>Basic form rendering. Explore different renderers (vanilla, preact) and operations via query params.</p>
-      </a>
-      <a href="/advanced" class="nav-card">
-        <h3>/advanced</h3>
-        <p>Advanced create-action flow with modal forms, relationship fields, chips, and typeahead components.</p>
-      </a>
-      <a href="/form?renderer=preact" class="nav-card">
-        <h3>/form?renderer=preact</h3>
-        <p>Same form using the Preact renderer for client-side hydration.</p>
-      </a>
-      <a href="/form?id=article-edit&amp;method=PATCH" class="nav-card">
-        <h3>/form (Edit Mode)</h3>
-        <p>Edit/prefill flow with PATCH method, pre-populated values, and validation states.</p>
-      </a>
-    </div>
-  </nav>
-  %s
-</body>
-</html>`, htmlContent)
+	page := fmt.Sprintf(readmePageTemplate, htmlContent)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(page))
@@ -900,7 +878,8 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 			methodNotAllowedWith(w, http.MethodPost)
 			return
 		}
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, maxDemoRequestBody)
+		if err := r.ParseMultipartForm(multipartFormMem); err != nil { // #nosec G120 -- request body is capped with http.MaxBytesReader immediately before parsing.
 			http.Error(w, "invalid multipart payload", http.StatusBadRequest)
 			return
 		}
@@ -909,7 +888,9 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 			http.Error(w, "file field is required", http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		filename := filepath.Base(header.Filename)
 		if filename == "." || filename == "" {
@@ -917,17 +898,26 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 			return
 		}
 		storedName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filename)
-		if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		if mkdirErr := safefile.MkdirAll(uploadDir); mkdirErr != nil {
 			http.Error(w, "upload directory unavailable", http.StatusInternalServerError)
 			return
 		}
-		targetPath := filepath.Join(uploadDir, storedName)
-		targetFile, err := os.Create(targetPath)
+		root, err := os.OpenRoot(uploadDir)
+		if err != nil {
+			http.Error(w, "upload directory unavailable", http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			_ = root.Close()
+		}()
+		targetFile, err := root.OpenFile(storedName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, safefile.PrivateFilePerm)
 		if err != nil {
 			http.Error(w, "failed to save upload", http.StatusInternalServerError)
 			return
 		}
-		defer targetFile.Close()
+		defer func() {
+			_ = targetFile.Close()
+		}()
 		if _, err := io.Copy(targetFile, file); err != nil {
 			http.Error(w, "failed to save upload", http.StatusInternalServerError)
 			return
@@ -984,28 +974,14 @@ func (s *formServer) formHandler() http.Handler {
 			return
 		}
 
-		var document pkgopenapi.Document
-		if cached, ok := s.cache.Get(cacheKey); ok {
-			document = cached
-		} else {
-			document, err = s.loader.Load(r.Context(), source)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("load document: %v", err), http.StatusBadGateway)
-				return
-			}
-			s.cache.Set(cacheKey, document)
+		document, err := s.loadDocument(r.Context(), source, cacheKey)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("load document: %v", err), http.StatusBadGateway)
+			return
 		}
 
 		if format == "json" {
-			form, err := s.buildFormModel(r.Context(), document, operation)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("build form model: %v", err), http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(form); err != nil {
-				log.Printf("write json response: %v", err)
-			}
+			s.writeFormModelJSON(w, r, document, operation)
 			return
 		}
 
@@ -1051,6 +1027,30 @@ func (s *formServer) formHandler() http.Handler {
 	})
 }
 
+func (s *formServer) loadDocument(ctx context.Context, source pkgopenapi.Source, cacheKey string) (pkgopenapi.Document, error) {
+	if cached, ok := s.cache.Get(cacheKey); ok {
+		return cached, nil
+	}
+	document, err := s.loader.Load(ctx, source)
+	if err != nil {
+		return pkgopenapi.Document{}, err
+	}
+	s.cache.Set(cacheKey, document)
+	return document, nil
+}
+
+func (s *formServer) writeFormModelJSON(w http.ResponseWriter, r *http.Request, document pkgopenapi.Document, operation string) {
+	form, err := s.buildFormModel(r.Context(), document, operation)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("build form model: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(form); err != nil {
+		log.Printf("write json response: %v", err)
+	}
+}
+
 func (s *formServer) advancedHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.templates == nil {
@@ -1072,16 +1072,10 @@ func (s *formServer) advancedHandler() http.Handler {
 			return
 		}
 
-		var document pkgopenapi.Document
-		if cached, ok := s.cache.Get(cacheKey); ok {
-			document = cached
-		} else {
-			document, err = s.loader.Load(r.Context(), source)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("load document: %v", err), http.StatusBadGateway)
-				return
-			}
-			s.cache.Set(cacheKey, document)
+		document, err := s.loadDocument(r.Context(), source, cacheKey)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("load document: %v", err), http.StatusBadGateway)
+			return
 		}
 
 		mainOutput, err := s.generator.Generate(r.Context(), orchestrator.Request{
@@ -1096,7 +1090,7 @@ func (s *formServer) advancedHandler() http.Handler {
 
 		modals := make([]map[string]any, 0, len(advancedCreateModals))
 		for _, spec := range advancedCreateModals {
-			modalOutput, err := s.generator.Generate(r.Context(), orchestrator.Request{
+			modalOutput, generateErr := s.generator.Generate(r.Context(), orchestrator.Request{
 				Document:    &document,
 				OperationID: spec.OperationID,
 				Renderer:    advancedRendererName,
@@ -1107,8 +1101,8 @@ func (s *formServer) advancedHandler() http.Handler {
 					OmitAssets: true, // Modals inherit assets from the parent page
 				},
 			})
-			if err != nil {
-				http.Error(w, fmt.Sprintf("generate modal form (%s): %v", spec.OperationID, err), http.StatusInternalServerError)
+			if generateErr != nil {
+				http.Error(w, fmt.Sprintf("generate modal form (%s): %v", spec.OperationID, generateErr), http.StatusInternalServerError)
 				return
 			}
 			modals = append(modals, map[string]any{
@@ -1169,180 +1163,79 @@ type relationshipDataset struct {
 	headquarters   []headquartersRecord
 }
 
-func newRelationshipDataset() *relationshipDataset {
-	return &relationshipDataset{
-		authors: []authorRecord{
-			{
-				ID:          "11111111-1111-4111-8111-111111111111",
-				FullName:    "Ada Lovelace",
-				Email:       "ada@example.com",
-				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
-				Active:      true,
-				TenantID:    "northwind",
-				Profile: authorProfile{
-					Bio:     "First programmer and resident polymath.",
-					Twitter: "@ada",
-				},
-			},
-			{
-				ID:          "22222222-2222-4222-8222-222222222222",
-				FullName:    "Claude Shannon",
-				Email:       "claude@example.com",
-				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
-				Active:      true,
-				TenantID:    "northwind",
-				Profile: authorProfile{
-					Bio:     "Father of information theory.",
-					Twitter: "@entropy",
-				},
-			},
-			{
-				ID:          "33333333-3333-4333-8333-333333333333",
-				FullName:    "Octavia E. Butler",
-				Email:       "octavia@example.com",
-				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
-				Active:      true,
-				TenantID:    "lumen",
-				Profile: authorProfile{
-					Bio:     "Visionary science fiction author.",
-					Twitter: "@patternist",
-				},
-			},
-			{
-				ID:          "44444444-4444-4444-8444-444444444444",
-				FullName:    "Ida B. Wells",
-				Email:       "ida@example.com",
-				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
-				Active:      true,
-				TenantID:    "lumen",
-				Profile: authorProfile{
-					Bio:     "Investigative journalist and civil rights pioneer.",
-					Twitter: "@idabwells",
-				},
+var defaultRelationshipDataset = relationshipDataset{
+	authors: []authorRecord{
+		{
+			ID:          "11111111-1111-4111-8111-111111111111",
+			FullName:    "Ada Lovelace",
+			Email:       "ada@example.com",
+			PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
+			Active:      true,
+			TenantID:    "northwind",
+			Profile: authorProfile{
+				Bio:     "First programmer and resident polymath.",
+				Twitter: "@ada",
 			},
 		},
-		categories: []categoryRecord{
-			{ID: "55555555-5555-4555-8555-555555555555", Name: "Engineering"},
-			{ID: "66666666-6666-4666-8666-666666666666", Name: "Culture"},
-			{ID: "77777777-7777-4777-8777-777777777777", Name: "Operations"},
-		},
-		managers: []managerRecord{
-			{ID: "88888888-8888-4888-8888-888888888888", Name: "Grace Hopper"},
-			{ID: "99999999-9999-4999-8999-999999999999", Name: "Radia Perlman"},
-		},
-		tags: []tagRecord{
-			{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Name: "feature", Category: "product", Description: "Feature launch related content"},
-			{ID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", Name: "announcement", Category: "company", Description: "Company announcements"},
-			{ID: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", Name: "editorial", Category: "editorial", Description: "Long-form editorial work"},
-			{ID: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", Name: "people", Category: "culture", Description: "People and culture stories"},
-		},
-		publishers: []publishingHouseRecord{
-			{
-				ID:              "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
-				Name:            "Atlas Press",
-				ImprintPrefix:   "AT",
-				EstablishedYear: 1978,
-				Headquarters: headquartersRecord{
-					ID:          "hq-001",
-					AddressLine: "101 Memory Ln",
-					City:        "New York",
-					Country:     "USA",
-					OpenedAt:    "1978-03-14T08:00:00Z",
-					PublisherID: "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
-				},
-			},
-			{
-				ID:              "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
-				Name:            "Lumen House",
-				ImprintPrefix:   "LH",
-				EstablishedYear: 1994,
-				Headquarters: headquartersRecord{
-					ID:          "hq-002",
-					AddressLine: "88 Horizon Ave",
-					City:        "San Francisco",
-					Country:     "USA",
-					OpenedAt:    "1995-01-09T09:30:00Z",
-					PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
-				},
-			},
-			{
-				ID:              "cccc3333-cccc-4333-8333-cccccccccccc",
-				Name:            "Northwind Publishing",
-				ImprintPrefix:   "NW",
-				EstablishedYear: 1965,
-				Headquarters: headquartersRecord{
-					ID:          "hq-003",
-					AddressLine: "42 Cyclone Rd",
-					City:        "Chicago",
-					Country:     "USA",
-					OpenedAt:    "1966-07-22T10:15:00Z",
-					PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc",
-				},
+		{
+			ID:          "22222222-2222-4222-8222-222222222222",
+			FullName:    "Claude Shannon",
+			Email:       "claude@example.com",
+			PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc", // Northwind Publishing
+			Active:      true,
+			TenantID:    "northwind",
+			Profile: authorProfile{
+				Bio:     "Father of information theory.",
+				Twitter: "@entropy",
 			},
 		},
-		authorProfiles: []authorProfileRecord{
-			{
-				ID:            "profile-ada",
-				AuthorID:      "11111111-1111-4111-8111-111111111111",
-				Biography:     "Ada merges analytical engines with poetic imagination.",
-				FavoriteGenre: "Mathematical fiction",
-				WritingStyle:  "Lyric technical essays",
-			},
-			{
-				ID:            "profile-claude",
-				AuthorID:      "22222222-2222-4222-8222-222222222222",
-				Biography:     "Claude documents the language of information itself.",
-				FavoriteGenre: "Technical deep dives",
-				WritingStyle:  "Succinct and precise",
-			},
-			{
-				ID:            "profile-octavia",
-				AuthorID:      "33333333-3333-4333-8333-333333333333",
-				Biography:     "Octavia chronicles speculative futures rooted in realism.",
-				FavoriteGenre: "Speculative fiction",
-				WritingStyle:  "World-building epics",
+		{
+			ID:          "33333333-3333-4333-8333-333333333333",
+			FullName:    "Octavia E. Butler",
+			Email:       "octavia@example.com",
+			PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
+			Active:      true,
+			TenantID:    "lumen",
+			Profile: authorProfile{
+				Bio:     "Visionary science fiction author.",
+				Twitter: "@patternist",
 			},
 		},
-		books: []bookRecord{
-			{
-				ID:          "book-roses",
-				Title:       "Roses of Entropy",
-				ISBN:        "978-0-00-000001-0",
-				AuthorID:    "22222222-2222-4222-8222-222222222222",
-				PublisherID: "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
-				ReleaseDate: "2021-03-03",
-				Status:      "published",
-				Tags:        []string{"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
-			},
-			{
-				ID:          "book-horizon",
-				Title:       "The Horizon Tapes",
-				ISBN:        "978-0-00-000002-7",
-				AuthorID:    "33333333-3333-4333-8333-333333333333",
-				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
-				ReleaseDate: "2022-10-12",
-				Status:      "in_review",
-				Tags:        []string{"cccccccc-cccc-4ccc-8ccc-cccccccccccc"},
-			},
-			{
-				ID:          "book-light",
-				Title:       "Light Cones and City Streets",
-				ISBN:        "978-0-00-000003-4",
-				AuthorID:    "11111111-1111-4111-8111-111111111111",
-				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc",
-				ReleaseDate: "2020-06-21",
-				Status:      "published",
-				Tags:        []string{"dddddddd-dddd-4ddd-8ddd-dddddddddddd"},
+		{
+			ID:          "44444444-4444-4444-8444-444444444444",
+			FullName:    "Ida B. Wells",
+			Email:       "ida@example.com",
+			PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb", // Lumen House
+			Active:      true,
+			TenantID:    "lumen",
+			Profile: authorProfile{
+				Bio:     "Investigative journalist and civil rights pioneer.",
+				Twitter: "@idabwells",
 			},
 		},
-		chapters: []chapterRecord{
-			{ID: "chapter-roses-1", BookID: "book-roses", Title: "Signals", WordCount: 3200},
-			{ID: "chapter-roses-2", BookID: "book-roses", Title: "Noise", WordCount: 4100},
-			{ID: "chapter-horizon-1", BookID: "book-horizon", Title: "Dawn", WordCount: 2800},
-			{ID: "chapter-light-1", BookID: "book-light", Title: "City Center", WordCount: 3600},
-		},
-		headquarters: []headquartersRecord{
-			{
+	},
+	categories: []categoryRecord{
+		{ID: "55555555-5555-4555-8555-555555555555", Name: "Engineering"},
+		{ID: "66666666-6666-4666-8666-666666666666", Name: "Culture"},
+		{ID: "77777777-7777-4777-8777-777777777777", Name: "Operations"},
+	},
+	managers: []managerRecord{
+		{ID: "88888888-8888-4888-8888-888888888888", Name: "Grace Hopper"},
+		{ID: "99999999-9999-4999-8999-999999999999", Name: "Radia Perlman"},
+	},
+	tags: []tagRecord{
+		{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Name: "feature", Category: "product", Description: "Feature launch related content"},
+		{ID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", Name: "announcement", Category: "company", Description: "Company announcements"},
+		{ID: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", Name: "editorial", Category: "editorial", Description: "Long-form editorial work"},
+		{ID: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", Name: "people", Category: "culture", Description: "People and culture stories"},
+	},
+	publishers: []publishingHouseRecord{
+		{
+			ID:              "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
+			Name:            "Atlas Press",
+			ImprintPrefix:   "AT",
+			EstablishedYear: 1978,
+			Headquarters: headquartersRecord{
 				ID:          "hq-001",
 				AddressLine: "101 Memory Ln",
 				City:        "New York",
@@ -1350,7 +1243,13 @@ func newRelationshipDataset() *relationshipDataset {
 				OpenedAt:    "1978-03-14T08:00:00Z",
 				PublisherID: "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
 			},
-			{
+		},
+		{
+			ID:              "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
+			Name:            "Lumen House",
+			ImprintPrefix:   "LH",
+			EstablishedYear: 1994,
+			Headquarters: headquartersRecord{
 				ID:          "hq-002",
 				AddressLine: "88 Horizon Ave",
 				City:        "San Francisco",
@@ -1358,7 +1257,13 @@ func newRelationshipDataset() *relationshipDataset {
 				OpenedAt:    "1995-01-09T09:30:00Z",
 				PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
 			},
-			{
+		},
+		{
+			ID:              "cccc3333-cccc-4333-8333-cccccccccccc",
+			Name:            "Northwind Publishing",
+			ImprintPrefix:   "NW",
+			EstablishedYear: 1965,
+			Headquarters: headquartersRecord{
 				ID:          "hq-003",
 				AddressLine: "42 Cyclone Rd",
 				City:        "Chicago",
@@ -1367,6 +1272,107 @@ func newRelationshipDataset() *relationshipDataset {
 				PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc",
 			},
 		},
+	},
+	authorProfiles: []authorProfileRecord{
+		{
+			ID:            "profile-ada",
+			AuthorID:      "11111111-1111-4111-8111-111111111111",
+			Biography:     "Ada merges analytical engines with poetic imagination.",
+			FavoriteGenre: "Mathematical fiction",
+			WritingStyle:  "Lyric technical essays",
+		},
+		{
+			ID:            "profile-claude",
+			AuthorID:      "22222222-2222-4222-8222-222222222222",
+			Biography:     "Claude documents the language of information itself.",
+			FavoriteGenre: "Technical deep dives",
+			WritingStyle:  "Succinct and precise",
+		},
+		{
+			ID:            "profile-octavia",
+			AuthorID:      "33333333-3333-4333-8333-333333333333",
+			Biography:     "Octavia chronicles speculative futures rooted in realism.",
+			FavoriteGenre: "Speculative fiction",
+			WritingStyle:  "World-building epics",
+		},
+	},
+	books: []bookRecord{
+		{
+			ID:          "book-roses",
+			Title:       "Roses of Entropy",
+			ISBN:        "978-0-00-000001-0",
+			AuthorID:    "22222222-2222-4222-8222-222222222222",
+			PublisherID: "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
+			ReleaseDate: "2021-03-03",
+			Status:      "published",
+			Tags:        []string{"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
+		},
+		{
+			ID:          "book-horizon",
+			Title:       "The Horizon Tapes",
+			ISBN:        "978-0-00-000002-7",
+			AuthorID:    "33333333-3333-4333-8333-333333333333",
+			PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
+			ReleaseDate: "2022-10-12",
+			Status:      "in_review",
+			Tags:        []string{"cccccccc-cccc-4ccc-8ccc-cccccccccccc"},
+		},
+		{
+			ID:          "book-light",
+			Title:       "Light Cones and City Streets",
+			ISBN:        "978-0-00-000003-4",
+			AuthorID:    "11111111-1111-4111-8111-111111111111",
+			PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc",
+			ReleaseDate: "2020-06-21",
+			Status:      "published",
+			Tags:        []string{"dddddddd-dddd-4ddd-8ddd-dddddddddddd"},
+		},
+	},
+	chapters: []chapterRecord{
+		{ID: "chapter-roses-1", BookID: "book-roses", Title: "Signals", WordCount: 3200},
+		{ID: "chapter-roses-2", BookID: "book-roses", Title: "Noise", WordCount: 4100},
+		{ID: "chapter-horizon-1", BookID: "book-horizon", Title: "Dawn", WordCount: 2800},
+		{ID: "chapter-light-1", BookID: "book-light", Title: "City Center", WordCount: 3600},
+	},
+	headquarters: []headquartersRecord{
+		{
+			ID:          "hq-001",
+			AddressLine: "101 Memory Ln",
+			City:        "New York",
+			Country:     "USA",
+			OpenedAt:    "1978-03-14T08:00:00Z",
+			PublisherID: "aaaa1111-aaaa-4111-8111-aaaaaaaaaaaa",
+		},
+		{
+			ID:          "hq-002",
+			AddressLine: "88 Horizon Ave",
+			City:        "San Francisco",
+			Country:     "USA",
+			OpenedAt:    "1995-01-09T09:30:00Z",
+			PublisherID: "bbbb2222-bbbb-4222-8222-bbbbbbbbbbbb",
+		},
+		{
+			ID:          "hq-003",
+			AddressLine: "42 Cyclone Rd",
+			City:        "Chicago",
+			Country:     "USA",
+			OpenedAt:    "1966-07-22T10:15:00Z",
+			PublisherID: "cccc3333-cccc-4333-8333-cccccccccccc",
+		},
+	},
+}
+
+func newRelationshipDataset() *relationshipDataset {
+	return &relationshipDataset{
+		authors:        append([]authorRecord(nil), defaultRelationshipDataset.authors...),
+		categories:     append([]categoryRecord(nil), defaultRelationshipDataset.categories...),
+		managers:       append([]managerRecord(nil), defaultRelationshipDataset.managers...),
+		tags:           append([]tagRecord(nil), defaultRelationshipDataset.tags...),
+		publishers:     append([]publishingHouseRecord(nil), defaultRelationshipDataset.publishers...),
+		authorProfiles: append([]authorProfileRecord(nil), defaultRelationshipDataset.authorProfiles...),
+		books:          append([]bookRecord(nil), defaultRelationshipDataset.books...),
+		chapters:       append([]chapterRecord(nil), defaultRelationshipDataset.chapters...),
+		headquarters:   append([]headquartersRecord(nil), defaultRelationshipDataset.headquarters...),
 	}
 }
 
@@ -1435,7 +1441,7 @@ func (d *relationshipDataset) handleAuthorCreate(w http.ResponseWriter, r *http.
 		return
 	}
 
-	payload, err := parseCreatePayload(r)
+	payload, err := parseCreatePayload(w, r)
 	if err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
@@ -1570,7 +1576,7 @@ func (d *relationshipDataset) handleTagCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	payload, err := parseCreatePayload(r)
+	payload, err := parseCreatePayload(w, r)
 	if err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
@@ -1645,7 +1651,7 @@ func (d *relationshipDataset) handlePublishingHouseCreate(w http.ResponseWriter,
 		return
 	}
 
-	payload, err := parseCreatePayload(r)
+	payload, err := parseCreatePayload(w, r)
 	if err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
@@ -1714,30 +1720,11 @@ func (d *relationshipDataset) handleAuthorProfiles(w http.ResponseWriter, r *htt
 }
 
 func (d *relationshipDataset) handleBooks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
+	if !prepareRelationshipGet(w, r) {
 		return
 	}
-
-	applyArtificialDelay(r)
-
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	results := make([]bookRecord, 0, len(d.books))
-	for _, book := range d.books {
-		if search == "" || strings.Contains(strings.ToLower(book.Title), search) || strings.Contains(strings.ToLower(book.ISBN), search) {
-			results = append(results, book)
-		}
-	}
-
-	if wantsOptionsFormat(r) {
-		writeRelationshipOptions(w, results, func(b bookRecord) string { return b.ID }, func(b bookRecord) string { return b.Title })
-		return
-	}
-
-	writeRelationshipData(w, results)
+	results := d.searchBooks(r)
+	writeRelationshipSearchResponse(w, r, results, func(b bookRecord) string { return b.ID }, func(b bookRecord) string { return b.Title })
 }
 
 func (d *relationshipDataset) handleChapters(w http.ResponseWriter, r *http.Request) {
@@ -1774,37 +1761,69 @@ func (d *relationshipDataset) handleChapters(w http.ResponseWriter, r *http.Requ
 }
 
 func (d *relationshipDataset) handleHeadquarters(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
+	if !prepareRelationshipGet(w, r) {
 		return
 	}
+	results := d.searchHeadquarters(r)
+	writeRelationshipSearchResponse(w, r, results, func(h headquartersRecord) string { return h.ID }, func(h headquartersRecord) string { return h.AddressLine })
+}
 
-	applyArtificialDelay(r)
-
+func (d *relationshipDataset) searchBooks(r *http.Request) []bookRecord {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	search := relationshipSearchQuery(r)
+	return filterRelationshipRecords(d.books, search, func(book bookRecord, query string) bool {
+		return strings.Contains(strings.ToLower(book.Title), query) || strings.Contains(strings.ToLower(book.ISBN), query)
+	})
+}
 
-	results := make([]headquartersRecord, 0, len(d.headquarters))
-	for _, hq := range d.headquarters {
-		if search == "" || strings.Contains(strings.ToLower(hq.AddressLine), search) || strings.Contains(strings.ToLower(hq.City), search) {
-			results = append(results, hq)
+func (d *relationshipDataset) searchHeadquarters(r *http.Request) []headquartersRecord {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	search := relationshipSearchQuery(r)
+	return filterRelationshipRecords(d.headquarters, search, func(hq headquartersRecord, query string) bool {
+		return strings.Contains(strings.ToLower(hq.AddressLine), query) || strings.Contains(strings.ToLower(hq.City), query)
+	})
+}
+
+func relationshipSearchQuery(r *http.Request) string {
+	return strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+}
+
+func prepareRelationshipGet(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return false
+	}
+	applyArtificialDelay(r)
+	return true
+}
+
+func filterRelationshipRecords[T any](items []T, search string, matches func(T, string) bool) []T {
+	results := make([]T, 0, len(items))
+	for _, item := range items {
+		if search == "" || matches(item, search) {
+			results = append(results, item)
 		}
 	}
+	return results
+}
 
+func writeRelationshipSearchResponse[T any](w http.ResponseWriter, r *http.Request, results []T, value func(T) string, label func(T) string) {
 	if wantsOptionsFormat(r) {
-		writeRelationshipOptions(w, results, func(h headquartersRecord) string { return h.ID }, func(h headquartersRecord) string { return h.AddressLine })
+		writeRelationshipOptions(w, results, value, label)
 		return
 	}
-
 	writeRelationshipData(w, results)
 }
 
-func parseCreatePayload(r *http.Request) (map[string]any, error) {
+func parseCreatePayload(w http.ResponseWriter, r *http.Request) (map[string]any, error) {
 	if r == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxDemoRequestBody)
 	contentType := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type")))
 	if strings.HasPrefix(contentType, "application/json") {
 		var payload map[string]any
@@ -1814,7 +1833,7 @@ func parseCreatePayload(r *http.Request) (map[string]any, error) {
 		return payload, nil
 	}
 	if strings.HasPrefix(contentType, "multipart/") {
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
+		if err := r.ParseMultipartForm(multipartFormMem); err != nil { // #nosec G120 -- parseCreatePayload caps request bodies with http.MaxBytesReader before parsing.
 			return nil, err
 		}
 	} else if err := r.ParseForm(); err != nil {
@@ -2136,9 +2155,10 @@ func extractPillOptions(field model.Field, config map[string]any) []pillOption {
 		return nil
 	}
 	result := make([]pillOption, 0, len(field.Enum))
+	titleCaser := cases.Title(language.English)
 	for _, value := range field.Enum {
 		str := toString(value)
-		label := strings.Title(strings.ReplaceAll(str, "_", " "))
+		label := titleCaser.String(strings.ReplaceAll(str, "_", " "))
 		result = append(result, pillOption{Label: label, Value: str})
 	}
 	return result

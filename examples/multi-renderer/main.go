@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/examples/internal/exampleutil"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
 	"github.com/goliatone/go-formgen/pkg/render"
@@ -27,7 +27,7 @@ func main() {
 	outputDir := flag.String("output", defaultOutputDir(), "Directory to write renderer outputs")
 	flag.Parse()
 
-	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
+	if err := safefile.MkdirAll(*outputDir); err != nil {
 		log.Fatalf("mkdir output: %v", err)
 	}
 
@@ -94,7 +94,7 @@ func mustPreact() render.Renderer {
 
 func writeOutput(dir, name string, data []byte) (string, error) {
 	file := filepath.Join(dir, fmt.Sprintf("%s.html", name))
-	if err := os.WriteFile(file, data, 0o644); err != nil {
+	if err := safefile.WriteFile(file, data); err != nil {
 		return "", err
 	}
 	return file, nil
@@ -111,16 +111,16 @@ func copyAssets(store fs.FS, dest string) error {
 		}
 		target := filepath.Join(dest, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return safefile.MkdirAll(target)
 		}
 		data, readErr := fs.ReadFile(store, path)
 		if readErr != nil {
 			return readErr
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := safefile.MkdirAll(filepath.Dir(target)); err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+		return safefile.WriteFile(target, data)
 	})
 }
 

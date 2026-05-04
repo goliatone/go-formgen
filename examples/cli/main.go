@@ -15,6 +15,7 @@ import (
 
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/examples/internal/exampleutil"
+	"github.com/goliatone/go-formgen/internal/safefile"
 	"github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
@@ -151,10 +152,10 @@ func parseTUIFormat(raw string) tui.OutputFormat {
 }
 
 func writeFile(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := safefile.MkdirAll(filepath.Dir(path)); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := safefile.WriteFile(path, data); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

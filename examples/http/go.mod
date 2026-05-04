@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/goliatone/go-formgen v0.0.0
 	github.com/gomarkdown/markdown v0.0.0-20250810172220-2e2c11897d1a
+	golang.org/x/text v0.23.0
 )
 
 require (
@@ -25,8 +26,7 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
