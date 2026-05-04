@@ -529,7 +529,15 @@ function _go:module:gosec {
             patterns+=("${pattern}")
         fi
     done < <(_go:lint:patterns "$@")
-    "${gosec_bin}" -exclude-dir=.tmp "${patterns[@]}"
+    "${gosec_bin}" \
+        -exclude-dir=.cache \
+        -exclude-dir=.gocache \
+        -exclude-dir=.gomodcache \
+        -exclude-dir=.gotmp \
+        -exclude-dir=.tmp \
+        -exclude-dir=client/dist \
+        -exclude-dir=client/node_modules \
+        "${patterns[@]}"
 }
 
 function go:security:govulncheck {
