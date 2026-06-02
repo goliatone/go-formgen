@@ -15,7 +15,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/goliatone/go-template v0.3.1 // indirect
-	github.com/goliatone/go-theme v0.2.0 // indirect
+	github.com/goliatone/go-theme v0.3.0 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

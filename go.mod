@@ -7,7 +7,7 @@ require (
 	github.com/flosch/pongo2/v6 v6.0.0
 	github.com/getkin/kin-openapi v0.137.0
 	github.com/goliatone/go-template v0.3.1
-	github.com/goliatone/go-theme v0.2.0
+	github.com/goliatone/go-theme v0.3.0
 	github.com/google/go-cmp v0.6.0
 	github.com/microcosm-cc/bluemonday v1.0.26
 	gopkg.in/yaml.v3 v3.0.1
