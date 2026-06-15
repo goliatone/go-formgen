@@ -140,7 +140,7 @@ func TestOrchestratorImportGraphIsHeadless(t *testing.T) {
 		"renderers/preact",
 		"go-template",
 	}
-	for _, line := range strings.Fields(string(out)) {
+	for line := range strings.FieldsSeq(string(out)) {
 		for _, pattern := range forbidden {
 			if strings.Contains(line, pattern) {
 				t.Fatalf("pkg/orchestrator imports forbidden dependency %q via %q", pattern, line)
