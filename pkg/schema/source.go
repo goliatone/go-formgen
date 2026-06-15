@@ -17,9 +17,10 @@ type Source interface {
 type SourceKind string
 
 const (
-	SourceKindFile SourceKind = "file"
-	SourceKindFS   SourceKind = "fs"
-	SourceKindURL  SourceKind = "url"
+	SourceKindFile  SourceKind = "file"
+	SourceKindFS    SourceKind = "fs"
+	SourceKindURL   SourceKind = "url"
+	SourceKindBytes SourceKind = "bytes"
 )
 
 // fileSource identifies on-disk schema documents.
@@ -81,4 +82,27 @@ func SourceFromURL(raw string) Source {
 		panic(fmt.Sprintf("schema: invalid URL %q: %v", raw, err))
 	}
 	return urlSource{raw: raw}
+}
+
+// bytesSource identifies an in-memory schema payload supplied directly by the
+// caller. The bytes themselves live on schema.Document or the calling request;
+// Location is only provenance metadata.
+type bytesSource struct {
+	name string
+}
+
+func (s bytesSource) Location() string {
+	return s.name
+}
+
+func (s bytesSource) Kind() SourceKind {
+	return SourceKindBytes
+}
+
+// SourceFromBytes returns a Source identifying a raw in-memory schema payload.
+func SourceFromBytes(name string) Source {
+	if name == "" {
+		name = "memory"
+	}
+	return bytesSource{name: name}
 }

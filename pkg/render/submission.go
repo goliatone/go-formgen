@@ -10,8 +10,8 @@ import (
 // schema. Use the helpers (CSRFToken, AuthToken, VersionField) to add common
 // fields without repeating boilerplate.
 type HiddenField struct {
-	Name  string
-	Value string
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // Hidden returns a HiddenField for an arbitrary name/value pair.

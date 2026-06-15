@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/goliatone/go-formgen/pkg/visibility"
-	"github.com/goliatone/go-theme"
 )
 
 // Translator resolves a string for a given locale and message key.
@@ -44,9 +43,45 @@ type ChromeClasses struct {
 	Grid string
 }
 
+// RenderMode selects how much structural markup a renderer should emit.
+type RenderMode string
+
+const (
+	// RenderModeDocument preserves each renderer's historical full output.
+	RenderModeDocument RenderMode = "document"
+	// RenderModeForm emits a form root without page-level assumptions.
+	RenderModeForm RenderMode = "form"
+	// RenderModeFields emits controls without a <form> wrapper.
+	RenderModeFields RenderMode = "fields"
+)
+
+// StyleMode controls how much default visual styling vanilla rendering emits.
+type StyleMode string
+
+const (
+	StyleModeDefault  StyleMode = "default"
+	StyleModeMinimal  StyleMode = "minimal"
+	StyleModeUnstyled StyleMode = "unstyled"
+)
+
+// ThemeConfig passes renderer configuration derived by an opt-in theme
+// integration. It intentionally mirrors the fields renderers need without
+// forcing the headless orchestrator or render package to import go-theme.
+type ThemeConfig struct {
+	Theme    string
+	Variant  string
+	Partials map[string]string
+	Tokens   map[string]string
+	CSSVars  map[string]string
+	AssetURL func(string) string
+}
+
 // RenderOptions describe per-request data that renderers can use to customise
 // their output without mutating the form model pipeline.
 type RenderOptions struct {
+	// RenderMode selects document/current, form-only, or fields-only output.
+	// The zero value preserves the renderer's historical document behavior.
+	RenderMode RenderMode
 	// Method overrides the HTTP method declared by the form model. Renderers are
 	// responsible for translating unsupported verbs (PATCH/PUT/DELETE) into
 	// browser-friendly POST submissions plus a hidden _method input when needed.
@@ -80,9 +115,9 @@ type RenderOptions struct {
 	Translator Translator
 	// OnMissing customizes what string is used when a translation is missing.
 	OnMissing MissingTranslationHandler
-	// Theme passes renderer configuration derived from a go-theme Selection so
+	// Theme passes renderer configuration derived by an explicit theme helper so
 	// renderers can resolve partials, assets, and tokens consistently.
-	Theme *theme.RendererConfig
+	Theme *ThemeConfig
 	// VisibilityContext carries evaluator-specific inputs such as current form
 	// values or feature flags used to decide whether a field should render.
 	VisibilityContext visibility.Context
@@ -95,6 +130,12 @@ type RenderOptions struct {
 	// bodies) that will be embedded in a page where the parent already supplies
 	// these assets.
 	OmitAssets bool
+	// StyleMode selects default, minimal, or unstyled vanilla output. Other
+	// renderers may ignore this field when it does not apply.
+	StyleMode StyleMode
+	// IncludeSensitiveDefaults allows descriptor and browser renderers to emit
+	// defaults for fields marked Sensitive. The default is to redact them.
+	IncludeSensitiveDefaults bool
 	// ChromeClasses overrides high-level CSS class lists in renderer templates.
 	// When nil or empty, renderer defaults are used.
 	ChromeClasses *ChromeClasses
@@ -113,14 +154,6 @@ func missingTranslationDefault(locale, key string, args []any, err error) string
 		return def
 	}
 	return key
-}
-
-// FieldSubset describes the allowed groups, tags, or sections for partial
-// rendering. When all slices are empty the form is left untouched.
-type FieldSubset struct {
-	Groups   []string
-	Tags     []string
-	Sections []string
 }
 
 // ValueWithProvenance attaches optional provenance metadata to a prefilled

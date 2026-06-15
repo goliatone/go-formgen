@@ -83,6 +83,18 @@ func TestRenderer_RedactsSensitiveDefaultsAndSupportsPartialMode(t *testing.T) {
 		Method:      "POST",
 		Fields: []model.Field{
 			{Name: "password", Type: model.FieldTypeString, Format: "password", Sensitive: true, Default: "secret"},
+			{
+				Name: "credentials",
+				Type: model.FieldTypeObject,
+				Default: map[string]any{
+					"username": "ada",
+					"password": "nested-secret",
+				},
+				Nested: []model.Field{
+					{Name: "username", Type: model.FieldTypeString, Default: "ada"},
+					{Name: "password", Type: model.FieldTypeString, Format: "password", Sensitive: true, Default: "field-secret"},
+				},
+			},
 		},
 	}
 	renderer, err := preact.New()
@@ -99,8 +111,13 @@ func TestRenderer_RedactsSensitiveDefaultsAndSupportsPartialMode(t *testing.T) {
 	if strings.Contains(html, "<html") || !strings.Contains(html, `data-render-mode="form"`) {
 		t.Fatalf("expected partial preact output:\n%s", html)
 	}
-	if strings.Contains(html, "secret") {
-		t.Fatalf("sensitive default leaked:\n%s", html)
+	for _, secret := range []string{"secret", "nested-secret", "field-secret"} {
+		if strings.Contains(html, secret) {
+			t.Fatalf("sensitive default %q leaked:\n%s", secret, html)
+		}
+	}
+	if credentials, ok := form.Fields[1].Default.(map[string]any); !ok || credentials["password"] != "nested-secret" {
+		t.Fatalf("renderer mutated source nested default")
 	}
 	if form.Fields[0].Default != "secret" {
 		t.Fatalf("renderer mutated source form")

@@ -10,9 +10,10 @@ type Source = schema.Source
 type SourceKind = schema.SourceKind
 
 const (
-	SourceKindFile = schema.SourceKindFile
-	SourceKindFS   = schema.SourceKindFS
-	SourceKindURL  = schema.SourceKindURL
+	SourceKindFile  = schema.SourceKindFile
+	SourceKindFS    = schema.SourceKindFS
+	SourceKindURL   = schema.SourceKindURL
+	SourceKindBytes = schema.SourceKindBytes
 )
 
 // SourceFromFile returns a Source pointing to a file path.
@@ -29,4 +30,9 @@ func SourceFromFS(name string) Source {
 // if the URL is invalid to surface configuration mistakes early.
 func SourceFromURL(raw string) Source {
 	return schema.SourceFromURL(raw)
+}
+
+// SourceFromBytes returns a Source identifying a raw in-memory OpenAPI payload.
+func SourceFromBytes(name string) Source {
+	return schema.SourceFromBytes(name)
 }

@@ -82,3 +82,78 @@ func TestRendererWithoutEnvelopeEmitsFormModel(t *testing.T) {
 		t.Fatalf("expected raw form model output:\n%s", out)
 	}
 }
+
+func TestRendererRedactsSensitiveRenderValuesAndNestedDefaults(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "nestedSecret",
+		Endpoint:    "/secret",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name: "credentials",
+				Type: model.FieldTypeObject,
+				Default: map[string]any{
+					"username": "ada",
+					"password": "nested-default-secret",
+				},
+				Nested: []model.Field{
+					{Name: "username", Type: model.FieldTypeString, Default: "ada"},
+					{Name: "password", Type: model.FieldTypeString, Format: "password", Sensitive: true, Default: "field-default-secret"},
+				},
+			},
+			{Name: "token", Type: model.FieldTypeString, Sensitive: true, Default: "token-default-secret"},
+		},
+	}
+
+	out, err := jsonrenderer.New().Render(testsupport.Context(), form, render.RenderOptions{
+		Values: map[string]any{
+			"credentials": map[string]any{
+				"username": "lovelace",
+				"password": "nested-runtime-secret",
+			},
+			"token": "token-runtime-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, secret := range []string{
+		"nested-default-secret",
+		"field-default-secret",
+		"token-default-secret",
+		"nested-runtime-secret",
+		"token-runtime-secret",
+	} {
+		if strings.Contains(string(out), secret) {
+			t.Fatalf("sensitive value %q leaked:\n%s", secret, out)
+		}
+	}
+
+	var descriptor struct {
+		Form   model.FormModel `json:"form"`
+		Values map[string]any  `json:"values"`
+	}
+	if err := json.Unmarshal(out, &descriptor); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := descriptor.Values["token"]; ok {
+		t.Fatalf("sensitive top-level render value was not removed: %#v", descriptor.Values)
+	}
+	credentials, ok := descriptor.Values["credentials"].(map[string]any)
+	if !ok {
+		t.Fatalf("credentials values missing: %#v", descriptor.Values)
+	}
+	if _, ok := credentials["password"]; ok {
+		t.Fatalf("nested sensitive render value was not removed: %#v", credentials)
+	}
+	defaults, ok := descriptor.Form.Fields[0].Default.(map[string]any)
+	if !ok {
+		t.Fatalf("credentials default missing: %#v", descriptor.Form.Fields[0].Default)
+	}
+	if _, ok := defaults["password"]; ok {
+		t.Fatalf("nested sensitive default was not removed: %#v", defaults)
+	}
+	if form.Fields[0].Default.(map[string]any)["password"] != "nested-default-secret" {
+		t.Fatalf("renderer mutated source nested default")
+	}
+}

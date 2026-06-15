@@ -378,6 +378,8 @@ func (s *resolveSession) resolveRelativeSource(doc *resolvedDocument, refPath st
 			return nil, err
 		}
 		return SourceFromURL(base.ResolveReference(rel).String()), nil
+	case SourceKindBytes:
+		return nil, fmt.Errorf("jsonschema resolver: external refs unsupported for in-memory source (%s)", refPath)
 	default:
 		return nil, errors.New("jsonschema resolver: unsupported source kind")
 	}
@@ -402,6 +404,11 @@ func (s *resolveSession) canonicalLocation(src Source) (string, string, string, 
 		return "fs:" + cleaned, cleaned, base, nil
 	case SourceKindURL:
 		return "url:" + location, location, path.Dir(location), nil
+	case SourceKindBytes:
+		if strings.TrimSpace(location) == "" {
+			location = "memory"
+		}
+		return "bytes:" + location, location, "", nil
 	default:
 		return "", "", "", errors.New("jsonschema resolver: unsupported source kind")
 	}
