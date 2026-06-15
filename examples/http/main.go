@@ -951,25 +951,19 @@ type formServer struct {
 	defaultOperation string
 }
 
+type formRequest struct {
+	sourceRaw      string
+	rendererName   string
+	operation      string
+	format         string
+	sampleKey      string
+	methodOverride string
+}
+
 func (s *formServer) formHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-
-		sourceRaw := query.Get("source")
-		if strings.TrimSpace(sourceRaw) == "" {
-			sourceRaw = s.defaultSource
-		}
-		rendererName := query.Get("renderer")
-		if strings.TrimSpace(rendererName) == "" {
-			rendererName = s.defaultRenderer
-		}
-		operation := query.Get("operation")
-		if strings.TrimSpace(operation) == "" {
-			operation = s.defaultOperation
-		}
-		format := strings.ToLower(strings.TrimSpace(query.Get("format")))
-
-		source, cacheKey, err := exampleutil.ResolveSource(sourceRaw)
+		request := s.formRequestFromQuery(r.URL.Query())
+		source, cacheKey, err := exampleutil.ResolveSource(request.sourceRaw)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("resolve source: %v", err), http.StatusBadRequest)
 			return
@@ -981,62 +975,30 @@ func (s *formServer) formHandler() http.Handler {
 			return
 		}
 
-		if format == "json" {
-			s.writeFormModelJSON(w, r, document, operation)
+		if request.format == "json" {
+			s.writeFormModelJSON(w, r, document, request.operation)
 			return
 		}
 
-		renderer, err := s.registry.Get(rendererName)
+		renderer, err := s.registry.Get(request.rendererName)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("renderer %q not found", rendererName), http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("renderer %q not found", request.rendererName), http.StatusNotFound)
 			return
 		}
 
-		renderOptions := render.RenderOptions{}
-		sampleKey := strings.TrimSpace(query.Get("id"))
-		if sampleKey == "" {
-			sampleKey = strings.TrimSpace(query.Get("record"))
-		}
-		if sampleKey != "" {
-			if sample, ok := sampleRenderOptionsFor(sampleKey); ok {
-				renderOptions = sample
-			}
-		}
-		if methodOverride := strings.TrimSpace(query.Get("method")); methodOverride != "" {
-			renderOptions.Method = methodOverride
-		}
-
+		renderOptions := renderOptionsForRequest(request)
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			form, err := s.buildFormModel(r.Context(), document, operation)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("build form model: %v", err), http.StatusInternalServerError)
+			var ok bool
+			renderOptions, ok = s.applySubmittedValues(w, r, document, request.operation, renderOptions)
+			if !ok {
 				return
 			}
-			parsed, err := submission.ParseRequest(form, r)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("parse submission: %v", err), http.StatusBadRequest)
-				return
-			}
-			issues := append([]submission.Issue(nil), parsed.Issues...)
-			issues = append(issues, submission.Validate(form, parsed.Values)...)
-			if len(issues) == 0 {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"ok":     true,
-					"values": parsed.Values,
-				})
-				return
-			}
-			fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(form, issues)
-			renderOptions.Values = parsed.Values
-			renderOptions.Errors = fieldErrors
-			renderOptions.FormErrors = append(renderOptions.FormErrors, formErrors...)
 		}
 
 		output, err := s.generator.Generate(r.Context(), orchestrator.Request{
 			Document:      &document,
-			OperationID:   operation,
-			Renderer:      rendererName,
+			OperationID:   request.operation,
+			Renderer:      request.rendererName,
 			RenderOptions: renderOptions,
 		})
 		if err != nil {
@@ -1053,6 +1015,75 @@ func (s *formServer) formHandler() http.Handler {
 			log.Printf("write response: %v", err)
 		}
 	})
+}
+
+func (s *formServer) formRequestFromQuery(query url.Values) formRequest {
+	return formRequest{
+		sourceRaw:      queryValue(query, "source", s.defaultSource),
+		rendererName:   queryValue(query, "renderer", s.defaultRenderer),
+		operation:      queryValue(query, "operation", s.defaultOperation),
+		format:         strings.ToLower(strings.TrimSpace(query.Get("format"))),
+		sampleKey:      sampleKeyFromQuery(query),
+		methodOverride: strings.TrimSpace(query.Get("method")),
+	}
+}
+
+func queryValue(query url.Values, key, fallback string) string {
+	value := strings.TrimSpace(query.Get(key))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func sampleKeyFromQuery(query url.Values) string {
+	if sampleKey := strings.TrimSpace(query.Get("id")); sampleKey != "" {
+		return sampleKey
+	}
+	return strings.TrimSpace(query.Get("record"))
+}
+
+func renderOptionsForRequest(request formRequest) render.RenderOptions {
+	renderOptions := render.RenderOptions{}
+	if request.sampleKey != "" {
+		if sample, ok := sampleRenderOptionsFor(request.sampleKey); ok {
+			renderOptions = sample
+		}
+	}
+	if request.methodOverride != "" {
+		renderOptions.Method = request.methodOverride
+	}
+	return renderOptions
+}
+
+func (s *formServer) applySubmittedValues(w http.ResponseWriter, r *http.Request, document pkgopenapi.Document, operation string, renderOptions render.RenderOptions) (render.RenderOptions, bool) {
+	formModel, buildErr := s.buildFormModel(r.Context(), document, operation)
+	if buildErr != nil {
+		http.Error(w, fmt.Sprintf("build form model: %v", buildErr), http.StatusInternalServerError)
+		return renderOptions, false
+	}
+	parsed, parseErr := submission.ParseRequest(formModel, r)
+	if parseErr != nil {
+		http.Error(w, fmt.Sprintf("parse submission: %v", parseErr), http.StatusBadRequest)
+		return renderOptions, false
+	}
+
+	issues := append([]submission.Issue(nil), parsed.Issues...)
+	issues = append(issues, submission.Validate(formModel, parsed.Values)...)
+	if len(issues) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":     true,
+			"values": parsed.Values,
+		})
+		return renderOptions, false
+	}
+
+	fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(formModel, issues)
+	renderOptions.Values = parsed.Values
+	renderOptions.Errors = fieldErrors
+	renderOptions.FormErrors = append(renderOptions.FormErrors, formErrors...)
+	return renderOptions, true
 }
 
 func (s *formServer) loadDocument(ctx context.Context, source pkgopenapi.Source, cacheKey string) (pkgopenapi.Document, error) {
