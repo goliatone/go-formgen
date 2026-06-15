@@ -156,27 +156,35 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 	if shouldSkipChrome(field) {
 		return control
 	}
-	mode := renderStyleDefault
-	if len(styleMode) > 0 && styleMode[0] != "" {
-		mode = styleMode[0]
-	}
+	mode := selectedStyleMode(styleMode)
 
 	var builder strings.Builder
 	builder.Grow(len(control) + 256)
 
-	builder.WriteString(`<div`)
-	if mode != renderStyleUnstyled {
-		builder.WriteString(` class="flex flex-col gap-2`)
-		if extra := sanitizedWrapperClass(field); extra != "" {
-			builder.WriteByte(' ')
-			builder.WriteString(html.EscapeString(extra))
-		}
-		builder.WriteString(`"`)
-	} else if extra := sanitizedWrapperClass(field); extra != "" {
-		builder.WriteString(` class="`)
-		builder.WriteString(html.EscapeString(extra))
-		builder.WriteString(`"`)
+	writeFieldWrapperStart(&builder, field, componentName, mode)
+	builder.WriteString(">\n")
+
+	context := buildChromeContext(field, componentName)
+	skipChrome := componentHandlesChrome(componentName)
+
+	writeFieldChromeBeforeControl(&builder, templates, field, context, componentName, skipChrome)
+	writeIndentedBlock(&builder, control)
+	writeFieldChromeAfterControl(&builder, templates, field, context, componentName, skipChrome, mode)
+
+	builder.WriteString("</div>\n")
+	return builder.String()
+}
+
+func selectedStyleMode(styleMode []renderStyleMode) renderStyleMode {
+	if len(styleMode) > 0 && styleMode[0] != "" {
+		return styleMode[0]
 	}
+	return renderStyleDefault
+}
+
+func writeFieldWrapperStart(builder *strings.Builder, field model.Field, componentName string, mode renderStyleMode) {
+	builder.WriteString(`<div`)
+	writeFieldWrapperClass(builder, field, mode)
 
 	if componentName != "" {
 		builder.WriteString(` data-component="`)
@@ -190,47 +198,67 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 		builder.WriteString(`'`)
 	}
 
-	writeFieldRelationshipAttrs(&builder, field.Relationship)
-	writeFieldPrefillAttrs(&builder, field.Metadata)
+	writeFieldRelationshipAttrs(builder, field.Relationship)
+	writeFieldPrefillAttrs(builder, field.Metadata)
+}
 
-	builder.WriteString(">\n")
-
-	context := buildChromeContext(field, componentName)
-
-	skipChrome := componentHandlesChrome(componentName)
-
-	if !skipChrome && shouldRenderLabel(field) {
-		label := renderChromePartial(templates, chromeLabelTemplate, field, context, fallbackLabelMarkup)
-		writeIndentedBlock(&builder, label)
+func writeFieldWrapperClass(builder *strings.Builder, field model.Field, mode renderStyleMode) {
+	extra := sanitizedWrapperClass(field)
+	if mode == renderStyleUnstyled {
+		if extra == "" {
+			return
+		}
+		builder.WriteString(` class="`)
+		builder.WriteString(html.EscapeString(extra))
+		builder.WriteString(`"`)
+		return
 	}
 
-	writeIndentedBlock(&builder, control)
+	builder.WriteString(` class="flex flex-col gap-2`)
+	if extra != "" {
+		builder.WriteByte(' ')
+		builder.WriteString(html.EscapeString(extra))
+	}
+	builder.WriteString(`"`)
+}
 
-	if !skipChrome && !componentHandlesDescription(componentName) && strings.TrimSpace(field.Description) != "" {
+func writeFieldChromeBeforeControl(builder *strings.Builder, templates template.TemplateRenderer, field model.Field, context map[string]any, componentName string, skipChrome bool) {
+	if skipChrome || !shouldRenderLabel(field) {
+		return
+	}
+	label := renderChromePartial(templates, chromeLabelTemplate, field, context, fallbackLabelMarkup)
+	writeIndentedBlock(builder, label)
+}
+
+func writeFieldChromeAfterControl(builder *strings.Builder, templates template.TemplateRenderer, field model.Field, context map[string]any, componentName string, skipChrome bool, mode renderStyleMode) {
+	if skipChrome {
+		return
+	}
+
+	if !componentHandlesDescription(componentName) && strings.TrimSpace(field.Description) != "" {
 		description := renderChromePartial(templates, chromeDescriptionTemplate, field, context, fallbackDescriptionMarkup)
-		writeIndentedBlock(&builder, description)
+		writeIndentedBlock(builder, description)
 	}
 
-	if !skipChrome && strings.TrimSpace(stringFromMap(field.UIHints, "helpText")) != "" {
+	if strings.TrimSpace(stringFromMap(field.UIHints, "helpText")) != "" {
 		help := renderChromePartial(templates, chromeHelpTemplate, field, context, fallbackHelpMarkup)
-		writeIndentedBlock(&builder, help)
+		writeIndentedBlock(builder, help)
 	}
 
-	if !skipChrome {
-		builder.WriteString(`    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true"`)
-		if mode != renderStyleUnstyled {
-			builder.WriteString(` class="formgen-error text-sm text-red-600 dark:text-red-400"`)
-		}
-		builder.WriteString(`>`)
-		if message := fieldErrorMessage(field); message != "" {
-			builder.WriteString(html.EscapeString(message))
-		}
-		builder.WriteString(`</p>`)
-		builder.WriteByte('\n')
-	}
+	writeRelationshipError(builder, field, mode)
+}
 
-	builder.WriteString("</div>\n")
-	return builder.String()
+func writeRelationshipError(builder *strings.Builder, field model.Field, mode renderStyleMode) {
+	builder.WriteString(`    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true"`)
+	if mode != renderStyleUnstyled {
+		builder.WriteString(` class="formgen-error text-sm text-red-600 dark:text-red-400"`)
+	}
+	builder.WriteString(`>`)
+	if message := fieldErrorMessage(field); message != "" {
+		builder.WriteString(html.EscapeString(message))
+	}
+	builder.WriteString(`</p>`)
+	builder.WriteByte('\n')
 }
 
 func writeFieldRelationshipAttrs(builder *strings.Builder, rel *model.Relationship) {

@@ -269,37 +269,54 @@ func pruneSectionMetadata(form *FormModel, fields []Field) {
 		keptOrderKeys[layoutFieldOrderPrefix+section] = struct{}{}
 	}
 
-	if raw := strings.TrimSpace(form.Metadata[layoutSectionsKey]); raw != "" && len(keptSections) > 0 {
-		var sections []map[string]any
-		if err := json.Unmarshal([]byte(raw), &sections); err == nil {
-			filtered := make([]map[string]any, 0, len(sections))
-			for _, section := range sections {
-				id := normaliseToken(anyToString(section["id"]))
-				if id == "" {
-					continue
-				}
-				if _, ok := keptSections[id]; ok {
-					filtered = append(filtered, section)
-				}
-			}
-			if len(filtered) > 0 {
-				if payload, err := json.Marshal(filtered); err == nil {
-					form.Metadata[layoutSectionsKey] = string(payload)
-				}
-			} else {
-				delete(form.Metadata, layoutSectionsKey)
-			}
-		}
-	} else if len(keptSections) == 0 {
-		delete(form.Metadata, layoutSectionsKey)
+	pruneLayoutSections(form.Metadata, keptSections)
+	pruneLayoutFieldOrder(form.Metadata, keptOrderKeys)
+}
+
+func pruneLayoutSections(metadata map[string]string, keptSections map[string]struct{}) {
+	if len(keptSections) == 0 {
+		delete(metadata, layoutSectionsKey)
+		return
 	}
 
-	for key := range form.Metadata {
+	raw := strings.TrimSpace(metadata[layoutSectionsKey])
+	if raw == "" {
+		return
+	}
+
+	var sections []map[string]any
+	if err := json.Unmarshal([]byte(raw), &sections); err != nil {
+		return
+	}
+
+	filtered := make([]map[string]any, 0, len(sections))
+	for _, section := range sections {
+		id := normaliseToken(anyToString(section["id"]))
+		if id == "" {
+			continue
+		}
+		if _, ok := keptSections[id]; ok {
+			filtered = append(filtered, section)
+		}
+	}
+
+	if len(filtered) == 0 {
+		delete(metadata, layoutSectionsKey)
+		return
+	}
+
+	if payload, err := json.Marshal(filtered); err == nil {
+		metadata[layoutSectionsKey] = string(payload)
+	}
+}
+
+func pruneLayoutFieldOrder(metadata map[string]string, keptOrderKeys map[string]struct{}) {
+	for key := range metadata {
 		if !strings.HasPrefix(key, layoutFieldOrderPrefix) {
 			continue
 		}
 		if _, ok := keptOrderKeys[key]; !ok {
-			delete(form.Metadata, key)
+			delete(metadata, key)
 		}
 	}
 }

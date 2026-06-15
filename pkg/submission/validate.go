@@ -22,94 +22,151 @@ func Validate(form model.FormModel, values Values, options ...Option) []Issue {
 }
 
 func validateField(field model.Field, value any, exists bool, path string, opts Options) []Issue {
+	if missingValue(field, value, exists) {
+		if field.Required {
+			return []Issue{issue(CodeRequired, path, makeMessage(field, path, "is required"), nil)}
+		}
+		return nil
+	}
 	if isEmpty(value) {
 		if field.Required {
 			return []Issue{issue(CodeRequired, path, makeMessage(field, path, "is required"), value)}
 		}
 		return nil
 	}
-	if !exists {
-		if field.Required {
-			return []Issue{issue(CodeRequired, path, makeMessage(field, path, "is required"), nil)}
-		}
-		return nil
-	}
 
-	var issues []Issue
 	switch field.Type {
 	case model.FieldTypeString:
-		text, ok := value.(string)
-		if !ok {
-			issues = append(issues, issue(CodeType, path, makeMessage(field, path, "must be a string"), value))
-			break
-		}
-		issues = append(issues, validateEnum(field, text, path)...)
-		issues = append(issues, validateStringRules(field, text, path)...)
+		return validateStringField(field, value, path)
 	case model.FieldTypeInteger:
-		num, ok := integerValue(value)
-		if !ok {
-			issues = append(issues, issue(CodeType, path, makeMessage(field, path, "must be an integer"), value))
-			break
-		}
-		issues = append(issues, validateEnum(field, num, path)...)
-		issues = append(issues, validateNumberRules(field, float64(num), path)...)
+		return validateIntegerField(field, value, path)
 	case model.FieldTypeNumber:
-		num, ok := numberValue(value)
-		if !ok {
-			issues = append(issues, issue(CodeType, path, makeMessage(field, path, "must be a number"), value))
-			break
-		}
-		issues = append(issues, validateEnum(field, num, path)...)
-		issues = append(issues, validateNumberRules(field, num, path)...)
+		return validateNumberField(field, value, path)
 	case model.FieldTypeBoolean:
-		boolean, ok := value.(bool)
-		if !ok {
-			issues = append(issues, issue(CodeType, path, makeMessage(field, path, "must be a boolean"), value))
-			break
-		}
-		issues = append(issues, validateEnum(field, boolean, path)...)
+		return validateBooleanField(field, value, path)
 	case model.FieldTypeArray:
-		items, ok := value.([]any)
-		if !ok {
-			issues = append(issues, issue(CodeType, path, makeMessage(field, path, "must be an array"), value))
-			break
-		}
-		issues = append(issues, validateArrayRules(field, items, path)...)
-		if len(field.Enum) > 0 {
-			for i, item := range items {
-				issues = append(issues, validateEnum(field, item, fmt.Sprintf("%s[%d]", path, i))...)
-			}
-		}
-		if field.Items != nil {
-			for i, item := range items {
-				itemPath := fmt.Sprintf("%s[%d]", path, i)
-				issues = append(issues, validateField(*field.Items, item, true, itemPath, opts)...)
-			}
-		}
+		return validateArrayField(field, value, path, opts)
 	case model.FieldTypeObject:
-		obj, ok := value.(map[string]any)
-		if !ok {
-			issues = append(issues, issue(CodeObject, path, makeMessage(field, path, "must be an object"), value))
-			break
+		return validateObjectField(field, value, path, opts)
+	}
+	return nil
+}
+
+func missingValue(field model.Field, value any, exists bool) bool {
+	return !exists && !isEmpty(value)
+}
+
+func validateStringField(field model.Field, value any, path string) []Issue {
+	text, ok := value.(string)
+	if !ok {
+		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be a string"), value)}
+	}
+	var issues []Issue
+	issues = append(issues, validateEnum(field, text, path)...)
+	issues = append(issues, validateStringRules(field, text, path)...)
+	return issues
+}
+
+func validateIntegerField(field model.Field, value any, path string) []Issue {
+	num, ok := integerValue(value)
+	if !ok {
+		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be an integer"), value)}
+	}
+	var issues []Issue
+	issues = append(issues, validateEnum(field, num, path)...)
+	issues = append(issues, validateNumberRules(field, float64(num), path)...)
+	return issues
+}
+
+func validateNumberField(field model.Field, value any, path string) []Issue {
+	num, ok := numberValue(value)
+	if !ok {
+		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be a number"), value)}
+	}
+	var issues []Issue
+	issues = append(issues, validateEnum(field, num, path)...)
+	issues = append(issues, validateNumberRules(field, num, path)...)
+	return issues
+}
+
+func validateBooleanField(field model.Field, value any, path string) []Issue {
+	boolean, ok := value.(bool)
+	if !ok {
+		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be a boolean"), value)}
+	}
+	return validateEnum(field, boolean, path)
+}
+
+func validateArrayField(field model.Field, value any, path string, opts Options) []Issue {
+	items, ok := value.([]any)
+	if !ok {
+		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be an array"), value)}
+	}
+	issues := validateArrayRules(field, items, path)
+	issues = append(issues, validateArrayEnum(field, items, path)...)
+	issues = append(issues, validateArrayItems(field, items, path, opts)...)
+	return issues
+}
+
+func validateArrayEnum(field model.Field, items []any, path string) []Issue {
+	if len(field.Enum) == 0 {
+		return nil
+	}
+	var issues []Issue
+	for i, item := range items {
+		issues = append(issues, validateEnum(field, item, fmt.Sprintf("%s[%d]", path, i))...)
+	}
+	return issues
+}
+
+func validateArrayItems(field model.Field, items []any, path string, opts Options) []Issue {
+	if field.Items == nil {
+		return nil
+	}
+	var issues []Issue
+	for i, item := range items {
+		itemPath := fmt.Sprintf("%s[%d]", path, i)
+		issues = append(issues, validateField(*field.Items, item, true, itemPath, opts)...)
+	}
+	return issues
+}
+
+func validateObjectField(field model.Field, value any, path string, opts Options) []Issue {
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return []Issue{issue(CodeObject, path, makeMessage(field, path, "must be an object"), value)}
+	}
+	if IsRawObjectField(field) {
+		return nil
+	}
+	issues := validateNestedFields(field, obj, path, opts)
+	if opts.UnknownFields == UnknownIssue {
+		issues = append(issues, validateUnknownObjectFields(field, obj, path)...)
+	}
+	return issues
+}
+
+func validateNestedFields(field model.Field, obj map[string]any, path string, opts Options) []Issue {
+	var issues []Issue
+	for _, child := range field.Nested {
+		childValue, childExists := obj[child.Name]
+		issues = append(issues, validateField(child, childValue, childExists, joinPath(path, child.Name), opts)...)
+	}
+	return issues
+}
+
+func validateUnknownObjectFields(field model.Field, obj map[string]any, path string) []Issue {
+	known := make(map[string]struct{}, len(field.Nested))
+	for _, child := range field.Nested {
+		known[child.Name] = struct{}{}
+	}
+	var issues []Issue
+	for key, item := range obj {
+		if _, ok := known[key]; ok {
+			continue
 		}
-		if !IsRawObjectField(field) {
-			for _, child := range field.Nested {
-				childValue, childExists := obj[child.Name]
-				issues = append(issues, validateField(child, childValue, childExists, joinPath(path, child.Name), opts)...)
-			}
-			if opts.UnknownFields == UnknownIssue {
-				known := make(map[string]struct{}, len(field.Nested))
-				for _, child := range field.Nested {
-					known[child.Name] = struct{}{}
-				}
-				for key, item := range obj {
-					if _, ok := known[key]; !ok {
-						unknownPath := joinPath(path, key)
-						issues = append(issues, issue(CodeUnknownField, unknownPath, fmt.Sprintf("unknown field %q", unknownPath), item))
-					}
-				}
-			}
-		}
+		unknownPath := joinPath(path, key)
+		issues = append(issues, issue(CodeUnknownField, unknownPath, fmt.Sprintf("unknown field %q", unknownPath), item))
 	}
 	return issues
 }

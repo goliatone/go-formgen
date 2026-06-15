@@ -465,16 +465,6 @@ func stringifyEnum(values []any) []string {
 	return out
 }
 
-func valuesFromIndices(options []string, indices []int) []string {
-	out := make([]string, 0, len(indices))
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(options) {
-			out = append(out, options[idx])
-		}
-	}
-	return out
-}
-
 func indexOfEnumValue(values []any, target any) int {
 	for i, value := range values {
 		if reflect.DeepEqual(value, target) || fmt.Sprint(value) == fmt.Sprint(target) {

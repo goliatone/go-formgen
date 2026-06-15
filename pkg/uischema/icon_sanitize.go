@@ -109,10 +109,7 @@ func sanitizeSVG(raw string) (string, bool) {
 	decoder.Strict = false
 	decoder.Entity = xml.HTMLEntity
 
-	var out strings.Builder
-	var stack []string
-	skipDepth := 0
-	sawRoot := false
+	state := svgSanitizeState{}
 
 	for {
 		token, err := decoder.Token()
@@ -123,54 +120,84 @@ func sanitizeSVG(raw string) (string, bool) {
 			return "", false
 		}
 
-		switch tok := token.(type) {
-		case xml.StartElement:
-			name := tok.Name.Local
-			if skipDepth > 0 {
-				skipDepth++
-				continue
-			}
-			if !allowedSVGElement(name) {
-				skipDepth = 1
-				continue
-			}
-			if !sawRoot {
-				if name != "svg" {
-					return "", false
-				}
-				sawRoot = true
-			}
-			writeStartElement(&out, name, sanitizeSVGAttrs(tok.Attr))
-			stack = append(stack, name)
-		case xml.EndElement:
-			if skipDepth > 0 {
-				skipDepth--
-				continue
-			}
-			if len(stack) == 0 {
-				continue
-			}
-			name := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			writeEndElement(&out, name)
-		case xml.CharData:
-			if skipDepth > 0 || len(stack) == 0 {
-				continue
-			}
-			writeEscapedText(&out, string(tok))
-		case xml.Comment, xml.ProcInst, xml.Directive:
-			continue
+		if !state.handleToken(token) {
+			return "", false
 		}
 	}
 
-	if !sawRoot || skipDepth != 0 || len(stack) != 0 {
+	if !state.validEnd() {
 		return "", false
 	}
-	cleaned := strings.TrimSpace(out.String())
+	cleaned := strings.TrimSpace(state.out.String())
 	if cleaned == "" {
 		return "", false
 	}
 	return cleaned, true
+}
+
+type svgSanitizeState struct {
+	out       strings.Builder
+	stack     []string
+	skipDepth int
+	sawRoot   bool
+}
+
+func (s *svgSanitizeState) handleToken(token xml.Token) bool {
+	switch tok := token.(type) {
+	case xml.StartElement:
+		return s.handleStartElement(tok)
+	case xml.EndElement:
+		s.handleEndElement()
+	case xml.CharData:
+		s.handleCharData(tok)
+	case xml.Comment, xml.ProcInst, xml.Directive:
+	}
+	return true
+}
+
+func (s *svgSanitizeState) handleStartElement(tok xml.StartElement) bool {
+	name := tok.Name.Local
+	if s.skipDepth > 0 {
+		s.skipDepth++
+		return true
+	}
+	if !allowedSVGElement(name) {
+		s.skipDepth = 1
+		return true
+	}
+	if !s.sawRoot {
+		if name != "svg" {
+			return false
+		}
+		s.sawRoot = true
+	}
+	writeStartElement(&s.out, name, sanitizeSVGAttrs(tok.Attr))
+	s.stack = append(s.stack, name)
+	return true
+}
+
+func (s *svgSanitizeState) handleEndElement() {
+	if s.skipDepth > 0 {
+		s.skipDepth--
+		return
+	}
+	if len(s.stack) == 0 {
+		return
+	}
+	name := s.stack[len(s.stack)-1]
+	s.stack = s.stack[:len(s.stack)-1]
+	writeEndElement(&s.out, name)
+}
+
+func (s *svgSanitizeState) handleCharData(tok xml.CharData) {
+	if s.skipDepth > 0 || len(s.stack) == 0 {
+		return
+	}
+	writeEscapedText(&s.out, string(tok))
+}
+
+func (s *svgSanitizeState) validEnd() bool {
+	return s.sawRoot && s.skipDepth == 0 && len(s.stack) == 0
 }
 
 func sanitizeSVGAttrs(attrs []xml.Attr) []xml.Attr {

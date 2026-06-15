@@ -235,7 +235,6 @@ func setValue(root map[string]any, segments []pathSegment, value any) *Issue {
 			if appendMode {
 				node = append(node, nil)
 				idx = len(node) - 1
-				current = node
 				replaceArrayAt(root, segments[:i], node)
 			}
 			for len(node) <= idx {

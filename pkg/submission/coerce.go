@@ -61,51 +61,110 @@ func coerceString(value any) any {
 }
 
 func coerceInteger(value any, path string) (any, []Issue) {
-	switch v := value.(type) {
-	case nil:
+	if value == nil {
 		return nil, nil
-	case int:
-		return int64(v), nil
-	case int8:
-		return int64(v), nil
-	case int16:
-		return int64(v), nil
-	case int32:
-		return int64(v), nil
-	case int64:
-		return v, nil
-	case uint, uint8, uint16, uint32:
-		i, _ := strconv.ParseInt(fmt.Sprint(v), 10, 64)
+	}
+	if i, ok := signedInteger(value); ok {
 		return i, nil
+	}
+	if i, ok := unsignedInteger(value); ok {
+		return i, nil
+	}
+	if i, ok := integralFloat(value); ok {
+		return i, nil
+	}
+	if i, ok := integralJSONNumber(value); ok {
+		return i, nil
+	}
+	if i, ok := integralString(value); ok {
+		return i, nil
+	}
+	message := "expected integer"
+	if u, ok := value.(uint64); ok && u > math.MaxInt64 {
+		message = "integer is out of range"
+	}
+	return nil, []Issue{issue(CodeType, path, message, value)}
+}
+
+func signedInteger(value any) (int64, bool) {
+	switch v := value.(type) {
+	case int:
+		return int64(v), true
+	case int8:
+		return int64(v), true
+	case int16:
+		return int64(v), true
+	case int32:
+		return int64(v), true
+	case int64:
+		return v, true
+	default:
+		return 0, false
+	}
+}
+
+func unsignedInteger(value any) (int64, bool) {
+	var u uint64
+	switch v := value.(type) {
+	case uint:
+		u = uint64(v)
+	case uint8:
+		u = uint64(v)
+	case uint16:
+		u = uint64(v)
+	case uint32:
+		u = uint64(v)
 	case uint64:
-		if v > math.MaxInt64 {
-			return nil, []Issue{issue(CodeType, path, "integer is out of range", value)}
+		u = v
+	default:
+		return 0, false
+	}
+	if u > math.MaxInt64 {
+		return 0, false
+	}
+	return int64(u), true
+}
+
+func integralFloat(value any) (int64, bool) {
+	switch v := value.(type) {
+	case float32:
+		f := float64(v)
+		if math.Trunc(f) != f || f > math.MaxInt64 || f < math.MinInt64 {
+			return 0, false
 		}
-		return int64(v), nil
+		return int64(f), true
 	case float64:
 		if math.Trunc(v) != v || v > math.MaxInt64 || v < math.MinInt64 {
-			return nil, []Issue{issue(CodeType, path, "expected integer", value)}
+			return 0, false
 		}
-		return int64(v), nil
-	case json.Number:
-		i, err := v.Int64()
-		if err == nil {
-			return i, nil
-		}
-		f, ferr := v.Float64()
-		if ferr == nil && math.Trunc(f) == f && f <= math.MaxInt64 && f >= math.MinInt64 {
-			return int64(f), nil
-		}
-		return nil, []Issue{issue(CodeType, path, "expected integer", value)}
-	case string:
-		i, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
-		if err != nil {
-			return nil, []Issue{issue(CodeType, path, "expected integer", value)}
-		}
-		return i, nil
+		return int64(v), true
 	default:
-		return nil, []Issue{issue(CodeType, path, "expected integer", value)}
+		return 0, false
 	}
+}
+
+func integralJSONNumber(value any) (int64, bool) {
+	v, ok := value.(json.Number)
+	if !ok {
+		return 0, false
+	}
+	if i, err := v.Int64(); err == nil {
+		return i, true
+	}
+	f, err := v.Float64()
+	if err != nil || math.Trunc(f) != f || f > math.MaxInt64 || f < math.MinInt64 {
+		return 0, false
+	}
+	return int64(f), true
+}
+
+func integralString(value any) (int64, bool) {
+	v, ok := value.(string)
+	if !ok {
+		return 0, false
+	}
+	i, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	return i, err == nil
 }
 
 func coerceNumber(value any, path string) (any, []Issue) {
@@ -122,9 +181,11 @@ func coerceNumber(value any, path string) (any, []Issue) {
 		return float64(v), nil
 	case int64:
 		return float64(v), nil
-	case uint, uint8, uint16, uint32, uint64:
+	case uint, uint8, uint16, uint32:
 		f, _ := strconv.ParseFloat(fmt.Sprint(v), 64)
 		return f, nil
+	case uint64:
+		return float64(v), nil
 	case float32:
 		return float64(v), nil
 	case float64:
@@ -228,9 +289,10 @@ func coerceObject(field model.Field, value any, opts Options, path string) (any,
 	for key, item := range obj {
 		child, ok := nestedField(field.Nested, key)
 		if !ok {
-			if opts.UnknownFields == UnknownPreserve {
+			switch opts.UnknownFields {
+			case UnknownPreserve:
 				out[key] = item
-			} else if opts.UnknownFields == UnknownIssue {
+			case UnknownIssue:
 				issues = append(issues, issue(CodeUnknownField, joinPath(path, key), fmt.Sprintf("unknown field %q", joinPath(path, key)), item))
 			}
 			continue

@@ -39,17 +39,32 @@ func DecodeEnumValue(raw string) (any, bool) {
 	if !strings.HasPrefix(raw, enumPrefix) {
 		return raw, false
 	}
-	encoded := strings.TrimPrefix(raw, enumPrefix)
+	payload, ok := decodeEnumPayload(strings.TrimPrefix(raw, enumPrefix))
+	if !ok {
+		return raw, false
+	}
+	value, ok := decodeEnumPayloadValue(payload)
+	if !ok {
+		return raw, false
+	}
+	return value, true
+}
+
+func decodeEnumPayload(encoded string) (enumPayload, bool) {
 	body, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
-		return raw, false
+		return enumPayload{}, false
 	}
 	var payload enumPayload
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
-		return raw, false
+		return enumPayload{}, false
 	}
+	return payload, true
+}
+
+func decodeEnumPayloadValue(payload enumPayload) (any, bool) {
 	switch payload.Type {
 	case "string":
 		if value, ok := payload.Value.(string); ok {
@@ -60,36 +75,54 @@ func DecodeEnumValue(raw string) (any, bool) {
 			return value, true
 		}
 	case "int":
-		switch value := payload.Value.(type) {
-		case json.Number:
-			i, err := value.Int64()
-			return i, err == nil
-		case float64:
-			return int64(value), true
-		}
+		return decodeEnumInt(payload.Value)
 	case "uint":
-		switch value := payload.Value.(type) {
-		case json.Number:
-			u, err := strconv.ParseUint(value.String(), 10, 64)
-			return u, err == nil
-		case float64:
-			if value < 0 || value != float64(uint64(value)) {
-				return raw, false
-			}
-			return uint64(value), true
-		}
+		return decodeEnumUint(payload.Value)
 	case "number":
-		switch value := payload.Value.(type) {
-		case json.Number:
-			f, err := value.Float64()
-			return f, err == nil
-		case float64:
-			return value, true
-		}
+		return decodeEnumNumber(payload.Value)
 	case "null":
 		return nil, true
 	}
-	return raw, false
+	return nil, false
+}
+
+func decodeEnumInt(value any) (any, bool) {
+	switch v := value.(type) {
+	case json.Number:
+		i, err := v.Int64()
+		return i, err == nil
+	case float64:
+		return int64(v), true
+	default:
+		return nil, false
+	}
+}
+
+func decodeEnumUint(value any) (any, bool) {
+	switch v := value.(type) {
+	case json.Number:
+		u, err := strconv.ParseUint(v.String(), 10, 64)
+		return u, err == nil
+	case float64:
+		if v < 0 || v != float64(uint64(v)) {
+			return nil, false
+		}
+		return uint64(v), true
+	default:
+		return nil, false
+	}
+}
+
+func decodeEnumNumber(value any) (any, bool) {
+	switch v := value.(type) {
+	case json.Number:
+		f, err := v.Float64()
+		return f, err == nil
+	case float64:
+		return v, true
+	default:
+		return nil, false
+	}
 }
 
 func enumType(value any) string {
@@ -146,27 +179,51 @@ func enumValueEqual(a, b any) bool {
 }
 
 func enumNumberRat(value any) (*big.Rat, bool) {
+	if i, ok := enumSignedInt(value); ok {
+		return big.NewRat(i, 1), true
+	}
+	if u, ok := enumUnsignedInt(value); ok {
+		return new(big.Rat).SetInt(new(big.Int).SetUint64(u)), true
+	}
+	return enumFloatRat(value)
+}
+
+func enumSignedInt(value any) (int64, bool) {
 	switch v := value.(type) {
 	case int:
-		return big.NewRat(int64(v), 1), true
+		return int64(v), true
 	case int8:
-		return big.NewRat(int64(v), 1), true
+		return int64(v), true
 	case int16:
-		return big.NewRat(int64(v), 1), true
+		return int64(v), true
 	case int32:
-		return big.NewRat(int64(v), 1), true
+		return int64(v), true
 	case int64:
-		return big.NewRat(v, 1), true
+		return v, true
+	default:
+		return 0, false
+	}
+}
+
+func enumUnsignedInt(value any) (uint64, bool) {
+	switch v := value.(type) {
 	case uint:
-		return new(big.Rat).SetInt(new(big.Int).SetUint64(uint64(v))), true
+		return uint64(v), true
 	case uint8:
-		return new(big.Rat).SetInt(new(big.Int).SetUint64(uint64(v))), true
+		return uint64(v), true
 	case uint16:
-		return new(big.Rat).SetInt(new(big.Int).SetUint64(uint64(v))), true
+		return uint64(v), true
 	case uint32:
-		return new(big.Rat).SetInt(new(big.Int).SetUint64(uint64(v))), true
+		return uint64(v), true
 	case uint64:
-		return new(big.Rat).SetInt(new(big.Int).SetUint64(v)), true
+		return v, true
+	default:
+		return 0, false
+	}
+}
+
+func enumFloatRat(value any) (*big.Rat, bool) {
+	switch v := value.(type) {
 	case float32:
 		if rat := new(big.Rat).SetFloat64(float64(v)); rat != nil {
 			return rat, true

@@ -27,43 +27,53 @@ func (idx fieldIndex) fieldFor(segments []pathSegment) (model.Field, bool) {
 	var current model.Field
 	found := false
 	for _, segment := range segments {
-		switch {
-		case segment.Name != "":
-			if !found {
-				field, ok := idx.roots[segment.Name]
-				if !ok {
-					return model.Field{}, false
-				}
-				current = field
-				found = true
-				continue
-			}
-			if current.Type == model.FieldTypeArray && current.Items != nil {
-				current = *current.Items
-			}
-			if current.Type != model.FieldTypeObject || IsRawObjectField(current) {
-				return model.Field{}, false
-			}
-			child, ok := nestedField(current.Nested, segment.Name)
-			if !ok {
-				return model.Field{}, false
-			}
-			current = child
-		case segment.Index != nil || segment.Append:
-			if !found || current.Type != model.FieldTypeArray {
-				return model.Field{}, false
-			}
-			if current.Items != nil {
-				current = *current.Items
-			} else {
-				current = model.Field{Name: current.Name, Type: inferEnumType(current.Enum), Enum: current.Enum}
-			}
+		next, nextFound, ok := idx.nextField(current, found, segment)
+		if !ok {
+			return model.Field{}, false
 		}
+		current = next
+		found = nextFound
 	}
 	if !found {
 		return model.Field{}, false
 	}
 	return current, true
+}
+
+func (idx fieldIndex) nextField(current model.Field, found bool, segment pathSegment) (model.Field, bool, bool) {
+	if segment.Name != "" {
+		field, ok := idx.nextNamedField(current, found, segment.Name)
+		return field, true, ok
+	}
+	if segment.Index != nil || segment.Append {
+		field, ok := nextArrayItemField(current, found)
+		return field, found, ok
+	}
+	return current, found, true
+}
+
+func (idx fieldIndex) nextNamedField(current model.Field, found bool, name string) (model.Field, bool) {
+	if !found {
+		field, ok := idx.roots[name]
+		return field, ok
+	}
+	if current.Type == model.FieldTypeArray && current.Items != nil {
+		current = *current.Items
+	}
+	if current.Type != model.FieldTypeObject || IsRawObjectField(current) {
+		return model.Field{}, false
+	}
+	return nestedField(current.Nested, name)
+}
+
+func nextArrayItemField(current model.Field, found bool) (model.Field, bool) {
+	if !found || current.Type != model.FieldTypeArray {
+		return model.Field{}, false
+	}
+	if current.Items != nil {
+		return *current.Items, true
+	}
+	return model.Field{Name: current.Name, Type: inferEnumType(current.Enum), Enum: current.Enum}, true
 }
 
 func inferEnumType(values []any) model.FieldType {
@@ -87,11 +97,6 @@ func nestedField(fields []model.Field, name string) (model.Field, bool) {
 		}
 	}
 	return model.Field{}, false
-}
-
-func topLevelField(idx fieldIndex, name string) (model.Field, bool) {
-	field, ok := idx.roots[name]
-	return field, ok
 }
 
 // IsRawObjectField reports whether an object field should submit as one JSON
