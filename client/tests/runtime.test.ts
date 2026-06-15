@@ -1373,6 +1373,9 @@ describe("runtime resolver", () => {
           <input name="article[title]" value="Draft" />
           <input type="hidden" name="_csrf" value="token" />
           <textarea name="article[summary]"></textarea>
+          <input type="checkbox" name="article[published]" value="yes" />
+          <input type="radio" name="article[status]" value="draft" checked />
+          <input type="radio" name="article[status]" value="published" />
         </div>
       `;
 
@@ -1380,13 +1383,16 @@ describe("runtime resolver", () => {
       const controller = attachFormController(root);
       expect((globalThis as any).Formgen.attach).toBe(attachFormController);
       expect(controller.getValues()).toEqual({
-        article: { title: "Draft", summary: "" },
+        article: { title: "Draft", summary: "", published: false, status: "draft" },
         _csrf: "token",
       });
 
-      controller.setValues({ article: { title: "Published", summary: "Done" } });
+      controller.setValues({ article: { title: "Published", summary: "Done", published: true, status: "published" } });
       expect((document.querySelector('input[name="article[title]"]') as HTMLInputElement).value).toBe("Published");
       expect((document.querySelector('textarea[name="article[summary]"]') as HTMLTextAreaElement).value).toBe("Done");
+      expect((document.querySelector('input[name="article[published]"]') as HTMLInputElement).checked).toBe(true);
+      expect((document.querySelector('input[name="article[status]"][value="draft"]') as HTMLInputElement).checked).toBe(false);
+      expect((document.querySelector('input[name="article[status]"][value="published"]') as HTMLInputElement).checked).toBe(true);
 
       controller.setErrors({ "article.title": ["Required"] });
       const title = document.querySelector<HTMLInputElement>('input[name="article[title]"]')!;

@@ -66,6 +66,7 @@ type Field struct {
 	Placeholder  string            `json:"placeholder,omitempty"`
 	Description  string            `json:"description,omitempty"`
 	Default      any               `json:"default,omitempty"`
+	Sensitive    bool              `json:"sensitive,omitempty"`
 	Enum         []any             `json:"enum,omitempty"`
 	Nested       []Field           `json:"nested,omitempty"`
 	Items        *Field            `json:"items,omitempty"`

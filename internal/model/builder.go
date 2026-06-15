@@ -91,6 +91,7 @@ func (b *Builder) fieldsFromSchema(name string, schema schema.Schema, required b
 			Label:       b.opts.Labeler(name),
 			Description: schema.Description,
 			Metadata:    map[string]string{},
+			Sensitive:   isSensitiveSchema(schema),
 		}
 		field.Metadata["$ref"] = schema.Ref
 		refMeta, refHints := ParseUIExtensions(schema.Extensions)
@@ -161,6 +162,7 @@ func (b *Builder) fieldsFromObject(name string, schema schema.Schema, required b
 			Description: schema.Description,
 			Required:    required,
 			Nested:      fields,
+			Sensitive:   isSensitiveSchema(schema),
 		}
 		if schema.Default != nil {
 			parent.Default = schema.Default
@@ -205,6 +207,7 @@ func (b *Builder) fieldFromArray(name string, schema schema.Schema, required boo
 		Description: schema.Description,
 		Required:    required,
 		Items:       itemField,
+		Sensitive:   isSensitiveSchema(schema),
 	}
 	if schema.Default != nil {
 		field.Default = schema.Default
@@ -233,6 +236,7 @@ func (b *Builder) fieldFromUnion(name string, schema schema.Schema, required boo
 		Label:       b.opts.Labeler(name),
 		Description: schema.Description,
 		Required:    required,
+		Sensitive:   isSensitiveSchema(schema),
 	}
 
 	options := make([]Field, 0, len(schema.OneOf))
@@ -278,6 +282,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema schema.Schema, required
 		Description: schema.Description,
 		Required:    required,
 		Default:     schema.Default,
+		Sensitive:   isSensitiveSchema(schema),
 	}
 	if len(schema.Enum) > 0 {
 		field.Enum = append([]any(nil), schema.Enum...)
@@ -437,6 +442,64 @@ func metadataFromExtensions(ext map[string]any) map[string]string {
 		return nil
 	}
 	return result
+}
+
+func isSensitiveSchema(input schema.Schema) bool {
+	if strings.EqualFold(strings.TrimSpace(input.Format), "password") {
+		return true
+	}
+	return sensitiveExtension(input.Extensions)
+}
+
+func sensitiveExtension(ext map[string]any) bool {
+	if len(ext) == 0 {
+		return false
+	}
+	if value, ok := truthyExtension(ext,
+		"x-formgen.sensitive",
+		"x-formgen.secret",
+		"x-admin.secret",
+		"x-formgen-sensitive",
+		"x-formgen-secret",
+		"x-admin-secret",
+		"cli.secret",
+	); ok && value {
+		return true
+	}
+	if nested, ok := ext[extensionNamespace].(map[string]any); ok {
+		if value, ok := truthyExtension(nested, "sensitive", "secret"); ok && value {
+			return true
+		}
+	}
+	if nested, ok := ext[adminExtensionNamespace].(map[string]any); ok {
+		if value, ok := truthyExtension(nested, "secret"); ok && value {
+			return true
+		}
+	}
+	return false
+}
+
+func truthyExtension(ext map[string]any, keys ...string) (bool, bool) {
+	for _, key := range keys {
+		value, exists := ext[key]
+		if !exists {
+			continue
+		}
+		switch typed := value.(type) {
+		case bool:
+			return typed, true
+		case string:
+			trimmed := strings.TrimSpace(strings.ToLower(typed))
+			return trimmed == "true" || trimmed == "1" || trimmed == "yes", true
+		case int, int8, int16, int32, int64:
+			return fmt.Sprint(typed) != "0", true
+		case uint, uint8, uint16, uint32, uint64:
+			return fmt.Sprint(typed) != "0", true
+		case float32, float64:
+			return fmt.Sprint(typed) != "0", true
+		}
+	}
+	return false, false
 }
 
 func formgenMetadataFromExtensions(ext map[string]any) (map[string]string, string) {

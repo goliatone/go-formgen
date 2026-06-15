@@ -5,6 +5,7 @@ import (
 
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/orchestrator"
+	orchestratordefaults "github.com/goliatone/go-formgen/pkg/orchestrator/defaults"
 	"github.com/goliatone/go-formgen/pkg/render"
 	theme "github.com/goliatone/go-theme"
 )
@@ -33,14 +34,14 @@ type FieldSubset = render.FieldSubset
 // NewOrchestrator exposes the orchestrator constructor from the top-level
 // module, mirroring the quick start guidance in go-form-gen.md:223-258.
 func NewOrchestrator(options ...orchestrator.Option) *orchestrator.Orchestrator {
-	return orchestrator.New(options...)
+	return orchestratordefaults.New(options...)
 }
 
 // GenerateHTML loads the OpenAPI source, builds a form model for the requested
 // operation, and renders it using the named renderer. It is the simplest entry
 // point for callers that just want HTML output.
 func GenerateHTML(ctx context.Context, source pkgopenapi.Source, operationID, rendererName string, options ...orchestrator.Option) ([]byte, error) {
-	gen := orchestrator.New(options...)
+	gen := orchestratordefaults.New(options...)
 	return gen.Generate(ctx, orchestrator.Request{
 		Source:      source,
 		OperationID: operationID,
@@ -51,7 +52,7 @@ func GenerateHTML(ctx context.Context, source pkgopenapi.Source, operationID, re
 // GenerateHTMLFromDocument renders a form using a pre-loaded document,
 // bypassing the loader stage while still delegating to the orchestrator.
 func GenerateHTMLFromDocument(ctx context.Context, doc pkgopenapi.Document, operationID, rendererName string, options ...orchestrator.Option) ([]byte, error) {
-	gen := orchestrator.New(options...)
+	gen := orchestratordefaults.New(options...)
 	return gen.Generate(ctx, orchestrator.Request{
 		Document:    &doc,
 		OperationID: operationID,
@@ -68,18 +69,18 @@ func WithEndpointOverrides(overrides []EndpointOverride) orchestrator.Option {
 // WithThemeSelector passes a go-theme selector through to the orchestrator so
 // theme/variant choices can be resolved ahead of rendering.
 func WithThemeSelector(selector theme.ThemeSelector) orchestrator.Option {
-	return orchestrator.WithThemeSelector(selector)
+	return orchestratordefaults.WithThemeSelector(selector)
 }
 
 // WithThemeProvider constructs a go-theme selector from a ThemeProvider and
 // registers it with the orchestrator so renderers receive resolved partials,
 // tokens, and assets.
 func WithThemeProvider(provider theme.ThemeProvider, defaultTheme, defaultVariant string) orchestrator.Option {
-	return orchestrator.WithThemeProvider(provider, defaultTheme, defaultVariant)
+	return orchestratordefaults.WithThemeProvider(provider, defaultTheme, defaultVariant)
 }
 
 // WithThemeFallbacks forwards fallback partials used when deriving renderer
 // configuration from a theme selection.
 func WithThemeFallbacks(fallbacks map[string]string) orchestrator.Option {
-	return orchestrator.WithThemeFallbacks(fallbacks)
+	return orchestratordefaults.WithThemeFallbacks(fallbacks)
 }
