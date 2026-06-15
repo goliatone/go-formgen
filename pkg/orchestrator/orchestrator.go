@@ -14,15 +14,11 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 	"github.com/goliatone/go-formgen/pkg/render"
-	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/go-formgen/pkg/schema"
 	"github.com/goliatone/go-formgen/pkg/uischema"
 	"github.com/goliatone/go-formgen/pkg/visibility"
 	"github.com/goliatone/go-formgen/pkg/widgets"
-	theme "github.com/goliatone/go-theme"
 )
-
-const defaultRendererName = "vanilla"
 
 // Option customises the orchestrator configuration.
 type Option func(*Orchestrator)
@@ -101,54 +97,51 @@ func WithRegistry(registry *render.Registry) Option {
 	}
 }
 
-// WithThemeSelector injects a go-theme selector used to resolve theme/variant
-// combinations into renderer-friendly configuration.
-func WithThemeSelector(selector theme.ThemeSelector) Option {
+// WithRenderer registers a renderer on the orchestrator registry.
+func WithRenderer(renderer render.Renderer) Option {
 	return func(o *Orchestrator) {
-		o.themeSelector = selector
-	}
-}
-
-// WithThemeProvider builds a go-theme selector from a ThemeProvider and configures
-// the orchestrator to resolve renderer configuration (partials, tokens, assets)
-// using the supplied defaults when theme inputs are omitted.
-func WithThemeProvider(provider theme.ThemeProvider, defaultTheme, defaultVariant string) Option {
-	return func(o *Orchestrator) {
-		if provider == nil {
+		if renderer == nil {
 			return
 		}
-		o.themeSelector = theme.Selector{
-			Registry:       provider,
-			DefaultTheme:   strings.TrimSpace(defaultTheme),
-			DefaultVariant: strings.TrimSpace(defaultVariant),
+		if o.registry == nil {
+			o.registry = render.NewRegistry()
+		}
+		if err := o.registry.Register(renderer); err != nil {
+			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
 		}
 	}
 }
 
-// WithThemeFallbacks supplies fallback partial paths passed to
-// Selection.RendererTheme so renderers receive a resolved partial map even when
-// the manifest omits a template key.
-func WithThemeFallbacks(fallbacks map[string]string) Option {
+// RendererFactory constructs a renderer during orchestrator initialization.
+type RendererFactory func() (render.Renderer, error)
+
+// WithRendererFactory registers a renderer returned by the factory.
+func WithRendererFactory(factory RendererFactory) Option {
 	return func(o *Orchestrator) {
-		if len(fallbacks) == 0 {
+		if factory == nil {
 			return
 		}
-		o.themeFallbacks = cloneStringMap(fallbacks)
+		renderer, err := factory()
+		if err != nil {
+			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
+			return
+		}
+		WithRenderer(renderer)(o)
 	}
 }
 
-func defaultThemeFallbacks() map[string]string {
-	return map[string]string{
-		"forms.form":          "templates/form.tmpl",
-		"forms.input":         "templates/components/input.tmpl",
-		"forms.select":        "templates/components/select.tmpl",
-		"forms.checkbox":      "templates/components/boolean.tmpl",
-		"forms.radio":         "templates/components/boolean.tmpl",
-		"forms.textarea":      "templates/components/textarea.tmpl",
-		"forms.media-picker":  "templates/components/media_picker.tmpl",
-		"forms.wysiwyg":       "templates/components/wysiwyg.tmpl",
-		"forms.json-editor":   "templates/components/json_editor.tmpl",
-		"forms.file-uploader": "templates/components/file_uploader.tmpl",
+// RenderOptionsResolver can enrich renderer options immediately before
+// rendering. Renderer-facing packages use this to opt into theme integration
+// without making the core orchestrator import theme dependencies.
+type RenderOptionsResolver func(context.Context, Request, model.FormModel, render.RenderOptions) (render.RenderOptions, error)
+
+// WithRenderOptionsResolver injects a renderer-option resolver.
+func WithRenderOptionsResolver(resolver RenderOptionsResolver) Option {
+	return func(o *Orchestrator) {
+		if resolver == nil {
+			return
+		}
+		o.renderOptionsResolvers = append(o.renderOptionsResolvers, resolver)
 	}
 }
 
@@ -205,9 +198,10 @@ func WithVisibilityEvaluator(evaluator visibility.Evaluator) Option {
 	}
 }
 
-// Orchestrator coordinates the full pipeline from OpenAPI document to rendered
-// output. It applies sensible defaults (vanilla renderer, embedded templates)
-// while remaining open to dependency injection for advanced callers.
+// Orchestrator coordinates schema loading, normalization, FormModel building,
+// and optional rendering. The core constructor is renderer-free; callers that
+// render output must register renderers explicitly or use a compatibility
+// helper package that opts into renderer dependencies.
 type Orchestrator struct {
 	loader                   pkgopenapi.Loader
 	parser                   pkgopenapi.Parser
@@ -218,8 +212,7 @@ type Orchestrator struct {
 	defaultAdapter           string
 	registry                 *render.Registry
 	defaultRenderer          string
-	themeSelector            theme.ThemeSelector
-	themeFallbacks           map[string]string
+	renderOptionsResolvers   []RenderOptionsResolver
 	widgetRegistry           *widgets.Registry
 	initialiseErr            error
 	defaultsApplied          bool
@@ -236,9 +229,7 @@ type Orchestrator struct {
 // dependencies are initialised with the built-in implementations so callers can
 // start with a single constructor call.
 func New(options ...Option) *Orchestrator {
-	o := &Orchestrator{
-		defaultRenderer: defaultRendererName,
-	}
+	o := &Orchestrator{}
 	for _, opt := range options {
 		if opt == nil {
 			continue
@@ -280,11 +271,10 @@ func (o *Orchestrator) SetVisibilityEvaluator(evaluator visibility.Evaluator) {
 	o.visibilityEvaluator = evaluator
 }
 
-// Request describes the inputs required to render a form from an OpenAPI
-// operation.
-type Request struct {
+// BuildRequest describes renderer-free inputs required to build a FormModel.
+type BuildRequest struct {
 	// Source identifies where the schema document lives. Optional when Document
-	// or SchemaDocument is supplied.
+	// SchemaDocument, or RawJSONSchema is supplied.
 	Source pkgopenapi.Source
 
 	// Document allows callers to bypass the loader when they already have a
@@ -303,6 +293,89 @@ type Request struct {
 
 	// NormalizeOptions supplies format-specific normalization hints.
 	NormalizeOptions schema.NormalizeOptions
+
+	// RawJSONSchema carries an in-memory JSON Schema document. When set, Format
+	// defaults to the JSON Schema adapter and Source is used only as provenance.
+	RawJSONSchema []byte
+
+	// Subset restricts the returned model to fields whose group, tags, or
+	// section match the supplied tokens. Empty subsets leave the model unchanged.
+	Subset model.FieldSubset
+
+	// VisibilityContext carries evaluator-specific inputs such as current form
+	// values or feature flags used to decide whether a field belongs in the
+	// returned model.
+	VisibilityContext visibility.Context
+}
+
+// BuildOption customizes convenience BuildFormModel helpers.
+type BuildOption func(*BuildRequest)
+
+// WithBuildFormat sets the format adapter used by a convenience build helper.
+func WithBuildFormat(format string) BuildOption {
+	return func(req *BuildRequest) {
+		req.Format = format
+	}
+}
+
+// WithBuildNormalizeOptions sets adapter normalization options for a
+// convenience build helper.
+func WithBuildNormalizeOptions(options schema.NormalizeOptions) BuildOption {
+	return func(req *BuildRequest) {
+		req.NormalizeOptions = options
+	}
+}
+
+// WithBuildSubset sets the renderer-free field subset for a convenience build
+// helper.
+func WithBuildSubset(subset model.FieldSubset) BuildOption {
+	return func(req *BuildRequest) {
+		req.Subset = subset
+	}
+}
+
+// WithBuildVisibilityContext sets the visibility context for a convenience
+// build helper.
+func WithBuildVisibilityContext(ctx visibility.Context) BuildOption {
+	return func(req *BuildRequest) {
+		req.VisibilityContext = ctx
+	}
+}
+
+// Request describes the inputs required to render a form.
+type Request struct {
+	// Source identifies where the schema document lives. Optional when Document
+	// SchemaDocument, or RawJSONSchema is supplied.
+	Source pkgopenapi.Source
+
+	// Document allows callers to bypass the loader when they already have a
+	// parsed OpenAPI payload.
+	Document *pkgopenapi.Document
+
+	// SchemaDocument allows callers to bypass the loader for non-OpenAPI sources.
+	SchemaDocument *schema.Document
+
+	// OperationID selects which form to render. OpenAPI adapters map this to an
+	// operationId; JSON Schema adapters use derived form IDs.
+	OperationID string
+
+	// Format explicitly selects a registered adapter by name.
+	Format string
+
+	// NormalizeOptions supplies format-specific normalization hints.
+	NormalizeOptions schema.NormalizeOptions
+
+	// RawJSONSchema carries an in-memory JSON Schema document. When set, Format
+	// defaults to the JSON Schema adapter and Source is used only as provenance.
+	RawJSONSchema []byte
+
+	// Subset restricts the model before rendering. RenderOptions.Subset remains
+	// supported for compatibility; this field is preferred for headless parity.
+	Subset model.FieldSubset
+
+	// VisibilityContext carries evaluator-specific inputs used before rendering.
+	// RenderOptions.VisibilityContext remains supported for compatibility.
+	VisibilityContext visibility.Context
 
 	// Renderer names the renderer to use. If empty, the orchestrator falls back
 	// to the configured default renderer.
@@ -328,16 +401,11 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	if err := o.validateGenerateRequest(ctx, req); err != nil {
 		return nil, err
 	}
-	formModel, err := o.generateFormModel(ctx, req)
+	formModel, err := o.BuildFormModel(ctx, buildRequestFromRequest(req))
 	if err != nil {
 		return nil, err
 	}
-	o.applyEndpointOverrides(req.OperationID, &formModel)
-	if pipelineErr := o.applyFormPipeline(ctx, &formModel, req); pipelineErr != nil {
-		return nil, pipelineErr
-	}
-
-	renderOptions, err := o.resolveRenderOptions(req, formModel)
+	renderOptions, err := o.resolveRenderOptions(ctx, req, formModel)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +423,63 @@ func (o *Orchestrator) Generate(ctx context.Context, req Request) ([]byte, error
 	return output, nil
 }
 
+// BuildFormModel executes the renderer-free schema loading, normalization, and
+// model decoration pipeline.
+func (o *Orchestrator) BuildFormModel(ctx context.Context, req BuildRequest) (model.FormModel, error) {
+	if err := o.validateBuildRequest(ctx, req); err != nil {
+		return model.FormModel{}, err
+	}
+	formModel, err := o.generateFormModel(ctx, req)
+	if err != nil {
+		return model.FormModel{}, err
+	}
+	o.applyEndpointOverrides(req.OperationID, &formModel)
+	if pipelineErr := o.applyFormPipeline(ctx, &formModel, req); pipelineErr != nil {
+		return model.FormModel{}, pipelineErr
+	}
+	return formModel, nil
+}
+
+// BuildFormModelFromJSONSchemaBytes builds a FormModel from raw JSON Schema
+// bytes without requiring a file, URL, or renderer.
+func (o *Orchestrator) BuildFormModelFromJSONSchemaBytes(ctx context.Context, raw []byte, operationID string, options ...BuildOption) (model.FormModel, error) {
+	req := BuildRequest{
+		RawJSONSchema: raw,
+		OperationID:   operationID,
+		Format:        pkgjsonschema.DefaultAdapterName,
+		Source:        schema.SourceFromBytes("jsonschema:raw"),
+	}
+	for _, opt := range options {
+		if opt != nil {
+			opt(&req)
+		}
+	}
+	if req.Format == "" {
+		req.Format = pkgjsonschema.DefaultAdapterName
+	}
+	return o.BuildFormModel(ctx, req)
+}
+
+// BuildFormModelFromSchemaDocument builds a FormModel from an in-memory schema
+// document without rendering.
+func (o *Orchestrator) BuildFormModelFromSchemaDocument(ctx context.Context, doc schema.Document, operationID string, options ...BuildOption) (model.FormModel, error) {
+	req := BuildRequest{
+		SchemaDocument: &doc,
+		OperationID:    operationID,
+	}
+	for _, opt := range options {
+		if opt != nil {
+			opt(&req)
+		}
+	}
+	return o.BuildFormModel(ctx, req)
+}
+
 func (o *Orchestrator) validateGenerateRequest(ctx context.Context, req Request) error {
+	return o.validateBuildRequest(ctx, buildRequestFromRequest(req))
+}
+
+func (o *Orchestrator) validateBuildRequest(ctx context.Context, req BuildRequest) error {
 	if ctx == nil {
 		return errors.New("orchestrator: context is required")
 	}
@@ -377,7 +501,38 @@ func (o *Orchestrator) validateGenerateRequest(ctx context.Context, req Request)
 	return nil
 }
 
-func (o *Orchestrator) generateFormModel(ctx context.Context, req Request) (model.FormModel, error) {
+func buildRequestFromRequest(req Request) BuildRequest {
+	build := BuildRequest{
+		Source:            req.Source,
+		Document:          req.Document,
+		SchemaDocument:    req.SchemaDocument,
+		OperationID:       req.OperationID,
+		Format:            req.Format,
+		NormalizeOptions:  req.NormalizeOptions,
+		RawJSONSchema:     req.RawJSONSchema,
+		Subset:            req.Subset,
+		VisibilityContext: req.VisibilityContext,
+	}
+	if build.Format == "" && len(build.RawJSONSchema) > 0 {
+		build.Format = pkgjsonschema.DefaultAdapterName
+	}
+	if build.Source == nil && len(build.RawJSONSchema) > 0 {
+		build.Source = schema.SourceFromBytes("jsonschema:raw")
+	}
+	if emptySubset(build.Subset) {
+		build.Subset = req.RenderOptions.Subset
+	}
+	if build.VisibilityContext.Values == nil && len(build.VisibilityContext.Extras) == 0 {
+		build.VisibilityContext = visibilityContext(req.RenderOptions)
+	}
+	return build
+}
+
+func emptySubset(subset model.FieldSubset) bool {
+	return len(subset.Groups) == 0 && len(subset.Tags) == 0 && len(subset.Sections) == 0
+}
+
+func (o *Orchestrator) generateFormModel(ctx context.Context, req BuildRequest) (model.FormModel, error) {
 	adapter, err := o.resolveAdapter(ctx, req)
 	if err != nil {
 		return model.FormModel{}, err
@@ -409,49 +564,37 @@ func (o *Orchestrator) formNotFoundError(ctx context.Context, adapter schema.For
 	return fmt.Errorf("orchestrator: form %q not found (available: %s)", operationID, formatFormRefs(available))
 }
 
-func (o *Orchestrator) applyFormPipeline(ctx context.Context, formModel *model.FormModel, req Request) error {
+func (o *Orchestrator) applyFormPipeline(ctx context.Context, formModel *model.FormModel, req BuildRequest) error {
 	if transformErr := o.applyTransformer(ctx, formModel); transformErr != nil {
 		return transformErr
 	}
 	if decorateErr := o.applyDecorators(formModel); decorateErr != nil {
 		return decorateErr
 	}
-	render.ApplySubset(formModel, req.RenderOptions.Subset)
-	if err := applyVisibility(formModel, o.visibilityEvaluator, visibilityContext(req.RenderOptions)); err != nil {
+	model.ApplySubset(formModel, req.Subset)
+	if err := applyVisibility(formModel, o.visibilityEvaluator, req.VisibilityContext); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *Orchestrator) resolveRenderOptions(req Request, formModel model.FormModel) (render.RenderOptions, error) {
+func (o *Orchestrator) resolveRenderOptions(ctx context.Context, req Request, formModel model.FormModel) (render.RenderOptions, error) {
 	renderOptions := req.RenderOptions
 	render.LocalizeFormModel(&formModel, renderOptions)
 	mappedErrors := render.MapErrorPayload(formModel, renderOptions.Errors)
 	renderOptions.Errors = mappedErrors.Fields
 	renderOptions.FormErrors = render.MergeFormErrors(renderOptions.FormErrors, mappedErrors.Form...)
-	if renderOptions.Theme == nil {
-		themeConfig, themeErr := o.resolveTheme(req.ThemeName, req.ThemeVariant)
-		if themeErr != nil {
-			return render.RenderOptions{}, themeErr
+	for _, resolver := range o.renderOptionsResolvers {
+		if resolver == nil {
+			continue
 		}
-		renderOptions.Theme = themeConfig
+		resolved, err := resolver(ctx, req, formModel, renderOptions)
+		if err != nil {
+			return render.RenderOptions{}, err
+		}
+		renderOptions = resolved
 	}
 	return renderOptions, nil
-}
-
-func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererConfig, error) {
-	if o.themeSelector == nil {
-		return nil, nil
-	}
-	selection, err := o.themeSelector.Select(themeName, variant)
-	if err != nil {
-		return nil, fmt.Errorf("orchestrator: select theme: %w", err)
-	}
-	if selection == nil {
-		return nil, fmt.Errorf("orchestrator: theme selector returned nil selection")
-	}
-	cfg := selection.RendererTheme(o.themeFallbacks)
-	return &cfg, nil
 }
 
 func (o *Orchestrator) rendererFor(name string) (render.Renderer, error) {
@@ -518,7 +661,6 @@ func (o *Orchestrator) applyDefaults() {
 
 	o.ensureCoreDefaults()
 	o.ensureDefaultAdapters()
-	o.ensureRendererDefaults()
 	o.ensureDecoratorDefaults()
 	o.defaultsApplied = true
 }
@@ -559,24 +701,6 @@ func (o *Orchestrator) ensureDefaultAdapters() {
 		if err := o.adapterRegistry.Register(adapter); err != nil {
 			o.initialiseErr = appendInitialiseError(o.initialiseErr, err)
 		}
-	}
-}
-
-func (o *Orchestrator) ensureRendererDefaults() {
-	if o.registry == nil {
-		o.registry = render.NewRegistry()
-		renderer, err := vanilla.New()
-		if err != nil {
-			o.initialiseErr = fmt.Errorf("orchestrator: default renderer: %w", err)
-		} else {
-			o.registry.MustRegister(renderer)
-		}
-	}
-	if o.defaultRenderer == "" {
-		o.defaultRenderer = defaultRendererName
-	}
-	if o.themeSelector != nil && len(o.themeFallbacks) == 0 {
-		o.themeFallbacks = defaultThemeFallbacks()
 	}
 }
 

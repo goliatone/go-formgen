@@ -10,7 +10,7 @@ import (
 	"github.com/goliatone/go-formgen/pkg/schema"
 )
 
-func (o *Orchestrator) resolveAdapter(ctx context.Context, req Request) (schema.FormatAdapter, error) {
+func (o *Orchestrator) resolveAdapter(ctx context.Context, req BuildRequest) (schema.FormatAdapter, error) {
 	if o.adapterRegistry == nil {
 		return nil, errors.New("orchestrator: adapter registry is nil")
 	}
@@ -49,12 +49,19 @@ func (o *Orchestrator) resolveAdapter(ctx context.Context, req Request) (schema.
 	}
 }
 
-func (o *Orchestrator) resolveSchemaDocument(ctx context.Context, req Request, adapter schema.FormatAdapter) (schema.Document, error) {
+func (o *Orchestrator) resolveSchemaDocument(ctx context.Context, req BuildRequest, adapter schema.FormatAdapter) (schema.Document, error) {
 	if req.SchemaDocument != nil {
 		return *req.SchemaDocument, nil
 	}
 	if req.Document != nil {
 		return schemaDocumentFromOpenAPI(*req.Document)
+	}
+	if len(req.RawJSONSchema) > 0 {
+		src := req.Source
+		if src == nil {
+			src = schema.SourceFromBytes("jsonschema:raw")
+		}
+		return schema.NewDocument(src, req.RawJSONSchema)
 	}
 	if req.Source == nil {
 		return schema.Document{}, errors.New("orchestrator: source or document is required")
@@ -69,12 +76,18 @@ func (o *Orchestrator) resolveSchemaDocument(ctx context.Context, req Request, a
 	return doc, nil
 }
 
-func (o *Orchestrator) rawForDetection(ctx context.Context, req Request) ([]byte, schema.Source, error) {
+func (o *Orchestrator) rawForDetection(ctx context.Context, req BuildRequest) ([]byte, schema.Source, error) {
 	switch {
 	case req.SchemaDocument != nil:
 		return req.SchemaDocument.Raw(), req.SchemaDocument.Source(), nil
 	case req.Document != nil:
 		return req.Document.Raw(), req.Document.Source(), nil
+	case len(req.RawJSONSchema) > 0:
+		src := req.Source
+		if src == nil {
+			src = schema.SourceFromBytes("jsonschema:raw")
+		}
+		return append([]byte(nil), req.RawJSONSchema...), src, nil
 	case req.Source != nil:
 		raw, err := o.loadRaw(ctx, req.Source)
 		if err != nil {
