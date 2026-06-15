@@ -1,5 +1,41 @@
 # Changelog
 
+# [0.21.0](https://github.com/goliatone/go-formgen/compare/v0.20.1...v0.21.0) - (2026-06-15)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Code quality ([60a07ac](https://github.com/goliatone/go-formgen/commit/60a07ac8f2be40216cae9d6d42a0336f8818436d))  - (goliatone)
+- Code issues ([3620a9e](https://github.com/goliatone/go-formgen/commit/3620a9edba147e03ed34ecd469cbbbdcef2bdde5))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.21.0 ([1e20001](https://github.com/goliatone/go-formgen/commit/1e2000145aca7f70e204f0adb310ca8f419885e8))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Orchestrator setup ([c326da6](https://github.com/goliatone/go-formgen/commit/c326da607d1612f7d8ef5c43ffa5db8653af01f6))  - (goliatone)
+- Renderers organziation ([81fd019](https://github.com/goliatone/go-formgen/commit/81fd019043f01896a916b282593163f51bcf201f))  - (goliatone)
+- Redaction helper ([1d0bea0](https://github.com/goliatone/go-formgen/commit/1d0bea045f0ef15d41edf5fddcff473eaddac3c0))  - (goliatone)
+- Default orchestrator setup ([35518fc](https://github.com/goliatone/go-formgen/commit/35518fcc335632a7b83c43cd5c1585d192666700))  - (goliatone)
+- Submision orgnaize paths ([db0a78c](https://github.com/goliatone/go-formgen/commit/db0a78c2d01cea38410fbe6d7cb910612263e9cd))  - (goliatone)
+- Subset fields ([c4a220b](https://github.com/goliatone/go-formgen/commit/c4a220b66a5da16fffa0e2c0d73bd736eeb52a58))  - (goliatone)
+
+## <!-- 2 -->🚜 Refactor
+
+- Renderer organization ([9754b7d](https://github.com/goliatone/go-formgen/commit/9754b7d6991170c725bdb7c02e10bfca75f1b9e8))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.20.1 ([a77402b](https://github.com/goliatone/go-formgen/commit/a77402b18ecb7b186148916ba129e22643bc8d88))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([41d7332](https://github.com/goliatone/go-formgen/commit/41d7332b61a22c324d6c96499b51f96b42eba2c9))  - (goliatone)
+- Update deps ([9c28aa0](https://github.com/goliatone/go-formgen/commit/9c28aa077d089ba31240ab04234053fed10ba974))  - (goliatone)
+- Update examples ([e848e0a](https://github.com/goliatone/go-formgen/commit/e848e0a9ff1ec0c5bd35f6acfe9711b3ec855d4c))  - (goliatone)
+- Update readme ([b85825c](https://github.com/goliatone/go-formgen/commit/b85825c7dd81e8277a4f40db8c1f86f488f3ead6))  - (goliatone)
+- Udpate deps ([33ece3b](https://github.com/goliatone/go-formgen/commit/33ece3b0d1047917163951bb9804f1663c363e2d))  - (goliatone)
+
 # [0.20.1](https://github.com/goliatone/go-formgen/compare/v0.20.0...v0.20.1) - (2026-05-04)
 
 ## <!-- 1 -->🐛 Bug Fixes
