@@ -221,12 +221,20 @@ func cloneValue(value any) any {
 	switch typed := value.(type) {
 	case map[string]any:
 		return cloneValueMap(typed)
+	case map[string]string:
+		out := make(map[string]string, len(typed))
+		for key, val := range typed {
+			out[key] = val
+		}
+		return out
 	case []any:
 		out := make([]any, len(typed))
 		for i, item := range typed {
 			out[i] = cloneValue(item)
 		}
 		return out
+	case []string:
+		return append([]string(nil), typed...)
 	default:
 		return value
 	}

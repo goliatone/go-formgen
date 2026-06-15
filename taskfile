@@ -386,6 +386,19 @@ function go:test {
     _go:for_each_module _go:module:test "$@"
 }
 
+function go:import-guard:orchestrator {
+    local go_bin
+    local matches
+
+    go_bin=$(_go:bin) || return 1
+    _go:quality:prepare_env || return 1
+    matches="$(_go:exec "${go_bin}" list -deps -f '{{.ImportPath}}' ./pkg/orchestrator | rg 'survey|pongo2|go-theme|bluemonday|renderers/vanilla|renderers/tui|renderers/preact|go-template' || true)"
+    if [ -n "${matches}" ]; then
+        echo "${matches}"
+        return 1
+    fi
+}
+
 function go:race {
     _go:for_each_module _go:module:race "$@"
 }
