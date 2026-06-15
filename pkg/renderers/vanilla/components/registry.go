@@ -24,6 +24,7 @@ type ComponentData struct {
 	Config        map[string]any
 	ThemePartials map[string]string
 	Theme         map[string]any
+	StyleMode     string
 }
 
 // Script describes JavaScript dependencies a component needs to emit once per

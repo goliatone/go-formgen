@@ -23,6 +23,7 @@ type componentRenderer struct {
 	theme          rendererTheme
 	templateTheme  map[string]any
 	assetResolver  func(string) string
+	styleMode      renderStyleMode
 }
 
 const (
@@ -36,9 +37,13 @@ const (
 	componentChromeSkipKeyword = "skip"
 )
 
-func newComponentRenderer(templates template.TemplateRenderer, registry *components.Registry, overrides map[string]string, theme rendererTheme, assetResolver func(string) string) *componentRenderer {
+func newComponentRenderer(templates template.TemplateRenderer, registry *components.Registry, overrides map[string]string, theme rendererTheme, assetResolver func(string) string, styleMode ...renderStyleMode) *componentRenderer {
 	if registry == nil {
 		registry = components.NewDefaultRegistry()
+	}
+	mode := renderStyleDefault
+	if len(styleMode) > 0 && styleMode[0] != "" {
+		mode = styleMode[0]
 	}
 	return &componentRenderer{
 		templates:      templates,
@@ -48,6 +53,7 @@ func newComponentRenderer(templates template.TemplateRenderer, registry *compone
 		theme:          theme,
 		templateTheme:  buildTemplateThemeContext(theme, assetResolver),
 		assetResolver:  assetResolver,
+		styleMode:      mode,
 	}
 }
 
@@ -80,6 +86,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 		RenderChild:   r.childRenderer(path),
 		ThemePartials: r.theme.Partials,
 		Theme:         r.templateTheme,
+		StyleMode:     string(r.styleMode),
 	}
 
 	var control bytes.Buffer
@@ -89,7 +96,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 
 	r.usedComponents[componentName] = struct{}{}
 
-	return buildFieldMarkup(r.templates, field, componentName, control.String()), nil
+	return buildFieldMarkup(r.templates, field, componentName, control.String(), r.styleMode), nil
 }
 
 func (r *componentRenderer) childRenderer(parentPath string) func(any) (string, error) {
@@ -142,23 +149,34 @@ func skipRelationshipSource(field model.Field) bool {
 	return field.Relationship != nil && strings.TrimSpace(field.Relationship.SourceField) != ""
 }
 
-func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, componentName, control string) string {
+func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, componentName, control string, styleMode ...renderStyleMode) string {
 	if strings.TrimSpace(control) == "" {
 		return ""
 	}
 	if shouldSkipChrome(field) {
 		return control
 	}
+	mode := renderStyleDefault
+	if len(styleMode) > 0 && styleMode[0] != "" {
+		mode = styleMode[0]
+	}
 
 	var builder strings.Builder
 	builder.Grow(len(control) + 256)
 
-	builder.WriteString(`<div class="flex flex-col gap-2`)
-	if extra := sanitizedWrapperClass(field); extra != "" {
-		builder.WriteByte(' ')
+	builder.WriteString(`<div`)
+	if mode != renderStyleUnstyled {
+		builder.WriteString(` class="flex flex-col gap-2`)
+		if extra := sanitizedWrapperClass(field); extra != "" {
+			builder.WriteByte(' ')
+			builder.WriteString(html.EscapeString(extra))
+		}
+		builder.WriteString(`"`)
+	} else if extra := sanitizedWrapperClass(field); extra != "" {
+		builder.WriteString(` class="`)
 		builder.WriteString(html.EscapeString(extra))
+		builder.WriteString(`"`)
 	}
-	builder.WriteString(`"`)
 
 	if componentName != "" {
 		builder.WriteString(` data-component="`)
@@ -199,7 +217,11 @@ func buildFieldMarkup(templates template.TemplateRenderer, field model.Field, co
 	}
 
 	if !skipChrome {
-		builder.WriteString(`    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400">`)
+		builder.WriteString(`    <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true"`)
+		if mode != renderStyleUnstyled {
+			builder.WriteString(` class="formgen-error text-sm text-red-600 dark:text-red-400"`)
+		}
+		builder.WriteString(`>`)
 		if message := fieldErrorMessage(field); message != "" {
 			builder.WriteString(html.EscapeString(message))
 		}

@@ -39,7 +39,16 @@
 {% set grid_gap = '2rem' -%}
 {% endif -%}
 {% set chrome_classes = render_options.chrome_classes -%}
-<form class="{% if chrome_classes.form %}{{ chrome_classes.form }}{% else %}{{ default_form_class }}{% endif %}" method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+{% set include_form = render_options.include_form -%}
+{% set include_actions = render_options.include_actions -%}
+{% set include_hidden = render_options.include_hidden -%}
+{% set unstyled = style_mode == "unstyled" -%}
+{%- if not include_form -%}
+<div data-formgen-auto-init="true" data-formgen-render-mode="fields"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+{%- else -%}
+<form{% if chrome_classes.form %} class="{{ chrome_classes.form }}"{% elif not unstyled %} class="{{ default_form_class }}"{% endif %} method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+{%- endif %}
+    {%- if include_hidden %}
     {% if render_options.method_override %}
     <input type="hidden" name="_method" value="{{ render_options.method_override }}">
     {% endif %}
@@ -48,9 +57,10 @@
     <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
     {% endfor %}
     {% endif %}
+    {% endif -%}
     {% if render_options.form_errors %}
-    <div class="{% if chrome_classes.errors %}{{ chrome_classes.errors }}{% else %}{{ default_errors_class }}{% endif %}" role="alert">
-        <ul class="list-disc space-y-1 pl-4">
+    <div{% if chrome_classes.errors %} class="{{ chrome_classes.errors }}"{% elif not unstyled %} class="{{ default_errors_class }}"{% endif %} role="alert">
+        <ul{% if not unstyled %} class="list-disc space-y-1 pl-4"{% endif %}>
         {% for message in render_options.form_errors %}
             <li>{{ message }}</li>
         {% endfor %}
@@ -58,18 +68,18 @@
     </div>
     {% endif %}
     {% if form.uiHints and (form.uiHints['layout.title'] or form.uiHints['layout.subtitle']) %}
-    <header class="{% if chrome_classes.header %}{{ chrome_classes.header }}{% else %}{{ default_header_class }}{% endif %}">
+    <header{% if chrome_classes.header %} class="{{ chrome_classes.header }}"{% elif not unstyled %} class="{{ default_header_class }}"{% endif %}>
         {% if form.uiHints['layout.title'] %}
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form.uiHints['layout.title'] }}</h1>
+        <h1{% if not unstyled %} class="text-2xl font-bold text-gray-900 dark:text-white"{% endif %}>{{ form.uiHints['layout.title'] }}</h1>
         {% endif %}
         {% if form.uiHints['layout.subtitle'] %}
-        <p class="text-sm text-gray-600 dark:text-gray-400">{{ form.uiHints['layout.subtitle'] }}</p>
+        <p{% if not unstyled %} class="text-sm text-gray-600 dark:text-gray-400"{% endif %}>{{ form.uiHints['layout.subtitle'] }}</p>
         {% endif %}
     </header>
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+    <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
         {% for field in layout.unsectioned %}
         <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
@@ -80,20 +90,20 @@
 
     {% if layout.sections %}
     {% for section in layout.sections %}
-    <section class="{% if section.fieldset %}{% if chrome_classes.fieldset %}{{ chrome_classes.fieldset }}{% else %}{{ default_fieldset_class }}{% endif %}{% else %}{% if chrome_classes.section %}{{ chrome_classes.section }}{% else %}{{ default_section_class }}{% endif %}{% endif %}">
+    <section{% if section.fieldset %}{% if chrome_classes.fieldset %} class="{{ chrome_classes.fieldset }}"{% elif not unstyled %} class="{{ default_fieldset_class }}"{% endif %}{% else %}{% if chrome_classes.section %} class="{{ chrome_classes.section }}"{% elif not unstyled %} class="{{ default_section_class }}"{% endif %}{% endif %}>
         {% if section.title or section.description %}
-        <header class="space-y-1">
+        <header{% if not unstyled %} class="space-y-1"{% endif %}>
             {% if section.title %}
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ section.title }}</h2>
+            <h2{% if not unstyled %} class="text-lg font-semibold text-gray-900 dark:text-white"{% endif %}>{{ section.title }}</h2>
             {% endif %}
             {% if section.description %}
-            <p class="text-sm text-gray-600 dark:text-gray-400">{{ section.description }}</p>
+            <p{% if not unstyled %} class="text-sm text-gray-600 dark:text-gray-400"{% endif %}>{{ section.description }}</p>
             {% endif %}
         </header>
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+            <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
                 {% for field in section.fields %}
                 <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
@@ -102,7 +112,7 @@
             </div>
         </fieldset>
         {% else %}
-        <div class="{% if chrome_classes.grid %}{{ chrome_classes.grid }}{% else %}{{ default_grid_class }}{% endif %}"{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% else %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+        <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
             {% for field in section.fields %}
             <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
@@ -114,20 +124,26 @@
     {% endfor %}
     {% endif %}
 
-    <div class="{% if chrome_classes.actions %}{{ chrome_classes.actions }}{% else %}{{ default_actions_class }}{% endif %}">
+    {%- if include_actions %}
+    <div{% if chrome_classes.actions %} class="{{ chrome_classes.actions }}"{% elif not unstyled %} class="{{ default_actions_class }}"{% endif %}>
         {% if actions and actions|length > 0 %}
             {% for action in actions %}
                 {% if action.href %}
-                <a class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' %} border-transparent bg-blue-600 text-white hover:bg-blue-700{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none" href="{{ action.href }}">{{ action.label }}</a>
+                <a{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' %} border-transparent bg-blue-600 text-white hover:bg-blue-700{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %} href="{{ action.href }}">{{ action.label }}</a>
                 {% else %}
-                <button type="{{ action.type }}" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' or not action.kind %} border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none">{{ action.label }}</button>
+                <button type="{{ action.type }}"{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' or not action.kind %} border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %}>{{ action.label }}</button>
                 {% endif %}
             {% endfor %}
         {% else %}
-            <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Submit</button>
+            <button type="submit"{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"{% endif %}>Submit</button>
         {% endif %}
     </div>
+    {%- endif %}
+{%- if include_form %}
 </form>
+{%- else %}
+</div>
+{%- endif %}
 {%- if component_scripts and component_scripts|length > 0 -%}
 {%- for script in component_scripts -%}
 {%- if script.inline -%}

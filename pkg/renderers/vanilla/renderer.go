@@ -20,7 +20,6 @@ import (
 	gotemplate "github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
 	"github.com/goliatone/go-formgen/pkg/widgets"
-	theme "github.com/goliatone/go-theme"
 )
 
 type Option func(*config)
@@ -166,7 +165,20 @@ type templateRenderOptions struct {
 	MethodOverride string
 	FormErrors     []string
 	HiddenFields   []render.HiddenField
+	RenderMode     render.RenderMode
+	StyleMode      renderStyleMode
+	IncludeForm    bool
+	IncludeActions bool
+	IncludeHidden  bool
 }
+
+type renderStyleMode string
+
+const (
+	renderStyleDefault  renderStyleMode = "default"
+	renderStyleMinimal  renderStyleMode = "minimal"
+	renderStyleUnstyled renderStyleMode = "unstyled"
+)
 
 type rendererTheme struct {
 	Name         string            `json:"name"`
@@ -325,6 +337,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 
 	render.ApplySubset(&form, renderOptions.Subset)
 	render.LocalizeFormModel(&form, renderOptions)
+	render.RedactSensitiveDefaults(&form, renderOptions.IncludeSensitiveDefaults)
 
 	topPadding := renderOptions.TopPadding
 	if topPadding == 0 {
@@ -336,7 +349,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	themeCtx := buildThemeContext(renderOptions.Theme)
 	assetResolver := themeAssetResolver(renderOptions.Theme)
 
-	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides, themeCtx, assetResolver)
+	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides, themeCtx, assetResolver, templateOptions.StyleMode)
 	layout, err := buildLayoutContext(decorated, componentRenderer)
 	if err != nil {
 		return nil, fmt.Errorf("vanilla renderer: build layout: %w", err)
@@ -364,6 +377,8 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"default_actions_class":  DefaultActionsClass,
 		"default_errors_class":   DefaultErrorsClass,
 		"default_grid_class":     DefaultGridClass,
+		"render_mode":            templateOptions.RenderMode,
+		"style_mode":             templateOptions.StyleMode,
 		"render_options": map[string]any{
 			"method_attr":     templateOptions.MethodAttr,
 			"method_override": templateOptions.MethodOverride,
@@ -371,6 +386,9 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 			"hidden_fields":   templateOptions.HiddenFields,
 			"locale":          renderOptions.Locale,
 			"chrome_classes":  chromeClasses,
+			"include_form":    templateOptions.IncludeForm,
+			"include_actions": templateOptions.IncludeActions,
+			"include_hidden":  templateOptions.IncludeHidden,
 		},
 	})
 	if err != nil {
@@ -391,6 +409,9 @@ type renderAssetBundle struct {
 }
 
 func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOptions render.RenderOptions, layout layoutContext, assetResolver func(string) string) renderAssetBundle {
+	if renderOptions.StyleMode == render.StyleModeUnstyled {
+		return renderAssetBundle{}
+	}
 	componentStyles, componentScripts := componentRenderer.assets()
 	stylesheets := append([]string(nil), r.stylesheets...)
 	stylesheets = append(stylesheets, componentStyles...)
@@ -412,7 +433,7 @@ func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOpti
 	return assets
 }
 
-func formTemplateName(cfg *theme.RendererConfig) string {
+func formTemplateName(cfg *render.ThemeConfig) string {
 	if cfg != nil {
 		if candidate := strings.TrimSpace(cfg.Partials["forms.form"]); candidate != "" {
 			return candidate
@@ -436,7 +457,25 @@ func chromeClassMap(classes *render.ChromeClasses) map[string]string {
 	return chromeClasses
 }
 
-func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
+func vanillaRenderMode(mode render.RenderMode) render.RenderMode {
+	if mode == "" {
+		return render.RenderModeDocument
+	}
+	return mode
+}
+
+func vanillaStyleMode(mode render.StyleMode) renderStyleMode {
+	switch mode {
+	case render.StyleModeMinimal:
+		return renderStyleMinimal
+	case render.StyleModeUnstyled:
+		return renderStyleUnstyled
+	default:
+		return renderStyleDefault
+	}
+}
+
+func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
@@ -480,7 +519,7 @@ func buildTemplateThemeContext(ctx rendererTheme, resolver func(string) string) 
 	}
 }
 
-func themeAssetResolver(cfg *theme.RendererConfig) func(string) string {
+func themeAssetResolver(cfg *render.ThemeConfig) func(string) string {
 	if cfg == nil {
 		return nil
 	}
@@ -617,9 +656,15 @@ func scriptPayloads(scripts []components.Script) []map[string]any {
 }
 
 func prepareRenderContext(form *model.FormModel, options render.RenderOptions) templateRenderOptions {
+	mode := vanillaRenderMode(options.RenderMode)
 	ctx := templateRenderOptions{
 		MethodAttr:     "post",
 		MethodOverride: "",
+		RenderMode:     mode,
+		StyleMode:      vanillaStyleMode(options.StyleMode),
+		IncludeForm:    mode != render.RenderModeFields,
+		IncludeActions: mode != render.RenderModeFields,
+		IncludeHidden:  mode != render.RenderModeFields,
 	}
 	if form == nil {
 		ctx.FormErrors = render.MergeFormErrors(options.FormErrors)

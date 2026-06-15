@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/render"
+	"github.com/goliatone/go-formgen/pkg/submission"
 )
 
 // Renderer implements render.Renderer for terminal-driven sessions. It is
@@ -116,6 +118,9 @@ func (r *Renderer) promptField(ctx context.Context, field model.Field, path stri
 	if field.Relationship != nil {
 		return r.promptRelationship(ctx, field, path, state, rulesCache, relCache)
 	}
+	if len(field.Enum) > 0 && field.Type != model.FieldTypeArray {
+		return r.promptEnum(ctx, field, path, state, rulesCache)
+	}
 	switch field.Type {
 	case model.FieldTypeBoolean:
 		return r.promptBoolean(ctx, field, path, state, rulesCache)
@@ -127,9 +132,6 @@ func (r *Renderer) promptField(ctx context.Context, field model.Field, path stri
 		return r.promptObject(ctx, field, path, state, rulesCache, relCache)
 	default:
 		// string and fallbacks
-		if len(field.Enum) > 0 {
-			return r.promptEnum(ctx, field, path, state, rulesCache)
-		}
 		return r.promptString(ctx, field, path, state, rulesCache)
 	}
 }
@@ -265,15 +267,12 @@ func (r *Renderer) promptNumber(ctx context.Context, field model.Field, path str
 func (r *Renderer) promptEnum(ctx context.Context, field model.Field, path string, state *State, rulesCache map[string]validationRules) error {
 	label := displayLabel(field)
 	help := displayHelp(field)
-	rules := collectValidationRules(field, rulesCache)
 
 	options := stringifyEnum(field.Enum)
 	defaultIdx := -1
 
 	if v, ok := state.GetValue(path); ok {
-		if s, ok := v.(string); ok {
-			defaultIdx = indexOf(options, s)
-		}
+		defaultIdx = indexOfEnumValue(field.Enum, v)
 	}
 
 	for {
@@ -290,9 +289,9 @@ func (r *Renderer) promptEnum(ctx context.Context, field model.Field, path strin
 			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s selection", path))
 			continue
 		}
-		selected := options[idx]
-		if err := rules.validateString(selected); err != nil {
-			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
+		selected := field.Enum[idx]
+		if issues := validateSubmittedField(field, selected); len(issues) > 0 {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %s", path, issues[0].Message))
 			continue
 		}
 		_ = state.SetValue(path, selected)
@@ -363,7 +362,7 @@ func (r *Renderer) promptEnumArray(ctx context.Context, field model.Field, path 
 	help := displayHelp(field)
 	rules := collectValidationRules(field, rulesCache)
 	options := stringifyEnum(field.Enum)
-	defaults := indicesOf(options, stringifySlice(getArrayValue(state, path)))
+	defaults := indicesOfEnumValues(field.Enum, getArrayValue(state, path))
 
 	for {
 		indices, err := r.driver.MultiSelect(ctx, SelectConfig{
@@ -375,17 +374,24 @@ func (r *Renderer) promptEnumArray(ctx context.Context, field model.Field, path 
 		if err != nil {
 			return err
 		}
-		selected := valuesFromIndices(options, indices)
-		if err := rules.validateArray(toAnySlice(selected)); err != nil {
+		selected := valuesFromEnumIndices(field.Enum, indices)
+		if err := rules.validateArray(selected); err != nil {
 			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %v", path, err))
 			continue
 		}
-		_ = state.SetValue(path, toAnySlice(selected))
+		if issues := validateSubmittedField(field, selected); len(issues) > 0 {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %s", path, issues[0].Message))
+			continue
+		}
+		_ = state.SetValue(path, selected)
 		return nil
 	}
 }
 
 func (r *Renderer) promptObject(ctx context.Context, field model.Field, path string, state *State, rulesCache map[string]validationRules, relCache map[string][]relOption) error {
+	if submission.IsRawObjectField(field) {
+		return r.promptRawObject(ctx, field, path, state)
+	}
 	for _, child := range field.Nested {
 		childPath := fmt.Sprintf("%s.%s", path, child.Name)
 		if err := r.promptField(ctx, child, childPath, state, rulesCache, relCache); err != nil {
@@ -393,6 +399,37 @@ func (r *Renderer) promptObject(ctx context.Context, field model.Field, path str
 		}
 	}
 	return nil
+}
+
+func (r *Renderer) promptRawObject(ctx context.Context, field model.Field, path string, state *State) error {
+	label := displayLabel(field)
+	help := displayHelp(field)
+	defaultVal := "{}"
+	if v, ok := state.GetValue(path); ok && v != nil {
+		if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
+			defaultVal = string(pretty)
+		}
+	} else if field.Default != nil {
+		if pretty, err := json.MarshalIndent(field.Default, "", "  "); err == nil {
+			defaultVal = string(pretty)
+		}
+	}
+	for {
+		input, err := r.driver.TextArea(ctx, TextAreaConfig{
+			Message: label,
+			Default: defaultVal,
+			Help:    help,
+		})
+		if err != nil {
+			return err
+		}
+		value, issues := submission.CoerceValue(field, input, submission.Options{}, path)
+		if len(issues) > 0 {
+			_ = r.driver.Info(ctx, fmt.Sprintf("Invalid %s: %s", path, issues[0].Message))
+			continue
+		}
+		return state.SetValue(path, value)
+	}
 }
 
 func (r *Renderer) serialize(values map[string]any) ([]byte, error) {
@@ -436,6 +473,45 @@ func valuesFromIndices(options []string, indices []int) []string {
 		}
 	}
 	return out
+}
+
+func indexOfEnumValue(values []any, target any) int {
+	for i, value := range values {
+		if reflect.DeepEqual(value, target) || fmt.Sprint(value) == fmt.Sprint(target) {
+			return i
+		}
+	}
+	return -1
+}
+
+func indicesOfEnumValues(options []any, values []any) []int {
+	if len(values) == 0 {
+		return nil
+	}
+	var out []int
+	for i, option := range options {
+		for _, value := range values {
+			if reflect.DeepEqual(option, value) || fmt.Sprint(option) == fmt.Sprint(value) {
+				out = append(out, i)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func valuesFromEnumIndices(options []any, indices []int) []any {
+	out := make([]any, 0, len(indices))
+	for _, idx := range indices {
+		if idx >= 0 && idx < len(options) {
+			out = append(out, options[idx])
+		}
+	}
+	return out
+}
+
+func validateSubmittedField(field model.Field, value any) []submission.Issue {
+	return submission.Validate(model.FormModel{Fields: []model.Field{field}}, submission.Values{field.Name: value})
 }
 
 func stringifySlice(values []any) []string {

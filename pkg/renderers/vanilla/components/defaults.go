@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/submission"
 )
 
 const (
@@ -83,9 +84,11 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 		}
 
 		payload := map[string]any{
-			"field":  field,
-			"config": data.Config,
-			"theme":  data.Theme,
+			"field":        field,
+			"config":       data.Config,
+			"theme":        data.Theme,
+			"style_mode":   data.StyleMode,
+			"enum_options": enumOptions(field),
 		}
 		rendered, err := data.Template.RenderTemplate(resolvedTemplate, payload)
 		if err != nil {
@@ -94,6 +97,47 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 		buf.WriteString(rendered)
 		return nil
 	}
+}
+
+type enumOption struct {
+	Value    string
+	Label    string
+	Selected bool
+}
+
+func enumOptions(field model.Field) []enumOption {
+	if len(field.Enum) == 0 {
+		return nil
+	}
+	out := make([]enumOption, 0, len(field.Enum))
+	for _, value := range field.Enum {
+		out = append(out, enumOption{
+			Value:    submission.EncodeEnumControlValue(value),
+			Label:    fmt.Sprint(value),
+			Selected: enumSelected(field.Default, value),
+		})
+	}
+	return out
+}
+
+func enumSelected(defaultValue, candidate any) bool {
+	switch defaults := defaultValue.(type) {
+	case []any:
+		for _, value := range defaults {
+			if reflect.DeepEqual(value, candidate) {
+				return true
+			}
+		}
+	case []string:
+		for _, value := range defaults {
+			if fmt.Sprint(candidate) == value {
+				return true
+			}
+		}
+	default:
+		return reflect.DeepEqual(defaultValue, candidate)
+	}
+	return false
 }
 
 func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {

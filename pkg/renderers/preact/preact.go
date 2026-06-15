@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/goliatone/go-formgen/pkg/render"
 	rendertemplate "github.com/goliatone/go-formgen/pkg/render/template"
 	gotemplate "github.com/goliatone/go-formgen/pkg/render/template/gotemplate"
+	"github.com/goliatone/go-formgen/pkg/submission"
 	"github.com/goliatone/go-formgen/pkg/widgets"
-	theme "github.com/goliatone/go-theme"
 )
 
 const (
@@ -244,6 +245,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	render.ApplySubset(&formWithPrefill, renderOptions.Subset)
 	applyPrefillValues(&formWithPrefill, renderOptions.Values)
 	render.LocalizeFormModel(&formWithPrefill, renderOptions)
+	render.RedactSensitiveDefaults(&formWithPrefill, renderOptions.IncludeSensitiveDefaults)
 	ensureComponentMetadata(&formWithPrefill)
 
 	mappedErrors := render.MapErrorPayload(formWithPrefill, renderOptions.Errors)
@@ -275,6 +277,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		},
 		"form_errors": formErrors,
 		"theme":       templateTheme,
+		"render_mode": renderMode(renderOptions.RenderMode),
 	}
 
 	rendered, err := r.templates.RenderTemplate(templateName, data)
@@ -287,6 +290,13 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 	}
 
 	return []byte(rendered), nil
+}
+
+func renderMode(mode render.RenderMode) render.RenderMode {
+	if mode == "" {
+		return render.RenderModeDocument
+	}
+	return mode
 }
 
 type orderedFormModel struct {
@@ -315,6 +325,7 @@ type orderedField struct {
 	Description  string              `json:"description,omitempty"`
 	Default      any                 `json:"default,omitempty"`
 	Enum         []any               `json:"enum,omitempty"`
+	EnumOptions  []orderedEnumOption `json:"enumOptions,omitempty"`
 	Nested       []orderedField      `json:"nested,omitempty"`
 	Items        *orderedField       `json:"items,omitempty"`
 	OneOf        []orderedField      `json:"oneOf,omitempty"`
@@ -327,6 +338,12 @@ type orderedField struct {
 type orderedRule struct {
 	Kind   string     `json:"kind"`
 	Params orderedMap `json:"params,omitempty"`
+}
+
+type orderedEnumOption struct {
+	Value    string `json:"value"`
+	Label    string `json:"label"`
+	Selected bool   `json:"selected,omitempty"`
 }
 
 func toOrderedFormModel(form model.FormModel, errors map[string][]string, formErrors []string, hidden []render.HiddenField) orderedFormModel {
@@ -400,6 +417,7 @@ func toOrderedField(field model.Field) orderedField {
 		Description:  field.Description,
 		Default:      field.Default,
 		Enum:         field.Enum,
+		EnumOptions:  toOrderedEnumOptions(field),
 		Nested:       nested,
 		Items:        items,
 		OneOf:        oneOf,
@@ -408,6 +426,41 @@ func toOrderedField(field model.Field) orderedField {
 		UIHints:      newOrderedMap(field.UIHints),
 		Relationship: field.Relationship,
 	}
+}
+
+func toOrderedEnumOptions(field model.Field) []orderedEnumOption {
+	if len(field.Enum) == 0 {
+		return nil
+	}
+	out := make([]orderedEnumOption, 0, len(field.Enum))
+	for _, value := range field.Enum {
+		out = append(out, orderedEnumOption{
+			Value:    submission.EncodeEnumControlValue(value),
+			Label:    fmt.Sprint(value),
+			Selected: preactEnumSelected(field.Default, value),
+		})
+	}
+	return out
+}
+
+func preactEnumSelected(defaultValue, candidate any) bool {
+	switch defaults := defaultValue.(type) {
+	case []any:
+		for _, value := range defaults {
+			if reflect.DeepEqual(value, candidate) {
+				return true
+			}
+		}
+	case []string:
+		for _, value := range defaults {
+			if fmt.Sprint(candidate) == value {
+				return true
+			}
+		}
+	default:
+		return reflect.DeepEqual(defaultValue, candidate)
+	}
+	return false
 }
 
 type orderedMap map[string]string
@@ -509,7 +562,7 @@ func fieldOrderPayload(metadata map[string]string) string {
 	return string(payload)
 }
 
-func buildThemeContext(cfg *theme.RendererConfig) rendererTheme {
+func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
@@ -556,7 +609,7 @@ func buildTemplateThemeContext(ctx rendererTheme, resolver func(string) string) 
 	}
 }
 
-func themeAssetResolver(cfg *theme.RendererConfig) func(string) string {
+func themeAssetResolver(cfg *render.ThemeConfig) func(string) string {
 	if cfg == nil {
 		return nil
 	}
