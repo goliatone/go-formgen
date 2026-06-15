@@ -1,6 +1,7 @@
 package render
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 
@@ -223,9 +224,7 @@ func cloneValue(value any) any {
 		return cloneValueMap(typed)
 	case map[string]string:
 		out := make(map[string]string, len(typed))
-		for key, val := range typed {
-			out[key] = val
-		}
+		maps.Copy(out, typed)
 		return out
 	case []any:
 		out := make([]any, len(typed))
