@@ -81,6 +81,22 @@ renderer, _ := vanilla.New(
 )
 ```
 
+### Embedding Style Modes
+
+For per-render embedding, use `render.RenderOptions.StyleMode`:
+
+```go
+output, _ := renderer.Render(ctx, form, render.RenderOptions{
+    RenderMode: render.RenderModeFields,
+    StyleMode:  render.StyleModeUnstyled,
+})
+```
+
+- `StyleModeDefault` preserves existing vanilla classes and configured assets.
+- `StyleModeMinimal` keeps semantic `formgen-*` chrome hooks while relying on caller CSS.
+- `StyleModeUnstyled` omits default visual classes and configured assets; explicit
+  `ChromeClasses` overrides are still honored.
+
 ---
 
 ## 3. Custom Templates

@@ -675,6 +675,11 @@ Other supported hints:
 
 Runtime note: the WYSIWYG editor and runtime-backed form widgets are implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `wysiwyg`, `file_uploader`, and `media_picker` components inject this runtime automatically; if you render relationship fields without one of those components, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
 
+For embedded forms, the same bundle exposes `window.Formgen.attach(root)`. The
+returned controller supports `getValues`, `setValues`, `setErrors`,
+`clearErrors`, `onChange`, `focus`, and `destroy`, and works with full form roots
+or fields-only roots.
+
 ### Example: File Uploader Component
 
 ```json
