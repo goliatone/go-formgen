@@ -36,8 +36,8 @@ func TestRendererParityPreservesOrderAndValueShape(t *testing.T) {
 		Form   model.FormModel `json:"form"`
 		Values map[string]any  `json:"values"`
 	}
-	if err := json.Unmarshal(jsonOut, &descriptor); err != nil {
-		t.Fatalf("json unmarshal: %v", err)
+	if unmarshalErr := json.Unmarshal(jsonOut, &descriptor); unmarshalErr != nil {
+		t.Fatalf("json unmarshal: %v", unmarshalErr)
 	}
 	assertFieldOrder(t, descriptor.Form.Fields, []string{"title", "published"})
 	if descriptor.Values["title"] != "Runtime" || descriptor.Values["published"] != false {
@@ -72,8 +72,8 @@ func TestRendererParityPreservesOrderAndValueShape(t *testing.T) {
 	var preactPayload struct {
 		Fields []model.Field `json:"fields"`
 	}
-	if err := json.Unmarshal([]byte(payload), &preactPayload); err != nil {
-		t.Fatalf("preact payload unmarshal: %v", err)
+	if unmarshalErr := json.Unmarshal([]byte(payload), &preactPayload); unmarshalErr != nil {
+		t.Fatalf("preact payload unmarshal: %v", unmarshalErr)
 	}
 	assertFieldOrder(t, preactPayload.Fields, []string{"title", "published"})
 	if preactPayload.Fields[0].Default != "Runtime" || preactPayload.Fields[1].Default != false {

@@ -143,7 +143,7 @@ func TestRendererRedactsSensitiveRenderValuesAndNestedDefaults(t *testing.T) {
 	if !ok {
 		t.Fatalf("credentials values missing: %#v", descriptor.Values)
 	}
-	if _, ok := credentials["password"]; ok {
+	if _, passwordExists := credentials["password"]; passwordExists {
 		t.Fatalf("nested sensitive render value was not removed: %#v", credentials)
 	}
 	defaults, ok := descriptor.Form.Fields[0].Default.(map[string]any)
