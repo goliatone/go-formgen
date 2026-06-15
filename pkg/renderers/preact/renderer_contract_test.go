@@ -12,9 +12,9 @@ import (
 	"github.com/goliatone/go-formgen/pkg/model"
 	"github.com/goliatone/go-formgen/pkg/render"
 	"github.com/goliatone/go-formgen/pkg/renderers/preact"
+	"github.com/goliatone/go-formgen/pkg/submission"
 	"github.com/goliatone/go-formgen/pkg/testsupport"
 	"github.com/goliatone/go-formgen/pkg/widgets"
-	theme "github.com/goliatone/go-theme"
 )
 
 func TestRenderer_RenderContract(t *testing.T) {
@@ -44,6 +44,66 @@ func TestRenderer_RenderContract(t *testing.T) {
 	want := testsupport.MustReadGolden(t, goldenPath)
 	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
 		t.Fatalf("output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRenderer_DescriptorIncludesEncodedEnumOptions(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "enumDemo",
+		Endpoint:    "/enum",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "level", Type: model.FieldTypeInteger, Enum: []any{int64(1), int64(2)}},
+		},
+	}
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	encoded := submission.EncodeEnumValue(int64(2))
+	html := string(output)
+	if !strings.Contains(html, `"enumOptions"`) || !strings.Contains(html, encoded) {
+		t.Fatalf("expected encoded enum option %q in descriptor:\n%s", encoded, html)
+	}
+	if !strings.Contains(html, `"label":"2"`) {
+		t.Fatalf("expected enum option label in descriptor:\n%s", html)
+	}
+}
+
+func TestRenderer_RedactsSensitiveDefaultsAndSupportsPartialMode(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "preactEmbed",
+		Endpoint:    "/embed",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "password", Type: model.FieldTypeString, Format: "password", Sensitive: true, Default: "secret"},
+		},
+	}
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode: render.RenderModeForm,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "<html") || !strings.Contains(html, `data-render-mode="form"`) {
+		t.Fatalf("expected partial preact output:\n%s", html)
+	}
+	if strings.Contains(html, "secret") {
+		t.Fatalf("sensitive default leaked:\n%s", html)
+	}
+	if form.Fields[0].Default != "secret" {
+		t.Fatalf("renderer mutated source form")
 	}
 }
 
@@ -392,8 +452,8 @@ func extractPreactPayload(t *testing.T, html []byte) []byte {
 	return []byte(strings.TrimSpace(string(html[start : start+end])))
 }
 
-func testThemeConfig() *theme.RendererConfig {
-	return &theme.RendererConfig{
+func testThemeConfig() *render.ThemeConfig {
+	return &render.ThemeConfig{
 		Theme:   "acme",
 		Variant: "dark",
 		Tokens: map[string]string{

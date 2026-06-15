@@ -131,6 +131,90 @@ func TestRender_StringAndEnum(t *testing.T) {
 	}
 }
 
+func TestRender_TypedEnumValues(t *testing.T) {
+	driver := &stubDriver{
+		selectIdx: []int{1, 0},
+		multiIdx:  [][]int{{0, 1}},
+	}
+	r, err := New(WithPromptDriver(driver))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name: "level",
+				Type: model.FieldTypeInteger,
+				Enum: []any{int64(1), int64(2)},
+			},
+			{
+				Name: "enabled",
+				Type: model.FieldTypeBoolean,
+				Enum: []any{true, false},
+			},
+			{
+				Name: "flags",
+				Type: model.FieldTypeArray,
+				Enum: []any{true, false},
+			},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload["level"] != float64(2) {
+		t.Fatalf("expected numeric enum value, got %+v", payload)
+	}
+	if payload["enabled"] != true {
+		t.Fatalf("expected boolean enum value, got %+v", payload)
+	}
+	flags, ok := payload["flags"].([]any)
+	if !ok || len(flags) != 2 || flags[0] != true || flags[1] != false {
+		t.Fatalf("expected typed boolean flags, got %+v", payload)
+	}
+}
+
+func TestRender_RawObjectValue(t *testing.T) {
+	driver := &stubDriver{
+		textAreas: []string{`{"theme":"dark"}`},
+	}
+	r, err := New(WithPromptDriver(driver))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		Fields: []model.Field{
+			{
+				Name: "settings",
+				Type: model.FieldTypeObject,
+			},
+		},
+	}
+
+	out, err := r.Render(context.Background(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	settings, ok := payload["settings"].(map[string]any)
+	if !ok || settings["theme"] != "dark" {
+		t.Fatalf("expected raw object map, got %+v", payload)
+	}
+}
+
 func TestRender_NumberValidation(t *testing.T) {
 	driver := &stubDriver{
 		inputs: []string{"-1", "10"},

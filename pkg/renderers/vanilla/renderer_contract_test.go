@@ -12,8 +12,8 @@ import (
 	"github.com/goliatone/go-formgen/pkg/render"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/go-formgen/pkg/submission"
 	"github.com/goliatone/go-formgen/pkg/testsupport"
-	theme "github.com/goliatone/go-theme"
 )
 
 func TestRenderer_RenderContract(t *testing.T) {
@@ -39,6 +39,35 @@ func TestRenderer_RenderContract(t *testing.T) {
 	want := testsupport.MustReadGolden(t, goldenPath)
 	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
 		t.Fatalf("output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRenderer_EncodesEnumOptionValues(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "enumDemo",
+		Endpoint:    "/enum",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "level", Type: model.FieldTypeInteger, Enum: []any{int64(1), int64(2)}},
+		},
+	}
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := string(output)
+	encoded := submission.EncodeEnumValue(int64(2))
+	if !strings.Contains(html, `value="`+encoded+`"`) {
+		t.Fatalf("expected encoded enum option value %q in output:\n%s", encoded, html)
+	}
+	if !strings.Contains(html, `>2</option>`) {
+		t.Fatalf("expected enum label to remain display value in output:\n%s", html)
 	}
 }
 
@@ -142,6 +171,70 @@ func TestRenderer_RenderWithDefaultStyles(t *testing.T) {
 	want := testsupport.MustReadGolden(t, goldenPath)
 	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
 		t.Fatalf("styled output mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRenderer_RenderModes(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "embed",
+		Endpoint:    "/embed",
+		Method:      "POST",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString, Label: "Title"}},
+	}
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	formOnly, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode: render.RenderModeForm,
+	})
+	if err != nil {
+		t.Fatalf("render form mode: %v", err)
+	}
+	if count := strings.Count(string(formOnly), "<form"); count != 1 {
+		t.Fatalf("form mode should emit one form, got %d:\n%s", count, formOnly)
+	}
+
+	fieldsOnly, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode:   render.RenderModeFields,
+		HiddenFields: map[string]string{"csrf": "token"},
+	})
+	if err != nil {
+		t.Fatalf("render fields mode: %v", err)
+	}
+	html := string(fieldsOnly)
+	if strings.Contains(html, "<form") {
+		t.Fatalf("fields mode should not emit form:\n%s", html)
+	}
+	if !strings.Contains(html, `name="title"`) {
+		t.Fatalf("fields mode should emit controls:\n%s", html)
+	}
+	if strings.Contains(html, `name="csrf"`) || strings.Contains(html, `type="submit"`) {
+		t.Fatalf("fields mode should omit hidden fields and actions:\n%s", html)
+	}
+}
+
+func TestRenderer_UnstyledModeOmitsDefaultClasses(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "unstyled",
+		Endpoint:    "/unstyled",
+		Method:      "POST",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString, Label: "Title"}},
+	}
+	renderer, err := vanilla.New(vanilla.WithDefaultStyles())
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		StyleMode: render.StyleModeUnstyled,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, vanilla.DefaultFormClass) || strings.Contains(html, "py-3 px-4") {
+		t.Fatalf("unstyled mode leaked default classes:\n%s", html)
 	}
 }
 
@@ -311,7 +404,7 @@ func TestRenderer_ThemeFormTemplateOverride(t *testing.T) {
 	}
 
 	out, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
-		Theme: &theme.RendererConfig{
+		Theme: &render.ThemeConfig{
 			Partials: map[string]string{
 				"forms.form": "templates/custom_form.tmpl",
 			},
@@ -465,8 +558,8 @@ func TestRenderer_RenderWithProvenance(t *testing.T) {
 	}
 }
 
-func testThemeConfig() *theme.RendererConfig {
-	return &theme.RendererConfig{
+func testThemeConfig() *render.ThemeConfig {
+	return &render.ThemeConfig{
 		Theme:   "acme",
 		Variant: "dark",
 		Tokens: map[string]string{

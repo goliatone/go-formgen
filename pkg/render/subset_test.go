@@ -20,7 +20,7 @@ func TestApplySubset_ByGroup(t *testing.T) {
 		t.Fatalf("expected only settings field to remain, got %+v", names(form.Fields))
 	}
 
-	sections := parseSectionsMetadata(t, form.Metadata[layoutSectionsKey])
+	sections := parseSectionsMetadata(t, form.Metadata["layout.sections"])
 	if len(sections) != 1 || sections[0] != "advanced" {
 		t.Fatalf("expected advanced section metadata, got %v", sections)
 	}
@@ -44,7 +44,7 @@ func TestApplySubset_ByTags(t *testing.T) {
 		t.Fatalf("expected only tags field to remain, got %+v", names(form.Fields))
 	}
 
-	sections := parseSectionsMetadata(t, form.Metadata[layoutSectionsKey])
+	sections := parseSectionsMetadata(t, form.Metadata["layout.sections"])
 	if len(sections) != 1 || sections[0] != "content" {
 		t.Fatalf("expected content section metadata, got %v", sections)
 	}
@@ -67,7 +67,7 @@ func TestApplySubset_BySection(t *testing.T) {
 		t.Fatalf("expected only overview section fields to remain, got %+v", names(form.Fields))
 	}
 
-	sections := parseSectionsMetadata(t, form.Metadata[layoutSectionsKey])
+	sections := parseSectionsMetadata(t, form.Metadata["layout.sections"])
 	if !reflect.DeepEqual(sections, []string{"overview"}) {
 		t.Fatalf("expected overview section metadata, got %v", sections)
 	}
@@ -96,7 +96,7 @@ func TestApplySubset_EmptyTokensNoop(t *testing.T) {
 
 func sampleFormModel() model.FormModel {
 	metadata := map[string]string{
-		layoutSectionsKey:            `[{"id":"overview","title":"Overview","order":0},{"id":"content","title":"Content","order":1},{"id":"advanced","title":"Advanced","order":2}]`,
+		"layout.sections":            `[{"id":"overview","title":"Overview","order":0},{"id":"content","title":"Content","order":1},{"id":"advanced","title":"Advanced","order":2}]`,
 		"layout.fieldOrder.overview": `["name","summary"]`,
 		"layout.fieldOrder.content":  `["tags"]`,
 		"layout.fieldOrder.advanced": `["settings"]`,
@@ -112,25 +112,25 @@ func sampleFormModel() model.FormModel {
 		{
 			Name: "name",
 			Metadata: map[string]string{
-				"group":               "core",
-				"tags":                `["display"]`,
-				layoutSectionFieldKey: "overview",
+				"group":          "core",
+				"tags":           `["display"]`,
+				"layout.section": "overview",
 			},
 		},
 		{
 			Name: "settings",
 			Metadata: map[string]string{
-				"group":               "advanced",
-				"tags":                `["behavior"]`,
-				layoutSectionFieldKey: "advanced",
+				"group":          "advanced",
+				"tags":           `["behavior"]`,
+				"layout.section": "advanced",
 			},
 		},
 		{
 			Name: "tags",
 			Metadata: map[string]string{
-				"group":               "taxonomy",
-				"tags":                `["list"]`,
-				layoutSectionFieldKey: "content",
+				"group":          "taxonomy",
+				"tags":           `["list"]`,
+				"layout.section": "content",
 			},
 		},
 		{
