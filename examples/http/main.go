@@ -40,6 +40,7 @@ import (
 	"github.com/goliatone/go-formgen/pkg/renderers/preact"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla"
 	"github.com/goliatone/go-formgen/pkg/renderers/vanilla/components"
+	"github.com/goliatone/go-formgen/pkg/submission"
 )
 
 //go:embed README.md
@@ -1003,6 +1004,33 @@ func (s *formServer) formHandler() http.Handler {
 		}
 		if methodOverride := strings.TrimSpace(query.Get("method")); methodOverride != "" {
 			renderOptions.Method = methodOverride
+		}
+
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			form, err := s.buildFormModel(r.Context(), document, operation)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("build form model: %v", err), http.StatusInternalServerError)
+				return
+			}
+			parsed, err := submission.ParseRequest(form, r)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("parse submission: %v", err), http.StatusBadRequest)
+				return
+			}
+			issues := append([]submission.Issue(nil), parsed.Issues...)
+			issues = append(issues, submission.Validate(form, parsed.Values)...)
+			if len(issues) == 0 {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"ok":     true,
+					"values": parsed.Values,
+				})
+				return
+			}
+			fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(form, issues)
+			renderOptions.Values = parsed.Values
+			renderOptions.Errors = fieldErrors
+			renderOptions.FormErrors = append(renderOptions.FormErrors, formErrors...)
 		}
 
 		output, err := s.generator.Generate(r.Context(), orchestrator.Request{

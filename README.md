@@ -73,7 +73,43 @@ func main() {
 4) Renderer turns the model into HTML (vanilla/Preact) or CLI prompts (TUI).
 5) Optional UI schema decorators and endpoint overrides enrich metadata and layout hints.
 
-Use the orchestrator when you want all stages wired for you, or inject your own loader/parser/renderer implementations via options.
+Use `pkg/orchestrator` when you need a renderer-free `FormModel`, or the root/default helpers when you want rendering dependencies wired for you.
+
+## Headless FormModel Builds
+
+`pkg/orchestrator` is safe for compiler-only consumers. It builds `model.FormModel` values without importing concrete renderers, `go-theme`, template engines, or sanitizer dependencies.
+
+```go
+orch := orchestrator.New()
+
+form, err := orch.BuildFormModel(ctx, orchestrator.BuildRequest{
+	Source:      openapi.SourceFromFile("openapi.json"),
+	OperationID: "createPet",
+})
+```
+
+JSON Schema callers can avoid temporary files:
+
+```go
+form, err := orch.BuildFormModelFromJSONSchemaBytes(ctx, rawSchema, "article.edit")
+```
+
+Call `Generate` only after registering renderers explicitly, or use `formgen.NewOrchestrator` / `formgen.GenerateHTML` for the renderer-facing compatibility path.
+
+## Submitted Values
+
+`pkg/submission` parses and validates submitted payloads against a `model.FormModel`.
+
+```go
+parsed, err := submission.ParseRequest(form, r)
+if err != nil {
+	return err
+}
+issues := append(parsed.Issues, submission.Validate(form, parsed.Values)...)
+fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(form, issues)
+```
+
+The package supports JSON, form-urlencoded, multipart, dotted paths, bracket/indexed arrays, raw JSON object fields, field-aware coercion, typed enum control values, and renderer-compatible error mapping.
 
 ## Renderers
 
@@ -121,8 +157,7 @@ gen := formgen.NewOrchestrator(
 			},
 		},
 	}),
-	orchestrator.WithThemeProvider(myThemeProvider, "default", "light"),
-	orchestrator.WithThemeFallbacks(nil),
+	formgen.WithThemeProvider(myThemeProvider, "default", "light"),
 	orchestrator.WithVisibilityEvaluator(myVisibilityEvaluator),
 )
 
@@ -144,7 +179,7 @@ output, err := gen.Generate(ctx, orchestrator.Request{
 })
 ```
 
-UI schema files can also be injected (`orchestrator.WithUISchemaFS`) to control layout, sections, and action bars without editing templates.
+UI schema files can be injected with `orchestrator.WithUISchemaFS`, and custom decorators can be layered with `orchestrator.WithUIDecorators`.
 
 Add a transformer when you need to rename fields or inject metadata without changing the OpenAPI source:
 
@@ -190,6 +225,42 @@ Runtime usage (vanilla renderer or custom pages):
   });
 </script>
 ```
+
+## Embedding and Descriptor Output
+
+Register or use the default JSON descriptor renderer when a host app owns the UI:
+
+```go
+output, err := gen.Generate(ctx, orchestrator.Request{
+  Source:      openapi.SourceFromFile("schema.json"),
+  OperationID: "createArticle",
+  Renderer:    "json",
+  RenderOptions: render.RenderOptions{
+    Values: map[string]any{"title": "Draft"},
+  },
+})
+```
+
+The descriptor envelope separates `form`, `values`, field `errors`, `formErrors`,
+`hiddenFields`, and `metadata`. Use `jsonrenderer.WithoutEnvelope()` when you
+only need the raw `FormModel` snapshot.
+
+Vanilla and Preact support embeddable modes:
+
+```go
+render.RenderOptions{RenderMode: render.RenderModeForm}   // one <form>, no page shell
+render.RenderOptions{RenderMode: render.RenderModeFields} // controls only, no <form>
+```
+
+The browser bundle also exposes `window.Formgen.attach(root)`, returning a
+controller with `getValues`, `setValues`, `setErrors`, `clearErrors`, `onChange`,
+`focus`, and `destroy`.
+
+Sensitive defaults are redacted from descriptor and browser renderer output by
+default. Fields are marked sensitive by `format: password`, `x-formgen.sensitive`,
+`x-formgen.secret`, `x-admin.secret`, `x-formgen-sensitive`,
+`x-formgen-secret`, `x-admin-secret`, or `cli.secret`. Set
+`RenderOptions.IncludeSensitiveDefaults` only for trusted server-side output.
 
 ## Localization (i18n)
 
@@ -340,8 +411,8 @@ provider := theme.NewRegistry()
 provider.Register(manifest)
 
 gen := formgen.NewOrchestrator(
-    orchestrator.WithThemeProvider(provider, "acme", "dark"),
-    orchestrator.WithThemeFallbacks(map[string]string{
+    formgen.WithThemeProvider(provider, "acme", "dark"),
+    formgen.WithThemeFallbacks(map[string]string{
         "forms.select": "templates/components/select.tmpl",
     }),
 )

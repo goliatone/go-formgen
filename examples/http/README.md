@@ -39,6 +39,16 @@ The `/form` endpoint renders any operation from the configured OpenAPI document.
 - [/form?renderer=preact](http://localhost:8383/form?renderer=preact) - Preact renderer with client-side hydration
 - [/form?renderer=vanilla](http://localhost:8383/form?renderer=vanilla) - Server-side vanilla HTML
 
+### Submitted Values
+
+`POST /form` parses the request with `pkg/submission` using the generated `FormModel`.
+
+- JSON, form-urlencoded, and multipart bodies are supported.
+- String form values are coerced with field metadata before validation.
+- Numeric and boolean enum options use encoded control values so they round-trip as typed values.
+- Parse and validation issues are mapped back into `render.RenderOptions.Errors` and `FormErrors` for re-rendering.
+- Successful submissions return a small JSON payload containing the typed `values`.
+
 ---
 
 ### `/advanced` - Create Actions & Modal Forms
