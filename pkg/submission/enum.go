@@ -131,9 +131,9 @@ func enumType(value any) string {
 		return "string"
 	case bool:
 		return "bool"
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32:
+	case int, int8, int16, int32, int64, uint8, uint16, uint32:
 		return "int"
-	case uint64:
+	case uint, uint64:
 		return "uint"
 	case float32, float64, json.Number:
 		return "number"
@@ -155,7 +155,7 @@ func normalizeEnumValue(value any) any {
 	case int32:
 		return int64(v)
 	case uint:
-		return int64(v)
+		return uint64(v)
 	case uint8:
 		return int64(v)
 	case uint16:

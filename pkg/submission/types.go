@@ -41,18 +41,21 @@ type Options struct {
 	UnknownFields UnknownFieldPolicy
 	EmptyStrings  EmptyStringPolicy
 	MaxMemory     int64
+	MaxBodyBytes  int64
 }
 
 // Option mutates Options.
 type Option func(*Options)
 
 const defaultMultipartMaxMemory = int64(32 << 20)
+const defaultMultipartMaxBodyBytes = int64(64 << 20)
 
 func defaultOptions() Options {
 	return Options{
 		UnknownFields: UnknownIssue,
 		EmptyStrings:  EmptyDefault,
 		MaxMemory:     defaultMultipartMaxMemory,
+		MaxBodyBytes:  defaultMultipartMaxBodyBytes,
 	}
 }
 
@@ -65,6 +68,9 @@ func applyOptions(options []Option) Options {
 	}
 	if cfg.MaxMemory <= 0 {
 		cfg.MaxMemory = defaultMultipartMaxMemory
+	}
+	if cfg.MaxBodyBytes <= 0 {
+		cfg.MaxBodyBytes = defaultMultipartMaxBodyBytes
 	}
 	return cfg
 }
@@ -88,6 +94,14 @@ func WithEmptyStrings(policy EmptyStringPolicy) Option {
 func WithMultipartMaxMemory(maxMemory int64) Option {
 	return func(opts *Options) {
 		opts.MaxMemory = maxMemory
+	}
+}
+
+// WithMultipartMaxBodyBytes sets the total body-size cap used before parsing
+// multipart requests.
+func WithMultipartMaxBodyBytes(maxBodyBytes int64) Option {
+	return func(opts *Options) {
+		opts.MaxBodyBytes = maxBodyBytes
 	}
 }
 

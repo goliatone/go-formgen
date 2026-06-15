@@ -29,6 +29,8 @@ func ParseRequest(form model.FormModel, req *http.Request, options ...Option) (R
 		return ParseJSON(form, body, options...)
 	case "multipart/form-data":
 		cfg := applyOptions(options)
+		req.Body = http.MaxBytesReader(nil, req.Body, cfg.MaxBodyBytes)
+		// #nosec G120 -- MaxBytesReader caps the total multipart body before parsing.
 		if err := req.ParseMultipartForm(cfg.MaxMemory); err != nil {
 			return Result{}, err
 		}
