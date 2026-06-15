@@ -173,6 +173,44 @@ describe("preact renderer runtime widgets", () => {
     expect(selects[0].props.multiple).toBe("multiple");
   });
 
+  it("renders enum select options from encoded enumOptions values", async () => {
+    document.body.innerHTML = `
+      <div id="formgen-preact-root"></div>
+      <script id="formgen-preact-data" type="application/json"></script>
+    `;
+
+    const encoded = "__fg_enum_v1:eyJ0IjoiaW50IiwidiI6Mn0";
+    const payload = {
+      operationId: "encodedEnum",
+      fields: [
+        {
+          name: "level",
+          type: "integer",
+          enum: [1, 2],
+          enumOptions: [
+            { value: "__fg_enum_v1:eyJ0IjoiaW50IiwidiI6MX0", label: "1" },
+            { value: encoded, label: "2", selected: true },
+          ],
+        },
+      ],
+    };
+    const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+    dataNode.textContent = JSON.stringify(payload);
+
+    await loadPreactBundle();
+
+    const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+    const tree = (mount as any).__tree;
+    const selects = findAll(tree, (node) => node?.type === "select" && node?.props?.name === "level");
+    expect(selects.length).toBeGreaterThan(0);
+
+    const options = findAll(selects[0], (node) => node?.type === "option");
+    const encodedOption = options.find((option) => option.props?.value === encoded);
+    expect(encodedOption).toBeTruthy();
+    expect(encodedOption?.children.join("")).toBe("2");
+    expect(encodedOption?.props.selected).toBe("selected");
+  });
+
   it("emits chips renderer hint for widget=chips on relationship fields", async () => {
     document.body.innerHTML = `
       <div id="formgen-preact-root"></div>

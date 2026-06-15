@@ -14,6 +14,7 @@ import {
   type ResolverEventDetail,
   type ResolverRegistry,
   registerErrorRenderer,
+  attachFormController,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
@@ -1362,6 +1363,45 @@ describe("runtime resolver", () => {
       });
 
       expect(slug.getAttribute("data-validation-state")).toBeNull();
+    });
+  });
+
+  describe("form controller", () => {
+    it("collects, sets, clears, focuses, and tears down", () => {
+      document.body.innerHTML = `
+        <div id="root" data-formgen-auto-init="true" data-formgen-render-mode="fields">
+          <input name="article[title]" value="Draft" />
+          <input type="hidden" name="_csrf" value="token" />
+          <textarea name="article[summary]"></textarea>
+        </div>
+      `;
+
+      const root = document.getElementById("root")!;
+      const controller = attachFormController(root);
+      expect((globalThis as any).Formgen.attach).toBe(attachFormController);
+      expect(controller.getValues()).toEqual({
+        article: { title: "Draft", summary: "" },
+        _csrf: "token",
+      });
+
+      controller.setValues({ article: { title: "Published", summary: "Done" } });
+      expect((document.querySelector('input[name="article[title]"]') as HTMLInputElement).value).toBe("Published");
+      expect((document.querySelector('textarea[name="article[summary]"]') as HTMLTextAreaElement).value).toBe("Done");
+
+      controller.setErrors({ "article.title": ["Required"] });
+      const title = document.querySelector<HTMLInputElement>('input[name="article[title]"]')!;
+      expect(title.getAttribute("data-validation-state")).toBe("invalid");
+      controller.clearErrors(["article.title"]);
+      expect(title.getAttribute("data-validation-state")).toBeNull();
+      expect(controller.focus("article.title")).toBe(true);
+
+      const changes = vi.fn();
+      controller.onChange(changes);
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(changes).toHaveBeenCalledTimes(1);
+      controller.destroy();
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(changes).toHaveBeenCalledTimes(1);
     });
   });
 

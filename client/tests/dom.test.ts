@@ -4,6 +4,7 @@ import {
   readDataset,
   isMultiSelect,
   syncHiddenInputs,
+  syncJsonInput,
   attachHiddenInputSync,
 } from "../src/dom";
 
@@ -55,5 +56,35 @@ describe("dom helpers", () => {
     );
     expect(refreshed.length).toBe(1);
     expect(refreshed[0].value).toBe("b");
+  });
+
+  it("preserves encoded enum values in hidden and json mirrors", () => {
+    const encoded = "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOnRydWV9";
+    document.body.innerHTML = `
+      <form>
+        <select id="flags" name="flags" multiple>
+          <option value="${encoded}" selected>true</option>
+        </select>
+        <select id="choice" name="choice">
+          <option value="${encoded}" selected>true</option>
+        </select>
+      </form>
+    `;
+
+    const flags = document.getElementById("flags") as HTMLSelectElement;
+    syncHiddenInputs(flags);
+    const hidden = flags.parentElement!.querySelector<HTMLInputElement>(
+      '[data-relationship-hidden] input[type="hidden"]'
+    );
+    expect(hidden?.name).toBe("flags[]");
+    expect(hidden?.value).toBe(encoded);
+
+    const choice = document.getElementById("choice") as HTMLSelectElement;
+    syncJsonInput(choice);
+    const json = choice.parentElement!.querySelector<HTMLInputElement>(
+      '[data-relationship-json]'
+    );
+    expect(json?.name).toBe("choice");
+    expect(json?.value).toBe(JSON.stringify(encoded));
   });
 });

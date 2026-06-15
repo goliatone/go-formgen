@@ -1,5 +1,5 @@
 import { build, context, analyzeMetafile, BuildOptions } from "esbuild";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -13,6 +13,7 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
+const repoRoot = resolve(projectRoot, "..");
 
 const args = new Set(process.argv.slice(2));
 const watch = args.has("--watch");
@@ -23,6 +24,35 @@ const esmOutDir = resolve(projectRoot, buildOutput.esm);
 const iifeOutDir = resolve(projectRoot, buildOutput.iife);
 const themesOutDir = resolve(projectRoot, "dist", "themes");
 const viteOutDir = resolve(projectRoot, "dist", "vite");
+
+const runtimeAssetCopies = [
+  {
+    source: resolve(iifeOutDir, "formgen-relationships.min.js"),
+    targets: [
+      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-relationships.min.js"),
+      resolve(repoRoot, "pkg", "renderers", "vanilla", "assets", "formgen-relationships.min.js"),
+    ],
+  },
+  {
+    source: resolve(iifeOutDir, "formgen-relationships.min.js.map"),
+    targets: [
+      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-relationships.min.js.map"),
+      resolve(repoRoot, "pkg", "renderers", "vanilla", "assets", "formgen-relationships.min.js.map"),
+    ],
+  },
+  {
+    source: resolve(iifeOutDir, "formgen-behaviors.min.js"),
+    targets: [
+      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-behaviors.min.js"),
+    ],
+  },
+  {
+    source: resolve(iifeOutDir, "formgen-behaviors.min.js.map"),
+    targets: [
+      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-behaviors.min.js.map"),
+    ],
+  },
+];
 
 const esmOptions: BuildOptions = {
   absWorkingDir: projectRoot,
@@ -115,6 +145,16 @@ async function loadRuntimeVersion(): Promise<string> {
   return "dev";
 }
 
+async function syncRuntimeAssets() {
+  for (const copy of runtimeAssetCopies) {
+    for (const target of copy.targets) {
+      await mkdir(dirname(target), { recursive: true });
+      await copyFile(copy.source, target);
+    }
+  }
+  console.log("[formgen:runtime] synced browser bundles to Go assets");
+}
+
 async function run() {
   await ensureOutDirs();
 
@@ -161,6 +201,8 @@ async function run() {
       await writeFile(fileName, report, "utf8");
     }
   }
+
+  await syncRuntimeAssets();
 }
 
 run().catch((error) => {

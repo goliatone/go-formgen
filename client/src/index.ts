@@ -262,6 +262,108 @@ export interface HydrationPayload {
   errors?: Record<string, string | string[]>;
 }
 
+export interface FormControllerOptions {
+  includeHidden?: boolean;
+}
+
+export interface FormController {
+  root: Document | HTMLElement;
+  getValues(options?: FormControllerOptions): Record<string, unknown>;
+  setValues(values: Record<string, unknown>): void;
+  setErrors(errors: Record<string, string | string[]>): void;
+  clearErrors(names?: string[]): void;
+  onChange(callback: (values: Record<string, unknown>, event: Event) => void): () => void;
+  focus(name: string): boolean;
+  destroy(): void;
+}
+
+const controllerListeners = new WeakMap<FormController, Array<() => void>>();
+
+export function attachFormController(
+  root: Document | HTMLElement | string = document,
+  options: FormControllerOptions = {}
+): FormController {
+  const resolvedRoot = resolveControllerRoot(root);
+  let destroyed = false;
+
+  const controller: FormController = {
+    root: resolvedRoot,
+    getValues(readOptions = {}) {
+      if (destroyed) {
+        return {};
+      }
+      return collectControllerValues(resolvedRoot, {
+        includeHidden: readOptions.includeHidden ?? options.includeHidden ?? true,
+      });
+    },
+    setValues(values) {
+      if (!destroyed) {
+        hydrateFormValues(resolvedRoot, { values });
+      }
+    },
+    setErrors(errors) {
+      if (!destroyed) {
+        hydrateFormValues(resolvedRoot, { errors });
+      }
+    },
+    clearErrors(names) {
+      if (destroyed) {
+        return;
+      }
+      const payload = buildClearErrorPayload(resolvedRoot, names);
+      hydrateFormValues(resolvedRoot, { errors: payload });
+    },
+    onChange(callback) {
+      if (destroyed) {
+        return () => undefined;
+      }
+      const handler = (event: Event) => {
+        callback(controller.getValues(), event);
+      };
+      resolvedRoot.addEventListener("input", handler, true);
+      resolvedRoot.addEventListener("change", handler, true);
+      const unsubscribe = () => {
+        resolvedRoot.removeEventListener("input", handler, true);
+        resolvedRoot.removeEventListener("change", handler, true);
+      };
+      controllerListeners.get(controller)?.push(unsubscribe);
+      return unsubscribe;
+    },
+    focus(name) {
+      if (destroyed) {
+        return false;
+      }
+      const field = findControllerField(resolvedRoot, name);
+      if (!field || typeof field.focus !== "function") {
+        return false;
+      }
+      field.focus();
+      return true;
+    },
+    destroy() {
+      if (destroyed) {
+        return;
+      }
+      destroyed = true;
+      const listeners = controllerListeners.get(controller) ?? [];
+      listeners.forEach((unsubscribe) => unsubscribe());
+      controllerListeners.delete(controller);
+    },
+  };
+
+  controllerListeners.set(controller, []);
+  return controller;
+}
+
+export const Formgen = {
+  attach: attachFormController,
+  hydrate: hydrateFormValues,
+};
+
+if (typeof globalThis !== "undefined") {
+  (globalThis as Record<string, unknown>).Formgen = Formgen;
+}
+
 export function hydrateFormValues(
   root: Document | HTMLElement = document,
   payload: HydrationPayload = {}
@@ -279,6 +381,171 @@ export function hydrateFormValues(
     applyHydratedValue(element, valueIndex);
     applyHydratedErrors(element, errorIndex);
   });
+}
+
+function resolveControllerRoot(root: Document | HTMLElement | string): Document | HTMLElement {
+  if (typeof root === "string") {
+    const found = document.querySelector<HTMLElement>(root);
+    if (!found) {
+      throw new Error(`formgen: controller root not found for selector ${root}`);
+    }
+    return found;
+  }
+  return root ?? document;
+}
+
+function collectControllerValues(
+  root: Document | HTMLElement,
+  options: FormControllerOptions
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  controllerFields(root).forEach((field) => {
+    if (!shouldCollectField(field, options)) {
+      return;
+    }
+    const name = fieldName(field);
+    if (!name) {
+      return;
+    }
+    const value = readControllerValue(field);
+    if (value === undefined) {
+      return;
+    }
+    assignControllerValue(out, toDotKey(stripArraySuffix(name)), value);
+  });
+  return out;
+}
+
+function controllerFields(root: Document | HTMLElement): Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> {
+  const fields = new Set<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>();
+  if (root instanceof HTMLInputElement || root instanceof HTMLSelectElement || root instanceof HTMLTextAreaElement) {
+    fields.add(root);
+  }
+  root
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea")
+    .forEach((field) => fields.add(field));
+  return Array.from(fields);
+}
+
+function shouldCollectField(
+  field: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  options: FormControllerOptions
+): boolean {
+  if (field.disabled) {
+    return false;
+  }
+  if (field instanceof HTMLInputElement) {
+    const type = field.type.toLowerCase();
+    if (["button", "submit", "reset", "file"].includes(type)) {
+      return false;
+    }
+    if (type === "hidden" && options.includeHidden === false) {
+      return false;
+    }
+  }
+  return Boolean(fieldName(field));
+}
+
+function fieldName(field: HTMLElement): string {
+  return (
+    field.getAttribute("name") ||
+    field.getAttribute("data-field-path") ||
+    field.dataset.fieldName ||
+    field.id ||
+    ""
+  ).trim();
+}
+
+function readControllerValue(
+  field: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+): unknown {
+  if (field instanceof HTMLSelectElement) {
+    if (field.multiple) {
+      return Array.from(field.selectedOptions).map((option) => option.value);
+    }
+    return field.value;
+  }
+  if (field instanceof HTMLInputElement) {
+    const type = field.type.toLowerCase();
+    if (type === "checkbox") {
+      if (field.name.endsWith("[]")) {
+        if (!field.checked) {
+          return undefined;
+        }
+        return [field.value];
+      }
+      return field.checked;
+    }
+    if (type === "radio") {
+      if (!field.checked) {
+        return undefined;
+      }
+      return field.value;
+    }
+  }
+  return field.value;
+}
+
+function assignControllerValue(target: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) {
+    return;
+  }
+  let cursor: Record<string, unknown> = target;
+  parts.forEach((part, index) => {
+    if (index === parts.length - 1) {
+      const existing = cursor[part];
+      if (Array.isArray(existing) && Array.isArray(value)) {
+        cursor[part] = existing.concat(value);
+      } else {
+        cursor[part] = value;
+      }
+      return;
+    }
+    if (!cursor[part] || typeof cursor[part] !== "object" || Array.isArray(cursor[part])) {
+      cursor[part] = {};
+    }
+    cursor = cursor[part] as Record<string, unknown>;
+  });
+}
+
+function buildClearErrorPayload(
+  root: Document | HTMLElement,
+  names?: string[]
+): Record<string, string[]> {
+  const payload: Record<string, string[]> = {};
+  const targets = names && names.length > 0 ? names : controllerFields(root).map(fieldName);
+  targets.forEach((name) => {
+    const trimmed = name.trim();
+    if (trimmed) {
+      payload[toDotKey(stripArraySuffix(trimmed))] = [];
+    }
+  });
+  return payload;
+}
+
+function findControllerField(
+  root: Document | HTMLElement,
+  name: string
+): HTMLElement | null {
+  const variants = new Set<string>();
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const dotted = toDotKey(stripArraySuffix(trimmed));
+  [trimmed, dotted, toBracketKey(dotted), `${toBracketKey(dotted)}[]`].forEach((item) => {
+    if (item) {
+      variants.add(item);
+    }
+  });
+  for (const field of controllerFields(root)) {
+    const keys = collectFieldKeys(field);
+    if (keys.some((key) => variants.has(key))) {
+      return field;
+    }
+  }
+  return null;
 }
 
 function locateHydratableFields(root: Document | HTMLElement): HTMLElement[] {
@@ -480,7 +747,9 @@ function applyHydratedValue(
       });
       element.dispatchEvent(new Event("change", { bubbles: true }));
     }
-  } else if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+  } else if (element instanceof HTMLInputElement) {
+    applyHydratedInputValue(element, entry.value, normalized);
+  } else if (element instanceof HTMLTextAreaElement) {
     if (Array.isArray(normalized)) {
       element.value = normalized[0] ?? "";
     } else if (normalized == null) {
@@ -497,6 +766,76 @@ function applyHydratedValue(
   if (resolver) {
     resolver.setCurrentValue(normalized);
   }
+}
+
+function applyHydratedInputValue(
+  element: HTMLInputElement,
+  rawValue: unknown,
+  normalized: string | string[] | null
+): void {
+  const type = element.type.toLowerCase();
+  if (type === "checkbox") {
+    element.checked = checkboxHydratedChecked(element, rawValue, normalized);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  if (type === "radio") {
+    element.checked = radioHydratedChecked(element, rawValue, normalized);
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  if (Array.isArray(normalized)) {
+    element.value = normalized[0] ?? "";
+  } else if (normalized == null) {
+    element.value = "";
+  } else {
+    element.value = normalized;
+  }
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function checkboxHydratedChecked(
+  element: HTMLInputElement,
+  rawValue: unknown,
+  normalized: string | string[] | null
+): boolean {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map(coerceHydratedValue).includes(element.value);
+  }
+  if (Array.isArray(normalized)) {
+    return normalized.includes(element.value);
+  }
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+  if (typeof rawValue === "number") {
+    return rawValue !== 0;
+  }
+  if (typeof rawValue === "string") {
+    const token = rawValue.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(token)) {
+      return true;
+    }
+    if (["false", "0", "no", "off", ""].includes(token)) {
+      return false;
+    }
+  }
+  return normalized != null && normalized === element.value;
+}
+
+function radioHydratedChecked(
+  element: HTMLInputElement,
+  rawValue: unknown,
+  normalized: string | string[] | null
+): boolean {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map(coerceHydratedValue).includes(element.value);
+  }
+  if (Array.isArray(normalized)) {
+    return normalized.includes(element.value);
+  }
+  return normalized != null && normalized === element.value;
 }
 
 function applyHydratedErrors(
