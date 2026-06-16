@@ -31,6 +31,28 @@ describe("validation helpers", () => {
     expect(ok.valid).toBe(true);
   });
 
+  it("validates array cardinality rules", () => {
+    const field: FieldConfig = {
+      name: "columns",
+      label: "Columns",
+      validations: [
+        { kind: "minItems", params: { value: "2" } },
+        { kind: "maxItems", params: { value: "3" } },
+      ],
+    };
+
+    const tooFew = validateFieldValue(field, ["left"]);
+    expect(tooFew.valid).toBe(false);
+    expect(tooFew.errors[0]?.code).toBe("minItems");
+
+    const tooMany = validateFieldValue(field, ["a", "b", "c", "d"]);
+    expect(tooMany.valid).toBe(false);
+    expect(tooMany.errors[0]?.code).toBe("maxItems");
+
+    const ok = validateFieldValue(field, ["a", "b"]);
+    expect(ok.valid).toBe(true);
+  });
+
   it("merges validation results", () => {
     const valid: ValidationResult = { valid: true, messages: [], errors: [] };
     const invalid = validateFieldValue(

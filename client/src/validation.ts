@@ -138,6 +138,38 @@ function evaluateRule(
       }
       break;
     }
+    case "minItems": {
+      const target = parseNumber(rule.params?.value);
+      const count = toItemCount(value);
+      if (target == null || count == null) {
+        return null;
+      }
+      if (count < target) {
+        return {
+          code: "minItems",
+          message: `${label} must contain at least ${target} items.`,
+          rule,
+          value,
+        };
+      }
+      break;
+    }
+    case "maxItems": {
+      const target = parseNumber(rule.params?.value);
+      const count = toItemCount(value);
+      if (target == null || count == null) {
+        return null;
+      }
+      if (count > target) {
+        return {
+          code: "maxItems",
+          message: `${label} must contain at most ${target} items.`,
+          rule,
+          value,
+        };
+      }
+      break;
+    }
     case "pattern": {
       const pattern = rule.params?.pattern;
       const text = toStringValue(value);
@@ -231,6 +263,16 @@ function toStringValue(value: ValidationValue): string | null {
     return value[0] ?? null;
   }
   return String(value);
+}
+
+function toItemCount(value: ValidationValue): number | null {
+  if (value == null) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    return normalizeValues(value).length;
+  }
+  return String(value).trim() === "" ? 0 : 1;
 }
 
 function parseNumber(input: string | undefined): number | null {
