@@ -39,14 +39,17 @@ const (
 	ValidationRuleMax       = "max"
 	ValidationRuleMinLength = "minLength"
 	ValidationRuleMaxLength = "maxLength"
+	ValidationRuleMinItems  = "minItems"
+	ValidationRuleMaxItems  = "maxItems"
 	ValidationRulePattern   = "pattern"
 )
 
 // ValidationRule represents a single validation constraint applied to a field.
 // Use the ValidationRule* constants to reference canonical OpenAPI-derived
-// constraints (min/max, minLength/maxLength, pattern). Numeric bounds and length
-// limits encode their threshold in Params["value"] while pattern rules preserve
-// the original expression in Params["pattern"]. Boolean flags such as
+// constraints (min/max, minLength/maxLength, minItems/maxItems, pattern).
+// Numeric bounds, length limits, and item limits encode their threshold in
+// Params["value"] while pattern rules preserve the original expression in
+// Params["pattern"]. Boolean flags such as
 // exclusivity are encoded as string values to keep JSON snapshots stable.
 type ValidationRule struct {
 	Kind   string            `json:"kind"`

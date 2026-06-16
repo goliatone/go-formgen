@@ -386,6 +386,24 @@ func applyValidations(field *Field, input schema.Schema) {
 		})
 	}
 
+	if field.Type == FieldTypeArray && input.MinItems != nil {
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind: ValidationRuleMinItems,
+			Params: map[string]string{
+				"value": strconv.Itoa(*input.MinItems),
+			},
+		})
+	}
+
+	if field.Type == FieldTypeArray && input.MaxItems != nil {
+		field.Validations = append(field.Validations, ValidationRule{
+			Kind: ValidationRuleMaxItems,
+			Params: map[string]string{
+				"value": strconv.Itoa(*input.MaxItems),
+			},
+		})
+	}
+
 	if input.Pattern != "" {
 		field.Validations = append(field.Validations, ValidationRule{
 			Kind: ValidationRulePattern,

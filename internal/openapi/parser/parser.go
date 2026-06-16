@@ -210,6 +210,7 @@ func convertSchemaWithState(
 	applyExclusiveMinimum(&schema, src.ExclusiveMin)
 	applyExclusiveMaximum(&schema, src.ExclusiveMax)
 	applySchemaStringBounds(&schema, src)
+	applySchemaArrayBounds(&schema, src)
 	schema.Extensions = extractExtensions(src.Extensions)
 	mergeAllOfSchemas(&schema, src.AllOf, cache, active)
 	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
@@ -274,6 +275,19 @@ func applySchemaStringBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 	}
 	if src.Pattern != "" {
 		schema.Pattern = src.Pattern
+	}
+}
+
+func applySchemaArrayBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
+	if src.MinItems != 0 {
+		if value, ok := schemaLengthToInt(src.MinItems); ok {
+			schema.MinItems = &value
+		}
+	}
+	if src.MaxItems != nil {
+		if value, ok := schemaLengthToInt(*src.MaxItems); ok {
+			schema.MaxItems = &value
+		}
 	}
 }
 
@@ -359,6 +373,7 @@ func mergeSchema(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
 
 	mergeNumericConstraints(target, source)
 	mergeStringConstraints(target, source)
+	mergeArrayConstraints(target, source)
 	mergeSchemaExtensions(target, source.Extensions)
 }
 
@@ -427,6 +442,17 @@ func mergeStringConstraints(target *pkgopenapi.Schema, source pkgopenapi.Schema)
 	}
 	if target.Pattern == "" {
 		target.Pattern = source.Pattern
+	}
+}
+
+func mergeArrayConstraints(target *pkgopenapi.Schema, source pkgopenapi.Schema) {
+	if target.MinItems == nil && source.MinItems != nil {
+		value := *source.MinItems
+		target.MinItems = &value
+	}
+	if target.MaxItems == nil && source.MaxItems != nil {
+		value := *source.MaxItems
+		target.MaxItems = &value
 	}
 }
 
