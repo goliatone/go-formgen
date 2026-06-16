@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.22.1](https://github.com/goliatone/go-formgen/compare/v0.22.0...v0.22.1) - (2026-06-16)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Max/min parser ([122ebd0](https://github.com/goliatone/go-formgen/commit/122ebd096ea070c297e4761630e538026341dd77))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.22.1 ([f10be69](https://github.com/goliatone/go-formgen/commit/f10be69a0a8cf36026b6d6c85339d0075e82ae93))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.22.0 ([9f0ffe8](https://github.com/goliatone/go-formgen/commit/9f0ffe8d19b8630ce869b1b9de24fb3720d7e58e))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([7993407](https://github.com/goliatone/go-formgen/commit/79934073dfe50e9b79ecef8a253afe188577f17b))  - (goliatone)
+
 # [0.22.0](https://github.com/goliatone/go-formgen/compare/v0.21.1...v0.22.0) - (2026-06-16)
 
 ## <!-- 13 -->📦 Bumps
