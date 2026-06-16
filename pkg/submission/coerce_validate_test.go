@@ -201,6 +201,21 @@ func TestValidateProducesArrayCardinalityIssueCodes(t *testing.T) {
 			Items: &model.Field{Name: "column", Type: model.FieldTypeString},
 		},
 		{
+			Name:     "requiredColumns",
+			Type:     model.FieldTypeArray,
+			Required: true,
+			Validations: []model.ValidationRule{
+				{Kind: model.ValidationRuleMinItems, Params: map[string]string{"value": "2"}},
+			},
+			Items: &model.Field{Name: "requiredColumn", Type: model.FieldTypeString},
+		},
+		{
+			Name:     "plainRequired",
+			Type:     model.FieldTypeArray,
+			Required: true,
+			Items:    &model.Field{Name: "plainItem", Type: model.FieldTypeString},
+		},
+		{
 			Name: "matrix",
 			Type: model.FieldTypeArray,
 			Items: &model.Field{
@@ -215,8 +230,10 @@ func TestValidateProducesArrayCardinalityIssueCodes(t *testing.T) {
 	}}
 
 	issues := submission.Validate(form, submission.Values{
-		"columns": []any{"one"},
-		"matrix":  []any{[]any{"one"}},
+		"columns":         []any{"one"},
+		"requiredColumns": []any{"one", "two"},
+		"plainRequired":   []any{"one"},
+		"matrix":          []any{[]any{"one"}},
 	})
 	got := issueCodes(issues)
 	want := []submission.IssueCode{submission.CodeMinItems, submission.CodeMinItems}
@@ -228,11 +245,25 @@ func TestValidateProducesArrayCardinalityIssueCodes(t *testing.T) {
 	}
 
 	issues = submission.Validate(form, submission.Values{
-		"columns": []any{"one", "two", "three", "four"},
-		"matrix":  []any{[]any{"one", "two"}},
+		"columns":         []any{"one", "two", "three", "four"},
+		"requiredColumns": []any{"one", "two"},
+		"plainRequired":   []any{"one"},
+		"matrix":          []any{[]any{"one", "two"}},
 	})
 	if len(issues) != 1 || issues[0].Code != submission.CodeMaxItems {
 		t.Fatalf("expected one maxItems issue, got %+v", issues)
+	}
+
+	issues = submission.Validate(form, submission.Values{
+		"columns":         []any{},
+		"requiredColumns": []any{},
+		"plainRequired":   []any{},
+		"matrix":          []any{[]any{"one", "two"}},
+	})
+	got = issueCodes(issues)
+	want = []submission.IssueCode{submission.CodeMinItems, submission.CodeMinItems, submission.CodeRequired}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("empty array issue codes mismatch (-want +got):\n%s", diff)
 	}
 }
 

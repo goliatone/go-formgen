@@ -311,6 +311,69 @@ func TestConvertSchemaPreservesArrayCardinality(t *testing.T) {
 	}
 }
 
+func TestOperationsPreserveExplicitZeroMinItems(t *testing.T) {
+	t.Parallel()
+
+	const document = `{
+  "openapi": "3.0.0",
+  "info": { "title": "Array Zero Bounds", "version": "1.0.0" },
+  "paths": {
+    "/grids": {
+      "post": {
+        "operationId": "createGrid",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/Grid"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "ok"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Grid": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 3,
+            "items": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}`
+
+	doc, err := pkgopenapi.NewDocument(pkgopenapi.SourceFromFile("inline.json"), []byte(document))
+	if err != nil {
+		t.Fatalf("construct document: %v", err)
+	}
+
+	parser := New(pkgopenapi.NewParserOptions())
+	operations, err := parser.Operations(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("parse operations: %v", err)
+	}
+	op, ok := operations["createGrid"]
+	if !ok {
+		t.Fatalf("operation createGrid not found")
+	}
+	columns := op.RequestBody.Properties["columns"]
+	if columns.MinItems == nil || *columns.MinItems != 0 {
+		t.Fatalf("minItems = %v, want explicit 0", columns.MinItems)
+	}
+	if columns.MaxItems == nil || *columns.MaxItems != 3 {
+		t.Fatalf("maxItems = %v, want 3", columns.MaxItems)
+	}
+}
+
 func loadConvertedComponent(t *testing.T, document, name string) pkgopenapi.Schema {
 	t.Helper()
 
