@@ -29,10 +29,12 @@ func validateField(field model.Field, value any, exists bool, path string, opts 
 		return nil
 	}
 	if isEmpty(value) {
-		if field.Required {
-			return []Issue{issue(CodeRequired, path, makeMessage(field, path, "is required"), value)}
+		if field.Type != model.FieldTypeArray {
+			if field.Required {
+				return []Issue{issue(CodeRequired, path, makeMessage(field, path, "is required"), value)}
+			}
+			return nil
 		}
-		return nil
 	}
 
 	switch field.Type {
@@ -103,6 +105,9 @@ func validateArrayField(field model.Field, value any, path string, opts Options)
 		return []Issue{issue(CodeType, path, makeMessage(field, path, "must be an array"), value)}
 	}
 	issues := validateArrayRules(field, items, path)
+	if len(items) == 0 && field.Required && len(issues) == 0 {
+		issues = append(issues, issue(CodeRequired, path, makeMessage(field, path, "is required"), value))
+	}
 	issues = append(issues, validateArrayEnum(field, items, path)...)
 	issues = append(issues, validateArrayItems(field, items, path, opts)...)
 	return issues

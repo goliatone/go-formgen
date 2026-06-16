@@ -45,6 +45,14 @@ describe("validation helpers", () => {
     expect(tooFew.valid).toBe(false);
     expect(tooFew.errors[0]?.code).toBe("minItems");
 
+    const empty = validateFieldValue(field, []);
+    expect(empty.valid).toBe(false);
+    expect(empty.errors[0]?.code).toBe("minItems");
+
+    const requiredEmpty = validateFieldValue({ ...field, required: true }, []);
+    expect(requiredEmpty.valid).toBe(false);
+    expect(requiredEmpty.errors[0]?.code).toBe("minItems");
+
     const tooMany = validateFieldValue(field, ["a", "b", "c", "d"]);
     expect(tooMany.valid).toBe(false);
     expect(tooMany.errors[0]?.code).toBe("maxItems");

@@ -18,6 +18,11 @@ export function validateFieldValue(field: FieldConfig, value: ValidationValue): 
   const context: ValidationContext = { field, value };
 
   if (requiresValue(field) && isEmptyValue(value)) {
+    const minItemsError = evaluateMinItemsRule(context, label);
+    if (minItemsError) {
+      errors.push(minItemsError);
+      return buildResult(errors);
+    }
     errors.push({
       code: "required",
       message: `${label} is required.`,
@@ -46,6 +51,19 @@ export function validateFieldValue(field: FieldConfig, value: ValidationValue): 
   return buildResult(errors);
 }
 
+function evaluateMinItemsRule(context: ValidationContext, label: string): ValidationError | null {
+  for (const rule of context.field.validations ?? []) {
+    if (rule.kind !== "minItems") {
+      continue;
+    }
+    const error = evaluateRule(rule, context, label);
+    if (error) {
+      return error;
+    }
+  }
+  return null;
+}
+
 export function mergeValidationResults(
   ...results: Array<ValidationResult | undefined | null>
 ): ValidationResult {
@@ -65,7 +83,7 @@ function evaluateRule(
   label: string
 ): ValidationError | null {
   const value = context.value;
-  if (isEmptyValue(value)) {
+  if (isEmptyValue(value) && rule.kind !== "minItems") {
     return null;
   }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"gopkg.in/yaml.v3"
 
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
 )
@@ -56,20 +57,21 @@ func (p *Parser) Operations(ctx context.Context, doc pkgopenapi.Document) (map[s
 		return nil, err
 	}
 
+	presence := collectSchemaKeywordPresence(raw, spec)
 	operations := make(map[string]pkgopenapi.Operation)
 	if spec.Paths != nil {
 		for path, item := range spec.Paths.Map() {
 			if item == nil {
 				continue
 			}
-			p.collectOperation(ctx, operations, "GET", path, item.Get)
-			p.collectOperation(ctx, operations, "PUT", path, item.Put)
-			p.collectOperation(ctx, operations, "POST", path, item.Post)
-			p.collectOperation(ctx, operations, "DELETE", path, item.Delete)
-			p.collectOperation(ctx, operations, "PATCH", path, item.Patch)
-			p.collectOperation(ctx, operations, "HEAD", path, item.Head)
-			p.collectOperation(ctx, operations, "OPTIONS", path, item.Options)
-			p.collectOperation(ctx, operations, "TRACE", path, item.Trace)
+			p.collectOperation(ctx, operations, "GET", path, item.Get, presence)
+			p.collectOperation(ctx, operations, "PUT", path, item.Put, presence)
+			p.collectOperation(ctx, operations, "POST", path, item.Post, presence)
+			p.collectOperation(ctx, operations, "DELETE", path, item.Delete, presence)
+			p.collectOperation(ctx, operations, "PATCH", path, item.Patch, presence)
+			p.collectOperation(ctx, operations, "HEAD", path, item.Head, presence)
+			p.collectOperation(ctx, operations, "OPTIONS", path, item.Options, presence)
+			p.collectOperation(ctx, operations, "TRACE", path, item.Trace, presence)
 		}
 	}
 
@@ -90,7 +92,7 @@ func (p *Parser) resolveReferences(ctx context.Context, loader *openapi3.Loader,
 	return nil
 }
 
-func (p *Parser) collectOperation(ctx context.Context, target map[string]pkgopenapi.Operation, method, path string, operation *openapi3.Operation) {
+func (p *Parser) collectOperation(ctx context.Context, target map[string]pkgopenapi.Operation, method, path string, operation *openapi3.Operation, presence schemaKeywordPresence) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -101,8 +103,8 @@ func (p *Parser) collectOperation(ctx context.Context, target map[string]pkgopen
 	if opID == "" {
 		opID = strings.ToLower(method) + ":" + path
 	}
-	requestSchema := p.extractRequestSchema(operation.RequestBody)
-	responseSchemas := p.extractResponseSchemas(operation.Responses)
+	requestSchema := p.extractRequestSchema(operation.RequestBody, presence)
+	responseSchemas := p.extractResponseSchemas(operation.Responses, presence)
 
 	op, err := pkgopenapi.NewOperation(opID, method, path, requestSchema, responseSchemas)
 	if err != nil {
@@ -115,7 +117,7 @@ func (p *Parser) collectOperation(ctx context.Context, target map[string]pkgopen
 	target[opID] = op
 }
 
-func (p *Parser) extractRequestSchema(requestBody *openapi3.RequestBodyRef) pkgopenapi.Schema {
+func (p *Parser) extractRequestSchema(requestBody *openapi3.RequestBodyRef, presence schemaKeywordPresence) pkgopenapi.Schema {
 	if requestBody == nil {
 		return pkgopenapi.Schema{}
 	}
@@ -125,16 +127,16 @@ func (p *Parser) extractRequestSchema(requestBody *openapi3.RequestBodyRef) pkgo
 	content := requestBody.Value.Content
 	for _, mediaType := range []string{"application/json", "application/x-www-form-urlencoded", "multipart/form-data"} {
 		if mt, ok := content[mediaType]; ok {
-			return convertSchema(mt.Schema)
+			return convertSchemaWithPresence(mt.Schema, presence)
 		}
 	}
 	for _, mt := range content {
-		return convertSchema(mt.Schema)
+		return convertSchemaWithPresence(mt.Schema, presence)
 	}
 	return pkgopenapi.Schema{}
 }
 
-func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[string]pkgopenapi.Schema {
+func (p *Parser) extractResponseSchemas(responses *openapi3.Responses, presence schemaKeywordPresence) map[string]pkgopenapi.Schema {
 	if responses == nil || responses.Len() == 0 {
 		return nil
 	}
@@ -143,7 +145,7 @@ func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[strin
 		if ref == nil {
 			continue
 		}
-		schema, ok := responseSchema(ref)
+		schema, ok := responseSchema(ref, presence)
 		if !ok {
 			continue
 		}
@@ -152,7 +154,7 @@ func (p *Parser) extractResponseSchemas(responses *openapi3.Responses) map[strin
 	return result
 }
 
-func responseSchema(ref *openapi3.ResponseRef) (pkgopenapi.Schema, bool) {
+func responseSchema(ref *openapi3.ResponseRef, presence schemaKeywordPresence) (pkgopenapi.Schema, bool) {
 	if ref.Value == nil {
 		return pkgopenapi.Schema{Ref: ref.Ref}, true
 	}
@@ -160,7 +162,7 @@ func responseSchema(ref *openapi3.ResponseRef) (pkgopenapi.Schema, bool) {
 	if len(content) == 0 {
 		return pkgopenapi.Schema{}, false
 	}
-	schema := convertSchema(preferredMediaTypeSchema(content))
+	schema := convertSchemaWithPresence(preferredMediaTypeSchema(content), presence)
 	if schema.Description == "" && ref.Value.Description != nil {
 		schema.Description = *ref.Value.Description
 	}
@@ -177,14 +179,214 @@ func preferredMediaTypeSchema(content openapi3.Content) *openapi3.SchemaRef {
 	return nil
 }
 
+type schemaKeywordPresence struct {
+	minItems map[*openapi3.Schema]struct{}
+}
+
+func (p schemaKeywordPresence) hasMinItems(schema *openapi3.Schema) bool {
+	if schema == nil || len(p.minItems) == 0 {
+		return false
+	}
+	_, ok := p.minItems[schema]
+	return ok
+}
+
+func (p schemaKeywordPresence) markMinItems(ref *openapi3.SchemaRef) {
+	if ref == nil || ref.Value == nil || p.minItems == nil {
+		return
+	}
+	p.minItems[ref.Value] = struct{}{}
+}
+
+func collectSchemaKeywordPresence(raw []byte, spec *openapi3.T) schemaKeywordPresence {
+	presence := schemaKeywordPresence{minItems: make(map[*openapi3.Schema]struct{})}
+	if spec == nil || len(raw) == 0 {
+		return presence
+	}
+	var decoded any
+	if err := yaml.Unmarshal(raw, &decoded); err != nil {
+		return presence
+	}
+	root := asStringMap(decoded)
+	if root == nil {
+		return presence
+	}
+	markComponentSchemaKeywords(root["components"], spec.Components, presence)
+	markPathSchemaKeywords(root["paths"], spec.Paths, presence)
+	return presence
+}
+
+func markComponentSchemaKeywords(raw any, components *openapi3.Components, presence schemaKeywordPresence) {
+	if components == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	rawSchemas := asStringMap(payload["schemas"])
+	for name, ref := range components.Schemas {
+		markSchemaKeywords(rawSchemas[name], ref, presence)
+	}
+	rawRequestBodies := asStringMap(payload["requestBodies"])
+	for name, ref := range components.RequestBodies {
+		markRequestBodySchemaKeywords(rawRequestBodies[name], ref, presence)
+	}
+	rawResponses := asStringMap(payload["responses"])
+	for name, ref := range components.Responses {
+		markResponseSchemaKeywords(rawResponses[name], ref, presence)
+	}
+}
+
+func markPathSchemaKeywords(raw any, paths *openapi3.Paths, presence schemaKeywordPresence) {
+	if paths == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	for path, item := range paths.Map() {
+		rawPath := asStringMap(payload[path])
+		if rawPath == nil || item == nil {
+			continue
+		}
+		markOperationSchemaKeywords(rawPath["get"], item.Get, presence)
+		markOperationSchemaKeywords(rawPath["put"], item.Put, presence)
+		markOperationSchemaKeywords(rawPath["post"], item.Post, presence)
+		markOperationSchemaKeywords(rawPath["delete"], item.Delete, presence)
+		markOperationSchemaKeywords(rawPath["patch"], item.Patch, presence)
+		markOperationSchemaKeywords(rawPath["head"], item.Head, presence)
+		markOperationSchemaKeywords(rawPath["options"], item.Options, presence)
+		markOperationSchemaKeywords(rawPath["trace"], item.Trace, presence)
+	}
+}
+
+func markOperationSchemaKeywords(raw any, operation *openapi3.Operation, presence schemaKeywordPresence) {
+	if operation == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	markRequestBodySchemaKeywords(payload["requestBody"], operation.RequestBody, presence)
+	rawResponses := asStringMap(payload["responses"])
+	if rawResponses == nil || operation.Responses == nil {
+		return
+	}
+	for status, ref := range operation.Responses.Map() {
+		markResponseSchemaKeywords(rawResponses[status], ref, presence)
+	}
+}
+
+func markRequestBodySchemaKeywords(raw any, ref *openapi3.RequestBodyRef, presence schemaKeywordPresence) {
+	if ref == nil || ref.Value == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	markContentSchemaKeywords(payload["content"], ref.Value.Content, presence)
+}
+
+func markResponseSchemaKeywords(raw any, ref *openapi3.ResponseRef, presence schemaKeywordPresence) {
+	if ref == nil || ref.Value == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	markContentSchemaKeywords(payload["content"], ref.Value.Content, presence)
+}
+
+func markContentSchemaKeywords(raw any, content openapi3.Content, presence schemaKeywordPresence) {
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	for mediaType, mt := range content {
+		if mt == nil {
+			continue
+		}
+		rawMediaType := asStringMap(payload[mediaType])
+		if rawMediaType == nil {
+			continue
+		}
+		markSchemaKeywords(rawMediaType["schema"], mt.Schema, presence)
+	}
+}
+
+func markSchemaKeywords(raw any, ref *openapi3.SchemaRef, presence schemaKeywordPresence) {
+	if ref == nil || ref.Value == nil {
+		return
+	}
+	payload := asStringMap(raw)
+	if payload == nil {
+		return
+	}
+	if _, ok := payload["minItems"]; ok {
+		presence.markMinItems(ref)
+	}
+	rawProperties := asStringMap(payload["properties"])
+	for name, child := range ref.Value.Properties {
+		markSchemaKeywords(rawProperties[name], child, presence)
+	}
+	if rawItems, ok := payload["items"]; ok {
+		markSchemaKeywords(rawItems, ref.Value.Items, presence)
+	}
+	markSchemaListKeywords(payload["allOf"], ref.Value.AllOf, presence)
+	markSchemaListKeywords(payload["oneOf"], ref.Value.OneOf, presence)
+	markSchemaListKeywords(payload["anyOf"], ref.Value.AnyOf, presence)
+}
+
+func markSchemaListKeywords(raw any, refs openapi3.SchemaRefs, presence schemaKeywordPresence) {
+	items, ok := raw.([]any)
+	if !ok {
+		return
+	}
+	for idx, ref := range refs {
+		if idx >= len(items) {
+			return
+		}
+		markSchemaKeywords(items[idx], ref, presence)
+	}
+}
+
+func asStringMap(value any) map[string]any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed
+	case map[any]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			str, ok := key.(string)
+			if !ok {
+				continue
+			}
+			out[str] = item
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func convertSchema(ref *openapi3.SchemaRef) pkgopenapi.Schema {
-	return convertSchemaWithState(ref, make(map[*openapi3.Schema]pkgopenapi.Schema), make(map[*openapi3.Schema]struct{}))
+	return convertSchemaWithPresence(ref, schemaKeywordPresence{})
+}
+
+func convertSchemaWithPresence(ref *openapi3.SchemaRef, presence schemaKeywordPresence) pkgopenapi.Schema {
+	return convertSchemaWithState(ref, make(map[*openapi3.Schema]pkgopenapi.Schema), make(map[*openapi3.Schema]struct{}), presence)
 }
 
 func convertSchemaWithState(
 	ref *openapi3.SchemaRef,
 	cache map[*openapi3.Schema]pkgopenapi.Schema,
 	active map[*openapi3.Schema]struct{},
+	presence schemaKeywordPresence,
 ) pkgopenapi.Schema {
 	if ref == nil {
 		return pkgopenapi.Schema{}
@@ -205,14 +407,14 @@ func convertSchemaWithState(
 	active[src] = struct{}{}
 
 	schema := baseSchemaFromOpenAPI(ref.Ref, src)
-	applySchemaChildren(&schema, src, cache, active)
+	applySchemaChildren(&schema, src, cache, active, presence)
 	applySchemaNumberBounds(&schema, src)
 	applyExclusiveMinimum(&schema, src.ExclusiveMin)
 	applyExclusiveMaximum(&schema, src.ExclusiveMax)
 	applySchemaStringBounds(&schema, src)
-	applySchemaArrayBounds(&schema, src)
+	applySchemaArrayBounds(&schema, src, presence)
 	schema.Extensions = extractExtensions(src.Extensions)
-	mergeAllOfSchemas(&schema, src.AllOf, cache, active)
+	mergeAllOfSchemas(&schema, src.AllOf, cache, active, presence)
 	mergeAllOfExtensions(&schema, src.AllOf, make(map[*openapi3.Schema]struct{}))
 
 	delete(active, src)
@@ -237,16 +439,16 @@ func baseSchemaFromOpenAPI(ref string, src *openapi3.Schema) pkgopenapi.Schema {
 	return schema
 }
 
-func applySchemaChildren(schema *pkgopenapi.Schema, src *openapi3.Schema, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}) {
+func applySchemaChildren(schema *pkgopenapi.Schema, src *openapi3.Schema, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}, presence schemaKeywordPresence) {
 	if len(src.Properties) > 0 {
 		properties := make(map[string]pkgopenapi.Schema, len(src.Properties))
 		for name, property := range src.Properties {
-			properties[name] = convertSchemaWithState(property, cache, active)
+			properties[name] = convertSchemaWithState(property, cache, active, presence)
 		}
 		schema.Properties = propagateRelationshipMetadata(properties)
 	}
 	if src.Items != nil {
-		items := convertSchemaWithState(src.Items, cache, active)
+		items := convertSchemaWithState(src.Items, cache, active, presence)
 		schema.Items = &items
 	}
 }
@@ -278,8 +480,8 @@ func applySchemaStringBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
 	}
 }
 
-func applySchemaArrayBounds(schema *pkgopenapi.Schema, src *openapi3.Schema) {
-	if src.MinItems != 0 {
+func applySchemaArrayBounds(schema *pkgopenapi.Schema, src *openapi3.Schema, presence schemaKeywordPresence) {
+	if src.MinItems != 0 || presence.hasMinItems(src) {
 		if value, ok := schemaLengthToInt(src.MinItems); ok {
 			schema.MinItems = &value
 		}
@@ -329,7 +531,7 @@ func applyExclusiveMaximum(schema *pkgopenapi.Schema, bound openapi3.ExclusiveBo
 	schema.ExclusiveMaximum = bound.IsTrue()
 }
 
-func mergeAllOfSchemas(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}) {
+func mergeAllOfSchemas(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, cache map[*openapi3.Schema]pkgopenapi.Schema, active map[*openapi3.Schema]struct{}, presence schemaKeywordPresence) {
 	if target == nil || len(refs) == 0 {
 		return
 	}
@@ -338,7 +540,7 @@ func mergeAllOfSchemas(target *pkgopenapi.Schema, refs openapi3.SchemaRefs, cach
 		if ref == nil {
 			continue
 		}
-		merged := convertSchemaWithState(ref, cache, active)
+		merged := convertSchemaWithState(ref, cache, active, presence)
 		mergeSchema(target, merged)
 	}
 }
