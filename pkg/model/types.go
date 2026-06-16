@@ -35,6 +35,8 @@ const (
 	ValidationRuleMax       = internalmodel.ValidationRuleMax
 	ValidationRuleMinLength = internalmodel.ValidationRuleMinLength
 	ValidationRuleMaxLength = internalmodel.ValidationRuleMaxLength
+	ValidationRuleMinItems  = internalmodel.ValidationRuleMinItems
+	ValidationRuleMaxItems  = internalmodel.ValidationRuleMaxItems
 	ValidationRulePattern   = internalmodel.ValidationRulePattern
 )
 

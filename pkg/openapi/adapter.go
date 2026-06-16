@@ -127,6 +127,8 @@ func schemaFromOpenAPISchema(input Schema) schema.Schema {
 		ExclusiveMaximum: input.ExclusiveMaximum,
 		MinLength:        cloneIntPointer(input.MinLength),
 		MaxLength:        cloneIntPointer(input.MaxLength),
+		MinItems:         cloneIntPointer(input.MinItems),
+		MaxItems:         cloneIntPointer(input.MaxItems),
 		Pattern:          input.Pattern,
 		Extensions:       cloneExtensions(input.Extensions),
 	}

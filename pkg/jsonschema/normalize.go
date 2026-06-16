@@ -32,6 +32,8 @@ var supportedSchemaKeys = map[string]struct{}{
 	"exclusiveMaximum": {},
 	"minLength":        {},
 	"maxLength":        {},
+	"minItems":         {},
+	"maxItems":         {},
 	"pattern":          {},
 	"format":           {},
 }
@@ -148,7 +150,10 @@ func applyScalarSchemaKeywords(out *schema.Schema, payload map[string]any, path 
 	if err := applyNumericKeywords(out, payload, path); err != nil {
 		return err
 	}
-	return applyStringKeywords(out, payload, path)
+	if err := applyStringKeywords(out, payload, path); err != nil {
+		return err
+	}
+	return applyArrayKeywords(out, payload, path)
 }
 
 func applyEnum(out *schema.Schema, payload map[string]any, path string) error {
@@ -279,6 +284,41 @@ func applyLengthBound(target **int, payload map[string]any, key, path string) er
 	value, ok := toInt(raw)
 	if !ok {
 		return fmt.Errorf("jsonschema: %s must be an integer at %s", key, path)
+	}
+	*target = &value
+	return nil
+}
+
+func applyArrayKeywords(out *schema.Schema, payload map[string]any, path string) error {
+	if _, hasMin := payload["minItems"]; hasMin && out.Type != "array" {
+		return fmt.Errorf("jsonschema: minItems is only supported on arrays at %s", path)
+	}
+	if _, hasMax := payload["maxItems"]; hasMax && out.Type != "array" {
+		return fmt.Errorf("jsonschema: maxItems is only supported on arrays at %s", path)
+	}
+	if err := applyItemBound(&out.MinItems, payload, "minItems", path); err != nil {
+		return err
+	}
+	if err := applyItemBound(&out.MaxItems, payload, "maxItems", path); err != nil {
+		return err
+	}
+	if out.MinItems != nil && out.MaxItems != nil && *out.MinItems > *out.MaxItems {
+		return fmt.Errorf("jsonschema: minItems exceeds maxItems at %s", path)
+	}
+	return nil
+}
+
+func applyItemBound(target **int, payload map[string]any, key, path string) error {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	value, ok := toInt(raw)
+	if !ok {
+		return fmt.Errorf("jsonschema: %s must be an integer at %s", key, path)
+	}
+	if value < 0 {
+		return fmt.Errorf("jsonschema: %s must be non-negative at %s", key, path)
 	}
 	*target = &value
 	return nil

@@ -53,6 +53,8 @@ type Schema struct {
 	ExclusiveMaximum bool
 	MinLength        *int
 	MaxLength        *int
+	MinItems         *int
+	MaxItems         *int
 	Pattern          string
 	Extensions       map[string]any `json:"Extensions,omitempty"`
 }

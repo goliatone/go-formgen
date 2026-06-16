@@ -236,11 +236,11 @@ func validateArrayRules(field model.Field, value []any, path string) []Issue {
 	var issues []Issue
 	for _, rule := range field.Validations {
 		switch rule.Kind {
-		case model.ValidationRuleMinLength:
+		case model.ValidationRuleMinItems, model.ValidationRuleMinLength:
 			if limit, ok := ruleInt(rule); ok && len(value) < limit {
 				issues = append(issues, issue(CodeMinItems, path, makeMessage(field, path, fmt.Sprintf("must contain at least %d items", limit)), value))
 			}
-		case model.ValidationRuleMaxLength:
+		case model.ValidationRuleMaxItems, model.ValidationRuleMaxLength:
 			if limit, ok := ruleInt(rule); ok && len(value) > limit {
 				issues = append(issues, issue(CodeMaxItems, path, makeMessage(field, path, fmt.Sprintf("must contain at most %d items", limit)), value))
 			}

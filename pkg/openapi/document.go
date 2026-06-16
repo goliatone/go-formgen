@@ -126,6 +126,8 @@ type Schema struct {
 	ExclusiveMaximum bool
 	MinLength        *int
 	MaxLength        *int
+	MinItems         *int
+	MaxItems         *int
 	Pattern          string
 	Extensions       map[string]any `json:"Extensions,omitempty"`
 }
@@ -168,6 +170,14 @@ func (s Schema) Clone() Schema {
 	if s.MaxLength != nil {
 		value := *s.MaxLength
 		cloned.MaxLength = &value
+	}
+	if s.MinItems != nil {
+		value := *s.MinItems
+		cloned.MinItems = &value
+	}
+	if s.MaxItems != nil {
+		value := *s.MaxItems
+		cloned.MaxItems = &value
 	}
 	if cloned.Extensions == nil && len(s.Extensions) == 0 {
 		cloned.Extensions = nil
