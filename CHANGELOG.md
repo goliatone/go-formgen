@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.22.0](https://github.com/goliatone/go-formgen/compare/v0.21.1...v0.22.0) - (2026-06-16)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.22.0 ([483b9d9](https://github.com/goliatone/go-formgen/commit/483b9d99f318b69cedec9ab15b22c29e664dd8cb))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Support min/max items in schema ([c1867be](https://github.com/goliatone/go-formgen/commit/c1867be73b47c4b78773de20015dd41c81cea47f))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.21.1 ([1946e76](https://github.com/goliatone/go-formgen/commit/1946e76483a1edba4a8de0e5ec6cabf9f9ac7e3e))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([f86d84d](https://github.com/goliatone/go-formgen/commit/f86d84d18560bd2f303c0421c8a68d2fd0ac113e))  - (goliatone)
+
 # [0.21.1](https://github.com/goliatone/go-formgen/compare/v0.21.0...v0.21.1) - (2026-06-15)
 
 ## <!-- 1 -->🐛 Bug Fixes
