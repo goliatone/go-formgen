@@ -189,6 +189,53 @@ func TestValidateProducesDeterministicIssueCodes(t *testing.T) {
 	}
 }
 
+func TestValidateProducesArrayCardinalityIssueCodes(t *testing.T) {
+	form := model.FormModel{Fields: []model.Field{
+		{
+			Name: "columns",
+			Type: model.FieldTypeArray,
+			Validations: []model.ValidationRule{
+				{Kind: model.ValidationRuleMinItems, Params: map[string]string{"value": "2"}},
+				{Kind: model.ValidationRuleMaxItems, Params: map[string]string{"value": "3"}},
+			},
+			Items: &model.Field{Name: "column", Type: model.FieldTypeString},
+		},
+		{
+			Name: "matrix",
+			Type: model.FieldTypeArray,
+			Items: &model.Field{
+				Name: "row",
+				Type: model.FieldTypeArray,
+				Validations: []model.ValidationRule{
+					{Kind: model.ValidationRuleMinItems, Params: map[string]string{"value": "2"}},
+				},
+				Items: &model.Field{Name: "cell", Type: model.FieldTypeString},
+			},
+		},
+	}}
+
+	issues := submission.Validate(form, submission.Values{
+		"columns": []any{"one"},
+		"matrix":  []any{[]any{"one"}},
+	})
+	got := issueCodes(issues)
+	want := []submission.IssueCode{submission.CodeMinItems, submission.CodeMinItems}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("issue codes mismatch (-want +got):\n%s", diff)
+	}
+	if issues[1].Path != "matrix[0]" {
+		t.Fatalf("expected nested array path matrix[0], got %+v", issues[1])
+	}
+
+	issues = submission.Validate(form, submission.Values{
+		"columns": []any{"one", "two", "three", "four"},
+		"matrix":  []any{[]any{"one", "two"}},
+	})
+	if len(issues) != 1 || issues[0].Code != submission.CodeMaxItems {
+		t.Fatalf("expected one maxItems issue, got %+v", issues)
+	}
+}
+
 func TestRawObjectDetectionAndParsing(t *testing.T) {
 	raw := model.Field{Name: "settings", Type: model.FieldTypeObject}
 	if !submission.IsRawObjectField(raw) {

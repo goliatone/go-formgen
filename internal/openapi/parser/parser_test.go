@@ -269,6 +269,48 @@ func TestConvertSchemaPrefersStricterMixedNumericBounds(t *testing.T) {
 	}
 }
 
+func TestConvertSchemaPreservesArrayCardinality(t *testing.T) {
+	t.Parallel()
+
+	const document = `{
+  "openapi": "3.0.0",
+  "info": { "title": "Array Bounds", "version": "1.0.0" },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Columns": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 4,
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}`
+
+	converted := loadConvertedComponent(t, document, "Columns")
+	if converted.MinItems == nil || *converted.MinItems != 2 {
+		t.Fatalf("minItems = %v, want 2", converted.MinItems)
+	}
+	if converted.MaxItems == nil || *converted.MaxItems != 4 {
+		t.Fatalf("maxItems = %v, want 4", converted.MaxItems)
+	}
+	if converted.Items == nil {
+		t.Fatalf("expected nested array items")
+	}
+	if converted.Items.MinItems == nil || *converted.Items.MinItems != 1 {
+		t.Fatalf("nested minItems = %v, want 1", converted.Items.MinItems)
+	}
+	if converted.Items.MaxItems == nil || *converted.Items.MaxItems != 3 {
+		t.Fatalf("nested maxItems = %v, want 3", converted.Items.MaxItems)
+	}
+}
+
 func loadConvertedComponent(t *testing.T, document, name string) pkgopenapi.Schema {
 	t.Helper()
 
