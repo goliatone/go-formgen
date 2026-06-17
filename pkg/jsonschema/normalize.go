@@ -365,7 +365,7 @@ func applyProperties(out *schema.Schema, payload map[string]any, path string, ct
 	out.Properties = make(map[string]schema.Schema, len(props))
 	nullableProps := make(map[string]struct{})
 	for _, key := range sortedKeys(props) {
-		if hasNullableType(props[key]) {
+		if hasNullableSchema(props[key]) {
 			nullableProps[key] = struct{}{}
 		}
 		childPath := joinPath(path, "properties", key)
@@ -732,6 +732,10 @@ func parseType(payload map[string]any, path string) (string, bool, error) {
 	}
 }
 
+func hasNullableSchema(node any) bool {
+	return hasNullableType(node) || hasNullableAnyOf(node)
+}
+
 func hasNullableType(node any) bool {
 	payload, ok := node.(map[string]any)
 	if !ok || payload == nil {
@@ -763,6 +767,46 @@ func hasNullableType(node any) bool {
 		}
 	}
 	return hasNull && hasOther
+}
+
+func hasNullableAnyOf(node any) bool {
+	payload, ok := node.(map[string]any)
+	if !ok || payload == nil {
+		return false
+	}
+	raw, ok := payload["anyOf"]
+	if !ok {
+		return false
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+	hasNull := false
+	hasOther := false
+	for _, entry := range list {
+		if isRawNullSchema(entry) {
+			hasNull = true
+			continue
+		}
+		if _, ok := entry.(map[string]any); ok {
+			hasOther = true
+		}
+	}
+	return hasNull && hasOther
+}
+
+func isRawNullSchema(node any) bool {
+	payload, ok := node.(map[string]any)
+	if !ok || payload == nil {
+		return false
+	}
+	raw, ok := payload["type"]
+	if !ok {
+		return false
+	}
+	value, ok := raw.(string)
+	return ok && strings.TrimSpace(value) == "null"
 }
 
 func toFloat(value any) (float64, bool) {
