@@ -530,6 +530,47 @@ func TestAdapterNormalize_NullableTypeOptional(t *testing.T) {
 	}
 }
 
+func TestAdapterNormalize_NullableAnyOfOptional(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.post",
+  "type":"object",
+  "required":["title"],
+  "properties":{
+    "title":{"anyOf":[{"type":"string"},{"type":"null"}]}
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+
+	form, ok := ir.Form("com.example.post.edit")
+	if !ok {
+		t.Fatalf("expected form com.example.post.edit")
+	}
+	if form.Schema.Properties["title"].Type != "string" {
+		t.Fatalf("expected title type string, got %q", form.Schema.Properties["title"].Type)
+	}
+	for _, entry := range form.Schema.Required {
+		if entry == "title" {
+			t.Fatalf("expected nullable anyOf field to be optional, got required list: %#v", form.Schema.Required)
+		}
+	}
+
+	model, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+	fields := fieldsByName(model.Fields)
+	if fields["title"].Required {
+		t.Fatalf("expected nullable anyOf field model to be optional")
+	}
+}
+
 func TestAdapterNormalize_TypeUnionUnsupported(t *testing.T) {
 	adapter := NewAdapter(failingLoader{})
 	raw := []byte(`{
