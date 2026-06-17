@@ -838,6 +838,22 @@ describe("runtime resolver", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("keeps seeded current object selected after default select options resolve", async () => {
+    const select = createMarkup(
+      `data-relationship-current='{"value":"manager-1","label":"Ada Lovelace"}'`
+    );
+    fetchSpy.mockResolvedValue(
+      mockResponse([{ id: "manager-1", full_name: "Ada Lovelace" }])
+    );
+
+    await initRelationships();
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(select.value).toBe("manager-1");
+    expect(select.selectedOptions[0]?.textContent).toBe("Ada Lovelace");
+  });
+
   it("prefills chips controls with seeded current labels", async () => {
     document.body.innerHTML = `
       <form data-formgen-auto-init="true">

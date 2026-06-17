@@ -1,7 +1,6 @@
 import {
   type EndpointConfig,
   type FieldConfig,
-  type RelationshipCurrentItem,
   type Option,
   type RendererContext,
   type ResolverContext,
@@ -24,6 +23,7 @@ import {
 } from "./dom";
 import { validateFieldValue, mergeValidationResults } from "./validation";
 import { ensureRelationshipSelectionBridge } from "./relationship-events";
+import { relationshipCurrentValuesNeedingResolution } from "./relationship-current";
 
 const DYNAMIC_TOKEN_PATTERN = /\{\{\s*([^}]+)\s*\}\}/g;
 const DEFAULT_ERROR_MESSAGE = "Unable to load options.";
@@ -73,14 +73,6 @@ function formatDynamicValue(value: string | string[] | null): string | undefined
     return value.join(",");
   }
   return value === "" ? undefined : value;
-}
-
-function currentItemValue(item: RelationshipCurrentItem): string {
-  return typeof item === "string" ? item.trim() : String(item.value ?? "").trim();
-}
-
-function hasSeededCurrentLabel(item: RelationshipCurrentItem): boolean {
-  return typeof item !== "string" && String(item.label ?? "").trim() !== "";
 }
 
 function isAbortError(error: unknown): boolean {
@@ -729,11 +721,7 @@ export class Resolver {
     if (current == null) {
       return undefined;
     }
-    const items = Array.isArray(current) ? current : [current];
-    const values = items
-      .filter((item) => !hasSeededCurrentLabel(item))
-      .map(currentItemValue)
-      .filter((value) => value.length > 0);
+    const values = relationshipCurrentValuesNeedingResolution(current);
     if (values.length === 0) {
       return undefined;
     }

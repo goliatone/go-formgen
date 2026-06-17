@@ -31,10 +31,13 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 		OperationID: "createArticle",
 		FieldPath:   "author_id",
 		Endpoint: orchestrator.EndpointConfig{
-			URL:        "/api/authors",
-			Method:     "get",
-			LabelField: "full_name",
-			ValueField: "id",
+			URL:          "/api/authors",
+			Method:       "get",
+			LabelField:   "full_name",
+			ValueField:   "id",
+			Mode:         "search",
+			SearchParam:  "q",
+			HydrateParam: "ids",
 			Params: map[string]string{
 				"include": "profile",
 			},
@@ -89,6 +92,15 @@ func TestWithEndpointOverrides_AppliesMetadata(t *testing.T) {
 	if got := field.Metadata["relationship.endpoint.valueField"]; got != "id" {
 		t.Fatalf("relationship.endpoint.valueField = %q, want %q", got, "id")
 	}
+	if got := field.Metadata["relationship.endpoint.mode"]; got != "search" {
+		t.Fatalf("relationship.endpoint.mode = %q, want %q", got, "search")
+	}
+	if got := field.Metadata["relationship.endpoint.searchParam"]; got != "q" {
+		t.Fatalf("relationship.endpoint.searchParam = %q, want %q", got, "q")
+	}
+	if got := field.Metadata["relationship.endpoint.hydrateParam"]; got != "ids" {
+		t.Fatalf("relationship.endpoint.hydrateParam = %q, want %q", got, "ids")
+	}
 	if got := field.Metadata["relationship.endpoint.params.include"]; got != "profile" {
 		t.Fatalf("relationship.endpoint.params.include = %q, want %q", got, "profile")
 	}
@@ -118,10 +130,13 @@ func TestWithEndpointOverrides_RenderedAttributes(t *testing.T) {
 		OperationID: "createArticle",
 		FieldPath:   "author_id",
 		Endpoint: orchestrator.EndpointConfig{
-			URL:        "/api/authors",
-			Method:     "GET",
-			LabelField: "full_name",
-			ValueField: "id",
+			URL:          "/api/authors",
+			Method:       "GET",
+			LabelField:   "full_name",
+			ValueField:   "id",
+			Mode:         "search",
+			SearchParam:  "q",
+			HydrateParam: "ids",
 			DynamicParams: map[string]string{
 				"tenant_id": "{{field:tenant_id}}",
 			},
@@ -153,6 +168,9 @@ func TestWithEndpointOverrides_RenderedAttributes(t *testing.T) {
 	assertContains(t, html, `data-endpoint-method="GET"`)
 	assertContains(t, html, `data-endpoint-label-field="full_name"`)
 	assertContains(t, html, `data-endpoint-value-field="id"`)
+	assertContains(t, html, `data-endpoint-mode="search"`)
+	assertContains(t, html, `data-endpoint-search-param="q"`)
+	assertContains(t, html, `data-endpoint-hydrate-param="ids"`)
 	assertContains(t, html, `data-endpoint-refresh-on="tenant_id"`)
 	assertContains(t, html, `data-auth-source="meta:formgen-auth"`)
 }

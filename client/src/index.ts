@@ -1,11 +1,8 @@
 import "./version";
 import { ResolverRegistry } from "./registry";
 import type {
-  CurrentOption,
   GlobalConfig,
   FieldConfig,
-  RelationshipCurrent,
-  RelationshipCurrentItem,
 } from "./config";
 import {
   locateRelationshipFields,
@@ -20,6 +17,10 @@ import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typea
 import { initComponents } from "./components/registry";
 import { clearFieldError, renderFieldError } from "./errors";
 import { emitRelationshipUpdate } from "./relationship-events";
+import {
+  normalizeRelationshipCurrentOptions,
+  relationshipCurrentValuesNeedingResolution,
+} from "./relationship-current";
 
 /**
  * initRelationships bootstraps the runtime resolver registry. The initial phase
@@ -161,7 +162,7 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
     return;
   }
   if (element instanceof HTMLSelectElement) {
-    const options = normalizeCurrentOptions(field.current, element.multiple);
+    const options = normalizeRelationshipCurrentOptions(field.current, element.multiple);
     const changed = applySelectValues(element, options);
     if (changed) {
       syncRelationshipMirrors(element, field.submitAs);
@@ -170,7 +171,7 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
     return;
   }
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    const options = normalizeCurrentOptions(field.current, false);
+    const options = normalizeRelationshipCurrentOptions(field.current, false);
     if (options.length > 0) {
       element.value = options[0]?.value ?? "";
       element.dataset.relationshipCurrentApplied = "true";
@@ -178,34 +179,11 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
   }
 }
 
-function normalizeCurrentOptions(
-  current: RelationshipCurrent | undefined,
-  allowMultiple: boolean
-): CurrentOption[] {
-  if (current == null) {
-    return [];
-  }
-  if (Array.isArray(current)) {
-    const options = current
-      .map(currentItemToOption)
-      .filter((option): option is CurrentOption => option != null);
-    return allowMultiple ? options : options.slice(0, 1);
-  }
-  const option = currentItemToOption(current);
-  return option ? [option] : [];
-}
-
-function currentItemToOption(item: RelationshipCurrentItem): CurrentOption | null {
-  if (typeof item === "string") {
-    return item ? { value: item, label: item } : null;
-  }
-  const value = String(item.value ?? "");
-  const label = String(item.label ?? value);
-  return value ? { value, label: label || value } : null;
-}
-
-function applySelectValues(select: HTMLSelectElement, options: CurrentOption[]): boolean {
-  const optionByValue = new Map<string, CurrentOption>();
+function applySelectValues(
+  select: HTMLSelectElement,
+  options: Array<{ value: string; label: string }>
+): boolean {
+  const optionByValue = new Map<string, { value: string; label: string }>();
   for (const option of options) {
     if (!option.value || optionByValue.has(option.value)) {
       continue;
@@ -277,11 +255,7 @@ function shouldAutoResolve(field: FieldConfig): boolean {
 }
 
 function currentNeedsResolution(current: FieldConfig["current"]): boolean {
-  if (current == null) {
-    return false;
-  }
-  const items = Array.isArray(current) ? current : [current];
-  return items.some((item) => typeof item === "string" && item.trim() !== "");
+  return relationshipCurrentValuesNeedingResolution(current).length > 0;
 }
 
 export interface HydrationPayload {

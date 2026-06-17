@@ -19,6 +19,8 @@ type EndpointConfig struct {
 	LabelField    string
 	ValueField    string
 	ResultsPath   string
+	Mode          string
+	SearchParam   string
 	HydrateParam  string
 	Params        map[string]string
 	DynamicParams map[string]string
@@ -241,6 +243,8 @@ func flattenEndpointConfig(cfg EndpointConfig) map[string]string {
 	add("relationship.endpoint.labelField", strings.TrimSpace(cfg.LabelField))
 	add("relationship.endpoint.valueField", strings.TrimSpace(cfg.ValueField))
 	add("relationship.endpoint.resultsPath", strings.TrimSpace(cfg.ResultsPath))
+	add("relationship.endpoint.mode", strings.TrimSpace(cfg.Mode))
+	add("relationship.endpoint.searchParam", strings.TrimSpace(cfg.SearchParam))
 	add("relationship.endpoint.hydrateParam", strings.TrimSpace(cfg.HydrateParam))
 	add("relationship.endpoint.submitAs", strings.TrimSpace(cfg.SubmitAs))
 

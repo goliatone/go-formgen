@@ -21,6 +21,7 @@ import {
   type Renderer,
   type CustomResolver,
 } from "./resolver";
+import { relationshipCurrentValues } from "./relationship-current";
 
 const DEFAULT_RENDERER_KEY = "default";
 
@@ -81,13 +82,7 @@ function computeTargetSelection(field: FieldConfig, previous: Set<string>): Set<
   if (field.current == null) {
     return previous;
   }
-  const selection = new Set<string>();
-  if (Array.isArray(field.current)) {
-    field.current.forEach((value) => selection.add(String(value)));
-  } else {
-    selection.add(String(field.current));
-  }
-  return selection;
+  return new Set(relationshipCurrentValues(field.current));
 }
 
 function mutateDataState(element: HTMLElement, state: string): void {
