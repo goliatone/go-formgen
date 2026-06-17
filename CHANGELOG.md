@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.23.0](https://github.com/goliatone/go-formgen/compare/v0.22.1...v0.23.0) - (2026-06-17)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.23.0 ([b976a6f](https://github.com/goliatone/go-formgen/commit/b976a6f2792c3812b15596a99ea78b3b91edfdf1))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- AnyOf and readOnly keywords ([22541d3](https://github.com/goliatone/go-formgen/commit/22541d3d32f004b9861f8e99bb318db5de1d3ae9))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.22.1 ([ef65a9b](https://github.com/goliatone/go-formgen/commit/ef65a9b9deefe6be5aea30f15e26fa2686b53755))  - (goliatone)
+
 # [0.22.1](https://github.com/goliatone/go-formgen/compare/v0.22.0...v0.22.1) - (2026-06-16)
 
 ## <!-- 1 -->🐛 Bug Fixes
