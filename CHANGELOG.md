@@ -1,5 +1,22 @@
 # Changelog
 
+# [0.24.2](https://github.com/goliatone/go-formgen/compare/v0.24.1...v0.24.2) - (2026-06-17)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.24.2 ([f9af4bc](https://github.com/goliatone/go-formgen/commit/f9af4bcba883439ed436aa69afd14f47e92596c2))  - (goliatone)
+- Bump version: v0.24.1 ([364d289](https://github.com/goliatone/go-formgen/commit/364d289a4e984ba5ede3b07a399ef9e1c02f66b1))  - (goliatone)
+
+# [0.24.1](https://github.com/goliatone/go-formgen/compare/v0.24.0...v0.24.1) - (2026-06-17)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Relationships assets ([2de1ca4](https://github.com/goliatone/go-formgen/commit/2de1ca44997bd83e781db2c0a52daa938603393f))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.24.0 ([b834a7c](https://github.com/goliatone/go-formgen/commit/b834a7cf6ecf3c80e3294c4189f95ada3858e75f))  - (goliatone)
+
 # [0.24.0](https://github.com/goliatone/go-formgen/compare/v0.23.1...v0.24.0) - (2026-06-17)
 
 ## <!-- 1 -->🐛 Bug Fixes
