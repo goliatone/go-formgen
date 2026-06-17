@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.24.0](https://github.com/goliatone/go-formgen/compare/v0.23.1...v0.24.0) - (2026-06-17)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Relationship value loader ([ab3822c](https://github.com/goliatone/go-formgen/commit/ab3822c4496fc7fb26c6d3364f2261487c4aa995))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.24.0 ([6f4b2f4](https://github.com/goliatone/go-formgen/commit/6f4b2f48921b7e90214a3666f0332b7174c13d69))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.23.1 ([8db937d](https://github.com/goliatone/go-formgen/commit/8db937d2dd2c2394355c1a9afe438555f7bce2b2))  - (goliatone)
+
 # [0.23.1](https://github.com/goliatone/go-formgen/compare/v0.23.0...v0.23.1) - (2026-06-17)
 
 ## <!-- 1 -->🐛 Bug Fixes
