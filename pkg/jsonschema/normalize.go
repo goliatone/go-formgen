@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"sort"
@@ -460,7 +461,7 @@ func applyAnyOf(out *schema.Schema, payload map[string]any, path string, ctx nor
 	for idx, entry := range list {
 		childPath := joinPath(path, "anyOf", fmt.Sprintf("%d", idx))
 		branchPaths = append(branchPaths, childPath)
-		if nullSchema, ok, err := explicitNullSchema(entry, childPath); ok || err != nil {
+		if nullSchema, isNullSchema, err := explicitNullSchema(entry, childPath); isNullSchema || err != nil {
 			if err != nil {
 				return err
 			}
@@ -656,9 +657,7 @@ func mergeExtensions(left, right map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(left)+len(right))
-	for key, value := range left {
-		out[key] = value
-	}
+	maps.Copy(out, left)
 	for key, value := range right {
 		if _, exists := out[key]; !exists {
 			out[key] = value
