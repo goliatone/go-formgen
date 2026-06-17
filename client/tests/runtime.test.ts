@@ -805,6 +805,135 @@ describe("runtime resolver", () => {
     expect(input?.value).toBe("manager-1");
   });
 
+  it("prefills typeahead controls with seeded current labels", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager_id"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-endpoint-hydrate-param="ids"
+          data-relationship-cardinality="one"
+          data-relationship-current='{"value":"manager-1","label":"Ada Lovelace"}'
+        >
+          <option value="">Select manager</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("manager_id") as HTMLSelectElement;
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const input = select.previousElementSibling?.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(input?.value).toBe("Ada Lovelace");
+    expect(select.selectedOptions[0]?.value).toBe("manager-1");
+    expect(select.selectedOptions[0]?.textContent).toBe("Ada Lovelace");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("prefills chips controls with seeded current labels", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="tags"
+          name="article[tags][]"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-renderer="chips"
+          data-relationship-cardinality="many"
+          data-relationship-current='[{"value":"design","label":"Design Systems"},{"value":"ai","label":"AI Research"}]'
+          data-endpoint-refresh="manual"
+        >
+          <option value="">Select tags</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("tags") as HTMLSelectElement;
+    fetchSpy.mockResolvedValue(mockResponse([]));
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const chipLabels = Array.from(
+      select.previousElementSibling?.querySelectorAll<HTMLElement>("[data-fg-chip-value]") ?? []
+    ).map((chip) => chip.querySelector("span")?.textContent);
+    expect(chipLabels).toEqual(["Design Systems", "AI Research"]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("hydrates search current values with an explicit hydrate param", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager_id"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-endpoint-hydrate-param="ids"
+          data-relationship-cardinality="one"
+          data-relationship-current="manager-1"
+        >
+          <option value="">Select manager</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("manager_id") as HTMLSelectElement;
+    let requestedUrl = "";
+    fetchSpy.mockImplementation(async (url) => {
+      requestedUrl = String(url);
+      return mockResponse([{ value: "manager-1", label: "Ada Lovelace" }]);
+    });
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestedUrl).toContain("ids=manager-1");
+    expect(requestedUrl).not.toContain("q=manager-1");
+
+    const input = select.previousElementSibling?.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(input?.value).toBe("Ada Lovelace");
+  });
+
+  it("does not auto-hydrate current values when refresh mode is manual", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager_id"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-endpoint-hydrate-param="ids"
+          data-relationship-cardinality="one"
+          data-relationship-current="manager-1"
+          data-endpoint-refresh="manual"
+        >
+          <option value="">Select manager</option>
+        </select>
+      </form>
+    `;
+
+    await initRelationships();
+    await flush();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("preserves typed queries while relationship options resolve", async () => {
     document.body.innerHTML = `
       <form data-formgen-auto-init="true">

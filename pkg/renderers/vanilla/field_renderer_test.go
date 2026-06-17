@@ -219,6 +219,40 @@ func TestBuildDataAttributesIncludesBehaviors(t *testing.T) {
 	}
 }
 
+func TestRelationshipCurrentPayloadPreservesSeededLabel(t *testing.T) {
+	payload := relationshipCurrentPayload(map[string]any{
+		"value": "topic-1",
+		"label": "Teaching Topic",
+	})
+
+	if payload != `{"value":"topic-1","label":"Teaching Topic"}` {
+		t.Fatalf("relationshipCurrentPayload() = %q", payload)
+	}
+}
+
+func TestRelationshipCurrentPayloadPreservesSeededLabelArrays(t *testing.T) {
+	payload := relationshipCurrentPayload([]any{
+		map[string]any{"id": "design", "name": "Design Systems"},
+		map[string]any{"value": "ai", "label": "AI Research"},
+		"legacy",
+	})
+
+	want := `[{"value":"design","label":"Design Systems"},{"value":"ai","label":"AI Research"},"legacy"]`
+	if payload != want {
+		t.Fatalf("relationshipCurrentPayload() = %q, want %q", payload, want)
+	}
+}
+
+func TestRelationshipCurrentPayloadKeepsValueOnlyFallback(t *testing.T) {
+	payload := relationshipCurrentPayload(map[string]any{
+		"id": "topic-1",
+	})
+
+	if payload != "topic-1" {
+		t.Fatalf("relationshipCurrentPayload() = %q", payload)
+	}
+}
+
 func (s *stubChromeTemplateRenderer) RegisterFilter(name string, fn func(any, any) (any, error)) error {
 	return nil
 }

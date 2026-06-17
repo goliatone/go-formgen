@@ -1,7 +1,10 @@
 import type {
+  CurrentOption,
   EndpointConfig,
   FieldConfig,
   FieldValidationRule,
+  RelationshipCurrent,
+  RelationshipCurrentItem,
   RelationshipCardinality,
   RelationshipKind,
 } from "./config";
@@ -28,6 +31,9 @@ export function datasetToEndpoint(dataset: Record<string, string>): EndpointConf
   }
   if (dataset.endpointSearchParam) {
     endpoint.searchParam = dataset.endpointSearchParam;
+  }
+  if (dataset.endpointHydrateParam) {
+    endpoint.hydrateParam = dataset.endpointHydrateParam;
   }
   if (dataset.endpointSubmitAs) {
     endpoint.submitAs = dataset.endpointSubmitAs;
@@ -164,7 +170,7 @@ export function datasetToFieldConfig(
   return field;
 }
 
-function parseCurrent(value: string): string | string[] | null {
+function parseCurrent(value: string): RelationshipCurrent {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
@@ -172,18 +178,66 @@ function parseCurrent(value: string): string | string[] | null {
   try {
     const parsed = JSON.parse(trimmed);
     if (Array.isArray(parsed)) {
-      return parsed.map((item) => String(item));
+      return parsed
+        .map(parseCurrentItem)
+        .filter((item): item is RelationshipCurrentItem => item != null);
     }
     if (parsed == null) {
       return null;
     }
-    return String(parsed);
+    return parseCurrentItem(parsed);
   } catch (_err) {
     if (trimmed.includes(",")) {
       return trimmed.split(",").map((item) => item.trim()).filter(Boolean);
     }
     return trimmed;
   }
+}
+
+function parseCurrentItem(value: unknown): RelationshipCurrentItem | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const option = parseCurrentOption(record);
+    if (option) {
+      return option;
+    }
+    const rawValue = firstPresent(record, ["value", "id", "slug"]);
+    if (rawValue != null) {
+      return String(rawValue);
+    }
+    return null;
+  }
+  return String(value);
+}
+
+function parseCurrentOption(value: Record<string, unknown>): CurrentOption | null {
+  const rawValue = firstPresent(value, ["value", "id", "slug"]);
+  if (rawValue == null) {
+    return null;
+  }
+  const rawLabel = firstPresent(value, ["label", "name", "title"]);
+  if (rawLabel == null) {
+    return null;
+  }
+  const optionValue = String(rawValue);
+  const optionLabel = String(rawLabel);
+  if (!optionValue || !optionLabel) {
+    return null;
+  }
+  return { value: optionValue, label: optionLabel };
+}
+
+function firstPresent(record: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    const value = record[key];
+    if (value != null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 function extractGroup(

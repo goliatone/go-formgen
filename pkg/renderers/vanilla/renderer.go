@@ -974,27 +974,69 @@ func relationshipCurrentPayload(value any) string {
 	case []string:
 		return marshalStringSlice(typed)
 	case []any:
-		coll := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if str, ok := stringifyScalar(item); ok && str != "" {
-				coll = append(coll, str)
-				continue
-			}
-			if str := extractRelationshipValue(item); str != "" {
-				coll = append(coll, str)
-			}
-		}
-		return marshalStringSlice(coll)
+		return relationshipCurrentSlicePayload(typed)
 	case map[string]any:
+		if option, ok := extractRelationshipOption(typed); ok {
+			return marshalRelationshipCurrentOption(option)
+		}
 		return extractRelationshipValue(typed)
 	case map[string]string:
+		if option, ok := extractRelationshipOption(typed); ok {
+			return marshalRelationshipCurrentOption(option)
+		}
 		return extractRelationshipValue(typed)
 	default:
+		if values, ok := toAnySlice(value); ok {
+			return relationshipCurrentSlicePayload(values)
+		}
 		if str, ok := stringifyScalar(value); ok {
 			return str
 		}
 	}
 	return ""
+}
+
+func relationshipCurrentSlicePayload(values []any) string {
+	items := make([]any, 0, len(values))
+	for _, item := range values {
+		if option, ok := extractRelationshipOption(item); ok {
+			items = append(items, option)
+			continue
+		}
+		if str, ok := stringifyScalar(item); ok && str != "" {
+			items = append(items, str)
+			continue
+		}
+		if str := extractRelationshipValue(item); str != "" {
+			items = append(items, str)
+		}
+	}
+	return marshalRelationshipCurrentItems(items)
+}
+
+type relationshipCurrentOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+func extractRelationshipOption(value any) (relationshipCurrentOption, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		rawValue := firstRelationshipScalar(typed, []string{"value", "id", "slug"})
+		rawLabel := firstRelationshipScalar(typed, []string{"label", "name", "title"})
+		if rawValue == "" || rawLabel == "" {
+			return relationshipCurrentOption{}, false
+		}
+		return relationshipCurrentOption{Value: rawValue, Label: rawLabel}, true
+	case map[string]string:
+		rawValue := firstRelationshipString(typed, []string{"value", "id", "slug"})
+		rawLabel := firstRelationshipString(typed, []string{"label", "name", "title"})
+		if rawValue == "" || rawLabel == "" {
+			return relationshipCurrentOption{}, false
+		}
+		return relationshipCurrentOption{Value: rawValue, Label: rawLabel}, true
+	}
+	return relationshipCurrentOption{}, false
 }
 
 func extractRelationshipValue(value any) string {
@@ -1015,6 +1057,47 @@ func extractRelationshipValue(value any) string {
 		}
 	}
 	return ""
+}
+
+func firstRelationshipScalar(value map[string]any, keys []string) string {
+	for _, key := range keys {
+		raw, ok := value[key]
+		if !ok {
+			continue
+		}
+		if str, ok := stringifyScalar(raw); ok && str != "" {
+			return str
+		}
+	}
+	return ""
+}
+
+func firstRelationshipString(value map[string]string, keys []string) string {
+	for _, key := range keys {
+		if raw := strings.TrimSpace(value[key]); raw != "" {
+			return raw
+		}
+	}
+	return ""
+}
+
+func marshalRelationshipCurrentOption(option relationshipCurrentOption) string {
+	payload, err := json.Marshal(option)
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+func marshalRelationshipCurrentItems(values []any) string {
+	if len(values) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(values)
+	if err != nil {
+		return ""
+	}
+	return string(payload)
 }
 
 func marshalStringSlice(values []string) string {

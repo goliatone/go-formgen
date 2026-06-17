@@ -1,8 +1,11 @@
 import "./version";
 import { ResolverRegistry } from "./registry";
 import type {
+  CurrentOption,
   GlobalConfig,
   FieldConfig,
+  RelationshipCurrent,
+  RelationshipCurrentItem,
 } from "./config";
 import {
   locateRelationshipFields,
@@ -158,8 +161,8 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
     return;
   }
   if (element instanceof HTMLSelectElement) {
-    const values = normalizeCurrentValues(field.current, element.multiple);
-    const changed = applySelectValues(element, values);
+    const options = normalizeCurrentOptions(field.current, element.multiple);
+    const changed = applySelectValues(element, options);
     if (changed) {
       syncRelationshipMirrors(element, field.submitAs);
       element.dataset.relationshipCurrentApplied = "true";
@@ -167,31 +170,52 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
     return;
   }
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    const values = normalizeCurrentValues(field.current, false);
-    if (values.length > 0) {
-      element.value = values[0] ?? "";
+    const options = normalizeCurrentOptions(field.current, false);
+    if (options.length > 0) {
+      element.value = options[0]?.value ?? "";
       element.dataset.relationshipCurrentApplied = "true";
     }
   }
 }
 
-function normalizeCurrentValues(
-  current: string | string[] | null,
+function normalizeCurrentOptions(
+  current: RelationshipCurrent | undefined,
   allowMultiple: boolean
-): string[] {
+): CurrentOption[] {
   if (current == null) {
     return [];
   }
   if (Array.isArray(current)) {
-    return allowMultiple ? current.filter(Boolean).map(String) : [String(current[0] ?? "")].filter(Boolean);
+    const options = current
+      .map(currentItemToOption)
+      .filter((option): option is CurrentOption => option != null);
+    return allowMultiple ? options : options.slice(0, 1);
   }
-  const value = String(current);
-  return value ? [value] : [];
+  const option = currentItemToOption(current);
+  return option ? [option] : [];
 }
 
-function applySelectValues(select: HTMLSelectElement, values: string[]): boolean {
-  const unique = select.multiple ? Array.from(new Set(values)) : values.slice(0, 1);
-  const targetValues = new Set(unique.filter(Boolean));
+function currentItemToOption(item: RelationshipCurrentItem): CurrentOption | null {
+  if (typeof item === "string") {
+    return item ? { value: item, label: item } : null;
+  }
+  const value = String(item.value ?? "");
+  const label = String(item.label ?? value);
+  return value ? { value, label: label || value } : null;
+}
+
+function applySelectValues(select: HTMLSelectElement, options: CurrentOption[]): boolean {
+  const optionByValue = new Map<string, CurrentOption>();
+  for (const option of options) {
+    if (!option.value || optionByValue.has(option.value)) {
+      continue;
+    }
+    optionByValue.set(option.value, option);
+    if (!select.multiple) {
+      break;
+    }
+  }
+  const targetValues = new Set(optionByValue.keys());
   let changed = false;
 
   Array.from(select.options).forEach((option) => {
@@ -201,6 +225,11 @@ function applySelectValues(select: HTMLSelectElement, values: string[]): boolean
       changed = true;
     }
     if (shouldSelect) {
+      const seed = optionByValue.get(option.value);
+      if (seed && option.textContent !== seed.label) {
+        option.textContent = seed.label;
+        changed = true;
+      }
       targetValues.delete(option.value);
     }
   });
@@ -211,13 +240,13 @@ function applySelectValues(select: HTMLSelectElement, values: string[]): boolean
     }
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value;
+    option.textContent = optionByValue.get(value)?.label ?? value;
     option.selected = true;
     select.appendChild(option);
     changed = true;
   });
 
-  if (!select.multiple && unique.length === 0) {
+  if (!select.multiple && optionByValue.size === 0) {
     if (select.value !== "") {
       select.value = "";
       changed = true;
@@ -242,19 +271,17 @@ function shouldAutoResolve(field: FieldConfig): boolean {
     return false;
   }
   if (field.mode === "search") {
-    return hasCurrentValue(field.current);
+    return currentNeedsResolution(field.current);
   }
   return true;
 }
 
-function hasCurrentValue(current: FieldConfig["current"]): boolean {
+function currentNeedsResolution(current: FieldConfig["current"]): boolean {
   if (current == null) {
     return false;
   }
-  if (Array.isArray(current)) {
-    return current.some((value) => String(value).trim() !== "");
-  }
-  return String(current).trim() !== "";
+  const items = Array.isArray(current) ? current : [current];
+  return items.some((item) => typeof item === "string" && item.trim() !== "");
 }
 
 export interface HydrationPayload {
@@ -730,7 +757,10 @@ function applyHydratedValue(
       : normalized != null
         ? [normalized]
         : [];
-    const changed = applySelectValues(element, values);
+    const changed = applySelectValues(
+      element,
+      values.map((value) => ({ value, label: value }))
+    );
     const submitMode =
       element.getAttribute("data-relationship-submit-mode") === "json" ||
       element.dataset.endpointSubmitAs === "json"

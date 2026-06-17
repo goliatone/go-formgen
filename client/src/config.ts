@@ -20,6 +20,14 @@ export interface Option {
   raw?: unknown;
 }
 
+export interface CurrentOption {
+  value: string;
+  label: string;
+}
+
+export type RelationshipCurrentItem = string | CurrentOption;
+export type RelationshipCurrent = RelationshipCurrentItem | RelationshipCurrentItem[] | null;
+
 /**
  * EndpointMapping remaps value/label paths from API responses.
  */
@@ -58,6 +66,7 @@ export interface EndpointConfig {
   auth?: EndpointAuth;
   mode?: string;
   searchParam?: string;
+  hydrateParam?: string;
   submitAs?: string;
 }
 
@@ -97,7 +106,7 @@ export interface FieldConfig {
   label?: string;
   relationship?: RelationshipKind;
   cardinality?: RelationshipCardinality;
-  current?: string | string[] | null;
+  current?: RelationshipCurrent;
   refreshOn?: string[];
   refreshMode?: "auto" | "manual";
   mode?: "default" | "search";

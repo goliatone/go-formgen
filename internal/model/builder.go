@@ -1101,6 +1101,7 @@ func endpointMetadataFromExtensions(ext map[string]any) map[string]string {
 	add("relationship.endpoint.resultsPath", strings.TrimSpace(toString(endpointMap["resultsPath"])))
 	add("relationship.endpoint.mode", strings.TrimSpace(toString(endpointMap["mode"])))
 	add("relationship.endpoint.searchParam", strings.TrimSpace(toString(endpointMap["searchParam"])))
+	add("relationship.endpoint.hydrateParam", strings.TrimSpace(toString(endpointMap["hydrateParam"])))
 	add("relationship.endpoint.submitAs", strings.TrimSpace(toString(endpointMap["submitAs"])))
 
 	addEndpointParams(meta, endpointMap)

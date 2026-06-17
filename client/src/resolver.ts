@@ -1,6 +1,7 @@
 import {
   type EndpointConfig,
   type FieldConfig,
+  type RelationshipCurrentItem,
   type Option,
   type RendererContext,
   type ResolverContext,
@@ -72,6 +73,14 @@ function formatDynamicValue(value: string | string[] | null): string | undefined
     return value.join(",");
   }
   return value === "" ? undefined : value;
+}
+
+function currentItemValue(item: RelationshipCurrentItem): string {
+  return typeof item === "string" ? item.trim() : String(item.value ?? "").trim();
+}
+
+function hasSeededCurrentLabel(item: RelationshipCurrentItem): boolean {
+  return typeof item !== "string" && String(item.label ?? "").trim() !== "";
 }
 
 function isAbortError(error: unknown): boolean {
@@ -321,7 +330,7 @@ export class Resolver {
     return created as Option;
   }
 
-  setCurrentValue(value: string | string[] | null): void {
+  setCurrentValue(value: FieldConfig["current"]): void {
     this.field.current = value ?? null;
   }
 
@@ -551,7 +560,13 @@ export class Resolver {
 
     if (this.field.mode === "search") {
       const searchValue = this.getSearchValue();
-      if (this.field.searchParam) {
+      const hydrateValue = searchValue === undefined ? this.getHydrateCurrentValue() : undefined;
+      if (hydrateValue && this.endpoint.hydrateParam) {
+        params.set(this.endpoint.hydrateParam, hydrateValue);
+        if (this.field.searchParam) {
+          params.delete(this.field.searchParam);
+        }
+      } else if (this.field.searchParam) {
         if (searchValue && searchValue.length > 0) {
           params.set(this.field.searchParam, searchValue);
         } else {
@@ -707,6 +722,22 @@ export class Resolver {
     }
     const datasetValue = (this.element.dataset as Record<string, string | undefined>).endpointSearchValue;
     return datasetValue ?? undefined;
+  }
+
+  private getHydrateCurrentValue(): string | undefined {
+    const current = this.field.current;
+    if (current == null) {
+      return undefined;
+    }
+    const items = Array.isArray(current) ? current : [current];
+    const values = items
+      .filter((item) => !hasSeededCurrentLabel(item))
+      .map(currentItemValue)
+      .filter((value) => value.length > 0);
+    if (values.length === 0) {
+      return undefined;
+    }
+    return Array.from(new Set(values)).join(",");
   }
 
   private getFieldReferenceValue(reference: string): string | undefined {
