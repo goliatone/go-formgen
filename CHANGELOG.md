@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.23.1](https://github.com/goliatone/go-formgen/compare/v0.23.0...v0.23.1) - (2026-06-17)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Null handle shcmea ([ca9d0db](https://github.com/goliatone/go-formgen/commit/ca9d0db64c5b947a1df4e88f6378977d481f2ad2))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.23.1 ([b7257f8](https://github.com/goliatone/go-formgen/commit/b7257f8dd0d9783d0445e1ead22e36b1f0e67ba2))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.23.0 ([e736a48](https://github.com/goliatone/go-formgen/commit/e736a48c34f5b8c5fb0d9bbdb0cc34f0822040df))  - (goliatone)
+
 # [0.23.0](https://github.com/goliatone/go-formgen/compare/v0.22.1...v0.23.0) - (2026-06-17)
 
 ## <!-- 13 -->📦 Bumps
