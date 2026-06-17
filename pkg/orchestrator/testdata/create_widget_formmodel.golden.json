@@ -109,6 +109,7 @@
       "name": "tags",
       "type": "array",
       "required": false,
+      "readonly": true,
       "label": "Tags",
       "placeholder": "Add tag",
       "items": {

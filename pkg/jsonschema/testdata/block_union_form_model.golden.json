@@ -24,6 +24,7 @@
                 "name": "_type",
                 "type": "string",
                 "required": true,
+                "readonly": true,
                 "label": "Type",
                 "metadata": {
                   "readonly": "true"
@@ -64,6 +65,7 @@
                 "name": "_type",
                 "type": "string",
                 "required": true,
+                "readonly": true,
                 "label": "Type",
                 "metadata": {
                   "readonly": "true"

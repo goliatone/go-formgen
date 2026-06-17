@@ -99,6 +99,7 @@ func (b *Builder) fieldsFromSchema(name string, schema schema.Schema, required b
 		field.Relationship = relationshipFromExtensions(schema.Extensions)
 		field.UIHints = mergeUIHints(field.UIHints, refHints)
 		applyRelationshipHints(&field)
+		applyReadonlyAnnotation(&field, schema)
 		field.applyUIHintAttributes()
 		field.normalizeMetadata()
 		field.normalizeUIHints()
@@ -176,6 +177,7 @@ func (b *Builder) fieldsFromObject(name string, schema schema.Schema, required b
 		parent.Relationship = relationshipFromExtensions(schema.Extensions)
 		parent.UIHints = mergeUIHints(parent.UIHints, parentHints)
 		applyRelationshipHints(&parent)
+		applyReadonlyAnnotation(&parent, schema)
 		parent.applyUIHintAttributes()
 		decorateTypeaheadMetadata(&parent)
 		parent.normalizeMetadata()
@@ -222,6 +224,7 @@ func (b *Builder) fieldFromArray(name string, schema schema.Schema, required boo
 	field.UIHints = mergeUIHints(field.UIHints, arrayHints)
 	applyRelationshipHints(&field)
 	propagateRelationshipToItems(&field)
+	applyReadonlyAnnotation(&field, schema)
 	field.applyUIHintAttributes()
 	decorateTypeaheadMetadata(&field)
 	field.normalizeMetadata()
@@ -266,6 +269,7 @@ func (b *Builder) fieldFromUnion(name string, schema schema.Schema, required boo
 	mergeMetadata(field.ensureMetadata(), unionMeta)
 	field.Relationship = relationshipFromExtensions(schema.Extensions)
 	field.UIHints = mergeUIHints(field.UIHints, unionHints)
+	applyReadonlyAnnotation(&field, schema)
 	field.applyUIHintAttributes()
 	decorateTypeaheadMetadata(&field)
 	field.normalizeMetadata()
@@ -297,6 +301,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema schema.Schema, required
 	field.UIHints = mergeUIHints(field.UIHints, primitiveHints)
 	applyFormatHints(&field)
 	applyRelationshipHints(&field)
+	applyReadonlyAnnotation(&field, schema)
 	field.applyUIHintAttributes()
 	decorateTypeaheadMetadata(&field)
 	field.normalizeMetadata()
@@ -416,6 +421,19 @@ func applyValidations(field *Field, input schema.Schema) {
 	if len(field.Validations) == 0 {
 		field.Validations = nil
 	}
+}
+
+func applyReadonlyAnnotation(field *Field, input schema.Schema) {
+	if field == nil || !input.ReadOnly {
+		return
+	}
+	field.Readonly = true
+	metadata := field.ensureMetadata()
+	metadata["readonly"] = "true"
+	if field.UIHints == nil {
+		field.UIHints = make(map[string]string, 1)
+	}
+	field.UIHints["readonly"] = "true"
 }
 
 func formatFloat(value float64) string {
@@ -1035,6 +1053,18 @@ func (f *Field) applyUIHintAttributes() {
 			f.Metadata = make(map[string]string)
 		}
 		f.Metadata["helpText"] = help
+	}
+	if readonly, ok := f.UIHints["readonly"]; ok && isTruthyString(readonly) {
+		f.Readonly = true
+	}
+}
+
+func isTruthyString(value string) bool {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
 	}
 }
 

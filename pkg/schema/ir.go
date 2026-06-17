@@ -39,6 +39,7 @@ type Schema struct {
 	Title            string
 	Description      string
 	Default          any
+	ReadOnly         bool
 	Enum             []any
 	Const            any
 	Required         []string

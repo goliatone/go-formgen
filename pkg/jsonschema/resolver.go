@@ -566,7 +566,8 @@ func mergeRefTarget(target any, refObj map[string]any) (any, error) {
 }
 
 func isAllowedRefSibling(key string) bool {
-	if key == "title" || key == "description" || key == "default" {
+	switch key {
+	case "title", "description", "default", "readOnly", "read_only":
 		return true
 	}
 	return isVendorExtension(key)

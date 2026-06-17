@@ -21,11 +21,14 @@ var supportedSchemaKeys = map[string]struct{}{
 	"required":         {},
 	"items":            {},
 	"oneOf":            {},
+	"anyOf":            {},
 	"enum":             {},
 	"const":            {},
 	"title":            {},
 	"description":      {},
 	"default":          {},
+	"readOnly":         {},
+	"read_only":        {},
 	"minimum":          {},
 	"maximum":          {},
 	"exclusiveMinimum": {},
@@ -82,12 +85,17 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 	if err != nil {
 		return schema.Schema{}, err
 	}
+	readOnly, err := readOnlyAnnotation(payload, path)
+	if err != nil {
+		return schema.Schema{}, err
+	}
 
 	out := schema.Schema{
 		Type:        schemaType,
 		Title:       strings.TrimSpace(readString(payload, "title")),
 		Description: strings.TrimSpace(readString(payload, "description")),
 		Default:     payload["default"],
+		ReadOnly:    readOnly,
 		Const:       payload["const"],
 		Format:      strings.TrimSpace(readString(payload, "format")),
 		Extensions:  extensions,
@@ -109,6 +117,9 @@ func schemaFromJSONSchemaWithContext(node any, path string, ctx normalizeContext
 		return schema.Schema{}, err
 	}
 	if err := applyOneOf(&out, payload, path, ctx); err != nil {
+		return schema.Schema{}, err
+	}
+	if err := applyAnyOf(&out, payload, path, ctx); err != nil {
 		return schema.Schema{}, err
 	}
 
@@ -431,6 +442,62 @@ func applyOneOf(out *schema.Schema, payload map[string]any, path string, ctx nor
 	return nil
 }
 
+func applyAnyOf(out *schema.Schema, payload map[string]any, path string, ctx normalizeContext) error {
+	anyOfRaw, ok := payload["anyOf"]
+	if !ok {
+		return nil
+	}
+	list, ok := anyOfRaw.([]any)
+	if !ok {
+		return fmt.Errorf("jsonschema: anyOf must be an array at %s", path)
+	}
+	if len(list) == 0 {
+		return fmt.Errorf("jsonschema: anyOf must include at least one schema at %s", path)
+	}
+
+	branches := make([]schema.Schema, 0, len(list))
+	branchPaths := make([]string, 0, len(list))
+	for idx, entry := range list {
+		childPath := joinPath(path, "anyOf", fmt.Sprintf("%d", idx))
+		branchPaths = append(branchPaths, childPath)
+		if nullSchema, ok, err := explicitNullSchema(entry, childPath); ok || err != nil {
+			if err != nil {
+				return err
+			}
+			branches = append(branches, nullSchema)
+			continue
+		}
+		converted, err := schemaFromJSONSchemaWithContext(entry, childPath, ctx.forChild())
+		if err != nil {
+			return err
+		}
+		branches = append(branches, converted)
+	}
+
+	if allDiscriminatorBranches(branches) {
+		if !ctx.allowOneOf {
+			return fmt.Errorf("jsonschema: anyOf discriminator unions are only supported for array items at %s", path)
+		}
+		for idx := range branches {
+			if err := applyDiscriminatorRules(&branches[idx], branchPaths[idx], true); err != nil {
+				return err
+			}
+		}
+		out.OneOf = branches
+		return nil
+	}
+
+	merged, ok, err := mergeCompatibleAnyOfBranches(out, branches, path)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("jsonschema: unsupported anyOf shape at %s", path)
+	}
+	*out = merged
+	return nil
+}
+
 func validateKeywords(payload map[string]any, path string) error {
 	keys := sortedKeys(payload)
 	for _, key := range keys {
@@ -462,6 +529,151 @@ func extractExtensions(payload map[string]any) map[string]any {
 		extensions[key] = payload[key]
 	}
 	return extensions
+}
+
+func readOnlyAnnotation(payload map[string]any, path string) (bool, error) {
+	value, hasReadOnly, err := readBoolKeyword(payload, "readOnly", path)
+	if err != nil {
+		return false, err
+	}
+	compat, hasCompat, err := readBoolKeyword(payload, "read_only", path)
+	if err != nil {
+		return false, err
+	}
+	if hasReadOnly && hasCompat && value != compat {
+		return false, fmt.Errorf("jsonschema: readOnly conflicts with read_only at %s", path)
+	}
+	if hasCompat {
+		return compat, nil
+	}
+	if hasReadOnly {
+		return value, nil
+	}
+	return false, nil
+}
+
+func readBoolKeyword(payload map[string]any, key, path string) (bool, bool, error) {
+	raw, ok := payload[key]
+	if !ok {
+		return false, false, nil
+	}
+	value, ok := raw.(bool)
+	if !ok {
+		return false, true, fmt.Errorf("jsonschema: %s must be a boolean at %s", key, path)
+	}
+	return value, true, nil
+}
+
+func explicitNullSchema(node any, path string) (schema.Schema, bool, error) {
+	payload, ok := node.(map[string]any)
+	if !ok || payload == nil {
+		return schema.Schema{}, false, nil
+	}
+	if err := validateKeywords(payload, path); err != nil {
+		return schema.Schema{}, false, err
+	}
+	raw, ok := payload["type"]
+	if !ok {
+		return schema.Schema{}, false, nil
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return schema.Schema{}, false, nil
+	}
+	if strings.TrimSpace(value) != "null" {
+		return schema.Schema{}, false, nil
+	}
+	readOnly, err := readOnlyAnnotation(payload, path)
+	if err != nil {
+		return schema.Schema{}, false, err
+	}
+	return schema.Schema{
+		Title:       strings.TrimSpace(readString(payload, "title")),
+		Description: strings.TrimSpace(readString(payload, "description")),
+		Default:     payload["default"],
+		ReadOnly:    readOnly,
+		Enum:        []any{nil},
+		Extensions:  extractExtensions(payload),
+	}, true, nil
+}
+
+func allDiscriminatorBranches(branches []schema.Schema) bool {
+	if len(branches) == 0 {
+		return false
+	}
+	for _, branch := range branches {
+		prop, ok := branch.Properties["_type"]
+		if !ok {
+			return false
+		}
+		if _, ok := discriminatorValue(prop); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeCompatibleAnyOfBranches(base *schema.Schema, branches []schema.Schema, path string) (schema.Schema, bool, error) {
+	var merged schema.Schema
+	seenConcrete := false
+	for _, branch := range branches {
+		if isNullSchema(branch) {
+			continue
+		}
+		if !seenConcrete {
+			merged = branch
+			seenConcrete = true
+			continue
+		}
+		return schema.Schema{}, false, nil
+	}
+	if !seenConcrete {
+		return schema.Schema{}, false, fmt.Errorf("jsonschema: anyOf must include a non-null schema at %s", path)
+	}
+	merged.Title = firstNonEmpty(base.Title, merged.Title)
+	merged.Description = firstNonEmpty(base.Description, merged.Description)
+	if base.Default != nil {
+		merged.Default = base.Default
+	}
+	if base.ReadOnly {
+		merged.ReadOnly = true
+	}
+	if base.Format != "" {
+		merged.Format = base.Format
+	}
+	if len(base.Extensions) > 0 {
+		merged.Extensions = mergeExtensions(merged.Extensions, base.Extensions)
+	}
+	return merged, true, nil
+}
+
+func isNullSchema(input schema.Schema) bool {
+	return input.Type == "" && input.Const == nil && len(input.Enum) == 1 && input.Enum[0] == nil
+}
+
+func mergeExtensions(left, right map[string]any) map[string]any {
+	if len(left) == 0 && len(right) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(left)+len(right))
+	for key, value := range left {
+		out[key] = value
+	}
+	for key, value := range right {
+		if _, exists := out[key]; !exists {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func parseType(payload map[string]any, path string) (string, bool, error) {
@@ -656,6 +868,7 @@ func applyDiscriminatorRules(target *schema.Schema, path string, required bool) 
 	if prop.Const == nil {
 		prop.Const = value
 	}
+	prop.ReadOnly = true
 	prop.Extensions = ensureReadonlyExtension(prop.Extensions)
 	target.Properties["_type"] = prop
 

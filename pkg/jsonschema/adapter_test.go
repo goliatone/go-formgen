@@ -81,13 +81,321 @@ func TestAdapterNormalize_UnsupportedKeyword(t *testing.T) {
 	adapter := NewAdapter(failingLoader{})
 	raw := []byte(`{
   "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "anyOf": []
+  "dependentRequired": {}
 }`)
 	doc := MustNewDocument(SourceFromFS("root.json"), raw)
 
 	_, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
 	if err == nil {
 		t.Fatalf("expected error for unsupported keyword")
+	}
+}
+
+func TestAdapterNormalize_ReadOnlyAnnotation(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.readonly",
+  "type":"object",
+  "properties":{
+    "title":{"type":"string","readOnly":true,"x-formgen":{"placeholder":"Title"}},
+    "slug":{"type":"string","read_only":true},
+    "public":{"type":"boolean","readOnly":false},
+    "audit":{
+      "type":"object",
+      "properties":{
+        "created_at":{"type":"string","readOnly":true}
+      }
+    },
+    "tags":{
+      "type":"array",
+      "items":{"type":"string","readOnly":true}
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("com.example.readonly.edit")
+	if !ok {
+		t.Fatalf("expected form com.example.readonly.edit")
+	}
+	if !form.Schema.Properties["title"].ReadOnly {
+		t.Fatalf("expected title schema to be readonly")
+	}
+	if !form.Schema.Properties["slug"].ReadOnly {
+		t.Fatalf("expected slug schema to be readonly")
+	}
+	if form.Schema.Properties["public"].ReadOnly {
+		t.Fatalf("public schema should not be readonly")
+	}
+	audit := form.Schema.Properties["audit"]
+	if !audit.Properties["created_at"].ReadOnly {
+		t.Fatalf("expected nested created_at schema to be readonly")
+	}
+	tags := form.Schema.Properties["tags"]
+	if tags.Items == nil || !tags.Items.ReadOnly {
+		t.Fatalf("expected array item schema to be readonly")
+	}
+	if got := form.Schema.Properties["title"].Extensions["x-formgen"].(map[string]any)["placeholder"]; got != "Title" {
+		t.Fatalf("vendor extension changed: %v", got)
+	}
+
+	model, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+	fields := fieldsByPath(model.Fields)
+	title := fields["title"]
+	if !title.Readonly {
+		t.Fatalf("expected title field readonly")
+	}
+	if title.Metadata["readonly"] != "true" {
+		t.Fatalf("expected title readonly metadata, got %#v", title.Metadata)
+	}
+	if title.UIHints["readonly"] != "true" {
+		t.Fatalf("expected title readonly UI hint, got %#v", title.UIHints)
+	}
+	if len(title.Validations) != 0 {
+		t.Fatalf("readOnly should not add validations: %+v", title.Validations)
+	}
+	if !fields["slug"].Readonly {
+		t.Fatalf("expected slug field readonly")
+	}
+	if fields["public"].Readonly {
+		t.Fatalf("public field should not be readonly")
+	}
+	if !fields["audit.created_at"].Readonly {
+		t.Fatalf("expected nested audit.created_at field readonly")
+	}
+	if !fields["tags.tagsItem"].Readonly {
+		t.Fatalf("expected array item field readonly")
+	}
+}
+
+func TestAdapterNormalize_ReadOnlyRejectsInvalidValues(t *testing.T) {
+	tests := map[string]string{
+		"non-boolean": `{"type":"string","readOnly":"true"}`,
+		"conflict":    `{"type":"string","readOnly":true,"read_only":false}`,
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			adapter := NewAdapter(failingLoader{})
+			raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.invalid_readonly",
+  "type":"object",
+  "properties":{"value":` + body + `}
+}`)
+			doc := MustNewDocument(SourceFromFS("root.json"), raw)
+			if _, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{}); err == nil {
+				t.Fatalf("expected invalid readOnly error")
+			}
+		})
+	}
+}
+
+func TestAdapterNormalize_ReadOnlyRefSiblings(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.ref_readonly",
+  "type":"object",
+  "properties":{
+    "title":{"$ref":"#/$defs/text","readOnly":true},
+    "slug":{"$ref":"#/$defs/text","read_only":true}
+  },
+  "$defs":{
+    "text":{"type":"string"}
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("com.example.ref_readonly.edit")
+	if !ok {
+		t.Fatalf("expected form com.example.ref_readonly.edit")
+	}
+	if !form.Schema.Properties["title"].ReadOnly {
+		t.Fatalf("expected readOnly $ref sibling to mark title readonly")
+	}
+	if !form.Schema.Properties["slug"].ReadOnly {
+		t.Fatalf("expected read_only $ref sibling to mark slug readonly")
+	}
+
+	model, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+	fields := fieldsByPath(model.Fields)
+	if !fields["title"].Readonly {
+		t.Fatalf("expected title field readonly")
+	}
+	if !fields["slug"].Readonly {
+		t.Fatalf("expected slug field readonly")
+	}
+}
+
+func TestAdapterNormalize_NestedAnyOfArrayItems(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.columns",
+  "type":"object",
+  "properties":{
+    "columns":{
+      "type":"array",
+      "items":{
+        "type":"object",
+        "properties":{
+          "entries":{
+            "type":"array",
+            "items":{
+              "anyOf":[
+                {"type":"string","readOnly":true},
+                {"type":"null"}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("com.example.columns.edit")
+	if !ok {
+		t.Fatalf("expected form com.example.columns.edit")
+	}
+	entries := form.Schema.Properties["columns"].Items.Properties["entries"]
+	if entries.Items == nil {
+		t.Fatalf("expected entries item schema")
+	}
+	if entries.Items.Type != "string" {
+		t.Fatalf("entries item type = %q, want string", entries.Items.Type)
+	}
+	if !entries.Items.ReadOnly {
+		t.Fatalf("entries item should preserve readOnly from anyOf branch")
+	}
+}
+
+func TestAdapterNormalize_AnyOfDiscriminatorUnionOutsideArrayRejected(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.standalone_anyof",
+  "type":"object",
+  "properties":{
+    "content":{
+      "anyOf":[
+        {
+          "type":"object",
+          "properties":{
+            "_type":{"const":"hero"},
+            "headline":{"type":"string"}
+          }
+        },
+        {
+          "type":"object",
+          "properties":{
+            "_type":{"const":"text"},
+            "body":{"type":"string"}
+          }
+        }
+      ]
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	if _, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{}); err == nil {
+		t.Fatalf("expected standalone discriminator anyOf to be rejected")
+	}
+}
+
+func TestAdapterNormalize_AnyOfDiscriminatorUnion(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.any_blocks",
+  "type":"object",
+  "properties":{
+    "blocks":{
+      "type":"array",
+      "x-formgen":{"widget":"block"},
+      "items":{
+        "anyOf":[
+          {
+            "type":"object",
+            "properties":{
+              "_type":{"const":"hero"},
+              "headline":{"type":"string"}
+            }
+          },
+          {
+            "type":"object",
+            "properties":{
+              "_type":{"const":"text"},
+              "body":{"type":"string"}
+            }
+          }
+        ]
+      }
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("com.example.any_blocks.edit")
+	if !ok {
+		t.Fatalf("expected form com.example.any_blocks.edit")
+	}
+	items := form.Schema.Properties["blocks"].Items
+	if items == nil || len(items.OneOf) != 2 {
+		t.Fatalf("expected anyOf to normalize to discriminator union, got %+v", items)
+	}
+	for idx, option := range items.OneOf {
+		typ := option.Properties["_type"]
+		if !typ.ReadOnly {
+			t.Fatalf("option %d _type should be readonly", idx)
+		}
+	}
+}
+
+func TestAdapterNormalize_AnyOfRejectsAmbiguousShape(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"com.example.ambiguous",
+  "type":"object",
+  "properties":{
+    "value":{
+      "anyOf":[
+        {"type":"string"},
+        {"type":"object","properties":{"label":{"type":"string"}}}
+      ]
+    }
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	if _, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{}); err == nil {
+		t.Fatalf("expected unsupported anyOf shape error")
 	}
 }
 
@@ -240,6 +548,28 @@ func fieldsByName(fields []pkgmodel.Field) map[string]pkgmodel.Field {
 	out := make(map[string]pkgmodel.Field, len(fields))
 	for _, field := range fields {
 		out[field.Name] = field
+	}
+	return out
+}
+
+func fieldsByPath(fields []pkgmodel.Field) map[string]pkgmodel.Field {
+	out := make(map[string]pkgmodel.Field)
+	var visit func(prefix string, field pkgmodel.Field)
+	visit = func(prefix string, field pkgmodel.Field) {
+		key := field.Name
+		if prefix != "" {
+			key = prefix + "." + key
+		}
+		out[key] = field
+		if field.Items != nil {
+			visit(key, *field.Items)
+		}
+		for _, nested := range field.Nested {
+			visit(key, nested)
+		}
+	}
+	for _, field := range fields {
+		visit("", field)
 	}
 	return out
 }
