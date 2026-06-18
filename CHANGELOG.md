@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.25.5](https://github.com/goliatone/go-formgen/compare/v0.25.4...v0.25.5) - (2026-06-18)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Typeahead selected value/label info ([33a787a](https://github.com/goliatone/go-formgen/commit/33a787af79ffd1410ea3976531df191b2b00c3d1))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.25.5 ([26596e6](https://github.com/goliatone/go-formgen/commit/26596e6a924fc806d5b9f91cc0b35a427cec9b5c))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.25.4 ([cde1482](https://github.com/goliatone/go-formgen/commit/cde148230cc7294535735525803bf6f56076185c))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([0b5592c](https://github.com/goliatone/go-formgen/commit/0b5592c84f6d2a35c3229641dba49ff0607cc825))  - (goliatone)
+
 # [0.25.4](https://github.com/goliatone/go-formgen/compare/v0.25.3...v0.25.4) - (2026-06-18)
 
 ## <!-- 1 -->🐛 Bug Fixes
