@@ -7,6 +7,10 @@
 {% if not control_id %}
 {% set control_id = "fg-"|add:field.name %}
 {% endif %}
+{% set control_name = field.metadata["control.name"] -%}
+{% if not control_name %}
+{% set control_name = field.name %}
+{% endif %}
 {% set label_id = control_id|add:"-label" -%}
 {% if collapsed %}{% set collapsed_attr = "true" %}{% else %}{% set collapsed_attr = "false" %}{% endif %}
 {% set state_value = "invalid" -%}
@@ -70,7 +74,7 @@
     {# Textarea remains the submission source for no-JS and GUI sync. #}
     <textarea
         id="{% if not show_gui %}{{ control_id }}{% else %}{{ control_id }}-raw{% endif %}"
-        name="{{ field.name }}"
+        name="{{ control_name }}"
         data-json-editor-input="true"
         class="font-mono text-sm leading-6 w-full border {% if validation_state == 'invalid' %}border-red-500 focus:border-red-500 focus:ring-red-500{% else %}border-gray-200 focus:border-blue-500 focus:ring-blue-500{% endif %} rounded-lg p-3 bg-white text-gray-900 dark:bg-slate-900 dark:text-gray-100 dark:border-gray-700{% if collapsed or (mode_value == 'hybrid' and active_view == 'gui') %} hidden{% endif %}"
         rows="8"
@@ -87,7 +91,7 @@
     {# Hidden textarea keeps the form submission value for GUI-only mode. #}
     <textarea
         id="{{ control_id }}-raw"
-        name="{{ field.name }}"
+        name="{{ control_name }}"
         data-json-editor-input="true"
         class="hidden"
         rows="1"

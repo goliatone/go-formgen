@@ -329,19 +329,22 @@ func writeArrayItems(builder *strings.Builder, field model.Field, data Component
 func writeArrayItemFields(builder *strings.Builder, field model.Field, data ComponentData) error {
 	itemValues := coerceSlice(field.Default)
 	if len(itemValues) == 0 {
-		child, err := data.RenderChild(*field.Items)
+		item := cloneField(*field.Items)
+		if path := arrayItemControlPath(field, 0); path != "" {
+			applyControlPath(&item, path)
+		}
+		child, err := data.RenderChild(item)
 		if err != nil {
 			return err
 		}
 		builder.WriteString(child)
 		return nil
 	}
-	baseID := componentControlID(*field.Items)
 	for idx, value := range itemValues {
 		item := cloneField(*field.Items)
-		item = applyArrayItemValue(item, value)
-		if baseID != "" {
-			applyControlIDPrefix(&item, fmt.Sprintf("%s-%d", baseID, idx+1))
+		item = applyArrayItemValue(item, value, data.ApplyValue)
+		if path := arrayItemControlPath(field, idx); path != "" {
+			applyControlPath(&item, path)
 		}
 		child, err := data.RenderChild(item)
 		if err != nil {
@@ -456,7 +459,11 @@ func writeRelationshipAttributes(builder *strings.Builder, rel *model.Relationsh
 	}
 }
 
-const controlIDMetadataKey = "control.id"
+const (
+	controlIDMetadataKey   = "control.id"
+	controlNameMetadataKey = "control.name"
+	controlPathMetadataKey = "control.path"
+)
 
 func componentControlID(field model.Field) string {
 	if field.Metadata != nil {
@@ -469,6 +476,18 @@ func componentControlID(field model.Field) string {
 		return ""
 	}
 	return "fg-" + trimmed
+}
+
+func componentControlPath(field model.Field) string {
+	if field.Metadata != nil {
+		if path := strings.TrimSpace(field.Metadata[controlPathMetadataKey]); path != "" {
+			return path
+		}
+		if name := strings.TrimSpace(field.Metadata[controlNameMetadataKey]); name != "" {
+			return name
+		}
+	}
+	return strings.TrimSpace(field.Name)
 }
 
 func componentLabelID(field model.Field) string {
@@ -513,11 +532,14 @@ func coerceSlice(value any) []any {
 	return out
 }
 
-func applyArrayItemValue(field model.Field, value any) model.Field {
+func applyArrayItemValue(field model.Field, value any, applyValue FieldValueApplier) model.Field {
+	if shouldApplyDirectItemValue(field) {
+		return applyDirectItemValue(field, value, applyValue)
+	}
 	switch typed := value.(type) {
 	case map[string]any:
 		if len(field.Nested) > 0 {
-			field.Nested = applyValuesToNested(field.Nested, typed)
+			field.Nested = applyValuesToNested(field.Nested, typed, applyValue)
 			return field
 		}
 	case map[string]string:
@@ -526,51 +548,92 @@ func applyArrayItemValue(field model.Field, value any) model.Field {
 			for key, val := range typed {
 				coerced[key] = val
 			}
-			field.Nested = applyValuesToNested(field.Nested, coerced)
+			field.Nested = applyValuesToNested(field.Nested, coerced, applyValue)
 			return field
 		}
+	}
+	return applyDirectItemValue(field, value, applyValue)
+}
+
+func shouldApplyDirectItemValue(field model.Field) bool {
+	return field.Relationship != nil || field.Type == model.FieldTypeArray || len(field.Nested) == 0
+}
+
+func applyDirectItemValue(field model.Field, value any, applyValue FieldValueApplier) model.Field {
+	if applyValue != nil {
+		return applyValue(field, value)
 	}
 	field.Default = value
 	return field
 }
 
-func applyValuesToNested(fields []model.Field, values map[string]any) []model.Field {
+func applyValuesToNested(fields []model.Field, values map[string]any, applyValue FieldValueApplier) []model.Field {
 	if len(fields) == 0 || len(values) == 0 {
 		return fields
 	}
 	for i := range fields {
 		if value, ok := values[fields[i].Name]; ok {
-			fields[i] = applyArrayItemValue(fields[i], value)
+			fields[i] = applyArrayItemValue(fields[i], value, applyValue)
 		}
 	}
 	return fields
 }
 
-func applyControlIDPrefix(field *model.Field, prefix string) {
+func arrayItemControlPath(field model.Field, idx int) string {
+	path := componentControlPath(field)
+	if path == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s[%d]", path, idx)
+}
+
+func applyControlPath(field *model.Field, path string) {
 	if field == nil {
 		return
 	}
-	prefix = strings.TrimSpace(prefix)
-	if prefix == "" {
+	path = strings.TrimSpace(path)
+	if path == "" {
 		return
 	}
 	if field.Metadata == nil {
-		field.Metadata = make(map[string]string, 1)
+		field.Metadata = make(map[string]string, 3)
 	}
-	field.Metadata[controlIDMetadataKey] = prefix
+	if strings.TrimSpace(field.Metadata[controlPathMetadataKey]) == "" {
+		field.Metadata[controlPathMetadataKey] = path
+	}
+	if strings.TrimSpace(field.Metadata[controlNameMetadataKey]) == "" {
+		field.Metadata[controlNameMetadataKey] = path
+	}
+	if strings.TrimSpace(field.Metadata[controlIDMetadataKey]) == "" {
+		field.Metadata[controlIDMetadataKey] = controlIDFromPath(path)
+	}
 	if len(field.Nested) > 0 {
 		for i := range field.Nested {
-			childPrefix := prefix + "-" + sanitizeID(field.Nested[i].Name)
-			applyControlIDPrefix(&field.Nested[i], childPrefix)
+			childPath := joinControlPath(path, field.Nested[i].Name)
+			applyControlPath(&field.Nested[i], childPath)
 		}
 	}
-	if field.Items != nil {
-		itemPrefix := prefix + "-" + sanitizeID(field.Items.Name)
-		if itemPrefix == prefix+"-" {
-			itemPrefix = prefix + "-items"
-		}
-		applyControlIDPrefix(field.Items, itemPrefix)
+}
+
+func joinControlPath(parentPath, name string) string {
+	parentPath = strings.TrimSpace(parentPath)
+	name = strings.TrimSpace(name)
+	if parentPath == "" {
+		return name
 	}
+	if name == "" {
+		return parentPath
+	}
+	return parentPath + "." + name
+}
+
+func controlIDFromPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	path = strings.ReplaceAll(path, "[]", ".item")
+	return "fg-" + sanitizeID(path)
 }
 
 func sanitizeID(value string) string {

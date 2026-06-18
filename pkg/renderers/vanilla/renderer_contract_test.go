@@ -508,6 +508,98 @@ func TestRenderer_RenderPrefilledForm(t *testing.T) {
 	}
 }
 
+func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "teachingTopicsMenu",
+		Endpoint:    "/menus",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "columns",
+				Type:  model.FieldTypeArray,
+				Label: "Columns",
+				Items: &model.Field{
+					Type: model.FieldTypeObject,
+					Nested: []model.Field{
+						{
+							Name:  "entries",
+							Type:  model.FieldTypeArray,
+							Label: "Entries",
+							Items: &model.Field{
+								Type: model.FieldTypeObject,
+								Nested: []model.Field{
+									{
+										Name:  "topic_id",
+										Type:  model.FieldTypeString,
+										Label: "Topic",
+										Relationship: &model.Relationship{
+											Kind:        model.RelationshipBelongsTo,
+											Target:      "teaching-topic",
+											ForeignKey:  "topic_id",
+											Cardinality: "one",
+										},
+										Metadata: map[string]string{
+											"relationship.endpoint.url":          "/admin/api/options/teaching-topic",
+											"relationship.endpoint.mode":         "search",
+											"relationship.endpoint.hydrateParam": "topic_id",
+											"relationship.endpoint.labelField":   "label",
+											"relationship.endpoint.valueField":   "value",
+										},
+									},
+									{
+										Name:  "topic_slug",
+										Type:  model.FieldTypeString,
+										Label: "Topic slug",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	const topicID = "7a8ec46f-3024-4585-88be-f6adedf77b28"
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Values: map[string]any{
+			"columns": []any{
+				map[string]any{
+					"entries": []any{
+						map[string]any{
+							"topic_id":   topicID,
+							"topic_slug": "refuge",
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := string(output)
+	for _, want := range []string{
+		`data-endpoint-hydrate-param="topic_id"`,
+		`data-relationship-current="` + topicID + `"`,
+		`id="fg-columns-0-entries-0-topic_id"`,
+		`name="columns[0].entries[0].topic_id"`,
+		`id="fg-columns-0-entries-0-topic_slug"`,
+		`name="columns[0].entries[0].topic_slug"`,
+		`value="refuge"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected rendered HTML to contain %s:\n%s", want, html)
+		}
+	}
+}
+
 func TestRenderer_RenderWithProvenance(t *testing.T) {
 	t.Helper()
 

@@ -7,11 +7,15 @@
 {% if not control_id %}
 {% set control_id = "fg-"|add:field.name %}
 {% endif %}
+{% set control_name = field.metadata["control.name"] -%}
+{% if not control_name %}
+{% set control_name = field.name %}
+{% endif %}
 <div class="flex items-center">
     <input
         type="checkbox"
         id="{{ control_id }}"
-        name="{{ field.name }}"
+        name="{{ control_name }}"
         class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
         {% if field.default %}checked{% endif %}
         {% if disabled_value or readonly_value %}disabled{% endif %}

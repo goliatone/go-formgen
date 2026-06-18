@@ -17,10 +17,16 @@ import (
 // supplied template renderer or custom logic.
 type Renderer func(buf *bytes.Buffer, field model.Field, data ComponentData) error
 
+// FieldValueApplier applies a render-time value to a component field. Renderers
+// can provide this to keep nested component value handling consistent with their
+// top-level prefill behavior.
+type FieldValueApplier func(field model.Field, value any) model.Field
+
 // ComponentData carries helpers and configuration for component renderers.
 type ComponentData struct {
 	Template      rendertemplate.TemplateRenderer
 	RenderChild   func(value any) (string, error)
+	ApplyValue    FieldValueApplier
 	Config        map[string]any
 	ThemePartials map[string]string
 	Theme         map[string]any

@@ -8,11 +8,15 @@
 {% if not control_id %}
 {% set control_id = "fg-"|add:field.name %}
 {% endif %}
+{% set control_name = field.metadata["control.name"] -%}
+{% if not control_name %}
+{% set control_name = field.name %}
+{% endif %}
 
 <div class="wysiwyg-wrapper" data-fg-wysiwyg-wrapper>
   <textarea
       id="{{ control_id }}"
-      name="{{ field.name }}"
+      name="{{ control_name }}"
       class="sr-only"
       data-fg-component="wysiwyg"
       {% if component_config %}data-component-config='{{ component_config|safe }}'{% endif %}

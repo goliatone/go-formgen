@@ -33,13 +33,13 @@
         <div style="grid-column: span 12 / span 12">
             <div class="flex flex-col gap-2" data-component="array">
     <div id="fg-favoriteFoods" class="space-y-3" role="group" aria-labelledby="fg-favoriteFoods-label"><div id="fg-favoriteFoods-label" class="text-sm font-medium text-gray-900 dark:text-white">Favorite foods</div><div class="space-y-3"><div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-favoriteFoodsItem-label" for="fg-favoriteFoodsItem" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-favoriteFoods-0-label" for="fg-favoriteFoods-0" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Favorite foods item
         </label>
         <input
             type="text"
-            id="fg-favoriteFoodsItem"
-            name="favoriteFoodsItem"
+            id="fg-favoriteFoods-0"
+            name="favoriteFoods[0]"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
              data-validation-label="Favorite foods item" data-validation-rules="[{&#34;kind&#34;:&#34;minLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;3&#34;}},{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;24&#34;}},{&#34;kind&#34;:&#34;pattern&#34;,&#34;params&#34;:{&#34;pattern&#34;:&#34;^[a-z]+$&#34;}}]"
         >
@@ -53,13 +53,13 @@
         <div style="grid-column: span 12 / span 12">
             <div class="flex flex-col gap-2" data-component="array">
     <div id="fg-favoriteNumbers" class="space-y-3" role="group" aria-labelledby="fg-favoriteNumbers-label"><div id="fg-favoriteNumbers-label" class="text-sm font-medium text-gray-900 dark:text-white">Favorite numbers</div><div class="space-y-3"><div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-favoriteNumbersItem-label" for="fg-favoriteNumbersItem" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-favoriteNumbers-0-label" for="fg-favoriteNumbers-0" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Favorite numbers item
         </label>
         <input
             type="number"
-            id="fg-favoriteNumbersItem"
-            name="favoriteNumbersItem"
+            id="fg-favoriteNumbers-0"
+            name="favoriteNumbers[0]"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
              data-validation-label="Favorite numbers item" data-validation-rules="[{&#34;kind&#34;:&#34;min&#34;,&#34;params&#34;:{&#34;exclusive&#34;:&#34;true&#34;,&#34;value&#34;:&#34;0.1&#34;}},{&#34;kind&#34;:&#34;max&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;99.9&#34;}}]"
         >
@@ -91,13 +91,13 @@
         <div style="grid-column: span 12 / span 12">
             <div class="flex flex-col gap-2" data-component="object">
     <fieldset id="fg-owner" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700" aria-labelledby="fg-owner-label"><legend id="fg-owner-label" class="text-sm font-semibold text-gray-900 dark:text-white">Owner</legend><p class="text-xs text-gray-500 dark:text-gray-400">Owner contact details</p><div class="space-y-4"><div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-email-label" for="fg-email" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-owner-email-label" for="fg-owner-email" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Email<span class="text-red-500 ms-1" aria-hidden="true">*</span>
         </label>
         <input
             type="email"
-            id="fg-email"
-            name="email"
+            id="fg-owner-email"
+            name="owner.email"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
             required
              data-validation-label="Email" data-validation-required="true" data-validation-rules="[{&#34;kind&#34;:&#34;minLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;5&#34;}},{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;128&#34;}},{&#34;kind&#34;:&#34;pattern&#34;,&#34;params&#34;:{&#34;pattern&#34;:&#34;^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$&#34;}}]"
@@ -105,26 +105,26 @@
         <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     <div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-phone-label" for="fg-phone" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-owner-phone-label" for="fg-owner-phone" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Phone
         </label>
         <input
             type="text"
-            id="fg-phone"
-            name="phone"
+            id="fg-owner-phone"
+            name="owner.phone"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
              data-validation-label="Phone" data-validation-rules="[{&#34;kind&#34;:&#34;minLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;7&#34;}},{&#34;kind&#34;:&#34;maxLength&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;15&#34;}},{&#34;kind&#34;:&#34;pattern&#34;,&#34;params&#34;:{&#34;pattern&#34;:&#34;^\\+?[0-9\\-]{7,15}$&#34;}}]"
         >
         <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     <div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-yearsAsCustomer-label" for="fg-yearsAsCustomer" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-owner-yearsAsCustomer-label" for="fg-owner-yearsAsCustomer" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Years as customer
         </label>
         <input
             type="number"
-            id="fg-yearsAsCustomer"
-            name="yearsAsCustomer"
+            id="fg-owner-yearsAsCustomer"
+            name="owner.yearsAsCustomer"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
              data-validation-label="Years as customer" data-validation-rules="[{&#34;kind&#34;:&#34;min&#34;,&#34;params&#34;:{&#34;exclusive&#34;:&#34;true&#34;,&#34;value&#34;:&#34;0&#34;}},{&#34;kind&#34;:&#34;max&#34;,&#34;params&#34;:{&#34;value&#34;:&#34;30&#34;}}]"
         >

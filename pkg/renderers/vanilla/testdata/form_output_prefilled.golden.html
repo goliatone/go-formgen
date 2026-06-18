@@ -296,13 +296,13 @@
                 <div style="grid-column: span 12 / span 12">
                     <div class="flex flex-col gap-2" data-component="array">
     <div id="fg-keywords" class="space-y-3" role="group" aria-labelledby="fg-keywords-label"><div id="fg-keywords-label" class="text-sm font-medium text-gray-900 dark:text-white">Keywords</div><p class="text-xs text-gray-500 dark:text-gray-400">SEO keywords used for search discovery</p><p class="text-xs text-gray-600 dark:text-gray-300">Comma separated keywords used for SEO.</p><div class="space-y-3"><div class="flex flex-col gap-2" data-component="input">
-        <label data-formgen-chrome="label" id="fg-keywordsItem-label" for="fg-keywordsItem" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <label data-formgen-chrome="label" id="fg-keywords-0-label" for="fg-keywords-0" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Keywords item
         </label>
         <input
             type="text"
-            id="fg-keywordsItem"
-            name="keywordsItem"
+            id="fg-keywords-0"
+            name="keywords[0]"
             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
              data-validation-label="Keywords item"
         >
@@ -529,13 +529,13 @@
             <div style="grid-column: span 12 / span 12">
                 <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
     <div id="fg-contributors" class="space-y-3" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" role="group" aria-labelledby="fg-contributors-label"><div id="fg-contributors-label" class="text-sm font-medium text-gray-900 dark:text-white">Contributors</div><p class="text-xs text-gray-500 dark:text-gray-400">Assign supporting editors and reviewers</p><p class="text-xs text-gray-600 dark:text-gray-300">Demonstrates nested arrays with relationship fields.</p><div class="space-y-3" data-relationship-collection="many"><div class="flex flex-col gap-2" data-component="object" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
-        <fieldset id="fg-contributorsItem" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" aria-labelledby="fg-contributorsItem-label"><legend id="fg-contributorsItem-label" class="text-sm font-semibold text-gray-900 dark:text-white">Contributors item</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="one">
-            <label data-formgen-chrome="label" id="fg-person_id-label" for="fg-person_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+        <fieldset id="fg-contributors-0" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" aria-labelledby="fg-contributors-0-label"><legend id="fg-contributors-0-label" class="text-sm font-semibold text-gray-900 dark:text-white">Contributors item</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="one">
+            <label data-formgen-chrome="label" id="fg-contributors-0-person_id-label" for="fg-contributors-0-person_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
                 Person<span class="text-red-500 ms-1" aria-hidden="true">*</span>
             </label>
             <select
-                id="fg-person_id"
-                name="person_id"
+                id="fg-contributors-0-person_id"
+                name="contributors[0].person_id"
                 class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                 required
                 data-relationship-type="belongsTo"
@@ -545,18 +545,18 @@
             >
                         <option value="">Select Person</option>
             </select>
-            <p data-formgen-chrome="description" id="fg-person_id-description" class="text-xs text-gray-500 dark:text-gray-400">
+            <p data-formgen-chrome="description" id="fg-contributors-0-person_id-description" class="text-xs text-gray-500 dark:text-gray-400">
                 Select a contributor
             </p>
             <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
         </div>
         <div class="flex flex-col gap-2" data-component="select">
-            <label data-formgen-chrome="label" id="fg-role-label" for="fg-role" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+            <label data-formgen-chrome="label" id="fg-contributors-0-role-label" for="fg-contributors-0-role" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
                 Role<span class="text-red-500 ms-1" aria-hidden="true">*</span>
             </label>
             <select
-                id="fg-role"
-                name="role"
+                id="fg-contributors-0-role"
+                name="contributors[0].role"
                 class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                 required
                  data-validation-label="Role" data-validation-required="true"
@@ -566,23 +566,23 @@
                         <option value="Fact Checker">Fact Checker</option>
                         <option value="Producer">Producer</option>
             </select>
-            <p data-formgen-chrome="description" id="fg-role-description" class="text-xs text-gray-500 dark:text-gray-400">
+            <p data-formgen-chrome="description" id="fg-contributors-0-role-description" class="text-xs text-gray-500 dark:text-gray-400">
                 Role the contributor performs
             </p>
             <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
         </div>
         <div class="flex flex-col gap-2" data-component="input">
-            <label data-formgen-chrome="label" id="fg-notes-label" for="fg-notes" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
+            <label data-formgen-chrome="label" id="fg-contributors-0-notes-label" for="fg-contributors-0-notes" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
                 Notes
             </label>
             <input
                 type="text"
-                id="fg-notes"
-                name="notes"
+                id="fg-contributors-0-notes"
+                name="contributors[0].notes"
                 class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                  data-validation-label="Notes"
             >
-            <p data-formgen-chrome="description" id="fg-notes-description" class="text-xs text-gray-500 dark:text-gray-400">
+            <p data-formgen-chrome="description" id="fg-contributors-0-notes-description" class="text-xs text-gray-500 dark:text-gray-400">
                 Private editorial notes for this contributor
             </p>
             <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>

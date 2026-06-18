@@ -62,6 +62,8 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 		return "", nil
 	}
 
+	field = applyRenderPathMetadata(field, path)
+
 	componentName := r.overrideFor(path, field.Name)
 	if componentName == "" {
 		componentName = resolveComponentName(field)
@@ -84,6 +86,7 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 		Template:      r.templates,
 		Config:        config,
 		RenderChild:   r.childRenderer(path),
+		ApplyValue:    applyComponentFieldValue,
 		ThemePartials: r.theme.Partials,
 		Theme:         r.templateTheme,
 		StyleMode:     string(r.styleMode),
@@ -97,6 +100,31 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 	r.usedComponents[componentName] = struct{}{}
 
 	return buildFieldMarkup(r.templates, field, componentName, control.String(), r.styleMode), nil
+}
+
+func applyComponentFieldValue(field model.Field, value any) model.Field {
+	assignFieldValue(&field, value)
+	return decorateField(field)
+}
+
+func applyRenderPathMetadata(field model.Field, path string) model.Field {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return field
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 3)
+	}
+	if strings.TrimSpace(field.Metadata[controlPathMetadataKey]) == "" {
+		field.Metadata[controlPathMetadataKey] = path
+	}
+	if strings.TrimSpace(field.Metadata[controlNameMetadataKey]) == "" {
+		field.Metadata[controlNameMetadataKey] = path
+	}
+	if strings.TrimSpace(field.Metadata[controlIDMetadataKey]) == "" {
+		field.Metadata[controlIDMetadataKey] = buildControlIDFromPath(path)
+	}
+	return field
 }
 
 func (r *componentRenderer) childRenderer(parentPath string) func(any) (string, error) {
@@ -339,6 +367,9 @@ func fieldControlID(field model.Field) string {
 	if id := strings.TrimSpace(stringFromMap(field.Metadata, controlIDMetadataKey)); id != "" {
 		return id
 	}
+	if path := strings.TrimSpace(stringFromMap(field.Metadata, controlPathMetadataKey)); path != "" {
+		return buildControlIDFromPath(path)
+	}
 	return buildControlID(field.Name)
 }
 
@@ -356,6 +387,39 @@ func buildControlID(name string) string {
 		return ""
 	}
 	return controlIDPrefix + trimmed
+}
+
+func buildControlIDFromPath(path string) string {
+	trimmed := sanitizeControlPath(path)
+	if trimmed == "" {
+		return ""
+	}
+	return controlIDPrefix + trimmed
+}
+
+func sanitizeControlPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	var builder strings.Builder
+	lastDash := false
+	for _, r := range path {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				builder.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	return strings.Trim(builder.String(), "-")
 }
 
 func writeIndentedBlock(builder *strings.Builder, block string) {

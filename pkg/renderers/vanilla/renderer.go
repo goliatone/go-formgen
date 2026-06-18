@@ -205,6 +205,8 @@ const (
 	componentConfigMetadataKey = "component.config"
 	componentChromeMetadataKey = "component.chrome"
 	controlIDMetadataKey       = "control.id"
+	controlNameMetadataKey     = "control.name"
+	controlPathMetadataKey     = "control.path"
 	behaviorNamesMetadataKey   = "behavior.names"
 	behaviorConfigMetadataKey  = "behavior.config"
 	defaultGridColumns         = 12
