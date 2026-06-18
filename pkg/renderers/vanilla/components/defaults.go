@@ -85,7 +85,7 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 
 		payload := map[string]any{
 			"field":        field,
-			"config":       data.Config,
+			"config":       templateConfig(data.Config),
 			"theme":        data.Theme,
 			"style_mode":   data.StyleMode,
 			"enum_options": enumOptions(field),
@@ -331,7 +331,7 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 	if len(itemValues) == 0 {
 		item := cloneField(*field.Items)
 		if path := arrayItemControlPath(field, 0); path != "" {
-			applyControlPath(&item, path)
+			applyPrototypeControlPath(&item, path)
 		}
 		child, err := data.RenderChild(item)
 		if err != nil {
@@ -342,7 +342,7 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 	}
 	for idx, value := range itemValues {
 		item := cloneField(*field.Items)
-		item = applyArrayItemValue(item, value, data.ApplyValue)
+		item = applyArrayItemValue(item, value, fieldValueApplierFromConfig(data.Config))
 		if path := arrayItemControlPath(field, idx); path != "" {
 			applyControlPath(&item, path)
 		}
@@ -462,6 +462,7 @@ func writeRelationshipAttributes(builder *strings.Builder, rel *model.Relationsh
 const (
 	controlIDMetadataKey   = "control.id"
 	controlNameMetadataKey = "control.name"
+	controlOmitNameKey     = "control.omitName"
 	controlPathMetadataKey = "control.path"
 )
 
@@ -579,6 +580,31 @@ func applyValuesToNested(fields []model.Field, values map[string]any, applyValue
 	return fields
 }
 
+func fieldValueApplierFromConfig(config map[string]any) FieldValueApplier {
+	if len(config) == 0 {
+		return nil
+	}
+	applier, _ := config[fieldValueApplierConfigKey].(FieldValueApplier)
+	return applier
+}
+
+func templateConfig(config map[string]any) map[string]any {
+	if len(config) == 0 {
+		return config
+	}
+	if _, ok := config[fieldValueApplierConfigKey]; !ok {
+		return config
+	}
+	out := make(map[string]any, len(config)-1)
+	for key, value := range config {
+		if key == fieldValueApplierConfigKey {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
 func arrayItemControlPath(field model.Field, idx int) string {
 	path := componentControlPath(field)
 	if path == "" {
@@ -612,6 +638,27 @@ func applyControlPath(field *model.Field, path string) {
 			childPath := joinControlPath(path, field.Nested[i].Name)
 			applyControlPath(&field.Nested[i], childPath)
 		}
+	}
+}
+
+func applyPrototypeControlPath(field *model.Field, path string) {
+	applyControlPath(field, path)
+	markControlNameOmitted(field)
+}
+
+func markControlNameOmitted(field *model.Field) {
+	if field == nil {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 1)
+	}
+	field.Metadata[controlOmitNameKey] = "true"
+	for i := range field.Nested {
+		markControlNameOmitted(&field.Nested[i])
+	}
+	if field.Items != nil {
+		markControlNameOmitted(field.Items)
 	}
 }
 

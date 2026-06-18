@@ -22,11 +22,26 @@ type Renderer func(buf *bytes.Buffer, field model.Field, data ComponentData) err
 // top-level prefill behavior.
 type FieldValueApplier func(field model.Field, value any) model.Field
 
+const fieldValueApplierConfigKey = "__formgen.fieldValueApplier"
+
+// WithFieldValueApplier returns a component config map carrying a renderer-owned
+// value applier. The key is intentionally hidden from templates and normal
+// component configuration.
+func WithFieldValueApplier(config map[string]any, applier FieldValueApplier) map[string]any {
+	if applier == nil {
+		return config
+	}
+	if config == nil {
+		config = make(map[string]any, 1)
+	}
+	config[fieldValueApplierConfigKey] = applier
+	return config
+}
+
 // ComponentData carries helpers and configuration for component renderers.
 type ComponentData struct {
 	Template      rendertemplate.TemplateRenderer
 	RenderChild   func(value any) (string, error)
-	ApplyValue    FieldValueApplier
 	Config        map[string]any
 	ThemePartials map[string]string
 	Theme         map[string]any

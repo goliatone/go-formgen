@@ -600,6 +600,68 @@ func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
 	}
 }
 
+func TestRenderer_EmptyArrayPrototypeDoesNotSubmitValues(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "arrays",
+		Endpoint:    "/arrays",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "keywords",
+				Type:  model.FieldTypeArray,
+				Label: "Keywords",
+				Items: &model.Field{
+					Name:  "keyword",
+					Type:  model.FieldTypeString,
+					Label: "Keyword",
+				},
+			},
+			{
+				Name:  "contributors",
+				Type:  model.FieldTypeArray,
+				Label: "Contributors",
+				Items: &model.Field{
+					Type: model.FieldTypeObject,
+					Nested: []model.Field{
+						{Name: "name", Type: model.FieldTypeString, Label: "Name"},
+						{Name: "role", Type: model.FieldTypeString, Label: "Role"},
+					},
+				},
+			},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := string(output)
+	for _, want := range []string{
+		`id="fg-keywords-0"`,
+		`id="fg-contributors-0-name"`,
+		`id="fg-contributors-0-role"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected rendered HTML to contain prototype id %s:\n%s", want, html)
+		}
+	}
+	for _, unwanted := range []string{
+		`name="keywords[0]"`,
+		`name="contributors[0].name"`,
+		`name="contributors[0].role"`,
+	} {
+		if strings.Contains(html, unwanted) {
+			t.Fatalf("empty array prototype should not contain %s:\n%s", unwanted, html)
+		}
+	}
+}
+
 func TestRenderer_RenderWithProvenance(t *testing.T) {
 	t.Helper()
 

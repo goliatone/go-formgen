@@ -81,12 +81,12 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("parse component config for field %q: %w", path, err)
 	}
+	config = components.WithFieldValueApplier(config, applyComponentFieldValue)
 
 	data := components.ComponentData{
 		Template:      r.templates,
 		Config:        config,
 		RenderChild:   r.childRenderer(path),
-		ApplyValue:    applyComponentFieldValue,
 		ThemePartials: r.theme.Partials,
 		Theme:         r.templateTheme,
 		StyleMode:     string(r.styleMode),

@@ -11,11 +11,14 @@
 {% if not control_name %}
 {% set control_name = field.name %}
 {% endif %}
+{% set control_omit_name = field.metadata["control.omitName"] == "true" -%}
 <div data-media-picker-shell="true" class="space-y-3">
   <input
     type="text"
     id="{{ control_id }}"
+    {% if not control_omit_name %}
     name="{{ control_name }}"
+    {% endif %}
     class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
     {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
     {% if field.required %}required{% endif %}

@@ -206,6 +206,7 @@ const (
 	componentChromeMetadataKey = "component.chrome"
 	controlIDMetadataKey       = "control.id"
 	controlNameMetadataKey     = "control.name"
+	controlOmitNameMetadataKey = "control.omitName"
 	controlPathMetadataKey     = "control.path"
 	behaviorNamesMetadataKey   = "behavior.names"
 	behaviorConfigMetadataKey  = "behavior.config"
