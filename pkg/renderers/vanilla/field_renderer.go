@@ -81,7 +81,6 @@ func (r *componentRenderer) render(field model.Field, path string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("parse component config for field %q: %w", path, err)
 	}
-	config = components.WithFieldValueApplier(config, applyComponentFieldValue)
 
 	data := components.ComponentData{
 		Template:      r.templates,
@@ -129,11 +128,14 @@ func applyRenderPathMetadata(field model.Field, path string) model.Field {
 
 func (r *componentRenderer) childRenderer(parentPath string) func(any) (string, error) {
 	return func(value any) (string, error) {
-		field, err := coerceField(value)
+		field, fieldValue, hasFieldValue, err := coerceChildField(value)
 		if err != nil {
 			return "", err
 		}
 		path := joinPath(parentPath, field.Name)
+		if hasFieldValue {
+			field = components.ApplyArrayItemValue(field, fieldValue, applyComponentFieldValue)
+		}
 		return r.render(field, path)
 	}
 }
@@ -557,6 +559,21 @@ func coerceField(value any) (model.Field, error) {
 		return field, nil
 	default:
 		return model.Field{}, fmt.Errorf("unsupported field type %T", value)
+	}
+}
+
+func coerceChildField(value any) (model.Field, any, bool, error) {
+	switch v := value.(type) {
+	case components.FieldWithValue:
+		return v.Field, v.Value, true, nil
+	case *components.FieldWithValue:
+		if v == nil {
+			return model.Field{}, nil, false, fmt.Errorf("nil field value pointer")
+		}
+		return v.Field, v.Value, true, nil
+	default:
+		field, err := coerceField(value)
+		return field, nil, false, err
 	}
 }
 

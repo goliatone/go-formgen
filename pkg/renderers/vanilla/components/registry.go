@@ -18,24 +18,21 @@ import (
 type Renderer func(buf *bytes.Buffer, field model.Field, data ComponentData) error
 
 // FieldValueApplier applies a render-time value to a component field. Renderers
-// can provide this to keep nested component value handling consistent with their
+// can use this to keep nested component value handling consistent with their
 // top-level prefill behavior.
 type FieldValueApplier func(field model.Field, value any) model.Field
 
-const fieldValueApplierConfigKey = "__formgen.fieldValueApplier"
+// FieldWithValue asks a child renderer to apply Value to Field before rendering.
+// It lets collection components pass item values through RenderChild without
+// smuggling renderer services through component configuration.
+type FieldWithValue struct {
+	Field model.Field
+	Value any
+}
 
-// WithFieldValueApplier returns a component config map carrying a renderer-owned
-// value applier. The key is intentionally hidden from templates and normal
-// component configuration.
-func WithFieldValueApplier(config map[string]any, applier FieldValueApplier) map[string]any {
-	if applier == nil {
-		return config
-	}
-	if config == nil {
-		config = make(map[string]any, 1)
-	}
-	config[fieldValueApplierConfigKey] = applier
-	return config
+// WithFieldValue packages a field and render-time value for RenderChild.
+func WithFieldValue(field model.Field, value any) FieldWithValue {
+	return FieldWithValue{Field: field, Value: value}
 }
 
 // ComponentData carries helpers and configuration for component renderers.

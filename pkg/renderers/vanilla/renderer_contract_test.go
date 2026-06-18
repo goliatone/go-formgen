@@ -1,6 +1,8 @@
 package vanilla_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -611,9 +613,10 @@ func TestRenderer_EmptyArrayPrototypeDoesNotSubmitValues(t *testing.T) {
 				Type:  model.FieldTypeArray,
 				Label: "Keywords",
 				Items: &model.Field{
-					Name:  "keyword",
-					Type:  model.FieldTypeString,
-					Label: "Keyword",
+					Name:     "keyword",
+					Type:     model.FieldTypeString,
+					Label:    "Keyword",
+					Required: true,
 				},
 			},
 			{
@@ -623,8 +626,8 @@ func TestRenderer_EmptyArrayPrototypeDoesNotSubmitValues(t *testing.T) {
 				Items: &model.Field{
 					Type: model.FieldTypeObject,
 					Nested: []model.Field{
-						{Name: "name", Type: model.FieldTypeString, Label: "Name"},
-						{Name: "role", Type: model.FieldTypeString, Label: "Role"},
+						{Name: "name", Type: model.FieldTypeString, Label: "Name", Required: true},
+						{Name: "role", Type: model.FieldTypeString, Label: "Role", Required: true},
 					},
 				},
 			},
@@ -651,15 +654,97 @@ func TestRenderer_EmptyArrayPrototypeDoesNotSubmitValues(t *testing.T) {
 			t.Fatalf("expected rendered HTML to contain prototype id %s:\n%s", want, html)
 		}
 	}
-	for _, unwanted := range []string{
-		`name="keywords[0]"`,
-		`name="contributors[0].name"`,
-		`name="contributors[0].role"`,
+	for _, assertion := range []struct {
+		id   string
+		name string
+	}{
+		{id: "fg-keywords-0", name: `name="keywords[0]"`},
+		{id: "fg-contributors-0-name", name: `name="contributors[0].name"`},
+		{id: "fg-contributors-0-role", name: `name="contributors[0].role"`},
 	} {
-		if strings.Contains(html, unwanted) {
-			t.Fatalf("empty array prototype should not contain %s:\n%s", unwanted, html)
+		tag := renderedControlTagByID(t, html, assertion.id)
+		if strings.Contains(tag, assertion.name) {
+			t.Fatalf("empty array prototype control %s should not contain %s:\n%s", assertion.id, assertion.name, tag)
+		}
+		if !strings.Contains(tag, "disabled") {
+			t.Fatalf("empty array prototype control %s should be disabled:\n%s", assertion.id, tag)
+		}
+		if !strings.Contains(tag, "required") {
+			t.Fatalf("empty array prototype control %s should preserve required semantics for cloned rows:\n%s", assertion.id, tag)
 		}
 	}
+}
+
+func TestRenderer_CustomComponentReceivesUserConfigOnly(t *testing.T) {
+	registry := components.NewDefaultRegistry()
+	var capturedConfig map[string]any
+
+	registry.MustRegister(components.NameInput, components.Descriptor{
+		Renderer: func(buf *bytes.Buffer, field model.Field, data components.ComponentData) error {
+			capturedConfig = data.Config
+			if _, err := json.Marshal(data.Config); err != nil {
+				return fmt.Errorf("component config should be JSON-safe user config: %w", err)
+			}
+			buf.WriteString(`<input id="custom-`)
+			buf.WriteString(field.Name)
+			buf.WriteString(`">`)
+			return nil
+		},
+	})
+
+	renderer, err := vanilla.New(vanilla.WithComponentRegistry(registry))
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	form := model.FormModel{
+		OperationID: "customConfig",
+		Endpoint:    "/custom",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "title",
+				Type:  model.FieldTypeString,
+				Label: "Title",
+				Metadata: map[string]string{
+					"component.config": `{"placeholder":"Headline"}`,
+				},
+			},
+		},
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(string(output), `id="custom-title"`) {
+		t.Fatalf("expected custom component output, got:\n%s", output)
+	}
+	if capturedConfig["placeholder"] != "Headline" {
+		t.Fatalf("expected user component config to be preserved, got %#v", capturedConfig)
+	}
+	if len(capturedConfig) != 1 {
+		t.Fatalf("custom component config should not include renderer internals, got %#v", capturedConfig)
+	}
+}
+
+func renderedControlTagByID(t *testing.T, html, id string) string {
+	t.Helper()
+
+	idAttr := `id="` + id + `"`
+	idx := strings.Index(html, idAttr)
+	if idx < 0 {
+		t.Fatalf("rendered HTML missing control id %q:\n%s", id, html)
+	}
+	start := strings.LastIndex(html[:idx], "<")
+	if start < 0 {
+		t.Fatalf("could not locate control tag start for id %q", id)
+	}
+	endRel := strings.Index(html[idx:], ">")
+	if endRel < 0 {
+		t.Fatalf("could not locate control tag end for id %q", id)
+	}
+	return html[start : idx+endRel+1]
 }
 
 func TestRenderer_RenderWithProvenance(t *testing.T) {
