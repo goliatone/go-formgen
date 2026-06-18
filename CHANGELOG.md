@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.25.4](https://github.com/goliatone/go-formgen/compare/v0.25.3...v0.25.4) - (2026-06-18)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Rendering hydration ([80d9d60](https://github.com/goliatone/go-formgen/commit/80d9d6044ceeb0cbe2402ae236552b3c5c73045c))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.25.4 ([34b2ee3](https://github.com/goliatone/go-formgen/commit/34b2ee3cd330d07505e7d0024c815f8aef5b9c95))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.25.3 ([7adf61e](https://github.com/goliatone/go-formgen/commit/7adf61ec9eca553cebaa4a5c9595a92d158150d4))  - (goliatone)
+
 # [0.25.3](https://github.com/goliatone/go-formgen/compare/v0.25.2...v0.25.3) - (2026-06-18)
 
 ## <!-- 1 -->🐛 Bug Fixes
