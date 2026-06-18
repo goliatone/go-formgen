@@ -552,14 +552,15 @@ export class Resolver {
 
     if (this.field.mode === "search") {
       const searchValue = this.getSearchValue();
-      const hydrateValue = searchValue === undefined ? this.getHydrateCurrentValue() : undefined;
+      const hasSearchValue = searchValue !== undefined && searchValue.trim().length > 0;
+      const hydrateValue = hasSearchValue ? undefined : this.getHydrateCurrentValue();
       if (hydrateValue && this.endpoint.hydrateParam) {
         params.set(this.endpoint.hydrateParam, hydrateValue);
         if (this.field.searchParam) {
           params.delete(this.field.searchParam);
         }
       } else if (this.field.searchParam) {
-        if (searchValue && searchValue.length > 0) {
+        if (hasSearchValue) {
           params.set(this.field.searchParam, searchValue);
         } else {
           params.delete(this.field.searchParam);

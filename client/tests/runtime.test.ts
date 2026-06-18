@@ -924,6 +924,45 @@ describe("runtime resolver", () => {
     expect(input?.value).toBe("Ada Lovelace");
   });
 
+  it("hydrates search current values when blank search state is present", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager_id"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-mode="search"
+          data-endpoint-search-param="q"
+          data-endpoint-search-value=""
+          data-endpoint-hydrate-param="ids"
+          data-relationship-cardinality="one"
+          data-relationship-current="manager-1"
+        >
+          <option value="">Select manager</option>
+        </select>
+      </form>
+    `;
+    const select = document.getElementById("manager_id") as HTMLSelectElement;
+    let requestedUrl = "";
+    fetchSpy.mockImplementation(async (url) => {
+      requestedUrl = String(url);
+      return mockResponse([{ value: "manager-1", label: "Ada Lovelace" }]);
+    });
+
+    await initRelationships();
+    await flush();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestedUrl).toContain("ids=manager-1");
+    expect(requestedUrl).not.toContain("q=");
+
+    const input = select.previousElementSibling?.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(input?.value).toBe("Ada Lovelace");
+  });
+
   it("does not auto-hydrate current values when refresh mode is manual", async () => {
     document.body.innerHTML = `
       <form data-formgen-auto-init="true">
