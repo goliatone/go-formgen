@@ -41,7 +41,7 @@ linters:
       allow-unused: false
   exclusions:
     generated: strict
-    warn-unused: true
+    warn-unused: false
     presets:
       - comments
       - common-false-positives
