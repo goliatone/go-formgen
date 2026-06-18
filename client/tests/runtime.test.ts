@@ -775,6 +775,10 @@ describe("runtime resolver", () => {
 
     expect(select.value).toBe("culture");
     expect(input!.value).toBe("Culture");
+    expect(container.dataset.selectedValue).toBe("culture");
+    expect(container.dataset.selectedId).toBe("culture");
+    expect(input!.dataset.selectedValue).toBe("culture");
+    expect(input!.dataset.selectedLabel).toBe("Culture");
   });
 
   it("prefills typeahead controls before fetching options", async () => {
@@ -833,6 +837,10 @@ describe("runtime resolver", () => {
 
     const input = select.previousElementSibling?.querySelector<HTMLInputElement>('input[type="text"]');
     expect(input?.value).toBe("Ada Lovelace");
+    const container = select.previousElementSibling as HTMLElement;
+    expect(container.dataset.selectedValue).toBe("manager-1");
+    expect(input?.dataset.selectedValue).toBe("manager-1");
+    expect(input?.dataset.selectedLabel).toBe("Ada Lovelace");
     expect(select.selectedOptions[0]?.value).toBe("manager-1");
     expect(select.selectedOptions[0]?.textContent).toBe("Ada Lovelace");
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1090,6 +1098,7 @@ describe("runtime resolver", () => {
 
     expect(select.value).toBe("lumen");
     expect(input!.value).toBe("Lumen House");
+    expect(container.dataset.selectedValue).toBe("lumen");
     expect(clear!.disabled).toBe(false);
 
     const inputEvent = vi.fn();
@@ -1100,6 +1109,9 @@ describe("runtime resolver", () => {
 
     expect(select.value).toBe("");
     expect(input!.value).toBe("");
+    expect(container.dataset.selectedValue).toBeUndefined();
+    expect(input!.dataset.selectedValue).toBeUndefined();
+    expect(input!.dataset.selectedLabel).toBeUndefined();
     expect(clear!.disabled).toBe(true);
     if (inputEvent.mock.calls.length === 0) {
       await flush();

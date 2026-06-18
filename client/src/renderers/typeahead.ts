@@ -383,6 +383,7 @@ function updateInputFromSelection(
     ? Array.from(select.options).find((item) => item.value === value)
     : undefined;
   input.value = option?.textContent ?? "";
+  syncSelectedDataset(store, value, input.value);
 
   if (!value) {
     resetInputPlaceholder(store);
@@ -652,6 +653,7 @@ function selectOption(store: TypeaheadStore, option: Option): void {
     node.selected = node.value === option.value;
   }
   input.value = option.label ?? option.value;
+  syncSelectedDataset(store, option.value, input.value);
   resetInputPlaceholder(store);
   closeDropdown(store);
   store.highlightedIndex = -1;
@@ -672,6 +674,7 @@ function clearSelection(store: TypeaheadStore): void {
     node.selected = false;
   }
   input.value = "";
+  syncSelectedDataset(store, "", "");
   resetInputPlaceholder(store);
   store.highlightedIndex = -1;
   store.searchQuery = "";
@@ -686,6 +689,27 @@ function clearSelection(store: TypeaheadStore): void {
   updateClearState(store);
   if (store.searchMode) {
     select.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+
+function syncSelectedDataset(store: TypeaheadStore, value: string, label: string): void {
+  const selectedValue = value.trim();
+  const selectedLabel = label.trim();
+  for (const node of [store.container, store.input]) {
+    if (selectedValue) {
+      node.dataset.selectedValue = selectedValue;
+      node.dataset.selectedId = selectedValue;
+      node.dataset.relationshipValue = selectedValue;
+    } else {
+      delete node.dataset.selectedValue;
+      delete node.dataset.selectedId;
+      delete node.dataset.relationshipValue;
+    }
+    if (selectedLabel) {
+      node.dataset.selectedLabel = selectedLabel;
+    } else {
+      delete node.dataset.selectedLabel;
+    }
   }
 }
 
