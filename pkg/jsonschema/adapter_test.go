@@ -198,6 +198,74 @@ func TestAdapterNormalize_ReadOnlyRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestAdapterNormalize_OverlayFieldOrderRecursesIntoArrayItems(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"site_teaching_topics_menu",
+  "type":"object",
+  "properties":{
+    "columns":{
+      "type":"array",
+      "items":{
+        "type":"object",
+        "properties":{
+          "entries":{
+            "type":"array",
+            "items":{
+              "type":"object",
+              "properties":{
+                "topic_slug":{"type":"string"},
+                "topic_id":{"type":"string"}
+              }
+            }
+          },
+          "title":{"type":"string"}
+        }
+      }
+    }
+  }
+}`)
+	overlayRaw := []byte(`{
+  "$schema":"x-ui-overlay/v1",
+  "overrides":[
+    {"path":"/properties/columns/items/properties/title","x-formgen":{"order":1}},
+    {"path":"/properties/columns/items/properties/entries","x-formgen":{"order":2}},
+    {"path":"/properties/columns/items/properties/entries/items/properties/topic_id","x-formgen":{"order":1}},
+    {"path":"/properties/columns/items/properties/entries/items/properties/topic_slug","x-formgen":{"order":2}}
+  ]
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{Overlay: overlayRaw})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("site_teaching_topics_menu.edit")
+	if !ok {
+		t.Fatalf("expected form site_teaching_topics_menu.edit")
+	}
+	model, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+
+	columns := fieldsByName(model.Fields)["columns"]
+	if columns.Items == nil {
+		t.Fatalf("columns item field missing")
+	}
+	if got := fieldNames(columns.Items.Nested); len(got) < 2 || got[0] != "title" || got[1] != "entries" {
+		t.Fatalf("column item order = %v, want title then entries", got)
+	}
+	entries := columns.Items.Nested[1]
+	if entries.Items == nil {
+		t.Fatalf("entries item field missing")
+	}
+	if got := fieldNames(entries.Items.Nested); len(got) < 2 || got[0] != "topic_id" || got[1] != "topic_slug" {
+		t.Fatalf("entry item order = %v, want topic_id then topic_slug", got)
+	}
+}
+
 func TestAdapterNormalize_ReadOnlyRefSiblings(t *testing.T) {
 	adapter := NewAdapter(failingLoader{})
 	raw := []byte(`{
@@ -589,6 +657,14 @@ func fieldsByName(fields []pkgmodel.Field) map[string]pkgmodel.Field {
 	out := make(map[string]pkgmodel.Field, len(fields))
 	for _, field := range fields {
 		out[field.Name] = field
+	}
+	return out
+}
+
+func fieldNames(fields []pkgmodel.Field) []string {
+	out := make([]string, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field.Name)
 	}
 	return out
 }

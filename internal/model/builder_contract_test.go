@@ -9,6 +9,7 @@ import (
 
 	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
 	pkgopenapi "github.com/goliatone/go-formgen/pkg/openapi"
+	pkgschema "github.com/goliatone/go-formgen/pkg/schema"
 	"github.com/goliatone/go-formgen/pkg/testsupport"
 )
 
@@ -302,6 +303,99 @@ func TestBuilder_CreateWidgetExtensions(t *testing.T) {
 			t.Fatalf("field %q metadata mismatch (-want +got):\n%s", path, diff)
 		}
 	}
+}
+
+func TestBuilder_FieldOrderMetadataRecursesIntoArrayItems(t *testing.T) {
+	builder := pkgmodel.NewBuilder()
+	form, err := builder.Build(pkgschema.Form{
+		ID:       "teaching_topics.edit",
+		Endpoint: "/teaching-topics",
+		Method:   "POST",
+		Schema: pkgschema.Schema{
+			Type: "object",
+			Properties: map[string]pkgschema.Schema{
+				"featured": {
+					Type: "object",
+					Extensions: map[string]any{
+						"x-admin": map[string]any{"order": 2},
+					},
+					Properties: map[string]pkgschema.Schema{
+						"summary":                  {Type: "string"},
+						"archive_event_session_id": {Type: "string"},
+					},
+				},
+				"columns": {
+					Type: "array",
+					Extensions: map[string]any{
+						"x-formgen": map[string]any{"order": 1},
+					},
+					Items: &pkgschema.Schema{
+						Type: "object",
+						Properties: map[string]pkgschema.Schema{
+							"entries": {
+								Type: "array",
+								Extensions: map[string]any{
+									"x-formgen": map[string]any{"order": 2},
+								},
+								Items: &pkgschema.Schema{
+									Type: "object",
+									Properties: map[string]pkgschema.Schema{
+										"topic_slug": {
+											Type: "string",
+											Extensions: map[string]any{
+												"x-formgen": map[string]any{"order": 2},
+											},
+										},
+										"topic_id": {
+											Type: "string",
+											Extensions: map[string]any{
+												"x-formgen": map[string]any{"order": 1},
+											},
+										},
+									},
+								},
+							},
+							"title": {
+								Type: "string",
+								Extensions: map[string]any{
+									"x-formgen": map[string]any{"order": 1},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if len(form.Fields) < 2 || form.Fields[0].Name != "columns" || form.Fields[1].Name != "featured" {
+		t.Fatalf("top-level order = %v, want columns then featured", fieldNames(form.Fields))
+	}
+	columns := form.Fields[0]
+	if columns.Items == nil {
+		t.Fatalf("columns item field missing")
+	}
+	if got := fieldNames(columns.Items.Nested); len(got) < 2 || got[0] != "title" || got[1] != "entries" {
+		t.Fatalf("column item order = %v, want title then entries", got)
+	}
+	entries := columns.Items.Nested[1]
+	if entries.Items == nil {
+		t.Fatalf("entries item field missing")
+	}
+	if got := fieldNames(entries.Items.Nested); len(got) < 2 || got[0] != "topic_id" || got[1] != "topic_slug" {
+		t.Fatalf("entry item order = %v, want topic_id then topic_slug", got)
+	}
+}
+
+func fieldNames(fields []pkgmodel.Field) []string {
+	out := make([]string, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field.Name)
+	}
+	return out
 }
 
 func TestBuilder_Relationships(t *testing.T) {

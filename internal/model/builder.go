@@ -136,11 +136,7 @@ func (b *Builder) fieldsFromObject(name string, schema schema.Schema, required b
 		requiredSet[item] = struct{}{}
 	}
 
-	propNames := make([]string, 0, len(schema.Properties))
-	for propName := range schema.Properties {
-		propNames = append(propNames, propName)
-	}
-	sort.Strings(propNames)
+	propNames := orderedPropertyNames(schema.Properties)
 
 	for _, propName := range propNames {
 		propSchema := schema.Properties[propName]
@@ -186,6 +182,108 @@ func (b *Builder) fieldsFromObject(name string, schema schema.Schema, required b
 	}
 
 	return fields, nil
+}
+
+type orderedProperty struct {
+	name    string
+	order   int
+	ordered bool
+}
+
+func orderedPropertyNames(properties map[string]schema.Schema) []string {
+	if len(properties) == 0 {
+		return nil
+	}
+
+	ordered := make([]orderedProperty, 0, len(properties))
+	orderedCount := 0
+	for name, property := range properties {
+		order, ok := fieldOrderFromExtensions(property.Extensions)
+		if ok {
+			orderedCount++
+		}
+		ordered = append(ordered, orderedProperty{name: name, order: order, ordered: ok})
+	}
+
+	if orderedCount < 2 {
+		names := make([]string, 0, len(ordered))
+		for _, item := range ordered {
+			names = append(names, item.name)
+		}
+		sort.Strings(names)
+		return names
+	}
+
+	sort.SliceStable(ordered, func(i, j int) bool {
+		left, right := ordered[i], ordered[j]
+		switch {
+		case left.ordered && right.ordered:
+			if left.order != right.order {
+				return left.order < right.order
+			}
+			return left.name < right.name
+		case left.ordered:
+			return true
+		case right.ordered:
+			return false
+		default:
+			return left.name < right.name
+		}
+	})
+
+	names := make([]string, 0, len(ordered))
+	for _, item := range ordered {
+		names = append(names, item.name)
+	}
+	return names
+}
+
+func fieldOrderFromExtensions(ext map[string]any) (int, bool) {
+	if len(ext) == 0 {
+		return 0, false
+	}
+	if order, ok := formgenOrderFromExtensions(ext); ok {
+		return order, true
+	}
+	return adminOrderFromExtensions(ext)
+}
+
+func formgenOrderFromExtensions(ext map[string]any) (int, bool) {
+	if nested, ok := ext[extensionNamespace].(map[string]any); ok {
+		if order, ok := extensionOrderValue(nested["order"]); ok {
+			return order, true
+		}
+	}
+	for _, key := range []string{extensionNamespace + "-order", extensionNamespace + ".order"} {
+		if order, ok := extensionOrderValue(ext[key]); ok {
+			return order, true
+		}
+	}
+	return 0, false
+}
+
+func adminOrderFromExtensions(ext map[string]any) (int, bool) {
+	if nested, ok := ext[adminExtensionNamespace].(map[string]any); ok {
+		for key, value := range nested {
+			if normaliseAdminKey(key) != "order" {
+				continue
+			}
+			if order, ok := extensionOrderValue(value); ok {
+				return order, true
+			}
+		}
+	}
+	for _, key := range []string{adminExtensionNamespace + "-order", adminExtensionNamespace + ".order"} {
+		if order, ok := extensionOrderValue(ext[key]); ok {
+			return order, true
+		}
+	}
+	return 0, false
+}
+
+func extensionOrderValue(value any) (int, bool) {
+	order, ok := toIntValue(value)
+	return order, ok
 }
 
 func (b *Builder) fieldFromArray(name string, schema schema.Schema, required bool) (Field, error) {
