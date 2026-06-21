@@ -1,5 +1,27 @@
 # Changelog
 
+# [0.26.0](https://github.com/goliatone/go-formgen/compare/v0.25.5...v0.26.0) - (2026-06-21)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Linter ([5778edf](https://github.com/goliatone/go-formgen/commit/5778edf11c1a5040913543860313ce4ddede206b))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.26.0 ([ce2b3c7](https://github.com/goliatone/go-formgen/commit/ce2b3c7419c63d2551da236478d998f75574166b))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Support for x-forgen.order andn nested ordering ([e36cb4f](https://github.com/goliatone/go-formgen/commit/e36cb4f2f59be4b909302409f20a183c5048882a))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.25.5 ([22b755e](https://github.com/goliatone/go-formgen/commit/22b755ea3849fcca9179db774a35afcaeed191a9))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Udpate docs ([c48b5b7](https://github.com/goliatone/go-formgen/commit/c48b5b77eb5e371dfe0c2e02aa943702d5dec6cc))  - (goliatone)
+
 # [0.25.5](https://github.com/goliatone/go-formgen/compare/v0.25.4...v0.25.5) - (2026-06-18)
 
 ## <!-- 1 -->🐛 Bug Fixes
