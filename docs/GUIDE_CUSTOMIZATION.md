@@ -1063,6 +1063,10 @@ Ordering notes:
 - Field paths in ordering patterns are normalized the same way as field keys (see `pkg/uischema.NormalizeFieldPath`), so `tags[]`, `tags[0]`, and `tags.items` refer to the same field.
 - Block union variants can be targeted via `blocks.items.oneOf.<type>.<field>` (for example, `blocks.items.oneOf.hero.headline`).
 - Use `"*"` inside an order preset to include “all remaining fields” at that position.
+- For schema-owned layout, sibling properties can declare `x-formgen.order` or
+  `x-admin.order` directly on the schema. This is honored recursively, including
+  object fields inside array items such as `columns[].title` before
+  `columns[].entries`.
 
 ---
 
