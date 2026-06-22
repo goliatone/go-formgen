@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.27.0](https://github.com/goliatone/go-formgen/compare/v0.26.1...v0.27.0) - (2026-06-22)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.27.0 ([7c33062](https://github.com/goliatone/go-formgen/commit/7c33062cf7a8dee38d189361f75e3a442f5e97ed))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Array with cardinality many generate a new item button ([d132d46](https://github.com/goliatone/go-formgen/commit/d132d46c486600faec6bbc5a5f6b77433773c7ea))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.26.1 ([9f47a2e](https://github.com/goliatone/go-formgen/commit/9f47a2e807ae5fd4fbe4e6be91308f4b8b0faf4a))  - (goliatone)
+
 # [0.26.1](https://github.com/goliatone/go-formgen/compare/v0.26.0...v0.26.1) - (2026-06-22)
 
 ## <!-- 1 -->🐛 Bug Fixes
