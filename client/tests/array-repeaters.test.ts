@@ -32,8 +32,9 @@ describe("array repeaters", () => {
           </div>
           <template data-formgen-array-prototype="true">
             <div id="fg-columns-0-entries-1">
-              <input id="fg-columns-0-entries-1-topic_id" name="columns[0].entries[1].topic_id" value="prototype-topic" disabled required>
-              <select id="fg-columns-0-entries-1-kind" name="columns[0].entries[1].kind" disabled>
+              <input id="fg-columns-0-entries-1-topic_id" name="columns[0].entries[1].topic_id" value="prototype-topic" disabled required data-formgen-prototype-disabled="true">
+              <input id="fg-columns-0-entries-1-topic_slug" name="columns[0].entries[1].topic_slug" value="old-slug" disabled readonly>
+              <select id="fg-columns-0-entries-1-kind" name="columns[0].entries[1].kind" disabled data-formgen-prototype-disabled="true">
                 <option value="">Select kind</option>
                 <option value="topic" selected>Topic</option>
               </select>
@@ -52,6 +53,7 @@ describe("array repeaters", () => {
 
     const row = document.getElementById("fg-columns-0-entries-1");
     const topic = document.getElementById("fg-columns-0-entries-1-topic_id") as HTMLInputElement;
+    const slug = document.getElementById("fg-columns-0-entries-1-topic_slug") as HTMLInputElement;
     const kind = document.getElementById("fg-columns-0-entries-1-kind") as HTMLSelectElement;
 
     expect(row).toBeTruthy();
@@ -59,8 +61,14 @@ describe("array repeaters", () => {
     expect(topic.disabled).toBe(false);
     expect(topic.required).toBe(true);
     expect(topic.value).toBe("");
+    expect(topic.hasAttribute("data-formgen-prototype-disabled")).toBe(false);
+    expect(slug.name).toBe("columns[0].entries[1].topic_slug");
+    expect(slug.disabled).toBe(true);
+    expect(slug.readOnly).toBe(true);
+    expect(slug.value).toBe("");
     expect(kind.name).toBe("columns[0].entries[1].kind");
     expect(kind.disabled).toBe(false);
+    expect(kind.hasAttribute("data-formgen-prototype-disabled")).toBe(false);
     expect(kind.value).toBe("");
     expect(items.children[1]).toBe(row);
   });
@@ -83,6 +91,7 @@ describe("array repeaters", () => {
                     id="fg-columns-0-entries-0-topic_id"
                     name="columns[0].entries[0].topic_id"
                     disabled
+                    data-formgen-prototype-disabled="true"
                     data-endpoint-url="/api/topics"
                     data-endpoint-method="GET"
                     data-endpoint-mode="search"

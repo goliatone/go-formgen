@@ -27,6 +27,7 @@ import { relationshipCurrentValuesNeedingResolution } from "./relationship-curre
 
 const DYNAMIC_TOKEN_PATTERN = /\{\{\s*([^}]+)\s*\}\}/g;
 const DEFAULT_ERROR_MESSAGE = "Unable to load options.";
+export const RESOLVER_SUPERSEDED_ABORT_REASON = "formgen:resolver-superseded";
 
 function now(): number {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -81,6 +82,15 @@ function isAbortError(error: unknown): boolean {
     typeof error === "object" &&
     ((error as { name?: string }).name === "AbortError" || error instanceof ResolverAbortError)
   );
+}
+
+function createSupersededAbortReason(): DOMException | Error {
+  if (typeof DOMException === "function") {
+    return new DOMException(RESOLVER_SUPERSEDED_ABORT_REASON, "AbortError");
+  }
+  const error = new Error(RESOLVER_SUPERSEDED_ABORT_REASON);
+  error.name = "AbortError";
+  return error;
 }
 
 export type ResolverEventName = "loading" | "success" | "error" | "validation";
@@ -372,7 +382,7 @@ export class Resolver {
 
   private cancelInFlight(): void {
     if (this.abortController) {
-      this.abortController.abort();
+      this.abortController.abort(createSupersededAbortReason());
       this.abortController = null;
     }
   }

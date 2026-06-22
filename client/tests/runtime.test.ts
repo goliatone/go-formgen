@@ -18,6 +18,7 @@ import {
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
+import { RESOLVER_SUPERSEDED_ABORT_REASON } from "../src/resolver";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1042,6 +1043,66 @@ describe("runtime resolver", () => {
     await flush();
 
     expect(input!.value).toBe("Ra");
+  });
+
+  it("aborts superseded resolver requests with a stable reason", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="manager"
+          name="project[manager_id]"
+          data-endpoint-url="/api/managers"
+          data-endpoint-method="GET"
+          data-endpoint-label-field="name"
+          data-endpoint-value-field="id"
+          data-endpoint-refresh="manual"
+          data-relationship-cardinality="one"
+        ></select>
+      </form>
+    `;
+
+    const select = document.getElementById("manager") as HTMLSelectElement;
+    const errorEvents: ResolverEventDetail[] = [];
+    select.addEventListener("formgen:relationship:error", (event) => {
+      errorEvents.push((event as CustomEvent<ResolverEventDetail>).detail);
+    });
+
+    let firstSignal: AbortSignal | undefined;
+    let requestCount = 0;
+    fetchSpy.mockImplementation((_url, init) => {
+      requestCount += 1;
+      const signal = init?.signal as AbortSignal | undefined;
+      if (requestCount === 1) {
+        firstSignal = signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject((signal as AbortSignal & { reason?: unknown }).reason),
+            { once: true }
+          );
+        });
+      }
+      return Promise.resolve(mockResponse([{ value: "ada", label: "Ada Lovelace" }]));
+    });
+
+    const registry = await initRelationships();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const firstResolve = registry.resolve(select);
+    await flush();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const secondResolve = registry.resolve(select);
+    await secondResolve;
+    await firstResolve;
+
+    expect(firstSignal?.aborted).toBe(true);
+    const reason = (firstSignal as AbortSignal & { reason?: { name?: string; message?: string } })
+      ?.reason;
+    expect(reason?.name).toBe("AbortError");
+    expect(reason?.message).toBe(RESOLVER_SUPERSEDED_ABORT_REASON);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(errorEvents).toHaveLength(0);
   });
 
   it("clears typeahead selections and re-issues search", async () => {

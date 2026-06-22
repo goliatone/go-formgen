@@ -6,6 +6,7 @@ const ARRAY_ITEMS_ATTR = "data-formgen-array-items";
 const ARRAY_PROTOTYPE_ATTR = "data-formgen-array-prototype";
 const ARRAY_ACTION_SELECTOR = '[data-formgen-array-action="add"]';
 const ARRAY_INITIALIZED_ATTR = "data-formgen-array-initialized";
+const PROTOTYPE_DISABLED_ATTR = "data-formgen-prototype-disabled";
 
 interface ReindexContext {
   prototypePath: string;
@@ -145,12 +146,15 @@ function rewriteValue(value: string, context: ReindexContext): string {
 
 function resetPrototypeFragment(fragment: DocumentFragment): void {
   for (const element of fragmentElements(fragment)) {
-    element.removeAttribute("disabled");
+    const shouldEnable = element.getAttribute(PROTOTYPE_DISABLED_ATTR) === "true";
+    element.removeAttribute(PROTOTYPE_DISABLED_ATTR);
     element.removeAttribute("data-relationship-current");
     element.removeAttribute("data-relationship-current-applied");
 
     if (element instanceof HTMLInputElement) {
-      element.disabled = false;
+      if (shouldEnable) {
+        element.disabled = false;
+      }
       if (element.type === "checkbox" || element.type === "radio") {
         element.checked = false;
       } else {
@@ -159,14 +163,18 @@ function resetPrototypeFragment(fragment: DocumentFragment): void {
       continue;
     }
     if (element instanceof HTMLSelectElement) {
-      element.disabled = false;
+      if (shouldEnable) {
+        element.disabled = false;
+      }
       Array.from(element.options).forEach((option, index) => {
         option.selected = !element.multiple && index === 0;
       });
       continue;
     }
     if (element instanceof HTMLTextAreaElement) {
-      element.disabled = false;
+      if (shouldEnable) {
+        element.disabled = false;
+      }
       element.value = "";
       continue;
     }
@@ -175,7 +183,9 @@ function resetPrototypeFragment(fragment: DocumentFragment): void {
       element instanceof HTMLFieldSetElement ||
       element instanceof HTMLOptGroupElement
     ) {
-      element.disabled = false;
+      if (shouldEnable) {
+        element.disabled = false;
+      }
     }
   }
 }

@@ -645,7 +645,7 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 											"relationship.endpoint.valueField":   "value",
 										},
 									},
-									{Name: "topic_slug", Type: model.FieldTypeString, Label: "Topic slug"},
+									{Name: "topic_slug", Type: model.FieldTypeString, Label: "Topic slug", Readonly: true},
 								},
 							},
 						},
@@ -703,8 +703,26 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 	if !strings.Contains(prototypeTopic, `name="columns[0].entries[1].topic_id"`) {
 		t.Fatalf("template prototype topic control should keep the cloneable name:\n%s", prototypeTopic)
 	}
-	if !strings.Contains(prototypeTopic, "disabled") {
+	if !renderedTagHasAttribute(prototypeTopic, "disabled") {
 		t.Fatalf("prototype topic control should be disabled before cloning:\n%s", prototypeTopic)
+	}
+	if !renderedTagHasAttribute(prototypeTopic, "data-formgen-prototype-disabled") {
+		t.Fatalf("editable prototype topic control should be marked as prototype-disabled:\n%s", prototypeTopic)
+	}
+
+	prototypeSlug := renderedControlTagByID(t, html, "fg-columns-0-entries-1-topic_slug")
+	for _, want := range []string{`name="columns[0].entries[1].topic_slug"`} {
+		if !strings.Contains(prototypeSlug, want) {
+			t.Fatalf("readonly prototype slug control should contain %s:\n%s", want, prototypeSlug)
+		}
+	}
+	for _, want := range []string{"disabled", "readonly"} {
+		if !renderedTagHasAttribute(prototypeSlug, want) {
+			t.Fatalf("readonly prototype slug control should have %s attribute:\n%s", want, prototypeSlug)
+		}
+	}
+	if renderedTagHasAttribute(prototypeSlug, "data-formgen-prototype-disabled") {
+		t.Fatalf("readonly prototype slug control should not be marked as prototype-disabled:\n%s", prototypeSlug)
 	}
 }
 
@@ -851,6 +869,16 @@ func renderedControlTagByID(t *testing.T, html, id string) string {
 		t.Fatalf("could not locate control tag end for id %q", id)
 	}
 	return html[start : idx+endRel+1]
+}
+
+func renderedTagHasAttribute(tag, name string) bool {
+	for _, token := range strings.Fields(tag) {
+		token = strings.TrimRight(token, ">")
+		if token == name || strings.HasPrefix(token, name+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRenderer_RenderWithProvenance(t *testing.T) {

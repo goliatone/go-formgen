@@ -529,10 +529,13 @@ func writeRelationshipAttributes(builder *strings.Builder, rel *model.Relationsh
 }
 
 const (
-	controlIDMetadataKey   = "control.id"
-	controlNameMetadataKey = "control.name"
-	controlOmitNameKey     = "control.omitName"
-	controlPathMetadataKey = "control.path"
+	controlIDMetadataKey         = "control.id"
+	controlNameMetadataKey       = "control.name"
+	controlOmitNameKey           = "control.omitName"
+	controlPathMetadataKey       = "control.path"
+	dataAttributesMetadataKey    = "__data_attrs"
+	prototypeDisabledMetadataKey = "formgen.prototype.disabled"
+	prototypeDisabledDataAttr    = ` data-formgen-prototype-disabled="true"`
 )
 
 func componentControlID(field model.Field) string {
@@ -709,19 +712,60 @@ func markPrototypeControlSuppressed(field *model.Field) {
 }
 
 func markPrototypeControlDisabled(field *model.Field) {
+	markPrototypeControlDisabledInherited(field, false)
+}
+
+func markPrototypeControlDisabledInherited(field *model.Field, inheritedInactive bool) {
 	if field == nil {
 		return
+	}
+	ownInactive := fieldControlInactive(*field)
+	if !inheritedInactive && !ownInactive {
+		markPrototypeOnlyDisabled(field)
 	}
 	if field.Metadata == nil {
 		field.Metadata = make(map[string]string, 1)
 	}
 	field.Metadata["disabled"] = "true"
 	field.Disabled = true
+	childInherited := inheritedInactive || ownInactive
 	for i := range field.Nested {
-		markPrototypeControlDisabled(&field.Nested[i])
+		markPrototypeControlDisabledInherited(&field.Nested[i], childInherited)
 	}
 	if field.Items != nil {
-		markPrototypeControlDisabled(field.Items)
+		markPrototypeControlDisabledInherited(field.Items, childInherited)
+	}
+}
+
+func markPrototypeOnlyDisabled(field *model.Field) {
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 2)
+	}
+	field.Metadata[prototypeDisabledMetadataKey] = "true"
+	if !strings.Contains(field.Metadata[dataAttributesMetadataKey], prototypeDisabledDataAttr) {
+		field.Metadata[dataAttributesMetadataKey] += prototypeDisabledDataAttr
+	}
+}
+
+func fieldControlInactive(field model.Field) bool {
+	if field.Disabled || field.Readonly {
+		return true
+	}
+	if isTruthyHint(field.Metadata["disabled"]) ||
+		isTruthyHint(field.Metadata["readonly"]) ||
+		isTruthyHint(field.Metadata["prefill.disabled"]) ||
+		isTruthyHint(field.Metadata["prefill.readonly"]) {
+		return true
+	}
+	return isTruthyHint(field.UIHints["disabled"]) || isTruthyHint(field.UIHints["readonly"])
+}
+
+func isTruthyHint(value string) bool {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }
 
