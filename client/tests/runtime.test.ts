@@ -15,10 +15,10 @@ import {
   type ResolverRegistry,
   registerErrorRenderer,
   attachFormController,
+  RESOLVER_SUPERSEDED_ABORT_REASON,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
-import { RESOLVER_SUPERSEDED_ABORT_REASON } from "../src/resolver";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

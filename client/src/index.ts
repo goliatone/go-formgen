@@ -87,6 +87,7 @@ export type {
 export { ResolverRegistry } from "./registry";
 export {
   Resolver,
+  RESOLVER_SUPERSEDED_ABORT_REASON,
   type ResolverEventDetail,
   type ResolverEventName,
   type Renderer,
