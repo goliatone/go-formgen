@@ -10,6 +10,7 @@ import (
 var (
 	uiHintKeys = []string{
 		"accordion",
+		"addText",
 		"badge",
 		"cardinality",
 		"category",

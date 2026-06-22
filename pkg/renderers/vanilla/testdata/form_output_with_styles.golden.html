@@ -499,13 +499,14 @@
             
             <div style="grid-column: span 12 / span 12">
                 <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
-    <div id="fg-contributors" class="space-y-3" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" role="group" aria-labelledby="fg-contributors-label"><div id="fg-contributors-label" class="text-sm font-medium text-gray-900 dark:text-white">Contributors</div><p class="text-xs text-gray-500 dark:text-gray-400">Assign supporting editors and reviewers</p><p class="text-xs text-gray-600 dark:text-gray-300">Demonstrates nested arrays with relationship fields.</p><div class="space-y-3" data-relationship-collection="many"><div class="flex flex-col gap-2" data-component="object" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
+    <div id="fg-contributors" class="space-y-3" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" role="group" aria-labelledby="fg-contributors-label"><div id="fg-contributors-label" class="text-sm font-medium text-gray-900 dark:text-white">Contributors</div><p class="text-xs text-gray-500 dark:text-gray-400">Assign supporting editors and reviewers</p><p class="text-xs text-gray-600 dark:text-gray-300">Demonstrates nested arrays with relationship fields.</p><div class="space-y-3" data-relationship-collection="many" data-formgen-array-items="true" data-formgen-array-name="contributors" data-formgen-array-next-index="0" data-formgen-array-prototype-path="contributors[0]" data-formgen-array-prototype-id-prefix="fg-contributors-0"><template data-formgen-array-prototype="true"><div class="flex flex-col gap-2" data-component="object" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
         <fieldset id="fg-contributors-0" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article" aria-labelledby="fg-contributors-0-label"><legend id="fg-contributors-0-label" class="text-sm font-semibold text-gray-900 dark:text-white">Contributors item</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="one">
             <label data-formgen-chrome="label" id="fg-contributors-0-person_id-label" for="fg-contributors-0-person_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
                 Person<span class="text-red-500 ms-1" aria-hidden="true">*</span>
             </label>
             <select
                 id="fg-contributors-0-person_id"
+                name="contributors[0].person_id"
                 class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                 required
                 disabled
@@ -527,6 +528,7 @@
             </label>
             <select
                 id="fg-contributors-0-role"
+                name="contributors[0].role"
                 class="py-3 px-4 pe-9 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                 required
                 disabled
@@ -549,6 +551,7 @@
             <input
                 type="text"
                 id="fg-contributors-0-notes"
+                name="contributors[0].notes"
                 class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-gray-700 dark:focus:ring-gray-600"
                 disabled
                  data-validation-label="Notes"
@@ -560,7 +563,7 @@
         </div>
         </div></fieldset>
     </div>
-    </div><button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">Add Contributors</button></div>
+    </template></div><button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-formgen-array-action="add" data-relationship-action="add">Add Contributors</button></div>
 </div>
 
             </div>

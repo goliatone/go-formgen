@@ -40,6 +40,10 @@ func NewDefaultRegistry() *Registry {
 	})
 	registry.MustRegister(NameArray, Descriptor{
 		Renderer: arrayRenderer,
+		Scripts: []Script{
+			{Src: runtimeScript, Defer: true},
+			{Inline: runtimeInit},
+		},
 	})
 	registry.MustRegister(NameDatetimeRange, Descriptor{
 		Renderer: datetimeRangeRenderer,
@@ -308,32 +312,71 @@ func arrayRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) err
 }
 
 func writeArrayItems(builder *strings.Builder, field model.Field, data ComponentData) error {
-	cardinality := strings.TrimSpace(field.UIHints["cardinality"])
+	cardinality := arrayCardinality(field)
+	repeatable := cardinality == "many"
+	itemValues := coerceSlice(field.Default)
 	builder.WriteString(`<div class="space-y-3"`)
 	if cardinality != "" {
 		builder.WriteString(` data-relationship-collection="`)
 		builder.WriteString(html.EscapeString(cardinality))
 		builder.WriteString(`"`)
 	}
+	if repeatable {
+		writeArrayRepeaterAttributes(builder, field, len(itemValues))
+	}
 	builder.WriteString(`>`)
-	if err := writeArrayItemFields(builder, field, data); err != nil {
+	if err := writeArrayItemFields(builder, field, data, itemValues, repeatable); err != nil {
 		return err
 	}
+	if repeatable {
+		if err := writeArrayPrototypeTemplate(builder, field, data, len(itemValues)); err != nil {
+			return err
+		}
+	}
 	builder.WriteString(`</div>`)
-	if cardinality == "many" {
+	if repeatable {
 		writeArrayAddButton(builder, field)
 	}
 	return nil
 }
 
-func writeArrayItemFields(builder *strings.Builder, field model.Field, data ComponentData) error {
-	itemValues := coerceSlice(field.Default)
+func writeArrayRepeaterAttributes(builder *strings.Builder, field model.Field, prototypeIndex int) {
+	builder.WriteString(` data-formgen-array-items="true"`)
+	if path := componentControlPath(field); path != "" {
+		builder.WriteString(` data-formgen-array-name="`)
+		builder.WriteString(html.EscapeString(path))
+		builder.WriteString(`"`)
+	}
+	builder.WriteString(` data-formgen-array-next-index="`)
+	builder.WriteString(html.EscapeString(fmt.Sprint(prototypeIndex)))
+	builder.WriteString(`"`)
+	if path := arrayItemControlPath(field, prototypeIndex); path != "" {
+		builder.WriteString(` data-formgen-array-prototype-path="`)
+		builder.WriteString(html.EscapeString(path))
+		builder.WriteString(`"`)
+		builder.WriteString(` data-formgen-array-prototype-id-prefix="`)
+		builder.WriteString(html.EscapeString(controlIDFromPath(path)))
+		builder.WriteString(`"`)
+	}
+}
+
+func writeArrayPrototypeTemplate(builder *strings.Builder, field model.Field, data ComponentData, prototypeIndex int) error {
+	child, err := renderArrayTemplatePrototypeItem(field, data, prototypeIndex)
+	if err != nil {
+		return err
+	}
+	builder.WriteString(`<template data-formgen-array-prototype="true">`)
+	builder.WriteString(child)
+	builder.WriteString(`</template>`)
+	return nil
+}
+
+func writeArrayItemFields(builder *strings.Builder, field model.Field, data ComponentData, itemValues []any, repeatable bool) error {
 	if len(itemValues) == 0 {
-		item := cloneField(*field.Items)
-		if path := arrayItemControlPath(field, 0); path != "" {
-			applyPrototypeControlPath(&item, path)
+		if repeatable {
+			return nil
 		}
-		child, err := data.RenderChild(item)
+		child, err := renderArrayPrototypeItem(field, data, 0)
 		if err != nil {
 			return err
 		}
@@ -354,17 +397,44 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 	return nil
 }
 
+func renderArrayPrototypeItem(field model.Field, data ComponentData, idx int) (string, error) {
+	item := cloneField(*field.Items)
+	if path := arrayItemControlPath(field, idx); path != "" {
+		applyPrototypeControlPath(&item, path)
+	}
+	return data.RenderChild(item)
+}
+
+func renderArrayTemplatePrototypeItem(field model.Field, data ComponentData, idx int) (string, error) {
+	item := cloneField(*field.Items)
+	if path := arrayItemControlPath(field, idx); path != "" {
+		applyControlPath(&item, path)
+		markPrototypeControlDisabled(&item)
+	}
+	return data.RenderChild(item)
+}
+
 func writeArrayAddButton(builder *strings.Builder, field model.Field) {
-	builder.WriteString(`<button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-relationship-action="add">`)
-	builder.WriteString(`Add `)
-	if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
+	builder.WriteString(`<button type="button" class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800" data-formgen-array-action="add" data-relationship-action="add">`)
+	if label := strings.TrimSpace(field.UIHints["addText"]); label != "" {
+		builder.WriteString(html.EscapeString(label))
+	} else if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
+		builder.WriteString(`Add `)
 		builder.WriteString(html.EscapeString(label))
 	} else if field.Label != "" {
+		builder.WriteString(`Add `)
 		builder.WriteString(html.EscapeString(field.Label))
 	} else {
-		builder.WriteString("item")
+		builder.WriteString("Add item")
 	}
 	builder.WriteString(`</button>`)
+}
+
+func arrayCardinality(field model.Field) string {
+	if field.UIHints == nil {
+		return ""
+	}
+	return strings.TrimSpace(field.UIHints["cardinality"])
 }
 
 func datetimeRangeRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
@@ -635,6 +705,23 @@ func markPrototypeControlSuppressed(field *model.Field) {
 	}
 	if field.Items != nil {
 		markPrototypeControlSuppressed(field.Items)
+	}
+}
+
+func markPrototypeControlDisabled(field *model.Field) {
+	if field == nil {
+		return
+	}
+	if field.Metadata == nil {
+		field.Metadata = make(map[string]string, 1)
+	}
+	field.Metadata["disabled"] = "true"
+	field.Disabled = true
+	for i := range field.Nested {
+		markPrototypeControlDisabled(&field.Nested[i])
+	}
+	if field.Items != nil {
+		markPrototypeControlDisabled(field.Items)
 	}
 }
 

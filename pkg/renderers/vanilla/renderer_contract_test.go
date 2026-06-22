@@ -602,6 +602,112 @@ func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
 	}
 }
 
+func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "teachingTopicsMenu",
+		Endpoint:    "/menus",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "columns",
+				Type:  model.FieldTypeArray,
+				Label: "Columns",
+				Items: &model.Field{
+					Type: model.FieldTypeObject,
+					Nested: []model.Field{
+						{Name: "title", Type: model.FieldTypeString, Label: "Title"},
+						{
+							Name:  "entries",
+							Type:  model.FieldTypeArray,
+							Label: "Entries",
+							UIHints: map[string]string{
+								"cardinality": "many",
+								"addText":     "Add topic entry",
+							},
+							Items: &model.Field{
+								Type: model.FieldTypeObject,
+								Nested: []model.Field{
+									{
+										Name:  "topic_id",
+										Type:  model.FieldTypeString,
+										Label: "Topic",
+										Relationship: &model.Relationship{
+											Kind:        model.RelationshipBelongsTo,
+											Target:      "teaching-topic",
+											ForeignKey:  "topic_id",
+											Cardinality: "one",
+										},
+										Metadata: map[string]string{
+											"relationship.endpoint.url":          "/admin/api/options/teaching-topic",
+											"relationship.endpoint.mode":         "search",
+											"relationship.endpoint.hydrateParam": "topic_id",
+											"relationship.endpoint.labelField":   "label",
+											"relationship.endpoint.valueField":   "value",
+										},
+									},
+									{Name: "topic_slug", Type: model.FieldTypeString, Label: "Topic slug"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Values: map[string]any{
+			"columns": []any{
+				map[string]any{
+					"title": "Subjects",
+					"entries": []any{
+						map[string]any{
+							"topic_id":   "topic-refuge-id",
+							"topic_slug": "refuge",
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := string(output)
+	for _, want := range []string{
+		`data-formgen-array-items="true"`,
+		`data-formgen-array-name="columns[0].entries"`,
+		`data-formgen-array-next-index="1"`,
+		`data-formgen-array-prototype-path="columns[0].entries[1]"`,
+		`data-formgen-array-prototype-id-prefix="fg-columns-0-entries-1"`,
+		`<template data-formgen-array-prototype="true">`,
+		`data-formgen-array-action="add"`,
+		`data-relationship-action="add"`,
+		`Add topic entry`,
+		`name="columns[0].entries[0].topic_id"`,
+		`id="fg-columns-0-entries-1-topic_id"`,
+		`/runtime/formgen-relationships.min.js`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected rendered HTML to contain %s:\n%s", want, html)
+		}
+	}
+
+	prototypeTopic := renderedControlTagByID(t, html, "fg-columns-0-entries-1-topic_id")
+	if !strings.Contains(prototypeTopic, `name="columns[0].entries[1].topic_id"`) {
+		t.Fatalf("template prototype topic control should keep the cloneable name:\n%s", prototypeTopic)
+	}
+	if !strings.Contains(prototypeTopic, "disabled") {
+		t.Fatalf("prototype topic control should be disabled before cloning:\n%s", prototypeTopic)
+	}
+}
+
 func TestRenderer_EmptyArrayPrototypeDoesNotSubmitValues(t *testing.T) {
 	form := model.FormModel{
 		OperationID: "arrays",

@@ -15,6 +15,7 @@ import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
 import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
 import { initComponents } from "./components/registry";
+import { initArrayRepeaters } from "./array-repeaters";
 import { clearFieldError, renderFieldError } from "./errors";
 import { emitRelationshipUpdate } from "./relationship-events";
 import {
@@ -51,41 +52,7 @@ export async function initRelationships(
   const promises: Promise<void>[] = [];
 
   for (const root of roots) {
-    initComponents(root);
-    const fields = locateRelationshipFields(root);
-    for (const element of fields) {
-      const dataset = readDataset(element);
-      const endpoint = datasetToEndpoint(dataset);
-      const field = datasetToFieldConfig(element, dataset);
-      applyInitialSelection(element, field);
-
-      if (!registry.get(element)) {
-        registry.register(element, { field, endpoint });
-      }
-
-      if (
-        field.renderer === "chips" &&
-        element instanceof HTMLSelectElement &&
-        element.multiple
-      ) {
-        bootstrapChips(element, registry);
-      }
-      if (
-        field.renderer === "typeahead" &&
-        element instanceof HTMLSelectElement &&
-        !element.multiple
-      ) {
-        bootstrapTypeahead(element, registry);
-      }
-
-      setupDependentRefresh(element, field, root, registry);
-      setupManualRefresh(element, field, root, registry);
-      setupSearchMode(element, field, registry);
-
-      if (shouldAutoResolve(field)) {
-        promises.push(registry.resolve(element));
-      }
-    }
+    promises.push(...initializeRuntimeRoot(root, registry, config));
   }
 
   if (promises.length > 0) {
@@ -131,6 +98,7 @@ export {
   initComponents,
   __resetComponentRegistryForTests as resetComponentRegistryForTests,
 } from "./components/registry";
+export { initArrayRepeaters, addArrayItem } from "./array-repeaters";
 export { registerErrorRenderer } from "./errors";
 export {
   registerThemeClasses,
@@ -177,6 +145,59 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
       element.dataset.relationshipCurrentApplied = "true";
     }
   }
+}
+
+function initializeRuntimeRoot(
+  root: HTMLElement,
+  registry: ResolverRegistry,
+  config: GlobalConfig
+): Promise<void>[] {
+  initComponents(root);
+  initArrayRepeaters(root, {
+    onItemAdded: (itemRoot) => {
+      const nestedPromises = initializeRuntimeRoot(itemRoot, registry, config);
+      if (nestedPromises.length > 0) {
+        void Promise.all(nestedPromises);
+      }
+    },
+  });
+
+  const promises: Promise<void>[] = [];
+  const fields = locateRelationshipFields(root);
+  for (const element of fields) {
+    const dataset = readDataset(element);
+    const endpoint = datasetToEndpoint(dataset);
+    const field = datasetToFieldConfig(element, dataset);
+    applyInitialSelection(element, field);
+
+    if (!registry.get(element)) {
+      registry.register(element, { field, endpoint });
+    }
+
+    if (
+      field.renderer === "chips" &&
+      element instanceof HTMLSelectElement &&
+      element.multiple
+    ) {
+      bootstrapChips(element, registry);
+    }
+    if (
+      field.renderer === "typeahead" &&
+      element instanceof HTMLSelectElement &&
+      !element.multiple
+    ) {
+      bootstrapTypeahead(element, registry);
+    }
+
+    setupDependentRefresh(element, field, root, registry);
+    setupManualRefresh(element, field, root, registry);
+    setupSearchMode(element, field, registry);
+
+    if (shouldAutoResolve(field)) {
+      promises.push(registry.resolve(element));
+    }
+  }
+  return promises;
 }
 
 function applySelectValues(

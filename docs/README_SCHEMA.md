@@ -35,6 +35,7 @@ go-formgen builds form fields from the request-body schema attached to the opera
 - Array constraints: `minItems` and `maxItems` become item-count validation rules.
 - Formats: recognised formats (`date`, `time`, `date-time`, `email`, `uri`, `tel`, `password`, `byte`, `binary`) inform the renderer’s `inputType`.
 - Arrays: `type: array` requires an `items` schema. The items schema can be another object or a primitive. Missing `items` causes `model builder: array field "<name>" missing items`.
+- Repeatable arrays: set `x-formgen.cardinality: many` on an array field to make the vanilla renderer show an add button and clone a blank item row at runtime. Use `x-formgen.addText` to customize the button label and `x-formgen.repeaterLabel` for fallback item wording.
 - Nested objects: nested `type: object` properties are rendered as grouped sub-fields.
 - Nullable: OpenAPI’s `nullable` flag is ignored today; model builders treat fields as non-nullable but optional unless marked required.
 - Composition keywords (`allOf`, `oneOf`, `anyOf`, `not`, `dependencies`, `if/then/else`) are not expanded in OpenAPI inputs. Avoid them or dereference them into plain objects before handing the schema to go-formgen. (The JSON Schema adapter supports `oneOf` only for block unions on array items; see `docs/README_JSON_SCHEMA.md`.)
