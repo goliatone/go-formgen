@@ -8,7 +8,8 @@
   embeddable vanilla and Preact output.
 - Added schema-owned nested field ordering: sibling properties that declare
   `x-formgen.order` or `x-admin.order` are built in that order at top level,
-  inside nested objects, and inside array item objects.
+  inside nested objects, and inside array item objects. A single ordered field is
+  honored; unordered siblings follow in deterministic property-name order.
 - Added browser controller hooks at `window.Formgen.attach(root)` for value
   collection, value/error hydration, subscriptions, focus, and teardown.
 - Added vanilla `StyleModeDefault`, `StyleModeMinimal`, and `StyleModeUnstyled`
@@ -31,8 +32,9 @@ This phase rounds out the admin/settings expansion: widgets and theming are now 
 - Widget overrides: register custom widgets via `(*orchestrator.Orchestrator).RegisterWidget` or pass a registry into `WithWidgetRegistry`. Avoid mutating the default registry directly.
 - Visibility evaluators: inject with `WithVisibilityEvaluator` at construction time or `SetVisibilityEvaluator` afterwards, and pass context through `RenderOptions.VisibilityContext`.
 - Nested field ordering: downstream schema authors can keep order hints on the
-  schema or JSON Schema overlay. Renderer-specific HTML reordering should no
-  longer be needed after updating to this release.
+  schema or JSON Schema overlay, including dotted overlay keys such as
+  `x-formgen.order` and `x-admin.order`. Renderer-specific HTML reordering
+  should no longer be needed after updating to this release.
 - Templates/themes: when supplying custom templates or go-theme providers, ensure fallback partials map the new component keys (`forms.json-editor`, `forms.file-uploader`).
 - Snapshots: refresh vanilla/Preact goldens after updating templates/components using `./taskfile dev:goldens` (requires network access for module downloads).
 

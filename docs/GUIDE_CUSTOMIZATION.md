@@ -1067,6 +1067,12 @@ Ordering notes:
   `x-admin.order` directly on the schema. This is honored recursively, including
   object fields inside array items such as `columns[].title` before
   `columns[].entries`.
+- A single ordered sibling is enough to affect order. Ordered siblings render
+  first by numeric order, then unordered siblings render by property name; order
+  every sibling in the set when you need complete placement control.
+- JSON Schema overlays can use nested maps (`"x-formgen": {"order": 1}`),
+  dashed keys (`"x-formgen-order": 1`), or dotted keys
+  (`"x-formgen.order": 1`).
 
 ---
 
