@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.26.1](https://github.com/goliatone/go-formgen/compare/v0.26.0...v0.26.1) - (2026-06-22)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Overlay and builder contract ([8c3af0b](https://github.com/goliatone/go-formgen/commit/8c3af0b9d841225278478dda20786bc13fb38803))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.26.1 ([f4df929](https://github.com/goliatone/go-formgen/commit/f4df929fdd0038b387acef3306de38a03ef72a51))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.26.0 ([9ce1d66](https://github.com/goliatone/go-formgen/commit/9ce1d66c7ab3d08a7515eb43bb813317d5cdcf96))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Udpate docs ([54f0441](https://github.com/goliatone/go-formgen/commit/54f0441b3bd7b3dd90fc407a513eadc5be568193))  - (goliatone)
+
 # [0.26.0](https://github.com/goliatone/go-formgen/compare/v0.25.5...v0.26.0) - (2026-06-21)
 
 ## <!-- 1 -->🐛 Bug Fixes
