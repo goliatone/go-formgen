@@ -266,6 +266,45 @@ func TestAdapterNormalize_OverlayFieldOrderRecursesIntoArrayItems(t *testing.T) 
 	}
 }
 
+func TestAdapterNormalize_DottedOverlayFieldOrder(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"dotted_overlay_order",
+  "type":"object",
+  "properties":{
+    "gamma":{"type":"string"},
+    "alpha":{"type":"string"},
+    "beta":{"type":"string"}
+  }
+}`)
+	overlayRaw := []byte(`{
+  "$schema":"x-ui-overlay/v1",
+  "overrides":[
+    {"path":"/properties/alpha","x-formgen.order":2},
+    {"path":"/properties/beta","x-admin.order":1}
+  ]
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{Overlay: overlayRaw})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("dotted_overlay_order.edit")
+	if !ok {
+		t.Fatalf("expected form dotted_overlay_order.edit")
+	}
+	model, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+
+	if got := fieldNames(model.Fields); len(got) != 3 || got[0] != "beta" || got[1] != "alpha" || got[2] != "gamma" {
+		t.Fatalf("field order = %v, want dotted overlay orders before unordered fallback", got)
+	}
+}
+
 func TestAdapterNormalize_ReadOnlyRefSiblings(t *testing.T) {
 	adapter := NewAdapter(failingLoader{})
 	raw := []byte(`{

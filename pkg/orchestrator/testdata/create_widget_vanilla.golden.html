@@ -40,23 +40,7 @@
         
         <div style="grid-column: span 12 / span 12">
             <div class="flex flex-col gap-2" data-component="object">
-    <fieldset id="fg-settings" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700 border-s-4 border-s-blue-600" aria-labelledby="fg-settings-label"><legend id="fg-settings-label" class="text-sm font-semibold text-gray-900 dark:text-white">Settings</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="boolean">
-        <label data-formgen-chrome="label" id="fg-settings-enabled-label" for="fg-settings-enabled" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300 sr-only">
-            Enable widget
-        </label>
-        <div class="flex items-center">
-            <input
-                type="checkbox"
-                id="fg-settings-enabled"
-                name="settings.enabled"
-                class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
-                 data-validation-label="Enable widget"
-            >
-            <label for="fg-settings-enabled" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">Enable widget</label>
-        </div>
-        <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
-    </div>
-    <div class="flex flex-col gap-2" data-component="input">
+    <fieldset id="fg-settings" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700 border-s-4 border-s-blue-600" aria-labelledby="fg-settings-label"><legend id="fg-settings-label" class="text-sm font-semibold text-gray-900 dark:text-white">Settings</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="input">
         <label data-formgen-chrome="label" id="fg-settings-threshold-label" for="fg-settings-threshold" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
             Threshold
         </label>
@@ -70,6 +54,22 @@
         <p data-formgen-chrome="help" id="fg-settings-threshold-help" class="text-xs text-gray-600 dark:text-gray-300">
             Controls the debounce window
         </p>
+        <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
+    </div>
+    <div class="flex flex-col gap-2" data-component="boolean">
+        <label data-formgen-chrome="label" id="fg-settings-enabled-label" for="fg-settings-enabled" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300 sr-only">
+            Enable widget
+        </label>
+        <div class="flex items-center">
+            <input
+                type="checkbox"
+                id="fg-settings-enabled"
+                name="settings.enabled"
+                class="shrink-0 border-gray-200 rounded text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:checked:bg-blue-500 dark:checked:border-blue-500 dark:focus:ring-offset-gray-800"
+                 data-validation-label="Enable widget"
+            >
+            <label for="fg-settings-enabled" class="text-sm text-gray-500 ms-3 dark:text-neutral-400">Enable widget</label>
+        </div>
         <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
     </div>
     </div></fieldset>

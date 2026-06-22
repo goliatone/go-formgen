@@ -390,6 +390,35 @@ func TestBuilder_FieldOrderMetadataRecursesIntoArrayItems(t *testing.T) {
 	}
 }
 
+func TestBuilder_FieldOrderMetadataHonorsSingleExplicitOrder(t *testing.T) {
+	builder := pkgmodel.NewBuilder()
+	form, err := builder.Build(pkgschema.Form{
+		ID:       "single_order.edit",
+		Endpoint: "/single-order",
+		Method:   "POST",
+		Schema: pkgschema.Schema{
+			Type: "object",
+			Properties: map[string]pkgschema.Schema{
+				"beta":  {Type: "string"},
+				"gamma": {Type: "string"},
+				"alpha": {
+					Type: "string",
+					Extensions: map[string]any{
+						"x-formgen": map[string]any{"order": 10},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if got := fieldNames(form.Fields); len(got) != 3 || got[0] != "alpha" || got[1] != "beta" || got[2] != "gamma" {
+		t.Fatalf("field order = %v, want ordered field first then unordered alphabetical fallback", got)
+	}
+}
+
 func fieldNames(fields []pkgmodel.Field) []string {
 	out := make([]string, 0, len(fields))
 	for _, field := range fields {

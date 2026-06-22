@@ -138,11 +138,18 @@ func overlayExtensions(path string, entry map[string]any) (map[string]any, error
 			extensions[key] = value
 			continue
 		}
-		if strings.HasPrefix(key, "x-formgen-") || strings.HasPrefix(key, "x-admin-") {
+		if isFlatOverlayExtensionKey(key) {
 			extensions[key] = value
 		}
 	}
 	return extensions, nil
+}
+
+func isFlatOverlayExtensionKey(key string) bool {
+	return strings.HasPrefix(key, "x-formgen-") ||
+		strings.HasPrefix(key, "x-formgen.") ||
+		strings.HasPrefix(key, "x-admin-") ||
+		strings.HasPrefix(key, "x-admin.")
 }
 
 // ApplyOverlay mutates the resolved schema payload with overlay overrides.

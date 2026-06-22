@@ -196,22 +196,9 @@ func orderedPropertyNames(properties map[string]schema.Schema) []string {
 	}
 
 	ordered := make([]orderedProperty, 0, len(properties))
-	orderedCount := 0
 	for name, property := range properties {
 		order, ok := fieldOrderFromExtensions(property.Extensions)
-		if ok {
-			orderedCount++
-		}
 		ordered = append(ordered, orderedProperty{name: name, order: order, ordered: ok})
-	}
-
-	if orderedCount < 2 {
-		names := make([]string, 0, len(ordered))
-		for _, item := range ordered {
-			names = append(names, item.name)
-		}
-		sort.Strings(names)
-		return names
 	}
 
 	sort.SliceStable(ordered, func(i, j int) bool {

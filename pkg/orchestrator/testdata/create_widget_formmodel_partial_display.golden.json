@@ -47,22 +47,6 @@
       "label": "Settings",
       "nested": [
         {
-          "name": "enabled",
-          "type": "boolean",
-          "required": false,
-          "label": "Enable widget",
-          "metadata": {
-            "hideLabel": "true",
-            "label": "Enable widget",
-            "widget": "toggle"
-          },
-          "uiHints": {
-            "hideLabel": "true",
-            "label": "Enable widget",
-            "widget": "toggle"
-          }
-        },
-        {
           "name": "threshold",
           "type": "number",
           "required": false,
@@ -84,6 +68,22 @@
             "precision": "2",
             "unit": "ms",
             "visibilityRule": "enabled == true"
+          }
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "label": "Enable widget",
+          "metadata": {
+            "hideLabel": "true",
+            "label": "Enable widget",
+            "widget": "toggle"
+          },
+          "uiHints": {
+            "hideLabel": "true",
+            "label": "Enable widget",
+            "widget": "toggle"
           }
         }
       ],
