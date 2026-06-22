@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.28.1](https://github.com/goliatone/go-formgen/compare/v0.28.0...v0.28.1) - (2026-06-22)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.28.1 ([491e8c8](https://github.com/goliatone/go-formgen/commit/491e8c87b79c043cefcfbaa32b3c711236f3cd06))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Formgen rels ([a06bf03](https://github.com/goliatone/go-formgen/commit/a06bf030911c7523d96f9348959603a73e1a34a8))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.28.0 ([491e97d](https://github.com/goliatone/go-formgen/commit/491e97d90d785d4432d064d6f756ea102d8ce767))  - (goliatone)
+
 # [0.28.0](https://github.com/goliatone/go-formgen/compare/v0.27.0...v0.28.0) - (2026-06-22)
 
 ## <!-- 13 -->📦 Bumps
