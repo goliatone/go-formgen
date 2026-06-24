@@ -835,7 +835,10 @@ triggers the action; your application owns the modal markup and submit logic.
             "relationship.endpoint.createAction": "true",
             "relationship.endpoint.createActionId": "author",
             "relationship.endpoint.createActionLabel": "Create Author",
-            "relationship.endpoint.createActionSelect": "replace"
+            "relationship.endpoint.createActionSelect": "replace",
+            "relationship.endpoint.editAction": "true",
+            "relationship.endpoint.editActionId": "author",
+            "relationship.endpoint.editActionLabel": "Edit Author"
           }
         }
       }
@@ -856,9 +859,30 @@ triggers the action; your application owns the modal markup and submit logic.
   data-endpoint-create-action-id="author"
   data-endpoint-create-action-label="Create Author"
   data-endpoint-create-action-select="replace"
+  data-endpoint-edit-action="true"
+  data-endpoint-edit-action-id="author"
+  data-endpoint-edit-action-label="Edit Author"
   data-relationship-cardinality="one"
 ></select>
 ```
+
+### Relationship Edit Actions
+
+Use `data-endpoint-edit-action="true"` when a selected single relationship should be editable through a host-owned modal or panel. The action is shown only when the typeahead has a selected value. The host can handle it with `onEditAction`:
+
+```ts
+await initRelationships({
+  onEditAction: async (context, detail) => {
+    const record = await fetch(`/api/authors/${detail.selectedValue}`).then(r => r.json());
+    const updated = await openAuthorEditModal(record);
+    return updated ? { value: updated.id, label: updated.full_name } : undefined;
+  },
+});
+```
+
+If no hook is registered, the runtime dispatches `formgen:relationship:edit-action` with the relationship `element`, `field`, `endpoint`, `selectedValue`, `selectedLabel`, `actionId`, and renderer `mode`.
+
+The first implementation supports single-cardinality typeahead relationships. Chips/per-item editing is deferred.
 
 #### 2) Define the modal and form (Pongo2 templates)
 
@@ -1206,6 +1230,9 @@ document.addEventListener('formgen:relationship:validation', handler);
 | `data-endpoint-create-action-label` | Create action label | `Create Author` |
 | `data-endpoint-create-action-id` | Create action id | `author` |
 | `data-endpoint-create-action-select` | Selection mode | `append` |
+| `data-endpoint-edit-action` | Selected-record edit action toggle | `true` |
+| `data-endpoint-edit-action-label` | Edit action label | `Edit Author` |
+| `data-endpoint-edit-action-id` | Edit action id | `author` |
 | `data-relationship-type` | Relationship kind | `belongsTo` |
 | `data-relationship-target` | Target schema | `#/components/schemas/Author` |
 | `data-relationship-current` | Prefilled value(s) | `abc-123` or `["a","b"]` |
