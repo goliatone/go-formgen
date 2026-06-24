@@ -44,6 +44,24 @@
     </div>
     {% endfor %}
 
+    {% for modal in edit_modals %}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title-{{ modal.action_id }}" data-fg-edit-modal="{{ modal.action_id }}" data-fg-edit-value-field="{{ modal.value_field }}" data-fg-edit-label-field="{{ modal.label_field }}" data-fg-edit-record-url="{{ modal.record_url }}" hidden>
+      <div class="absolute inset-0" data-fg-modal-overlay aria-hidden="true"></div>
+      <div class="relative w-full max-w-3xl rounded-lg bg-white shadow-xl dark:bg-slate-800">
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
+          <h2 id="edit-modal-title-{{ modal.action_id }}" class="text-lg font-semibold text-slate-900 dark:text-white">Edit {{ modal.action_id|title }}</h2>
+          <button type="button" class="inline-flex items-center rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-slate-700 dark:hover:text-slate-300" data-fg-modal-close aria-label="Close modal">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400" data-fg-modal-error hidden role="alert"></div>
+          {{ modal.form_html|safe }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
     {{ runtime_bootstrap|safe }}
   </body>
 </html>

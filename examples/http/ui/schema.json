@@ -139,7 +139,10 @@
             "relationship.endpoint.createAction": "true",
             "relationship.endpoint.createActionId": "author",
             "relationship.endpoint.createActionLabel": "Create Author",
-            "relationship.endpoint.createActionSelect": "replace"
+            "relationship.endpoint.createActionSelect": "replace",
+            "relationship.endpoint.editAction": "true",
+            "relationship.endpoint.editActionId": "author",
+            "relationship.endpoint.editActionLabel": "Edit Author"
           }
         },
         "publisher_id": {
@@ -154,7 +157,10 @@
             "relationship.endpoint.createAction": "true",
             "relationship.endpoint.createActionId": "publisher",
             "relationship.endpoint.createActionLabel": "Create Publisher",
-            "relationship.endpoint.createActionSelect": "replace"
+            "relationship.endpoint.createActionSelect": "replace",
+            "relationship.endpoint.editAction": "true",
+            "relationship.endpoint.editActionId": "publisher",
+            "relationship.endpoint.editActionLabel": "Edit Publisher"
           }
         },
         "tags": {

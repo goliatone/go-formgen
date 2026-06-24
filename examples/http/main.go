@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -99,6 +100,32 @@ function buildCreateModalRegistry() {
       labelField: labelField,
       valueField: valueField,
       prefillField: prefillField,
+    };
+  });
+  return registry;
+}
+
+function buildEditModalRegistry() {
+  var registry = {};
+  var nodes = document.querySelectorAll('[data-fg-edit-modal]');
+  Array.prototype.forEach.call(nodes, function (modal) {
+    var actionId = modal.getAttribute('data-fg-edit-modal');
+    if (!actionId) {
+      return;
+    }
+    var form = modal.querySelector('form');
+    if (!form) {
+      return;
+    }
+    var labelField = modal.getAttribute('data-fg-edit-label-field') || 'name';
+    var valueField = modal.getAttribute('data-fg-edit-value-field') || 'id';
+    var recordUrl = modal.getAttribute('data-fg-edit-record-url') || '';
+    registry[actionId] = {
+      element: modal,
+      form: form,
+      labelField: labelField,
+      valueField: valueField,
+      recordUrl: recordUrl,
     };
   });
   return registry;
@@ -197,6 +224,105 @@ function buildCreatedOption(spec, payload) {
   };
 }
 
+function buildUpdatedOption(spec, payload) {
+  var record = normalizeCreatePayload(payload);
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  var value = record[spec.valueField];
+  var label = record[spec.labelField];
+  if (value === undefined || label === undefined) {
+    return null;
+  }
+  return {
+    value: String(value),
+    label: String(label),
+  };
+}
+
+function recordUrlFor(spec, id) {
+  var template = spec && spec.recordUrl ? spec.recordUrl : '';
+  if (!template || !id) {
+    return '';
+  }
+  return template.replace('{id}', encodeURIComponent(id));
+}
+
+function setModalError(spec, message) {
+  var errorContainer = spec && spec.element ? spec.element.querySelector('[data-fg-modal-error]') : null;
+  if (!errorContainer) {
+    return;
+  }
+  errorContainer.textContent = message || 'An error occurred. Please try again.';
+  errorContainer.hidden = false;
+}
+
+function clearModalError(spec) {
+  var errorContainer = spec && spec.element ? spec.element.querySelector('[data-fg-modal-error]') : null;
+  if (!errorContainer) {
+    return;
+  }
+  errorContainer.textContent = '';
+  errorContainer.hidden = true;
+}
+
+function setControlValue(control, value) {
+  if (!control) {
+    return;
+  }
+  if (control.type === 'checkbox') {
+    control.checked = value === true || value === 'true' || value === '1' || value === 'on';
+  } else if (control.type === 'radio') {
+    control.checked = String(control.value) === String(value);
+  } else {
+    control.value = value == null ? '' : String(value);
+  }
+  try {
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+  } catch (_err) {
+    // Ignore event errors in older browsers.
+  }
+}
+
+function hydrateModalForm(spec, record) {
+  if (!spec || !spec.form || !record || typeof record !== 'object') {
+    return;
+  }
+  Object.keys(record).forEach(function (key) {
+    var value = record[key];
+    var controls = spec.form.querySelectorAll('[name="' + key + '"]');
+    Array.prototype.forEach.call(controls, function (control) {
+      setControlValue(control, value);
+    });
+  });
+}
+
+function fetchEditRecord(spec, id) {
+  var url = recordUrlFor(spec, id);
+  if (!url) {
+    return Promise.reject(new Error('Missing record URL.'));
+  }
+  return fetch(url, {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
+    credentials: 'same-origin',
+  }).then(function (response) {
+    return response.json().then(function (data) {
+      if (!response.ok) {
+        var message = (data && data.error) ? data.error : response.statusText;
+        throw new Error(message);
+      }
+      return data;
+    }).catch(function (err) {
+      if (!response.ok) {
+        throw err;
+      }
+      return {};
+    });
+  });
+}
+
 function submitCreateForm(spec) {
   var form = spec.form;
   var action = form.getAttribute('action') || window.location.href;
@@ -214,6 +340,47 @@ function submitCreateForm(spec) {
   }
   return fetch(action, {
     method: method,
+    headers: headers,
+    credentials: 'same-origin',
+    body: body,
+  }).then(function (response) {
+    if (response.status === 204) {
+      return {};
+    }
+    return response.json().then(function (data) {
+      if (!response.ok) {
+        var message = (data && data.error) ? data.error : response.statusText;
+        throw new Error(message);
+      }
+      return data;
+    }).catch(function (err) {
+      if (!response.ok) {
+        throw err;
+      }
+      return {};
+    });
+  });
+}
+
+function submitEditForm(spec, id) {
+  var form = spec.form;
+  var action = recordUrlFor(spec, id);
+  if (!action) {
+    return Promise.reject(new Error('Missing record URL.'));
+  }
+  var useMultipart = shouldUseMultipart(form);
+  var headers = {
+    'Accept': 'application/json',
+  };
+  var body = null;
+  if (useMultipart) {
+    body = new FormData(form);
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(formDataToObject(form));
+  }
+  return fetch(action, {
+    method: 'PUT',
     headers: headers,
     credentials: 'same-origin',
     body: body,
@@ -383,6 +550,139 @@ function openCreateModal(spec, query) {
   });
 }
 
+function openEditModal(spec, detail) {
+  if (!spec || !spec.element || !spec.form || !detail || !detail.selectedValue) {
+    return Promise.resolve(null);
+  }
+  if (!spec.element.hidden) {
+    return Promise.resolve(null);
+  }
+  var selectedId = String(detail.selectedValue);
+  setModalOpen(spec, true);
+  clearModalError(spec);
+  if (spec.form && typeof spec.form.reset === 'function') {
+    spec.form.reset();
+  }
+  var focusable = spec.form.querySelector('input:not([type="hidden"]), select, textarea, button');
+  if (focusable) {
+    focusable.focus();
+  }
+
+  return new Promise(function (resolve) {
+    var handled = false;
+    var recordLoaded = false;
+    var overlay = spec.element.querySelector('[data-fg-modal-overlay]');
+    var closeButtons = spec.element.querySelectorAll('[data-fg-modal-close]');
+
+    function cleanup() {
+      if (overlay) {
+        overlay.removeEventListener('click', onCancel);
+      }
+      Array.prototype.forEach.call(closeButtons, function (button) {
+        button.removeEventListener('click', onCancel);
+      });
+      spec.form.removeEventListener('submit', onSubmit);
+      document.removeEventListener('keydown', onKeyDown);
+    }
+
+    function close(result) {
+      if (handled) {
+        return;
+      }
+      handled = true;
+      cleanup();
+      setModalOpen(spec, false);
+      if (spec.form && typeof spec.form.reset === 'function') {
+        spec.form.reset();
+      }
+      clearModalError(spec);
+      resolve(result || null);
+    }
+
+    function onCancel(event) {
+      if (event) {
+        event.preventDefault();
+      }
+      close(null);
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+        return;
+      }
+      if (event.key === 'Tab') {
+        var focusableEls = getFocusableElements(spec.element);
+        if (focusableEls.length === 0) {
+          event.preventDefault();
+          return;
+        }
+        var firstEl = focusableEls[0];
+        var lastEl = focusableEls[focusableEls.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === firstEl) {
+            event.preventDefault();
+            lastEl.focus();
+          }
+        } else if (document.activeElement === lastEl) {
+          event.preventDefault();
+          firstEl.focus();
+        }
+      }
+    }
+
+    function onSubmit(event) {
+      event.preventDefault();
+      if (!recordLoaded) {
+        setModalError(spec, 'Record is still loading. Please try again.');
+        return;
+      }
+      var submitBtn = spec.form.querySelector('button[type="submit"]');
+      var originalText = '';
+      if (submitBtn) {
+        originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+      }
+      clearModalError(spec);
+      submitEditForm(spec, selectedId)
+        .then(function (payload) {
+          close(buildUpdatedOption(spec, payload));
+        })
+        .catch(function (error) {
+          console.warn('[formgen] edit action failed', error);
+          setModalError(spec, error.message || 'Failed to save record.');
+        })
+        .finally(function () {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+        });
+    }
+
+    if (overlay) {
+      overlay.addEventListener('click', onCancel);
+    }
+    Array.prototype.forEach.call(closeButtons, function (button) {
+      button.addEventListener('click', onCancel);
+    });
+    spec.form.addEventListener('submit', onSubmit);
+    document.addEventListener('keydown', onKeyDown);
+
+    fetchEditRecord(spec, selectedId)
+      .then(function (record) {
+        hydrateModalForm(spec, record);
+        recordLoaded = true;
+      })
+      .catch(function (error) {
+        console.warn('[formgen] edit action fetch failed', error);
+        setModalError(spec, error.message || 'Failed to load record.');
+      });
+  });
+}
+
 window.addEventListener('DOMContentLoaded', function () {
   if (!window.FormgenRelationships || typeof window.FormgenRelationships.initRelationships !== 'function') {
     console.warn('formgen runtime bundle not loaded; ensure /runtime/ is served from formgen.RuntimeAssetsFS()');
@@ -475,6 +775,7 @@ window.addEventListener('DOMContentLoaded', function () {
     delayButton.addEventListener('click', applyRelationshipDelay);
   }
   var modalRegistry = buildCreateModalRegistry();
+  var editModalRegistry = buildEditModalRegistry();
   var config = {
     onValidationError: function (ctx, error) {
       console.warn('[formgen] validation failed', ctx.field.name, error.message);
@@ -491,6 +792,18 @@ window.addEventListener('DOMContentLoaded', function () {
         return;
       }
       return openCreateModal(spec, detail.query || '');
+    };
+  }
+  if (Object.keys(editModalRegistry).length > 0) {
+    config.onEditAction = function (_context, detail) {
+      if (!detail || !detail.actionId) {
+        return;
+      }
+      var spec = editModalRegistry[detail.actionId];
+      if (!spec) {
+        return;
+      }
+      return openEditModal(spec, detail);
     };
   }
   window.FormgenRelationships.initRelationships(config).then(function (registry) {
@@ -522,6 +835,14 @@ type createModalSpec struct {
 	PrefillField string
 }
 
+type editModalSpec struct {
+	ActionID    string
+	OperationID string
+	ValueField  string
+	LabelField  string
+	RecordURL   string
+}
+
 var advancedCreateModals = []createModalSpec{
 	{
 		ActionID:     "author",
@@ -543,6 +864,23 @@ var advancedCreateModals = []createModalSpec{
 		ValueField:   "id",
 		LabelField:   "name",
 		PrefillField: "name",
+	},
+}
+
+var advancedEditModals = []editModalSpec{
+	{
+		ActionID:    "author",
+		OperationID: "put-author:update",
+		ValueField:  "id",
+		LabelField:  "full_name",
+		RecordURL:   "/api/authors/{id}",
+	},
+	{
+		ActionID:    "publisher",
+		OperationID: "put-publishing-house:update",
+		ValueField:  "id",
+		LabelField:  "name",
+		RecordURL:   "/api/publishing-houses/{id}",
 	},
 }
 
@@ -699,7 +1037,7 @@ func main() {
 	templateEngine := mustTemplateEngine(templatesDir)
 
 	server := &formServer{
-		generator:        formgen.NewOrchestrator(options...),
+		generator:        orchestrator.New(options...),
 		loader:           loader,
 		parser:           parser,
 		builder:          builder,
@@ -729,11 +1067,18 @@ func main() {
 		IdleTimeout:       2 * time.Minute,
 	}
 
-	log.Printf("listening on %s (default source %s renderer %s)", cfg.addr, cfg.source, cfg.renderer)
+	listener, err := net.Listen("tcp", cfg.addr)
+	if err != nil {
+		log.Fatalf("listen %s: %v", cfg.addr, err)
+	}
+	actualAddr := listener.Addr().String()
+	httpServer.Addr = actualAddr
+
+	log.Printf("listening on %s (default source %s renderer %s)", actualAddr, cfg.source, cfg.renderer)
 
 	errChan := make(chan error, 1)
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
 	}()
@@ -1173,9 +1518,36 @@ func (s *formServer) advancedHandler() http.Handler {
 			})
 		}
 
+		editModals := make([]map[string]any, 0, len(advancedEditModals))
+		for _, spec := range advancedEditModals {
+			modalOutput, generateErr := s.generator.Generate(r.Context(), orchestrator.Request{
+				Document:    &document,
+				OperationID: spec.OperationID,
+				Renderer:    advancedRendererName,
+				RenderOptions: render.RenderOptions{
+					Subset: render.FieldSubset{
+						Tags: []string{"modal-edit"},
+					},
+					OmitAssets: true, // Modals inherit assets from the parent page
+				},
+			})
+			if generateErr != nil {
+				http.Error(w, fmt.Sprintf("generate edit modal form (%s): %v", spec.OperationID, generateErr), http.StatusInternalServerError)
+				return
+			}
+			editModals = append(editModals, map[string]any{
+				"action_id":   spec.ActionID,
+				"value_field": spec.ValueField,
+				"label_field": spec.LabelField,
+				"record_url":  spec.RecordURL,
+				"form_html":   string(modalOutput),
+			})
+		}
+
 		page, err := s.templates.RenderTemplate("advanced", map[string]any{
 			"main_form_html":    string(mainOutput),
 			"modals":            modals,
+			"edit_modals":       editModals,
 			"runtime_bootstrap": vanillaRuntimeBootstrap,
 		})
 		if err != nil {
@@ -1441,12 +1813,14 @@ func (d *relationshipDataset) register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("/author", d.handleAuthorCreate)
 	mux.HandleFunc("/api/authors", d.handleAuthors)
+	mux.HandleFunc("/api/authors/", d.handleAuthorRecord)
 	mux.HandleFunc("/api/categories", d.handleCategories)
 	mux.HandleFunc("/api/managers", d.handleManagers)
 	mux.HandleFunc("/tag", d.handleTagCreate)
 	mux.HandleFunc("/api/tags", d.handleTags)
 	mux.HandleFunc("/publishing-house", d.handlePublishingHouseCreate)
 	mux.HandleFunc("/api/publishing-houses", d.handlePublishingHouses)
+	mux.HandleFunc("/api/publishing-houses/", d.handlePublishingHouseRecord)
 	mux.HandleFunc("/api/author-profiles", d.handleAuthorProfiles)
 	mux.HandleFunc("/api/books", d.handleBooks)
 	mux.HandleFunc("/api/chapters", d.handleChapters)
@@ -1530,6 +1904,55 @@ func (d *relationshipDataset) handleAuthorCreate(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(record); err != nil {
 		log.Printf("write author create response: %v", err)
+	}
+}
+
+func (d *relationshipDataset) handleAuthorRecord(w http.ResponseWriter, r *http.Request) {
+	id := relationshipRecordID(r.URL.Path, "/api/authors/")
+	if id == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		d.mu.RLock()
+		defer d.mu.RUnlock()
+		for _, author := range d.authors {
+			if author.ID == id {
+				writeRelationshipRecord(w, author)
+				return
+			}
+		}
+		http.NotFound(w, r)
+	case http.MethodPut, http.MethodPatch:
+		payload, err := parseCreatePayload(w, r)
+		if err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		fullName := payloadString(payload, "full_name")
+		email := payloadString(payload, "email")
+		if fullName == "" || email == "" {
+			http.Error(w, "full_name and email are required", http.StatusBadRequest)
+			return
+		}
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		for index := range d.authors {
+			if d.authors[index].ID != id {
+				continue
+			}
+			d.authors[index].FullName = fullName
+			d.authors[index].Email = email
+			d.authors[index].Active = payloadBool(payload, "active")
+			writeRelationshipRecord(w, d.authors[index])
+			return
+		}
+		http.NotFound(w, r)
+	default:
+		methodNotAllowedWith(w, http.MethodGet, http.MethodPut, http.MethodPatch)
 	}
 }
 
@@ -1735,6 +2158,53 @@ func (d *relationshipDataset) handlePublishingHouseCreate(w http.ResponseWriter,
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(record); err != nil {
 		log.Printf("write publishing house create response: %v", err)
+	}
+}
+
+func (d *relationshipDataset) handlePublishingHouseRecord(w http.ResponseWriter, r *http.Request) {
+	id := relationshipRecordID(r.URL.Path, "/api/publishing-houses/")
+	if id == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		d.mu.RLock()
+		defer d.mu.RUnlock()
+		for _, publisher := range d.publishers {
+			if publisher.ID == id {
+				writeRelationshipRecord(w, publisher)
+				return
+			}
+		}
+		http.NotFound(w, r)
+	case http.MethodPut, http.MethodPatch:
+		payload, err := parseCreatePayload(w, r)
+		if err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		name := payloadString(payload, "name")
+		if name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		for index := range d.publishers {
+			if d.publishers[index].ID != id {
+				continue
+			}
+			d.publishers[index].Name = name
+			d.publishers[index].ImprintPrefix = payloadString(payload, "imprint_prefix")
+			writeRelationshipRecord(w, d.publishers[index])
+			return
+		}
+		http.NotFound(w, r)
+	default:
+		methodNotAllowedWith(w, http.MethodGet, http.MethodPut, http.MethodPatch)
 	}
 }
 
@@ -1996,6 +2466,25 @@ func writeRelationshipData(w http.ResponseWriter, items any) {
 	if err := json.NewEncoder(w).Encode(map[string]any{"data": items}); err != nil {
 		log.Printf("write relationship data: %v", err)
 	}
+}
+
+func writeRelationshipRecord(w http.ResponseWriter, item any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(item); err != nil {
+		log.Printf("write relationship record: %v", err)
+	}
+}
+
+func relationshipRecordID(requestPath, prefix string) string {
+	if !strings.HasPrefix(requestPath, prefix) {
+		return ""
+	}
+	id := strings.TrimSpace(strings.TrimPrefix(requestPath, prefix))
+	id = strings.Trim(id, "/")
+	if id == "." || id == ".." || strings.Contains(id, "/") {
+		return ""
+	}
+	return id
 }
 
 func methodNotAllowed(w http.ResponseWriter) {

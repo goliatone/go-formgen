@@ -97,6 +97,95 @@
         }
       }
     },
+    "put-author:update": {
+      "form": {
+        "title": "Edit Author",
+        "subtitle": "Update the selected author.",
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Save Author",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Author details",
+          "order": 0
+        }
+      ],
+      "fields": {
+        "full_name": {
+          "section": "main",
+          "order": 0,
+          "grid": { "span": 12 },
+          "placeholder": "Ada Lovelace",
+          "uiHints": { "tags": "modal-edit" }
+        },
+        "email": {
+          "section": "main",
+          "order": 1,
+          "grid": { "span": 12 },
+          "placeholder": "ada@example.com",
+          "uiHints": { "tags": "modal-edit", "inputType": "email" }
+        },
+        "active": {
+          "section": "main",
+          "order": 2,
+          "grid": { "span": 12 },
+          "helpText": "Enable to include the author in new assignments.",
+          "uiHints": { "tags": "modal-edit" }
+        }
+      }
+    },
+    "put-publishing-house:update": {
+      "form": {
+        "title": "Edit Publisher",
+        "subtitle": "Update the selected publishing house.",
+        "actions": [
+          {
+            "kind": "secondary",
+            "label": "Cancel",
+            "type": "button"
+          },
+          {
+            "kind": "primary",
+            "label": "Save Publisher",
+            "type": "submit"
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "main",
+          "title": "Publisher details",
+          "order": 0
+        }
+      ],
+      "fields": {
+        "name": {
+          "section": "main",
+          "order": 0,
+          "grid": { "span": 12 },
+          "placeholder": "Northwind Publishing",
+          "uiHints": { "tags": "modal-edit" }
+        },
+        "imprint_prefix": {
+          "section": "main",
+          "order": 1,
+          "grid": { "span": 12 },
+          "placeholder": "NW",
+          "uiHints": { "tags": "modal-edit" }
+        }
+      }
+    },
     "post-tag:create": {
       "form": {
         "title": "Create Tag",

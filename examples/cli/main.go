@@ -62,7 +62,7 @@ func main() {
 	parser := formgen.NewParser()
 	builder := model.NewBuilder()
 
-	generator := formgen.NewOrchestrator(
+	generator := orchestrator.New(
 		orchestrator.WithLoader(loader),
 		orchestrator.WithParser(parser),
 		orchestrator.WithModelBuilder(builder),

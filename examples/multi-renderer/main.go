@@ -35,7 +35,7 @@ func main() {
 	registry.MustRegister(mustVanilla())
 	registry.MustRegister(mustPreact())
 
-	generator := formgen.NewOrchestrator(
+	generator := orchestrator.New(
 		orchestrator.WithRegistry(registry),
 	)
 
