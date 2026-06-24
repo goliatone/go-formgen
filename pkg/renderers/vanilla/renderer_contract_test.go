@@ -541,11 +541,14 @@ func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
 											Cardinality: "one",
 										},
 										Metadata: map[string]string{
-											"relationship.endpoint.url":          "/admin/api/options/teaching-topic",
-											"relationship.endpoint.mode":         "search",
-											"relationship.endpoint.hydrateParam": "topic_id",
-											"relationship.endpoint.labelField":   "label",
-											"relationship.endpoint.valueField":   "value",
+											"relationship.endpoint.url":             "/admin/api/options/teaching-topic",
+											"relationship.endpoint.mode":            "search",
+											"relationship.endpoint.hydrateParam":    "topic_id",
+											"relationship.endpoint.labelField":      "label",
+											"relationship.endpoint.valueField":      "value",
+											"relationship.endpoint.editAction":      "true",
+											"relationship.endpoint.editActionId":    "topic",
+											"relationship.endpoint.editActionLabel": "Edit Topic",
 										},
 									},
 									{
@@ -588,10 +591,14 @@ func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
 
 	html := string(output)
 	for _, want := range []string{
+		`data-endpoint-edit-action="true"`,
+		`data-endpoint-edit-action-id="topic"`,
+		`data-endpoint-edit-action-label="Edit Topic"`,
 		`data-endpoint-hydrate-param="topic_id"`,
 		`data-relationship-current="` + topicID + `"`,
 		`id="fg-columns-0-entries-0-topic_id"`,
 		`name="columns[0].entries[0].topic_id"`,
+		`<option value="` + topicID + `" selected>` + topicID + `</option>`,
 		`id="fg-columns-0-entries-0-topic_slug"`,
 		`name="columns[0].entries[0].topic_slug"`,
 		`value="refuge"`,
@@ -599,6 +606,86 @@ func TestRenderer_PrefillsNestedArrayRelationshipCurrent(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected rendered HTML to contain %s:\n%s", want, html)
 		}
+	}
+}
+
+func TestRenderer_RelationshipCurrentKeepsNativeManyAndOptionalClearability(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "relationshipCurrent",
+		Endpoint:    "/relationships",
+		Method:      "POST",
+		Fields: []model.Field{
+			{
+				Name:  "topic_id",
+				Type:  model.FieldTypeString,
+				Label: "Topic",
+				Relationship: &model.Relationship{
+					Kind:        model.RelationshipBelongsTo,
+					Target:      "teaching-topic",
+					ForeignKey:  "topic_id",
+					Cardinality: "one",
+				},
+				Metadata: map[string]string{
+					"relationship.endpoint.url": "/admin/api/options/teaching-topic",
+					"relationship.current":      `{"value":"topic-refuge-id","label":"Refuge"}`,
+				},
+			},
+			{
+				Name:  "topic_ids",
+				Type:  model.FieldTypeString,
+				Label: "Topics",
+				Relationship: &model.Relationship{
+					Kind:        model.RelationshipHasMany,
+					Target:      "teaching-topic",
+					ForeignKey:  "topic_ids",
+					Cardinality: "many",
+				},
+				Metadata: map[string]string{
+					"relationship.endpoint.url": "/admin/api/options/teaching-topic",
+					"relationship.current":      `[{"value":"topic-refuge-id","label":"Refuge"},{"value":"topic-tara-id","label":"Tara"}]`,
+				},
+			},
+		},
+	}
+
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(output)
+
+	singleBlock := renderedControlBlockByID(t, html, "fg-topic_id")
+	for _, want := range []string{
+		`<option value="">Select Topic</option>`,
+		`<option value="topic-refuge-id" selected>Refuge</option>`,
+	} {
+		if !strings.Contains(singleBlock, want) {
+			t.Fatalf("single relationship block missing %s:\n%s", want, singleBlock)
+		}
+	}
+	if strings.Contains(singleBlock, `multiple`) {
+		t.Fatalf("single relationship select should not be multiple:\n%s", singleBlock)
+	}
+
+	manyTag := renderedControlTagByID(t, html, "fg-topic_ids")
+	if !renderedTagHasAttribute(manyTag, "multiple") {
+		t.Fatalf("many relationship select should render native multiple attribute:\n%s", manyTag)
+	}
+	manyBlock := renderedControlBlockByID(t, html, "fg-topic_ids")
+	for _, want := range []string{
+		`<option value="topic-refuge-id" selected>Refuge</option>`,
+		`<option value="topic-tara-id" selected>Tara</option>`,
+	} {
+		if !strings.Contains(manyBlock, want) {
+			t.Fatalf("many relationship block missing %s:\n%s", want, manyBlock)
+		}
+	}
+	if strings.Contains(manyBlock, `<option value="">`) {
+		t.Fatalf("many relationship select should not render a native blank placeholder:\n%s", manyBlock)
 	}
 }
 
@@ -623,10 +710,18 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 							UIHints: map[string]string{
 								"cardinality": "many",
 								"addText":     "Add topic entry",
+								"removeText":  "Remove topic entry",
 							},
 							Items: &model.Field{
 								Type: model.FieldTypeObject,
 								Nested: []model.Field{
+									{
+										Name: "_delete",
+										Type: model.FieldTypeString,
+										UIHints: map[string]string{
+											"inputType": "hidden",
+										},
+									},
 									{
 										Name:  "topic_id",
 										Type:  model.FieldTypeString,
@@ -667,6 +762,7 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 					"title": "Subjects",
 					"entries": []any{
 						map[string]any{
+							"_delete":    "false",
 							"topic_id":   "topic-refuge-id",
 							"topic_slug": "refuge",
 						},
@@ -689,8 +785,15 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 		`<template data-formgen-array-prototype="true">`,
 		`data-formgen-array-action="add"`,
 		`data-relationship-action="add"`,
+		`data-formgen-array-item="true"`,
+		`data-formgen-array-action="remove"`,
+		`data-relationship-action="remove"`,
 		`Add topic entry`,
+		`Remove topic entry`,
+		`name="columns[0].entries[0]._delete"`,
+		`value="false"`,
 		`name="columns[0].entries[0].topic_id"`,
+		`name="columns[0].entries[1]._delete"`,
 		`id="fg-columns-0-entries-1-topic_id"`,
 		`/runtime/formgen-relationships.min.js`,
 	} {
@@ -708,6 +811,10 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 	}
 	if !renderedTagHasAttribute(prototypeTopic, "data-formgen-prototype-disabled") {
 		t.Fatalf("editable prototype topic control should be marked as prototype-disabled:\n%s", prototypeTopic)
+	}
+	prototypeTopicBlock := renderedControlBlockByID(t, html, "fg-columns-0-entries-1-topic_id")
+	if strings.Contains(prototypeTopicBlock, `selected`) || strings.Contains(prototypeTopicBlock, `topic-refuge-id`) {
+		t.Fatalf("template prototype topic control should not submit a selected relationship value:\n%s", prototypeTopicBlock)
 	}
 
 	prototypeSlug := renderedControlTagByID(t, html, "fg-columns-0-entries-1-topic_slug")
@@ -869,6 +976,26 @@ func renderedControlTagByID(t *testing.T, html, id string) string {
 		t.Fatalf("could not locate control tag end for id %q", id)
 	}
 	return html[start : idx+endRel+1]
+}
+
+func renderedControlBlockByID(t *testing.T, html, id string) string {
+	t.Helper()
+
+	tag := renderedControlTagByID(t, html, id)
+	start := strings.Index(html, tag)
+	if start < 0 {
+		t.Fatalf("could not locate control tag for id %q", id)
+	}
+	switch {
+	case strings.HasPrefix(tag, "<select"):
+		endRel := strings.Index(html[start:], "</select>")
+		if endRel < 0 {
+			t.Fatalf("could not locate select close tag for id %q", id)
+		}
+		return html[start : start+endRel+len("</select>")]
+	default:
+		return tag
+	}
 }
 
 func renderedTagHasAttribute(tag, name string) bool {
