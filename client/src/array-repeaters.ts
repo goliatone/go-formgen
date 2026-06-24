@@ -11,6 +11,8 @@ const ARRAY_ITEM_ATTR = "data-formgen-array-item";
 const ARRAY_EXISTING_ATTR = "data-formgen-array-existing";
 const PROTOTYPE_DISABLED_ATTR = "data-formgen-prototype-disabled";
 
+let generatedRowKeyCounter = 0;
+
 interface ReindexContext {
   prototypePath: string;
   targetPath: string;
@@ -178,11 +180,33 @@ function disableArrayItemControls(item: HTMLElement, deleteControl: HTMLInputEle
       "input, select, textarea, button"
     )
     .forEach((control) => {
-      if (control === deleteControl) {
+      if (control === deleteControl || isArrayIntentControl(control)) {
         return;
       }
       control.disabled = true;
     });
+}
+
+function isArrayIntentControl(control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement): boolean {
+  if (!(control instanceof HTMLInputElement)) {
+    return false;
+  }
+  return isDeleteIntentControl(control) || isRowIntentControl(control);
+}
+
+function isRowIntentControl(control: HTMLInputElement): boolean {
+  const name = control.getAttribute("name") ?? "";
+  const fieldPath = control.getAttribute("data-field-path") ?? control.dataset.fieldName ?? "";
+  return rowIntentName(name) || rowIntentName(fieldPath);
+}
+
+function rowIntentName(value: string): boolean {
+  return value.endsWith("._present") ||
+    value.endsWith("[_present]") ||
+    value.endsWith("._row_state") ||
+    value.endsWith("[_row_state]") ||
+    value.endsWith("._row_key") ||
+    value.endsWith("[_row_key]");
 }
 
 function readNextIndex(items: HTMLElement): number {
@@ -239,6 +263,9 @@ function resetPrototypeFragment(fragment: DocumentFragment): void {
       if (shouldEnable) {
         element.disabled = false;
       }
+      if (resetArrayIntentInput(element)) {
+        continue;
+      }
       if (element.type === "checkbox" || element.type === "radio") {
         element.checked = false;
       } else {
@@ -272,6 +299,35 @@ function resetPrototypeFragment(fragment: DocumentFragment): void {
       }
     }
   }
+}
+
+function resetArrayIntentInput(input: HTMLInputElement): boolean {
+  const name = input.getAttribute("name") ?? "";
+  if (name.endsWith("._present") || name.endsWith("[_present]")) {
+    input.value = "true";
+    return true;
+  }
+  if (name.endsWith("._row_state") || name.endsWith("[_row_state]")) {
+    input.value = "new";
+    return true;
+  }
+  if (name.endsWith("._row_key") || name.endsWith("[_row_key]")) {
+    input.value = nextGeneratedRowKey();
+    return true;
+  }
+  if (isDeleteIntentControl(input)) {
+    input.value = "false";
+    if (input.type === "checkbox" || input.type === "radio") {
+      input.checked = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function nextGeneratedRowKey(): string {
+  generatedRowKeyCounter += 1;
+  return `new-${Date.now().toString(36)}-${generatedRowKeyCounter}`;
 }
 
 function fragmentElements(fragment: DocumentFragment): Element[] {

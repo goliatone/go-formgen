@@ -32,6 +32,10 @@ describe("array repeaters", () => {
           </div>
           <template data-formgen-array-prototype="true">
             <div id="fg-columns-0-entries-1">
+              <input id="fg-columns-0-entries-1-present" name="columns[0].entries[1]._present" value="true" type="hidden">
+              <input id="fg-columns-0-entries-1-state" name="columns[0].entries[1]._row_state" value="existing" type="hidden">
+              <input id="fg-columns-0-entries-1-key" name="columns[0].entries[1]._row_key" value="prototype-key" type="hidden">
+              <input id="fg-columns-0-entries-1-delete" name="columns[0].entries[1]._delete" value="true" type="hidden">
               <input id="fg-columns-0-entries-1-topic_id" name="columns[0].entries[1].topic_id" value="prototype-topic" disabled required data-formgen-prototype-disabled="true">
               <input id="fg-columns-0-entries-1-topic_slug" name="columns[0].entries[1].topic_slug" value="old-slug" disabled readonly>
               <select id="fg-columns-0-entries-1-kind" name="columns[0].entries[1].kind" disabled data-formgen-prototype-disabled="true">
@@ -55,8 +59,16 @@ describe("array repeaters", () => {
     const topic = document.getElementById("fg-columns-0-entries-1-topic_id") as HTMLInputElement;
     const slug = document.getElementById("fg-columns-0-entries-1-topic_slug") as HTMLInputElement;
     const kind = document.getElementById("fg-columns-0-entries-1-kind") as HTMLSelectElement;
+    const present = document.getElementById("fg-columns-0-entries-1-present") as HTMLInputElement;
+    const state = document.getElementById("fg-columns-0-entries-1-state") as HTMLInputElement;
+    const key = document.getElementById("fg-columns-0-entries-1-key") as HTMLInputElement;
+    const deleted = document.getElementById("fg-columns-0-entries-1-delete") as HTMLInputElement;
 
     expect(row).toBeTruthy();
+    expect(present.value).toBe("true");
+    expect(state.value).toBe("new");
+    expect(key.value).toMatch(/^new-/);
+    expect(deleted.value).toBe("false");
     expect(topic.name).toBe("columns[0].entries[1].topic_id");
     expect(topic.disabled).toBe(false);
     expect(topic.required).toBe(true);
@@ -135,6 +147,9 @@ describe("array repeaters", () => {
           data-formgen-array-prototype-id-prefix="fg-columns-0-entries-1"
         >
           <div data-formgen-array-item="true" data-formgen-array-existing="true">
+            <input name="columns[0].entries[0]._present" value="true" type="hidden">
+            <input name="columns[0].entries[0]._row_state" value="existing" type="hidden">
+            <input name="columns[0].entries[0]._row_key" value="row-0" type="hidden">
             <input name="columns[0].entries[0]._delete" value="false" type="hidden">
             <select name="columns[0].entries[0].topic_id">
               <option value="topic-refuge-id" selected>Refuge</option>
@@ -159,11 +174,14 @@ describe("array repeaters", () => {
 
     const item = document.querySelector<HTMLElement>("[data-formgen-array-item]")!;
     const deleted = document.querySelector<HTMLInputElement>("[name='columns[0].entries[0]._delete']")!;
+    const rowKey = document.querySelector<HTMLInputElement>("[name='columns[0].entries[0]._row_key']")!;
     const topic = document.querySelector<HTMLSelectElement>("[name='columns[0].entries[0].topic_id']")!;
 
     expect(item.hidden).toBe(true);
     expect(deleted.disabled).toBe(false);
     expect(deleted.value).toBe("true");
+    expect(rowKey.disabled).toBe(false);
+    expect(rowKey.value).toBe("row-0");
     expect(topic.disabled).toBe(true);
   });
 

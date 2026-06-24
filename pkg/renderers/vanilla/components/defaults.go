@@ -443,6 +443,10 @@ func writeArrayItems(builder *strings.Builder, field model.Field, data Component
 	cardinality := arrayCardinality(field)
 	repeatable := cardinality == "many"
 	itemValues := coerceSlice(field.Default)
+	controlPath := componentControlPath(field)
+	if repeatable && arrayUpdateIntentEnabled(field) && controlPath != "" {
+		writeArrayIntentMarkers(builder, controlPath)
+	}
 	builder.WriteString(`<div class="space-y-3"`)
 	if cardinality != "" {
 		builder.WriteString(` data-relationship-collection="`)
@@ -494,7 +498,7 @@ func writeArrayPrototypeTemplate(builder *strings.Builder, field model.Field, da
 		return err
 	}
 	builder.WriteString(`<template data-formgen-array-prototype="true">`)
-	writeArrayItemFrame(builder, field, child, false)
+	writeArrayItemFrame(builder, field, child, false, arrayItemControlPath(field, prototypeIndex), nil, prototypeIndex)
 	builder.WriteString(`</template>`)
 	return nil
 }
@@ -521,7 +525,7 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 			return err
 		}
 		if repeatable {
-			writeArrayItemFrame(builder, field, child, true)
+			writeArrayItemFrame(builder, field, child, true, arrayItemControlPath(field, idx), value, idx)
 		} else {
 			builder.WriteString(child)
 		}
@@ -562,7 +566,7 @@ func writeArrayAddButton(builder *strings.Builder, field model.Field) {
 	builder.WriteString(`</button>`)
 }
 
-func writeArrayItemFrame(builder *strings.Builder, field model.Field, child string, existing bool) {
+func writeArrayItemFrame(builder *strings.Builder, field model.Field, child string, existing bool, itemPath string, value any, index int) {
 	if !arrayRemoveEnabled(field) {
 		builder.WriteString(child)
 		return
@@ -574,9 +578,60 @@ func writeArrayItemFrame(builder *strings.Builder, field model.Field, child stri
 		builder.WriteString(`false`)
 	}
 	builder.WriteString(`">`)
+	if arrayUpdateIntentEnabled(field) && strings.TrimSpace(itemPath) != "" {
+		writeArrayRowIntentMarkers(builder, itemPath, existing, value, index)
+	}
 	builder.WriteString(child)
 	writeArrayRemoveButton(builder, field)
 	builder.WriteString(`</div>`)
+}
+
+func writeArrayIntentMarkers(builder *strings.Builder, path string) {
+	writeHiddenInput(builder, path+"__present", "true")
+	writeHiddenInput(builder, path+"__complete", "true")
+	writeHiddenInput(builder, path+"__clear", "false")
+}
+
+func writeArrayRowIntentMarkers(builder *strings.Builder, path string, existing bool, value any, index int) {
+	writeHiddenInput(builder, path+"._present", "true")
+	if existing {
+		writeHiddenInput(builder, path+"._row_state", "existing")
+		writeHiddenInput(builder, path+"._row_key", arrayExistingRowKey(value, index))
+		return
+	}
+	writeHiddenInput(builder, path+"._row_state", "new")
+	writeHiddenInput(builder, path+"._row_key", "")
+}
+
+func writeHiddenInput(builder *strings.Builder, name string, value string) {
+	builder.WriteString(`<input type="hidden" name="`)
+	builder.WriteString(html.EscapeString(name))
+	builder.WriteString(`" value="`)
+	builder.WriteString(html.EscapeString(value))
+	builder.WriteString(`">`)
+}
+
+func arrayExistingRowKey(value any, index int) string {
+	for _, key := range []string{"_row_key", "id"} {
+		if rowKey := strings.TrimSpace(rowMapValue(value, key)); rowKey != "" {
+			return rowKey
+		}
+	}
+	return fmt.Sprintf("row-%d", index)
+}
+
+func rowMapValue(value any, key string) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		if typed[key] == nil {
+			return ""
+		}
+		return fmt.Sprint(typed[key])
+	case map[string]string:
+		return typed[key]
+	default:
+		return ""
+	}
 }
 
 func writeArrayRemoveButton(builder *strings.Builder, field model.Field) {
@@ -597,6 +652,21 @@ func arrayRemoveEnabled(field model.Field) bool {
 	default:
 		return false
 	}
+}
+
+func arrayUpdateIntentEnabled(field model.Field) bool {
+	for _, source := range []map[string]string{field.UIHints, field.Metadata} {
+		for _, key := range []string{"updateIntent", "update_intent", "updateIntent.enabled", "update_intent.enabled"} {
+			value := strings.TrimSpace(source[key])
+			if value == "" {
+				continue
+			}
+			if isTruthyHint(value) || strings.EqualFold(value, "patch") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func arrayRemoveLabel(field model.Field) string {
