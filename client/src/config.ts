@@ -164,6 +164,33 @@ export interface FieldConfig {
    * Set via `data-endpoint-create-action-select="append|replace"`.
    */
   createActionSelect?: "append" | "replace";
+  /**
+   * When true, a dedicated "Edit ..." action is rendered for an existing
+   * selected relationship option. The first implementation is for
+   * single-cardinality typeahead fields.
+   *
+   * The action triggers either:
+   * - `GlobalConfig.onEditAction` hook (if provided), or
+   * - `formgen:relationship:edit-action` DOM event (if hook not provided)
+   *
+   * This is intentionally opt-in per field (via `data-endpoint-edit-action="true"`).
+   */
+  editAction?: boolean;
+  /**
+   * Custom label for the edit action button. If omitted, a default label is
+   * derived from the field label.
+   *
+   * Set via `data-endpoint-edit-action-label="Edit Author"`.
+   */
+  editActionLabel?: string;
+  /**
+   * Optional identifier the host can use to route to the correct modal/flow
+   * when the edit action is triggered. Passed through in the event payload
+   * and hook detail.
+   *
+   * Set via `data-endpoint-edit-action-id="author"`.
+   */
+  editActionId?: string;
   throttleMs?: number;
   debounceMs?: number;
   searchParam?: string;
@@ -227,6 +254,21 @@ export interface CreateActionDetail {
   mode: "typeahead" | "chips";
   /** How returned options should be applied to selection. */
   selectBehavior: "append" | "replace";
+}
+
+/**
+ * Detail payload passed to the `onEditAction` hook when the user activates
+ * an edit action for a selected relationship option.
+ */
+export interface EditActionDetail {
+  /** Selected relationship option value. */
+  selectedValue: string;
+  /** Selected relationship option label as displayed by the widget. */
+  selectedLabel: string;
+  /** Optional identifier for routing to the correct modal/flow. */
+  actionId?: string;
+  /** Which renderer triggered the action. */
+  mode: "typeahead" | "chips";
 }
 
 export interface CacheSetContext {
@@ -315,6 +357,21 @@ export interface GlobalConfig {
     context: ResolverContext,
     detail: CreateActionDetail
   ) => Option | Option[] | void | Promise<Option | Option[] | void>;
+  /**
+   * Optional hook for **delegated editing** triggered by the "Edit ..." action
+   * in relationship widgets.
+   *
+   * When provided, this hook takes precedence over the DOM event
+   * (`formgen:relationship:edit-action`). If not provided, the event is
+   * dispatched instead.
+   *
+   * Returning an `Option` updates the selected option's label and preserves
+   * selection. Returning `void` means the host will apply changes manually.
+   */
+  onEditAction?: (
+    context: ResolverContext,
+    detail: EditActionDetail
+  ) => Option | void | Promise<Option | void>;
   cache?: CacheConfig;
   logger?: Logger;
   searchThrottleMs?: number;

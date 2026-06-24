@@ -8,6 +8,7 @@ import type { EndpointConfig, FieldConfig } from "./config";
  * - Resolver lifecycle: `formgen:relationship:loading|success|error|validation`
  * - UI/internal state: `formgen:relationship:update` (this module)
  * - Create action: `formgen:relationship:create-action` (delegated creation)
+ * - Edit action: `formgen:relationship:edit-action` (delegated selected-record editing)
  *
  * `formgen:relationship:update` is intended to be the single internal contract
  * for syncing:
@@ -41,6 +42,7 @@ export const RELATIONSHIP_UPDATE_EVENT = "formgen:relationship:update" as const;
  * - Dispatch `formgen:relationship:update` with `kind: "selection"`
  */
 export const RELATIONSHIP_CREATE_ACTION_EVENT = "formgen:relationship:create-action" as const;
+export const RELATIONSHIP_EDIT_ACTION_EVENT = "formgen:relationship:edit-action" as const;
 
 /**
  * Payload for the `formgen:relationship:create-action` event.
@@ -65,6 +67,29 @@ export interface RelationshipCreateActionDetail {
   mode: "typeahead" | "chips";
   /** How returned options should be applied to selection. */
   selectBehavior: "append" | "replace";
+}
+
+/**
+ * Payload for the `formgen:relationship:edit-action` event.
+ *
+ * Contains all context needed for the host to fetch and edit the selected
+ * related record, then apply an updated option label.
+ */
+export interface RelationshipEditActionDetail {
+  /** The underlying relationship `<select>` element. */
+  element: HTMLElement;
+  /** Field configuration harvested from DOM attributes. */
+  field: FieldConfig;
+  /** Endpoint configuration for the relationship. */
+  endpoint: EndpointConfig;
+  /** Selected relationship option value. */
+  selectedValue: string;
+  /** Selected relationship option label as displayed by the widget. */
+  selectedLabel: string;
+  /** Optional identifier for routing to the correct modal/flow. */
+  actionId?: string;
+  /** Which renderer triggered the action. */
+  mode: "typeahead" | "chips";
 }
 
 export type RelationshipUpdateOrigin = "resolver" | "hydrate" | "ui" | "program";
@@ -126,6 +151,30 @@ export function emitRelationshipCreateAction(
   try {
     element.dispatchEvent(
       new CustomEvent<RelationshipCreateActionDetail>(RELATIONSHIP_CREATE_ACTION_EVENT, {
+        bubbles: true,
+        detail,
+      })
+    );
+  } catch (_err) {
+    // Ignore dispatch failures (e.g. CustomEvent not supported in some environments).
+  }
+}
+
+/**
+ * Dispatch the edit-action event when the user activates the "Edit ..."
+ * action in a relationship widget.
+ *
+ * This function should only be called when `GlobalConfig.onEditAction` is
+ * NOT provided. The caller (renderer) is responsible for checking hook
+ * precedence before invoking this.
+ */
+export function emitRelationshipEditAction(
+  element: HTMLElement,
+  detail: RelationshipEditActionDetail
+): void {
+  try {
+    element.dispatchEvent(
+      new CustomEvent<RelationshipEditActionDetail>(RELATIONSHIP_EDIT_ACTION_EVENT, {
         bubbles: true,
         detail,
       })

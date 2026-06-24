@@ -113,6 +113,15 @@ export function datasetToFieldConfig(
   if (dataset.endpointCreateActionSelect === "append" || dataset.endpointCreateActionSelect === "replace") {
     field.createActionSelect = dataset.endpointCreateActionSelect;
   }
+  if (dataset.endpointEditAction === "true") {
+    field.editAction = true;
+  }
+  if (dataset.endpointEditActionLabel) {
+    field.editActionLabel = dataset.endpointEditActionLabel;
+  }
+  if (dataset.endpointEditActionId) {
+    field.editActionId = dataset.endpointEditActionId;
+  }
   if (dataset.endpointThrottle) {
     field.throttleMs = toNumber(dataset.endpointThrottle);
   }

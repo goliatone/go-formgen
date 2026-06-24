@@ -123,4 +123,47 @@ describe("array repeaters", () => {
     expect(registry.get(topic)).toBeDefined();
     expect(document.querySelector("[data-fg-typeahead-root='true']")).toBeTruthy();
   });
+
+  it("soft deletes rows that include an explicit delete intent field", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <div
+          data-formgen-array-items="true"
+          data-formgen-array-name="columns[0].entries"
+          data-formgen-array-next-index="1"
+          data-formgen-array-prototype-path="columns[0].entries[1]"
+          data-formgen-array-prototype-id-prefix="fg-columns-0-entries-1"
+        >
+          <div data-formgen-array-item="true">
+            <input name="columns[0].entries[0]._delete" value="false" type="hidden">
+            <select name="columns[0].entries[0].topic_id">
+              <option value="topic-refuge-id" selected>Refuge</option>
+            </select>
+            <button type="button" data-formgen-array-action="remove">Remove topic entry</button>
+          </div>
+          <template data-formgen-array-prototype="true">
+            <div data-formgen-array-item="true">
+              <input name="columns[0].entries[1]._delete" value="false" type="hidden">
+              <input name="columns[0].entries[1].topic_id" disabled data-formgen-prototype-disabled="true">
+              <button type="button" data-formgen-array-action="remove">Remove topic entry</button>
+            </div>
+          </template>
+        </div>
+        <button type="button" data-formgen-array-action="add">Add topic entry</button>
+      </form>
+    `;
+
+    await initRelationships();
+    const remove = document.querySelector<HTMLButtonElement>("[data-formgen-array-action='remove']")!;
+    remove.click();
+
+    const item = document.querySelector<HTMLElement>("[data-formgen-array-item]")!;
+    const deleted = document.querySelector<HTMLInputElement>("[name='columns[0].entries[0]._delete']")!;
+    const topic = document.querySelector<HTMLSelectElement>("[name='columns[0].entries[0].topic_id']")!;
+
+    expect(item.hidden).toBe(true);
+    expect(deleted.disabled).toBe(false);
+    expect(deleted.value).toBe("true");
+    expect(topic.disabled).toBe(true);
+  });
 });

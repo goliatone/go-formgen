@@ -1,4 +1,11 @@
-import type { Option, RendererContext, FieldConfig, EndpointConfig, CreateActionDetail } from "../config";
+import type {
+  Option,
+  RendererContext,
+  FieldConfig,
+  EndpointConfig,
+  CreateActionDetail,
+  EditActionDetail,
+} from "../config";
 import { readDataset } from "../dom";
 import { datasetToEndpoint, datasetToFieldConfig } from "../relationship-config";
 import type { ResolverRegistry } from "../registry";
@@ -6,6 +13,7 @@ import {
   RELATIONSHIP_UPDATE_EVENT,
   emitRelationshipUpdate,
   emitRelationshipCreateAction,
+  emitRelationshipEditAction,
   type RelationshipUpdateDetail,
 } from "../relationship-events";
 import {
@@ -67,6 +75,12 @@ interface TypeaheadStore {
   createActionSelect: "append" | "replace";
   createActionFocused: boolean;
   createActionElement: HTMLElement | null;
+  // Edit action state
+  editActionEnabled: boolean;
+  editActionLabel: string;
+  editActionId?: string;
+  editActionFocused: boolean;
+  editActionElement: HTMLElement | null;
   // References for hook invocation
   field: FieldConfig;
   endpoint: EndpointConfig;
@@ -215,6 +229,8 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   // Derive create action label from field label
   const createActionLabelFromAttr = select.dataset.endpointCreateActionLabel;
   const defaultCreateActionLabel = label ? `Create ${label}…` : "Create new…";
+  const editActionLabelFromAttr = select.dataset.endpointEditActionLabel;
+  const defaultEditActionLabel = label ? `Edit ${label}` : "Edit selected";
 
   const store: TypeaheadStore = {
     select,
@@ -251,6 +267,12 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     createActionSelect: (select.dataset.endpointCreateActionSelect === "append" ? "append" : "replace"),
     createActionFocused: false,
     createActionElement: null,
+    // Edit action state
+    editActionEnabled: select.dataset.endpointEditAction === "true",
+    editActionLabel: editActionLabelFromAttr || defaultEditActionLabel,
+    editActionId: select.dataset.endpointEditActionId,
+    editActionFocused: false,
+    editActionElement: null,
     // References (will be set in ensureCreateIntegration)
     field: {} as FieldConfig,
     endpoint: {} as EndpointConfig,
@@ -397,6 +419,7 @@ function handleInput(store: TypeaheadStore): void {
   const trimmed = input.value.trim();
   store.highlightedIndex = -1;
   store.createActionFocused = false;
+  store.editActionFocused = false;
   store.searchQuery = trimmed;
   select.setAttribute("data-endpoint-search-value", trimmed);
   emitRelationshipUpdate(select, { kind: "search", origin: "ui", query: trimmed });
@@ -503,13 +526,13 @@ function ensureCreateIntegration(
   const fallbackField = datasetToFieldConfig(store.select, dataset);
   const fallbackEndpoint = datasetToEndpoint(dataset);
 
-  // Store registry and context references for create action
+  // Store registry and context references for relationship actions.
   store.registry = registry;
   store.field = context?.field ?? fallbackField;
   store.endpoint = fallbackEndpoint;
 
   if (context) {
-    // Update create action config from context if available
+    // Update action config from context if available
     if (context.field.createAction !== undefined) {
       store.createActionEnabled = context.field.createAction;
     }
@@ -521,6 +544,15 @@ function ensureCreateIntegration(
     }
     if (context.field.createActionSelect) {
       store.createActionSelect = context.field.createActionSelect;
+    }
+    if (context.field.editAction !== undefined) {
+      store.editActionEnabled = context.field.editAction;
+    }
+    if (context.field.editActionLabel) {
+      store.editActionLabel = context.field.editActionLabel;
+    }
+    if (context.field.editActionId) {
+      store.editActionId = context.field.editActionId;
     }
   }
 }
@@ -587,28 +619,53 @@ async function createAndSelect(store: TypeaheadStore, query: string): Promise<vo
 }
 
 function moveHighlight(store: TypeaheadStore, delta: number): void {
-  const { filtered, createActionEnabled, createActionElement } = store;
+  const { filtered, createActionEnabled, createActionElement, editActionElement } = store;
   const hasCreateAction = createActionEnabled && createActionElement;
+  const hasEditAction = Boolean(editActionElement);
 
   // If currently focused on create action
   if (store.createActionFocused) {
     if (delta < 0) {
-      // ArrowUp from create action: go to last option or stay if no options
       store.createActionFocused = false;
+      if (hasEditAction) {
+        store.editActionFocused = true;
+        editActionElement?.focus();
+      } else if (filtered.length > 0) {
+        store.highlightedIndex = filtered.length - 1;
+        store.input.focus();
+      } else {
+        store.input.focus();
+      }
+      updateHighlightedOption(store);
+    }
+    return;
+  }
+
+  if (store.editActionFocused) {
+    if (delta < 0) {
+      store.editActionFocused = false;
       if (filtered.length > 0) {
         store.highlightedIndex = filtered.length - 1;
       }
       store.input.focus();
       updateHighlightedOption(store);
+    } else if (hasCreateAction) {
+      store.editActionFocused = false;
+      store.createActionFocused = true;
+      createActionElement.focus();
+      updateHighlightedOption(store);
     }
-    // ArrowDown from create action: stay on create action (it's the last item)
     return;
   }
 
   // No options case
   if (filtered.length === 0) {
-    if (hasCreateAction && delta > 0) {
-      // Move to create action
+    if (hasEditAction && delta > 0) {
+      store.highlightedIndex = -1;
+      store.editActionFocused = true;
+      editActionElement?.focus();
+      updateHighlightedOption(store);
+    } else if (hasCreateAction && delta > 0) {
       store.highlightedIndex = -1;
       store.createActionFocused = true;
       createActionElement.focus();
@@ -626,8 +683,15 @@ function moveHighlight(store: TypeaheadStore, delta: number): void {
   }
 
   // Handle boundaries with create action
+  if (next >= filtered.length && hasEditAction && delta > 0) {
+    store.highlightedIndex = -1;
+    store.editActionFocused = true;
+    editActionElement?.focus();
+    updateHighlightedOption(store);
+    return;
+  }
+
   if (next >= filtered.length && hasCreateAction && delta > 0) {
-    // ArrowDown from last option: move to create action
     store.highlightedIndex = -1;
     store.createActionFocused = true;
     createActionElement.focus();
@@ -644,6 +708,7 @@ function moveHighlight(store: TypeaheadStore, delta: number): void {
 
   store.highlightedIndex = next;
   store.createActionFocused = false;
+  store.editActionFocused = false;
   updateHighlightedOption(store);
 }
 
@@ -749,6 +814,7 @@ function closeDropdown(store: TypeaheadStore): void {
   store.isOpen = false;
   store.highlightedIndex = -1;
   store.createActionFocused = false;
+  store.editActionFocused = false;
   updateHighlightedOption(store);
 }
 
@@ -788,6 +854,7 @@ function renderOptions(store: TypeaheadStore): void {
       loadingRow.appendChild(text);
 
       dropdownList.appendChild(loadingRow);
+      renderEditAction(store);
       renderCreateAction(store);
       return;
     }
@@ -810,7 +877,7 @@ function renderOptions(store: TypeaheadStore): void {
     setElementClasses(empty, theme.empty);
     empty.textContent = trimmed ? "No matches" : "No options";
     dropdownList.appendChild(empty);
-    // Render create action row if enabled (always visible, even with no matches)
+    renderEditAction(store);
     renderCreateAction(store);
     return;
   }
@@ -855,7 +922,7 @@ function renderOptions(store: TypeaheadStore): void {
     }
   });
 
-  // Render create action row if enabled (always visible, not query-dependent)
+  renderEditAction(store);
   renderCreateAction(store);
 
   updateHighlightedOption(store);
@@ -884,10 +951,80 @@ function updateHighlightedOption(store: TypeaheadStore): void {
   });
 
   // Update create action focus state
+  updateEditActionFocus(store);
   updateCreateActionFocus(store);
 }
 
+const TYPEAHEAD_EDIT_ACTION_ATTR = "data-fg-typeahead-edit-action";
 const TYPEAHEAD_CREATE_ACTION_ATTR = "data-fg-typeahead-create-action";
+
+function renderEditAction(store: TypeaheadStore): void {
+  if (store.editActionElement) {
+    store.editActionElement.remove();
+    store.editActionElement = null;
+  }
+  if (!store.editActionEnabled) {
+    return;
+  }
+
+  const selected = getSelectedOption(store);
+  if (!selected) {
+    store.editActionFocused = false;
+    return;
+  }
+
+  const { dropdown, theme } = store;
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  setElementClasses(actionButton, theme.createAction);
+  actionButton.setAttribute("role", "button");
+  actionButton.setAttribute(TYPEAHEAD_EDIT_ACTION_ATTR, "true");
+  actionButton.setAttribute("tabindex", "-1");
+  actionButton.dataset.value = selected.value;
+
+  const iconSpan = document.createElement("span");
+  iconSpan.innerHTML = '<svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  actionButton.appendChild(iconSpan);
+
+  const labelSpan = document.createElement("span");
+  labelSpan.textContent = store.editActionLabel;
+  actionButton.appendChild(labelSpan);
+
+  actionButton.addEventListener("click", () => {
+    triggerEditAction(store);
+  });
+
+  actionButton.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      triggerEditAction(store);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      store.editActionFocused = false;
+      if (store.filtered.length > 0) {
+        store.highlightedIndex = store.filtered.length - 1;
+      }
+      store.input.focus();
+      updateHighlightedOption(store);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (store.createActionElement) {
+        store.editActionFocused = false;
+        store.createActionFocused = true;
+        store.createActionElement.focus();
+        updateHighlightedOption(store);
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeDropdown(store);
+      resetInputPlaceholder(store);
+    }
+  });
+
+  dropdown.appendChild(actionButton);
+  store.editActionElement = actionButton;
+}
 
 /**
  * Render the create action row in the dropdown footer.
@@ -948,6 +1085,21 @@ function renderCreateAction(store: TypeaheadStore): void {
 
   dropdown.appendChild(actionButton);
   store.createActionElement = actionButton;
+}
+
+function updateEditActionFocus(store: TypeaheadStore): void {
+  const { editActionElement, editActionFocused, theme } = store;
+  if (!editActionElement) {
+    return;
+  }
+
+  if (editActionFocused) {
+    addElementClasses(editActionElement, theme.createActionFocused);
+    editActionElement.setAttribute("aria-current", "true");
+  } else {
+    removeElementClasses(editActionElement, theme.createActionFocused);
+    editActionElement.removeAttribute("aria-current");
+  }
 }
 
 /**
@@ -1022,6 +1174,122 @@ async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
       selectBehavior: store.createActionSelect,
     });
   }
+}
+
+async function triggerEditAction(store: TypeaheadStore): Promise<void> {
+  const selected = getSelectedOption(store);
+  if (!selected) {
+    return;
+  }
+
+  const config = store.registry.getConfig();
+  const detail: EditActionDetail = {
+    selectedValue: selected.value,
+    selectedLabel: selected.label,
+    actionId: store.editActionId,
+    mode: "typeahead",
+  };
+
+  closeDropdown(store);
+  resetInputPlaceholder(store);
+
+  if (config.onEditAction) {
+    try {
+      const context = {
+        element: store.select,
+        field: store.field,
+        endpoint: store.endpoint,
+        request: { url: store.endpoint.url ?? "", init: {} },
+        fromCache: false,
+        config,
+      };
+      const result = await config.onEditAction(context, detail);
+      if (result) {
+        applyUpdatedOption(store, result);
+      }
+    } catch (_err) {
+      // Ignore hook errors
+    }
+  } else {
+    emitRelationshipEditAction(store.select, {
+      element: store.select,
+      field: store.field,
+      endpoint: store.endpoint,
+      selectedValue: selected.value,
+      selectedLabel: selected.label,
+      actionId: store.editActionId,
+      mode: "typeahead",
+    });
+  }
+}
+
+function getSelectedOption(store: TypeaheadStore): Option | null {
+  const selected = Array.from(store.select.options).find(
+    (option) => option.selected && option.value !== ""
+  );
+  if (!selected) {
+    return null;
+  }
+  const value = selected.value;
+  const storeOption = store.options.find((option) => option.value === value);
+  return {
+    ...(storeOption ?? {}),
+    value,
+    label: selected.textContent?.trim() || storeOption?.label || store.input.value || value,
+  };
+}
+
+function applyUpdatedOption(store: TypeaheadStore, option: Option): void {
+  const selected = getSelectedOption(store);
+  if (!selected) {
+    return;
+  }
+
+  const value = option.value || selected.value;
+  const label = option.label || value;
+  const nativeOption = Array.from(store.select.options).find(
+    (node) => node.value === value
+  );
+
+  if (nativeOption) {
+    nativeOption.textContent = label;
+    nativeOption.selected = true;
+  } else {
+    const node = document.createElement("option");
+    node.value = value;
+    node.textContent = label;
+    node.selected = true;
+    store.select.appendChild(node);
+  }
+
+  for (const node of Array.from(store.select.options)) {
+    if (node.value !== value) {
+      node.selected = false;
+    }
+  }
+
+  const existingIndex = store.options.findIndex((item) => item.value === value);
+  if (existingIndex >= 0) {
+    store.options = store.options.map((item, index) =>
+      index === existingIndex ? { ...item, ...option, value, label } : item
+    );
+  } else {
+    store.options = [...store.options, { ...option, value, label }];
+  }
+
+  store.input.value = label;
+  syncSelectedDataset(store, value, label);
+  store.highlightedIndex = -1;
+  store.searchQuery = "";
+  store.select.setAttribute("data-endpoint-search-value", "");
+  emitRelationshipUpdate(store.select, {
+    kind: "selection",
+    origin: "ui",
+    selectedValues: [value],
+  });
+  store.select.dispatchEvent(new Event("change", { bubbles: true }));
+  renderOptions(store);
+  updateClearState(store);
 }
 
 /**

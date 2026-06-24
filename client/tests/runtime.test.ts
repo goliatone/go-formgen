@@ -16,9 +16,12 @@ import {
   registerErrorRenderer,
   attachFormController,
   RESOLVER_SUPERSEDED_ABORT_REASON,
+  RELATIONSHIP_EDIT_ACTION_EVENT,
+  emitRelationshipEditAction,
 } from "../src/index";
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
+import { datasetToEndpoint, datasetToFieldConfig } from "../src/relationship-config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -93,6 +96,52 @@ describe("runtime resolver", () => {
     resetDom();
     // Clean up global registry
     resetGlobalRegistry();
+  });
+
+  it("parses relationship edit-action metadata from endpoint dataset attributes", () => {
+    const select = createMarkup(`
+      data-endpoint-renderer="typeahead"
+      data-endpoint-edit-action="true"
+      data-endpoint-edit-action-id="author"
+      data-endpoint-edit-action-label="Edit Author"
+    `);
+
+    const field = datasetToFieldConfig(select, select.dataset as Record<string, string>);
+
+    expect(field.editAction).toBe(true);
+    expect(field.editActionId).toBe("author");
+    expect(field.editActionLabel).toBe("Edit Author");
+  });
+
+  it("emits relationship edit-action events with selected option detail", () => {
+    const select = createMarkup();
+    const endpoint = datasetToEndpoint(select.dataset as Record<string, string>);
+    const field = datasetToFieldConfig(select, select.dataset as Record<string, string>);
+    const listener = vi.fn();
+
+    select.addEventListener(RELATIONSHIP_EDIT_ACTION_EVENT, listener);
+
+    emitRelationshipEditAction(select, {
+      element: select,
+      field,
+      endpoint,
+      selectedValue: "author-1",
+      selectedLabel: "Ada Lovelace",
+      actionId: "author",
+      mode: "typeahead",
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    const event = listener.mock.calls[0]?.[0] as CustomEvent;
+    expect(event.detail).toMatchObject({
+      element: select,
+      field,
+      endpoint,
+      selectedValue: "author-1",
+      selectedLabel: "Ada Lovelace",
+      actionId: "author",
+      mode: "typeahead",
+    });
   });
 
   it("invokes global hooks and transforms options", async () => {
@@ -2116,6 +2165,229 @@ describe("runtime resolver", () => {
       const options = getOptions();
       expect(document.activeElement).toBe(searchInput);
       expect(options[options.length - 1]?.classList.contains("bg-blue-50")).toBe(true);
+    });
+  });
+
+  describe("typeahead edit action", () => {
+    function renderAuthorTypeahead(extra = ""): void {
+      document.body.innerHTML = `
+        <form data-formgen-auto-init="true">
+          <select
+            id="author"
+            name="article[author_id]"
+            data-endpoint-url="/api/authors"
+            data-endpoint-method="GET"
+            data-endpoint-renderer="typeahead"
+            data-endpoint-mode="search"
+            data-endpoint-edit-action="true"
+            data-endpoint-edit-action-id="author"
+            data-endpoint-edit-action-label="Edit Author"
+            data-relationship-cardinality="one"
+            ${extra}
+          ></select>
+        </form>
+      `;
+    }
+
+    async function initAuthorTypeahead(config = {}) {
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "1", label: "Alice Smith" },
+          { value: "2", label: "Bob Jones" },
+        ])
+      );
+      const registry = await initRelationships({
+        searchThrottleMs: 0,
+        searchDebounceMs: 0,
+        ...config,
+      });
+      const select = document.getElementById("author") as HTMLSelectElement;
+      await registry.resolve(select);
+      await flush();
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+      await flush();
+      const container = select.previousElementSibling as HTMLElement;
+      const input = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+      return { registry, select, container, input };
+    }
+
+    it("hides edit action when no option is selected", async () => {
+      renderAuthorTypeahead();
+      const { container, input } = await initAuthorTypeahead();
+
+      input.click();
+      await flush();
+
+      const editAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]');
+      expect(editAction).toBeNull();
+    });
+
+    it("renders edit action when an option is selected", async () => {
+      renderAuthorTypeahead();
+      const { container, input } = await initAuthorTypeahead();
+
+      input.click();
+      await flush();
+      const option = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!;
+      option.click();
+      await flush();
+
+      input.click();
+      await flush();
+
+      const editAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]');
+      expect(editAction).not.toBeNull();
+      expect(editAction?.textContent).toContain("Edit Author");
+      expect(editAction?.dataset.value).toBe("1");
+    });
+
+    it("dispatches edit-action event with selected option detail", async () => {
+      renderAuthorTypeahead();
+      const { select, container, input } = await initAuthorTypeahead();
+      const eventSpy = vi.fn();
+      select.addEventListener(RELATIONSHIP_EDIT_ACTION_EVENT, eventSpy);
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!.click();
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      const detail = eventSpy.mock.calls[0][0].detail;
+      expect(detail.selectedValue).toBe("1");
+      expect(detail.selectedLabel).toBe("Alice Smith");
+      expect(detail.actionId).toBe("author");
+      expect(detail.mode).toBe("typeahead");
+      expect(detail.field.name).toBe("article[author_id]");
+      expect(detail.endpoint.url).toBe("/api/authors");
+      expect(detail.element).toBe(select);
+    });
+
+    it("invokes onEditAction hook instead of dispatching event", async () => {
+      renderAuthorTypeahead();
+      const onEditAction = vi.fn();
+      const { select, container, input } = await initAuthorTypeahead({ onEditAction });
+      const eventSpy = vi.fn();
+      select.addEventListener(RELATIONSHIP_EDIT_ACTION_EVENT, eventSpy);
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!.click();
+      await flush();
+      await flush();
+
+      expect(onEditAction).toHaveBeenCalledTimes(1);
+      expect(eventSpy).not.toHaveBeenCalled();
+      const detail = onEditAction.mock.calls[0][1];
+      expect(detail).toMatchObject({
+        selectedValue: "1",
+        selectedLabel: "Alice Smith",
+        actionId: "author",
+        mode: "typeahead",
+      });
+    });
+
+    it("triggers edit action via Enter on focused action button", async () => {
+      renderAuthorTypeahead();
+      const { select, container, input } = await initAuthorTypeahead();
+      const eventSpy = vi.fn();
+      select.addEventListener(RELATIONSHIP_EDIT_ACTION_EVENT, eventSpy);
+
+      input.focus();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+
+      input.click();
+      await flush();
+      const editAction = container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!;
+      editAction.focus();
+      editAction.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await flush();
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("applies returned updated option label while preserving selection", async () => {
+      renderAuthorTypeahead();
+      const onEditAction = vi.fn().mockResolvedValue({ value: "1", label: "Alice Updated" });
+      const { select, container, input } = await initAuthorTypeahead({ onEditAction });
+      const selectionSpy = vi.fn();
+      select.addEventListener("formgen:relationship:update", selectionSpy);
+
+      input.focus();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+      selectionSpy.mockClear();
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!.click();
+      await flush();
+      await flush();
+
+      expect(select.value).toBe("1");
+      expect(input.value).toBe("Alice Updated");
+      expect(select.querySelector<HTMLOptionElement>('option[value="1"]')?.textContent).toBe("Alice Updated");
+      expect(selectionSpy).toHaveBeenCalledTimes(1);
+      expect(selectionSpy.mock.calls[0][0].detail).toMatchObject({
+        kind: "selection",
+        origin: "ui",
+        selectedValues: ["1"],
+      });
+    });
+
+    it("leaves selection unchanged when edit hook returns void", async () => {
+      renderAuthorTypeahead();
+      const onEditAction = vi.fn().mockResolvedValue(undefined);
+      const { select, container, input } = await initAuthorTypeahead({ onEditAction });
+
+      input.focus();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!.click();
+      await flush();
+      await flush();
+
+      expect(select.value).toBe("1");
+      expect(input.value).toBe("Alice Smith");
+      expect(select.querySelector<HTMLOptionElement>('option[value="1"]')?.textContent).toBe("Alice Smith");
+    });
+
+    it("leaves selection unchanged when edit hook throws", async () => {
+      renderAuthorTypeahead();
+      const onEditAction = vi.fn().mockRejectedValue(new Error("save failed"));
+      const { select, container, input } = await initAuthorTypeahead({ onEditAction });
+
+      input.focus();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-option="true"]')!.click();
+      await flush();
+
+      input.click();
+      await flush();
+      container.querySelector<HTMLButtonElement>('[data-fg-typeahead-edit-action="true"]')!.click();
+      await flush();
+      await flush();
+
+      expect(select.value).toBe("1");
+      expect(input.value).toBe("Alice Smith");
+      expect(select.querySelector<HTMLOptionElement>('option[value="1"]')?.textContent).toBe("Alice Smith");
     });
   });
 

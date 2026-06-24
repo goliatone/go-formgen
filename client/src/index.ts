@@ -83,6 +83,7 @@ export type {
   ValidationError,
   ValidationResult,
   CreateActionDetail,
+  EditActionDetail,
 } from "./config";
 export { ResolverRegistry } from "./registry";
 export {
@@ -115,11 +116,14 @@ export { renderWysiwyg, autoInitWysiwyg, type WysiwygStore, type WysiwygConfig }
 export {
   RELATIONSHIP_UPDATE_EVENT,
   RELATIONSHIP_CREATE_ACTION_EVENT,
+  RELATIONSHIP_EDIT_ACTION_EVENT,
   emitRelationshipUpdate,
   emitRelationshipCreateAction,
+  emitRelationshipEditAction,
   type RelationshipUpdateDetail,
   type RelationshipUpdateOrigin,
   type RelationshipCreateActionDetail,
+  type RelationshipEditActionDetail,
 } from "./relationship-events";
 
 

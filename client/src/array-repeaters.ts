@@ -4,8 +4,10 @@ export interface ArrayRepeaterInitOptions {
 
 const ARRAY_ITEMS_ATTR = "data-formgen-array-items";
 const ARRAY_PROTOTYPE_ATTR = "data-formgen-array-prototype";
-const ARRAY_ACTION_SELECTOR = '[data-formgen-array-action="add"]';
+const ARRAY_ADD_ACTION_SELECTOR = '[data-formgen-array-action="add"]';
+const ARRAY_REMOVE_ACTION_SELECTOR = '[data-formgen-array-action="remove"]';
 const ARRAY_INITIALIZED_ATTR = "data-formgen-array-initialized";
+const ARRAY_ITEM_ATTR = "data-formgen-array-item";
 const PROTOTYPE_DISABLED_ATTR = "data-formgen-prototype-disabled";
 
 interface ReindexContext {
@@ -37,6 +39,7 @@ export function initArrayRepeaters(
     };
 
     button.addEventListener("click", handleAdd);
+    items.addEventListener("click", handleRemove);
     items.setAttribute(ARRAY_INITIALIZED_ATTR, "true");
   }
 }
@@ -97,11 +100,84 @@ function findAddButton(items: HTMLElement): HTMLButtonElement | null {
     return null;
   }
   for (const child of Array.from(parent.children)) {
-    if (child instanceof HTMLButtonElement && child.matches(ARRAY_ACTION_SELECTOR)) {
+    if (child instanceof HTMLButtonElement && child.matches(ARRAY_ADD_ACTION_SELECTOR)) {
       return child;
     }
   }
   return null;
+}
+
+function handleRemove(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const button = target.closest<HTMLButtonElement>(ARRAY_REMOVE_ACTION_SELECTOR);
+  if (!button) {
+    return;
+  }
+  event.preventDefault();
+  removeArrayItem(button);
+}
+
+function removeArrayItem(button: HTMLButtonElement): void {
+  const item = button.closest<HTMLElement>(`[${ARRAY_ITEM_ATTR}]`);
+  if (!item) {
+    return;
+  }
+  if (markArrayItemDeleted(item)) {
+    item.hidden = true;
+    item.setAttribute("aria-hidden", "true");
+    return;
+  }
+  item.remove();
+}
+
+function markArrayItemDeleted(item: HTMLElement): boolean {
+  const deleteControl = findDeleteControl(item);
+  if (!deleteControl) {
+    return false;
+  }
+  setDeleteControlValue(deleteControl);
+  disableArrayItemControls(item, deleteControl);
+  return true;
+}
+
+function findDeleteControl(item: HTMLElement): HTMLInputElement | null {
+  const controls = Array.from(item.querySelectorAll<HTMLInputElement>("input"));
+  return controls.find((control) => isDeleteIntentControl(control)) ?? null;
+}
+
+function isDeleteIntentControl(control: HTMLInputElement): boolean {
+  const name = control.getAttribute("name") ?? "";
+  const fieldPath = control.getAttribute("data-field-path") ?? control.dataset.fieldName ?? "";
+  return name.endsWith("._delete") ||
+    name.endsWith("[_delete]") ||
+    fieldPath.endsWith("._delete") ||
+    fieldPath.endsWith("[_delete]");
+}
+
+function setDeleteControlValue(control: HTMLInputElement): void {
+  control.disabled = false;
+  if (control.type === "checkbox" || control.type === "radio") {
+    control.checked = true;
+    control.value = "true";
+    return;
+  }
+  control.value = "true";
+}
+
+function disableArrayItemControls(item: HTMLElement, deleteControl: HTMLInputElement): void {
+  item
+    .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>(
+      "input, select, textarea, button"
+    )
+    .forEach((control) => {
+      if (control === deleteControl) {
+        return;
+      }
+      control.disabled = true;
+    });
 }
 
 function readNextIndex(items: HTMLElement): number {
