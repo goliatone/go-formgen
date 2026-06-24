@@ -1,5 +1,24 @@
 # Changelog
 
+# [0.29.1](https://github.com/goliatone/go-formgen/compare/v0.29.0...v0.29.1) - (2026-06-24)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Handle nested arrays ([aab0c34](https://github.com/goliatone/go-formgen/commit/aab0c3413e2a07f84d403a5068be4d65e2bb658c))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.29.1 ([d79397c](https://github.com/goliatone/go-formgen/commit/d79397c9b0245782b6ffd0bfbfcc520046a0a9ee))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.29.0 ([bfaed10](https://github.com/goliatone/go-formgen/commit/bfaed10162a6b2de6c46d587e68c8879e46f6573))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update examples ([9fb6b82](https://github.com/goliatone/go-formgen/commit/9fb6b82284810fb05eef1ae4472e09e375eec1a1))  - (goliatone)
+- Update docs ([ed679bf](https://github.com/goliatone/go-formgen/commit/ed679bf00057d127190d395a3ee02e780bd945d6))  - (goliatone)
+
 # [0.29.0](https://github.com/goliatone/go-formgen/compare/v0.28.1...v0.29.0) - (2026-06-24)
 
 ## <!-- 1 -->🐛 Bug Fixes
