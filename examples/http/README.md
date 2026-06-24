@@ -51,24 +51,26 @@ The `/form` endpoint renders any operation from the configured OpenAPI document.
 
 ---
 
-### `/advanced` - Create Actions & Modal Forms
+### `/advanced` - Relationship Actions & Modal Forms
 
 **URL:** [http://localhost:8383/advanced](http://localhost:8383/advanced)
 
-The advanced view demonstrates the full power of go-formgen's relationship system, including modal forms for creating related entities on-the-fly.
+The advanced view demonstrates the full power of go-formgen's relationship system, including modal forms for creating related entities on-the-fly and editing selected related records in place.
 
 **What you'll see:**
 - A `post-book:create` form with multiple relationship fields
 - "Create Author", "Create Publisher", "Create Tag" modal forms
+- "Edit Author" and "Edit Publisher" modal forms after a relationship value is selected
 - Chips component for multi-select relationships (tags)
 - Typeahead component for single-select relationships (author, publisher)
-- Create actions that open modals, submit via fetch, and update selections in-place
+- Create and edit actions that open modals, submit via fetch, and update selections in-place
 
 **Key features demonstrated:**
 1. **Create Actions**: Click "Create Author" to open a modal, submit a new author, and have it auto-selected
-2. **Chips (Multi-select)**: Tags field with search, add/remove chips, and inline create
-3. **Typeahead (Single-select)**: Author field with search-as-you-type and option selection
-4. **Prefill from Search**: When you search for a non-existent option and click "Create", the modal prefills with your search query
+2. **Edit Actions**: Select an Author or Publisher, click "Edit", save changes, and watch the selected label update
+3. **Chips (Multi-select)**: Tags field with search, add/remove chips, and inline create
+4. **Typeahead (Single-select)**: Author field with search-as-you-type and option selection
+5. **Prefill from Search**: When you search for a non-existent option and click "Create", the modal prefills with your search query
 
 ---
 
@@ -115,7 +117,10 @@ The HTTP demo uses UI schema metadata in `examples/http/ui/schema.json` to confi
             "relationship.endpoint.createAction": "true",
             "relationship.endpoint.createActionId": "author",
             "relationship.endpoint.createActionLabel": "Create Author",
-            "relationship.endpoint.createActionSelect": "replace"
+            "relationship.endpoint.createActionSelect": "replace",
+            "relationship.endpoint.editAction": "true",
+            "relationship.endpoint.editActionId": "author",
+            "relationship.endpoint.editActionLabel": "Edit Author"
           }
         }
       }
@@ -123,6 +128,8 @@ The HTTP demo uses UI schema metadata in `examples/http/ui/schema.json` to confi
   }
 }
 ```
+
+Edit actions are currently implemented for single-select typeahead relationships. Chips/per-item editing is intentionally deferred.
 
 ### Inline Create (Tags)
 
