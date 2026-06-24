@@ -1,5 +1,30 @@
 # Changelog
 
+# [0.29.0](https://github.com/goliatone/go-formgen/compare/v0.28.1...v0.29.0) - (2026-06-24)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Array handling. add: edit modal workflow ([6bbd7b8](https://github.com/goliatone/go-formgen/commit/6bbd7b874233fcbe3296d1d8bf1fdb0d28c49a6f))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.29.0 ([2d73a8b](https://github.com/goliatone/go-formgen/commit/2d73a8bd57f4e5e9529cd1dce948683abeebc82d))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Edit modal workflow ([46787ef](https://github.com/goliatone/go-formgen/commit/46787efd9b3463b1ff115917eb9c65114687d6e6))  - (goliatone)
+- Assets ([a4b79e9](https://github.com/goliatone/go-formgen/commit/a4b79e9fd5564b7c664813a38c1a9288819d0c7e))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.28.1 ([5108955](https://github.com/goliatone/go-formgen/commit/510895591e3c1e688c0a2a48cbca4509854ad726))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([e1b169a](https://github.com/goliatone/go-formgen/commit/e1b169ae5e7a9bdbbd62ac5cde720c82d5f1c2f7))  - (goliatone)
+- Update docs ([bec2c5c](https://github.com/goliatone/go-formgen/commit/bec2c5cf77f1a7c75bb9d3a7963fbc960cb0c75d))  - (goliatone)
+- Update examples ([35da0db](https://github.com/goliatone/go-formgen/commit/35da0dbb6d7ca622dd3b8cb5122f9f458fae8154))  - (goliatone)
+
 # [0.28.1](https://github.com/goliatone/go-formgen/compare/v0.28.0...v0.28.1) - (2026-06-22)
 
 ## <!-- 13 -->📦 Bumps
