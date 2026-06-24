@@ -119,10 +119,18 @@ The package supports JSON, form-urlencoded, multipart, dotted paths, bracket/ind
 
 ```go
 registry := render.NewRegistry()
-registry.MustRegister(vanilla.Must(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates())))
-registry.MustRegister(preact.New())
+vanillaRenderer, err := vanilla.New(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()))
+if err != nil {
+	log.Fatal(err)
+}
+registry.MustRegister(vanillaRenderer)
+preactRenderer, err := preact.New()
+if err != nil {
+	log.Fatal(err)
+}
+registry.MustRegister(preactRenderer)
 
-gen := formgen.NewOrchestrator(
+gen := orchestrator.New(
 	orchestrator.WithRegistry(registry),
 	orchestrator.WithDefaultRenderer("vanilla"),
 	orchestrator.WithWidgetRegistry(widgets.NewRegistry()), // adapters can RegisterWidget later
@@ -138,9 +146,13 @@ ctx := context.Background()
 
 loader := formgen.NewLoader(openapi.WithDefaultSources())
 registry := render.NewRegistry()
-registry.MustRegister(vanilla.Must(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates())))
+vanillaRenderer, err := vanilla.New(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()))
+if err != nil {
+	log.Fatal(err)
+}
+registry.MustRegister(vanillaRenderer)
 
-gen := formgen.NewOrchestrator(
+gen := orchestrator.New(
 	orchestrator.WithLoader(loader),
 	orchestrator.WithParser(formgen.NewParser()),
 	orchestrator.WithModelBuilder(model.NewBuilder()),
