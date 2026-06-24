@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -843,6 +844,12 @@ type editModalSpec struct {
 	RecordURL   string
 }
 
+type advancedModalRenderSpec struct {
+	OperationID string
+	Tags        []string
+	Data        map[string]any
+}
+
 var advancedCreateModals = []createModalSpec{
 	{
 		ActionID:     "author",
@@ -1058,14 +1065,7 @@ func main() {
 
 	mux := buildDemoMux(server, relationships, uploadsDir)
 
-	httpServer := &http.Server{
-		Addr:              cfg.addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       demoHTTPTimeout,
-		WriteTimeout:      demoHTTPTimeout,
-		IdleTimeout:       2 * time.Minute,
-	}
+	httpServer := newDemoHTTPServer(cfg.addr, mux)
 
 	listener, err := net.Listen("tcp", cfg.addr)
 	if err != nil {
@@ -1097,6 +1097,17 @@ func main() {
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
+	}
+}
+
+func newDemoHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       demoHTTPTimeout,
+		WriteTimeout:      demoHTTPTimeout,
+		IdleTimeout:       2 * time.Minute,
 	}
 }
 
@@ -1492,56 +1503,15 @@ func (s *formServer) advancedHandler() http.Handler {
 			return
 		}
 
-		modals := make([]map[string]any, 0, len(advancedCreateModals))
-		for _, spec := range advancedCreateModals {
-			modalOutput, generateErr := s.generator.Generate(r.Context(), orchestrator.Request{
-				Document:    &document,
-				OperationID: spec.OperationID,
-				Renderer:    advancedRendererName,
-				RenderOptions: render.RenderOptions{
-					Subset: render.FieldSubset{
-						Tags: []string{"modal-min"},
-					},
-					OmitAssets: true, // Modals inherit assets from the parent page
-				},
-			})
-			if generateErr != nil {
-				http.Error(w, fmt.Sprintf("generate modal form (%s): %v", spec.OperationID, generateErr), http.StatusInternalServerError)
-				return
-			}
-			modals = append(modals, map[string]any{
-				"action_id":     spec.ActionID,
-				"value_field":   spec.ValueField,
-				"label_field":   spec.LabelField,
-				"prefill_field": spec.PrefillField,
-				"form_html":     string(modalOutput),
-			})
+		modals, err := s.generateAdvancedModals(r.Context(), document, advancedCreateModalRenderSpecs())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("generate modal forms: %v", err), http.StatusInternalServerError)
+			return
 		}
-
-		editModals := make([]map[string]any, 0, len(advancedEditModals))
-		for _, spec := range advancedEditModals {
-			modalOutput, generateErr := s.generator.Generate(r.Context(), orchestrator.Request{
-				Document:    &document,
-				OperationID: spec.OperationID,
-				Renderer:    advancedRendererName,
-				RenderOptions: render.RenderOptions{
-					Subset: render.FieldSubset{
-						Tags: []string{"modal-edit"},
-					},
-					OmitAssets: true, // Modals inherit assets from the parent page
-				},
-			})
-			if generateErr != nil {
-				http.Error(w, fmt.Sprintf("generate edit modal form (%s): %v", spec.OperationID, generateErr), http.StatusInternalServerError)
-				return
-			}
-			editModals = append(editModals, map[string]any{
-				"action_id":   spec.ActionID,
-				"value_field": spec.ValueField,
-				"label_field": spec.LabelField,
-				"record_url":  spec.RecordURL,
-				"form_html":   string(modalOutput),
-			})
+		editModals, err := s.generateAdvancedModals(r.Context(), document, advancedEditModalRenderSpecs())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("generate edit modal forms: %v", err), http.StatusInternalServerError)
+			return
 		}
 
 		page, err := s.templates.RenderTemplate("advanced", map[string]any{
@@ -1560,6 +1530,69 @@ func (s *formServer) advancedHandler() http.Handler {
 			log.Printf("write response: %v", err)
 		}
 	})
+}
+
+func advancedCreateModalRenderSpecs() []advancedModalRenderSpec {
+	specs := make([]advancedModalRenderSpec, 0, len(advancedCreateModals))
+	for _, spec := range advancedCreateModals {
+		specs = append(specs, advancedModalRenderSpec{
+			OperationID: spec.OperationID,
+			Tags:        []string{"modal-min"},
+			Data: map[string]any{
+				"action_id":     spec.ActionID,
+				"value_field":   spec.ValueField,
+				"label_field":   spec.LabelField,
+				"prefill_field": spec.PrefillField,
+			},
+		})
+	}
+	return specs
+}
+
+func advancedEditModalRenderSpecs() []advancedModalRenderSpec {
+	specs := make([]advancedModalRenderSpec, 0, len(advancedEditModals))
+	for _, spec := range advancedEditModals {
+		specs = append(specs, advancedModalRenderSpec{
+			OperationID: spec.OperationID,
+			Tags:        []string{"modal-edit"},
+			Data: map[string]any{
+				"action_id":   spec.ActionID,
+				"value_field": spec.ValueField,
+				"label_field": spec.LabelField,
+				"record_url":  spec.RecordURL,
+			},
+		})
+	}
+	return specs
+}
+
+func (s *formServer) generateAdvancedModals(
+	ctx context.Context,
+	document pkgopenapi.Document,
+	specs []advancedModalRenderSpec,
+) ([]map[string]any, error) {
+	modals := make([]map[string]any, 0, len(specs))
+	for _, spec := range specs {
+		modalOutput, err := s.generator.Generate(ctx, orchestrator.Request{
+			Document:    &document,
+			OperationID: spec.OperationID,
+			Renderer:    advancedRendererName,
+			RenderOptions: render.RenderOptions{
+				Subset: render.FieldSubset{
+					Tags: spec.Tags,
+				},
+				OmitAssets: true, // Modals inherit assets from the parent page
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", spec.OperationID, err)
+		}
+		modal := make(map[string]any, len(spec.Data)+1)
+		maps.Copy(modal, spec.Data)
+		modal["form_html"] = string(modalOutput)
+		modals = append(modals, modal)
+	}
+	return modals, nil
 }
 
 func (s *formServer) buildFormModel(ctx context.Context, document pkgopenapi.Document, operation string) (model.FormModel, error) {
