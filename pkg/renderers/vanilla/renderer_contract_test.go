@@ -1001,7 +1001,7 @@ func renderedControlBlockByID(t *testing.T, html, id string) string {
 }
 
 func renderedTagHasAttribute(tag, name string) bool {
-	for _, token := range strings.Fields(tag) {
+	for token := range strings.FieldsSeq(tag) {
 		token = strings.TrimRight(token, ">")
 		if token == name || strings.HasPrefix(token, name+"=") {
 			return true
