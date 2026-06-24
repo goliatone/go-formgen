@@ -2,8 +2,10 @@ package components
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"maps"
 	"reflect"
 	"strings"
@@ -110,6 +112,9 @@ type enumOption struct {
 }
 
 func enumOptions(field model.Field) []enumOption {
+	if field.Relationship != nil && len(field.Enum) == 0 {
+		return relationshipCurrentOptions(field)
+	}
 	if len(field.Enum) == 0 {
 		return nil
 	}
@@ -142,6 +147,129 @@ func enumSelected(defaultValue, candidate any) bool {
 		return reflect.DeepEqual(defaultValue, candidate)
 	}
 	return false
+}
+
+func relationshipCurrentOptions(field model.Field) []enumOption {
+	current := strings.TrimSpace(field.Metadata["relationship.current"])
+	if current == "" {
+		return nil
+	}
+	allowMultiple := relationshipAllowsMultiple(field)
+
+	values := relationshipCurrentValues(current)
+	if len(values) == 0 {
+		return nil
+	}
+
+	out := make([]enumOption, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, option := range values {
+		option.Value = strings.TrimSpace(option.Value)
+		option.Label = strings.TrimSpace(option.Label)
+		if option.Value == "" {
+			continue
+		}
+		if _, ok := seen[option.Value]; ok {
+			continue
+		}
+		seen[option.Value] = struct{}{}
+		if option.Label == "" {
+			option.Label = option.Value
+		}
+		option.Selected = true
+		out = append(out, option)
+		if !allowMultiple {
+			break
+		}
+	}
+	return out
+}
+
+func relationshipAllowsMultiple(field model.Field) bool {
+	if field.Relationship != nil && strings.EqualFold(strings.TrimSpace(field.Relationship.Cardinality), "many") {
+		return true
+	}
+	return field.Relationship == nil && field.Type == model.FieldTypeArray
+}
+
+func relationshipCurrentValues(raw string) []enumOption {
+	var decoded any
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err == nil {
+		var extra any
+		if err := decoder.Decode(&extra); err == io.EOF {
+			return relationshipCurrentDecodedValues(decoded)
+		}
+	}
+	return []enumOption{{Value: raw, Label: raw}}
+}
+
+func relationshipCurrentDecodedValues(value any) []enumOption {
+	switch typed := value.(type) {
+	case []any:
+		out := make([]enumOption, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, relationshipCurrentDecodedValues(item)...)
+		}
+		return out
+	case map[string]any:
+		value := firstRelationshipCurrentString(typed, "value", "id", "slug")
+		label := firstRelationshipCurrentString(typed, "label", "name", "title")
+		if value == "" {
+			return nil
+		}
+		return []enumOption{{Value: value, Label: firstNonEmptyString(label, value)}}
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		return []enumOption{{Value: typed, Label: typed}}
+	case json.Number:
+		return []enumOption{{Value: typed.String(), Label: typed.String()}}
+	case float64, bool:
+		value := fmt.Sprint(typed)
+		return []enumOption{{Value: value, Label: value}}
+	default:
+		return nil
+	}
+}
+
+func firstRelationshipCurrentString(value map[string]any, keys ...string) string {
+	for _, key := range keys {
+		raw, ok := value[key]
+		if !ok {
+			continue
+		}
+		switch typed := raw.(type) {
+		case string:
+			if trimmed := strings.TrimSpace(typed); trimmed != "" {
+				return trimmed
+			}
+		case json.Number:
+			if str := typed.String(); str != "" {
+				return str
+			}
+		case float64, bool:
+			return fmt.Sprint(typed)
+		default:
+			if typed != nil {
+				if str := strings.TrimSpace(fmt.Sprint(typed)); str != "" {
+					return str
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func objectRenderer(buf *bytes.Buffer, field model.Field, data ComponentData) error {
@@ -366,7 +494,7 @@ func writeArrayPrototypeTemplate(builder *strings.Builder, field model.Field, da
 		return err
 	}
 	builder.WriteString(`<template data-formgen-array-prototype="true">`)
-	builder.WriteString(child)
+	writeArrayItemFrame(builder, field, child)
 	builder.WriteString(`</template>`)
 	return nil
 }
@@ -392,7 +520,11 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 		if err != nil {
 			return err
 		}
-		builder.WriteString(child)
+		if repeatable {
+			writeArrayItemFrame(builder, field, child)
+		} else {
+			builder.WriteString(child)
+		}
 	}
 	return nil
 }
@@ -428,6 +560,52 @@ func writeArrayAddButton(builder *strings.Builder, field model.Field) {
 		builder.WriteString("Add item")
 	}
 	builder.WriteString(`</button>`)
+}
+
+func writeArrayItemFrame(builder *strings.Builder, field model.Field, child string) {
+	if !arrayRemoveEnabled(field) {
+		builder.WriteString(child)
+		return
+	}
+	builder.WriteString(`<div class="space-y-2" data-formgen-array-item="true">`)
+	builder.WriteString(child)
+	writeArrayRemoveButton(builder, field)
+	builder.WriteString(`</div>`)
+}
+
+func writeArrayRemoveButton(builder *strings.Builder, field model.Field) {
+	builder.WriteString(`<button type="button" class="py-2 px-3 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950" data-formgen-array-action="remove" data-relationship-action="remove">`)
+	builder.WriteString(html.EscapeString(arrayRemoveLabel(field)))
+	builder.WriteString(`</button>`)
+}
+
+func arrayRemoveEnabled(field model.Field) bool {
+	for _, key := range []string{"removeText", "removeLabel"} {
+		if strings.TrimSpace(field.UIHints[key]) != "" {
+			return true
+		}
+	}
+	switch strings.ToLower(strings.TrimSpace(field.UIHints["removable"])) {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func arrayRemoveLabel(field model.Field) string {
+	for _, key := range []string{"removeText", "removeLabel"} {
+		if label := strings.TrimSpace(field.UIHints[key]); label != "" {
+			return label
+		}
+	}
+	if label := strings.TrimSpace(field.UIHints["repeaterLabel"]); label != "" {
+		return "Remove " + label
+	}
+	if field.Label != "" {
+		return "Remove " + field.Label
+	}
+	return "Remove item"
 }
 
 func arrayCardinality(field model.Field) string {

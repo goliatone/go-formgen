@@ -16,7 +16,7 @@
 {% set control_name = field.name %}
 {% endif %}
 {% set control_omit_name = field.metadata["control.omitName"] == "true" -%}
-{% set is_multi = field.type == "array" and not rel -%}
+{% set is_multi = (field.type == "array" and not rel) or (rel and rel.cardinality == "many") -%}
 
 {% if has_icon %}
 <div class="relative">
@@ -49,6 +49,15 @@
     {% if data_attrs %}{{ data_attrs|safe }}{% endif %}
 >
     {% if enum_options %}
+        {% if rel and not field.required and not is_multi %}
+            {% if field.uiHints.placeholder %}
+            <option value="">{{ field.uiHints.placeholder }}</option>
+            {% elif field.label %}
+            <option value="">Select {{ field.label }}</option>
+            {% else %}
+            <option value="">Select an option</option>
+            {% endif %}
+        {% endif %}
         {% for option in enum_options %}
             <option value="{{ option.Value }}"{% if option.Selected %} selected{% endif %}>{{ option.Label }}</option>
         {% endfor %}

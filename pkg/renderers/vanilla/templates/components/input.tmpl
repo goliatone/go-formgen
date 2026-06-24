@@ -3,7 +3,7 @@
 {% set input_type = "number" %}
 {% endif %}
 {% if field.uiHints.inputType %}
-    {% if field.uiHints.inputType == "text" or field.uiHints.inputType == "email" or field.uiHints.inputType == "password" or field.uiHints.inputType == "search" or field.uiHints.inputType == "tel" or field.uiHints.inputType == "url" or field.uiHints.inputType == "number" or field.uiHints.inputType == "date" or field.uiHints.inputType == "datetime-local" or field.uiHints.inputType == "time" or field.uiHints.inputType == "month" or field.uiHints.inputType == "week" %}
+    {% if field.uiHints.inputType == "text" or field.uiHints.inputType == "hidden" or field.uiHints.inputType == "email" or field.uiHints.inputType == "password" or field.uiHints.inputType == "search" or field.uiHints.inputType == "tel" or field.uiHints.inputType == "url" or field.uiHints.inputType == "number" or field.uiHints.inputType == "date" or field.uiHints.inputType == "datetime-local" or field.uiHints.inputType == "time" or field.uiHints.inputType == "month" or field.uiHints.inputType == "week" %}
         {% set input_type = field.uiHints.inputType %}
     {% endif %}
 {% endif %}
