@@ -8,6 +8,7 @@ const ARRAY_ADD_ACTION_SELECTOR = '[data-formgen-array-action="add"]';
 const ARRAY_REMOVE_ACTION_SELECTOR = '[data-formgen-array-action="remove"]';
 const ARRAY_INITIALIZED_ATTR = "data-formgen-array-initialized";
 const ARRAY_ITEM_ATTR = "data-formgen-array-item";
+const ARRAY_EXISTING_ATTR = "data-formgen-array-existing";
 const PROTOTYPE_DISABLED_ATTR = "data-formgen-prototype-disabled";
 
 interface ReindexContext {
@@ -125,12 +126,16 @@ function removeArrayItem(button: HTMLButtonElement): void {
   if (!item) {
     return;
   }
-  if (markArrayItemDeleted(item)) {
+  if (isExistingArrayItem(item) && markArrayItemDeleted(item)) {
     item.hidden = true;
     item.setAttribute("aria-hidden", "true");
     return;
   }
   item.remove();
+}
+
+function isExistingArrayItem(item: HTMLElement): boolean {
+  return item.getAttribute(ARRAY_EXISTING_ATTR) === "true";
 }
 
 function markArrayItemDeleted(item: HTMLElement): boolean {
@@ -145,7 +150,7 @@ function markArrayItemDeleted(item: HTMLElement): boolean {
 
 function findDeleteControl(item: HTMLElement): HTMLInputElement | null {
   const controls = Array.from(item.querySelectorAll<HTMLInputElement>("input"));
-  return controls.find((control) => isDeleteIntentControl(control)) ?? null;
+  return controls.find((control) => control.closest(`[${ARRAY_ITEM_ATTR}]`) === item && isDeleteIntentControl(control)) ?? null;
 }
 
 function isDeleteIntentControl(control: HTMLInputElement): boolean {
@@ -226,6 +231,9 @@ function resetPrototypeFragment(fragment: DocumentFragment): void {
     element.removeAttribute(PROTOTYPE_DISABLED_ATTR);
     element.removeAttribute("data-relationship-current");
     element.removeAttribute("data-relationship-current-applied");
+    if (element.hasAttribute(ARRAY_ITEM_ATTR)) {
+      element.setAttribute(ARRAY_EXISTING_ATTR, "false");
+    }
 
     if (element instanceof HTMLInputElement) {
       if (shouldEnable) {

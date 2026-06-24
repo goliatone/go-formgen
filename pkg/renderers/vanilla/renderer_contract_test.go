@@ -786,6 +786,8 @@ func TestRenderer_RepeatableArrayRendersAddButtonAndPrototypeTemplate(t *testing
 		`data-formgen-array-action="add"`,
 		`data-relationship-action="add"`,
 		`data-formgen-array-item="true"`,
+		`data-formgen-array-existing="true"`,
+		`data-formgen-array-existing="false"`,
 		`data-formgen-array-action="remove"`,
 		`data-relationship-action="remove"`,
 		`Add topic entry`,

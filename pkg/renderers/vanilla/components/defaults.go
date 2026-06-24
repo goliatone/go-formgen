@@ -494,7 +494,7 @@ func writeArrayPrototypeTemplate(builder *strings.Builder, field model.Field, da
 		return err
 	}
 	builder.WriteString(`<template data-formgen-array-prototype="true">`)
-	writeArrayItemFrame(builder, field, child)
+	writeArrayItemFrame(builder, field, child, false)
 	builder.WriteString(`</template>`)
 	return nil
 }
@@ -521,7 +521,7 @@ func writeArrayItemFields(builder *strings.Builder, field model.Field, data Comp
 			return err
 		}
 		if repeatable {
-			writeArrayItemFrame(builder, field, child)
+			writeArrayItemFrame(builder, field, child, true)
 		} else {
 			builder.WriteString(child)
 		}
@@ -562,12 +562,18 @@ func writeArrayAddButton(builder *strings.Builder, field model.Field) {
 	builder.WriteString(`</button>`)
 }
 
-func writeArrayItemFrame(builder *strings.Builder, field model.Field, child string) {
+func writeArrayItemFrame(builder *strings.Builder, field model.Field, child string, existing bool) {
 	if !arrayRemoveEnabled(field) {
 		builder.WriteString(child)
 		return
 	}
-	builder.WriteString(`<div class="space-y-2" data-formgen-array-item="true">`)
+	builder.WriteString(`<div class="space-y-2" data-formgen-array-item="true" data-formgen-array-existing="`)
+	if existing {
+		builder.WriteString(`true`)
+	} else {
+		builder.WriteString(`false`)
+	}
+	builder.WriteString(`">`)
 	builder.WriteString(child)
 	writeArrayRemoveButton(builder, field)
 	builder.WriteString(`</div>`)

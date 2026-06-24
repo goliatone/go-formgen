@@ -134,7 +134,7 @@ describe("array repeaters", () => {
           data-formgen-array-prototype-path="columns[0].entries[1]"
           data-formgen-array-prototype-id-prefix="fg-columns-0-entries-1"
         >
-          <div data-formgen-array-item="true">
+          <div data-formgen-array-item="true" data-formgen-array-existing="true">
             <input name="columns[0].entries[0]._delete" value="false" type="hidden">
             <select name="columns[0].entries[0].topic_id">
               <option value="topic-refuge-id" selected>Refuge</option>
@@ -142,7 +142,7 @@ describe("array repeaters", () => {
             <button type="button" data-formgen-array-action="remove">Remove topic entry</button>
           </div>
           <template data-formgen-array-prototype="true">
-            <div data-formgen-array-item="true">
+            <div data-formgen-array-item="true" data-formgen-array-existing="false">
               <input name="columns[0].entries[1]._delete" value="false" type="hidden">
               <input name="columns[0].entries[1].topic_id" disabled data-formgen-prototype-disabled="true">
               <button type="button" data-formgen-array-action="remove">Remove topic entry</button>
@@ -165,5 +165,72 @@ describe("array repeaters", () => {
     expect(deleted.disabled).toBe(false);
     expect(deleted.value).toBe("true");
     expect(topic.disabled).toBe(true);
+  });
+
+  it("removes newly added rows from the DOM instead of submitting delete intent", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <div
+          data-formgen-array-items="true"
+          data-formgen-array-name="columns[0].entries"
+          data-formgen-array-next-index="0"
+          data-formgen-array-prototype-path="columns[0].entries[0]"
+          data-formgen-array-prototype-id-prefix="fg-columns-0-entries-0"
+        >
+          <template data-formgen-array-prototype="true">
+            <div data-formgen-array-item="true" data-formgen-array-existing="false">
+              <input name="columns[0].entries[0]._delete" value="false" type="hidden">
+              <input name="columns[0].entries[0].topic_id" disabled data-formgen-prototype-disabled="true">
+              <button type="button" data-formgen-array-action="remove">Remove topic entry</button>
+            </div>
+          </template>
+        </div>
+        <button type="button" data-formgen-array-action="add">Add topic entry</button>
+      </form>
+    `;
+
+    await initRelationships();
+    document.querySelector<HTMLButtonElement>("[data-formgen-array-action='add']")!.click();
+    const added = document.querySelector<HTMLElement>("[data-formgen-array-item]")!;
+    expect(added.getAttribute("data-formgen-array-existing")).toBe("false");
+
+    added.querySelector<HTMLButtonElement>("[data-formgen-array-action='remove']")!.click();
+
+    expect(document.querySelector("[data-formgen-array-item]")).toBeNull();
+    expect(document.querySelector("[name='columns[0].entries[0]._delete']")).toBeNull();
+  });
+
+  it("does not use nested child delete sentinels when removing a parent item", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <div
+          data-formgen-array-items="true"
+          data-formgen-array-name="sections"
+          data-formgen-array-next-index="1"
+          data-formgen-array-prototype-path="sections[1]"
+          data-formgen-array-prototype-id-prefix="fg-sections-1"
+        >
+          <div data-formgen-array-item="true" data-formgen-array-existing="true" id="section-0">
+            <input name="sections[0].title" value="Primary">
+            <div data-formgen-array-items="true" data-formgen-array-name="sections[0].links">
+              <div data-formgen-array-item="true" data-formgen-array-existing="true">
+                <input name="sections[0].links[0]._delete" value="false" type="hidden">
+                <input name="sections[0].links[0].label" value="Refuge">
+              </div>
+              <template data-formgen-array-prototype="true"></template>
+            </div>
+            <button type="button" data-formgen-array-action="remove" id="remove-section">Remove section</button>
+          </div>
+          <template data-formgen-array-prototype="true"></template>
+        </div>
+        <button type="button" data-formgen-array-action="add">Add section</button>
+      </form>
+    `;
+
+    await initRelationships();
+    document.getElementById("remove-section")!.click();
+
+    expect(document.getElementById("section-0")).toBeNull();
+    expect(document.querySelector<HTMLInputElement>("[name='sections[0].links[0]._delete']")?.value).toBeUndefined();
   });
 });
