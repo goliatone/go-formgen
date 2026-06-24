@@ -59,6 +59,9 @@ For has-one relationships (e.g., Author, Manager) or when creation requires a fu
 - `data-endpoint-create-action-select="append|replace"` – Selection behavior for returned options
   - `replace` (default for typeahead): replaces existing selection
   - `append` (default for chips): adds to existing selection
+- `data-endpoint-edit-action="true"` – Enables the edit action for the selected option
+- `data-endpoint-edit-action-label="Edit Author"` – Custom edit label
+- `data-endpoint-edit-action-id="author"` – Identifier for routing to the correct edit modal/flow
 
 **Example HTML:**
 ```html
@@ -70,6 +73,9 @@ For has-one relationships (e.g., Author, Manager) or when creation requires a fu
   data-endpoint-create-action="true"
   data-endpoint-create-action-label="Create Author"
   data-endpoint-create-action-id="author"
+  data-endpoint-edit-action="true"
+  data-endpoint-edit-action-label="Edit Author"
+  data-endpoint-edit-action-id="author"
 >
 </select>
 ```
@@ -100,6 +106,27 @@ await initRelationships({
   },
 });
 ```
+
+### Edit Action (for selected single relationships)
+
+For single-select typeahead relationships, the runtime can show an "Edit ..." action only after an option is selected. The host fetches the full record, opens its edit UI, and may return an updated `{value,label}` option so the selected label is replaced without reloading.
+
+```typescript
+await initRelationships({
+  onEditAction: async (context, detail) => {
+    // detail.selectedValue - selected relationship value
+    // detail.selectedLabel - current display label
+    // detail.actionId - from data-endpoint-edit-action-id
+    // context.field and context.endpoint contain the field and endpoint config
+    const updated = await openAuthorEditModal(detail.selectedValue);
+    return updated ? { value: updated.id, label: updated.full_name } : undefined;
+  },
+});
+```
+
+When `onEditAction` is not provided, the runtime dispatches `formgen:relationship:edit-action` with `element`, `field`, `endpoint`, `selectedValue`, `selectedLabel`, `actionId`, and `mode`.
+
+Edit actions are scoped to typeahead/single-cardinality relationships in the first implementation. Chips/per-item editing is deferred.
 
 **DOM Event Contract:**
 
