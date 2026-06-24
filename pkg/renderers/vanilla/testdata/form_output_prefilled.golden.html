@@ -391,7 +391,7 @@
         data-relationship-cardinality="one"
          data-endpoint-dynamic-params-tenant_id="{{field:tenant_id}}" data-endpoint-field-label="Author Id" data-endpoint-label-field="full_name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-include="profile" data-endpoint-params-limit="50" data-endpoint-params-order="full_name asc" data-endpoint-params-select="id,full_name" data-endpoint-placeholder="Select Author Id" data-endpoint-refresh-on="tenant_id" data-endpoint-renderer="typeahead" data-endpoint-search-placeholder="Search Author Id" data-endpoint-url="/api/authors" data-endpoint-value-field="id" data-relationship-current="11111111-1111-4111-8111-111111111111" data-validation-label="Author" data-validation-required="true"
     >
-                <option value="">Select Author</option>
+                <option value="11111111-1111-4111-8111-111111111111" selected>11111111-1111-4111-8111-111111111111</option>
     </select>
     <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" class="formgen-error text-sm text-red-600 dark:text-red-400"></p>
 </div>
@@ -414,6 +414,7 @@
          data-endpoint-dynamic-params-author_id="{{field:author_id}}" data-endpoint-field-label="Manager Id" data-endpoint-label-field="name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-order="name asc" data-endpoint-params-select="id,name" data-endpoint-placeholder="Select Manager Id" data-endpoint-refresh-on="author_id" data-endpoint-renderer="typeahead" data-endpoint-search-param="q" data-endpoint-search-placeholder="Search Manager Id" data-endpoint-url="/api/managers" data-endpoint-value-field="id" data-relationship-current="88888888-8888-4888-8888-888888888888" data-validation-label="Manager" data-validation-message="Manager must belong to the selected author" data-validation-state="invalid"
     >
                 <option value="">Select Manager</option>
+                <option value="88888888-8888-4888-8888-888888888888" selected>88888888-8888-4888-8888-888888888888</option>
     </select>
     <p data-formgen-chrome="description" id="fg-manager_id-description" class="text-xs text-gray-500 dark:text-gray-400">
         Associate a manager
@@ -441,6 +442,7 @@
          data-endpoint-dynamic-params-tenant_id="{{field:tenant_id}}" data-endpoint-field-label="Category Id" data-endpoint-label-field="name" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="50" data-endpoint-params-order="name asc" data-endpoint-params-select="id,name" data-endpoint-placeholder="Select Category Id" data-endpoint-refresh-on="tenant_id" data-endpoint-renderer="typeahead" data-endpoint-search-param="q" data-endpoint-search-placeholder="Search Category Id" data-endpoint-url="/api/categories" data-endpoint-value-field="id" data-relationship-current="55555555-5555-4555-8555-555555555555" data-validation-label="Category" data-validation-renderer="banner"
     >
                 <option value="">Select Category</option>
+                <option value="55555555-5555-4555-8555-555555555555" selected>55555555-5555-4555-8555-555555555555</option>
     </select>
     <p data-formgen-chrome="description" id="fg-category_id-description" class="text-xs text-gray-500 dark:text-gray-400">
         Select a category
@@ -462,6 +464,7 @@
         id="fg-tags"
         name="tags"
         class="py-3 px-4 pe-9 block w-full border border-red-500 rounded-lg text-sm focus:border-red-500 focus:ring-red-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-red-500 dark:focus:ring-red-500"
+        multiple
         data-relationship-collection="many"
         data-relationship-type="hasMany"
         data-relationship-target="#/components/schemas/Tag"
@@ -469,7 +472,8 @@
         aria-invalid="true"
          data-endpoint-dynamic-params-category_id="{{field:category_id}}" data-endpoint-dynamic-params-tenant_id="{{field:tenant_id}}" data-endpoint-label-field="label" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="50" data-endpoint-params-order="label asc" data-endpoint-params-select="id,label" data-endpoint-refresh-on="category_id,tenant_id" data-endpoint-renderer="chips" data-endpoint-search-param="q" data-endpoint-submit-as="json" data-endpoint-url="/api/tags" data-endpoint-value-field="id" data-relationship-current="[&#34;aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&#34;,&#34;bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb&#34;]" data-validation-label="Tags" data-validation-message="Select at least one tag; Tags must match the tenant" data-validation-state="invalid"
     >
-                <option value="">Select Tags</option>
+                <option value="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" selected>aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa</option>
+                <option value="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" selected>bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb</option>
     </select>
     <p data-formgen-chrome="description" id="fg-tags-description" class="text-xs text-gray-500 dark:text-gray-400">
         Tags applied to the article
@@ -491,6 +495,7 @@
         id="fg-related_article_ids"
         name="related_article_ids"
         class="py-3 px-4 pe-9 block w-full border border-red-500 rounded-lg text-sm focus:border-red-500 focus:ring-red-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:text-gray-400 dark:border-red-500 dark:focus:ring-red-500"
+        multiple
         data-relationship-collection="many"
         data-relationship-type="hasMany"
         data-relationship-target="#/components/schemas/ArticleSummary"
@@ -498,7 +503,8 @@
         aria-invalid="true"
          data-endpoint-dynamic-params-category_id="{{field:category_id}}" data-endpoint-dynamic-params-tenant_id="{{field:tenant_id}}" data-endpoint-label-field="title" data-endpoint-method="GET" data-endpoint-mode="search" data-endpoint-params-format="options" data-endpoint-params-limit="25" data-endpoint-params-order="published_at desc" data-endpoint-refresh-on="category_id,tenant_id" data-endpoint-renderer="chips" data-endpoint-search-param="q" data-endpoint-submit-as="json" data-endpoint-url="/api/articles" data-endpoint-value-field="id" data-relationship-current="[&#34;rel-001&#34;,&#34;rel-002&#34;]" data-validation-label="Related articles" data-validation-message="Replace duplicate related articles" data-validation-state="invalid"
     >
-                <option value="">Select Related articles</option>
+                <option value="rel-001" selected>rel-001</option>
+                <option value="rel-002" selected>rel-002</option>
     </select>
     <p data-formgen-chrome="description" id="fg-related_article_ids-description" class="text-xs text-gray-500 dark:text-gray-400">
         Link to related articles to surface cross-sell opportunities
