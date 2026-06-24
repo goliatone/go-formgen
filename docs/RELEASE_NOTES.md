@@ -35,6 +35,13 @@ This phase rounds out the admin/settings expansion: widgets and theming are now 
   schema or JSON Schema overlay, including dotted overlay keys such as
   `x-formgen.order` and `x-admin.order`. Renderer-specific HTML reordering
   should no longer be needed after updating to this release.
+- Repeatable arrays: generated vanilla rows now distinguish persisted rows from
+  newly cloned rows with `data-formgen-array-existing`. Existing rows with a
+  hidden `_delete` sentinel are soft-deleted by the runtime so delete intent is
+  submitted; unsaved cloned rows are removed from the DOM. Custom renderers that
+  use `data-formgen-array-action="remove"` and `_delete` sentinels must emit
+  `data-formgen-array-item="true"` plus `data-formgen-array-existing="true"`
+  for loaded rows and `"false"` for prototype/new rows.
 - Templates/themes: when supplying custom templates or go-theme providers, ensure fallback partials map the new component keys (`forms.json-editor`, `forms.file-uploader`).
 - Snapshots: refresh vanilla/Preact goldens after updating templates/components using `./taskfile dev:goldens` (requires network access for module downloads).
 

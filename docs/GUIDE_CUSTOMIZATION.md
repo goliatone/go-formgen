@@ -680,6 +680,27 @@ returned controller supports `getValues`, `setValues`, `setErrors`,
 `clearErrors`, `onChange`, `focus`, and `destroy`, and works with full form roots
 or fields-only roots.
 
+### Custom Repeatable Array Renderers
+
+The relationship runtime also powers generated repeatable-array add/remove
+controls. If a custom renderer emits compatible controls, keep the row metadata
+contract intact:
+
+- The array item container must have `data-formgen-array-item="true"`.
+- Rows loaded from stored values must also have
+  `data-formgen-array-existing="true"`.
+- Prototype rows and newly added rows must have
+  `data-formgen-array-existing="false"`.
+- Remove buttons use `data-formgen-array-action="remove"`.
+- Persisted rows that should be soft-deleted need a hidden `_delete` control in
+  the same array item, for example `name="links[0]._delete" value="false"`.
+
+On remove, the runtime sets the current item-level `_delete` control to `true`,
+disables the rest of that row, and hides the row. Newly cloned rows are removed
+from the DOM instead, so unsaved rows do not submit delete sentinels. Without
+`data-formgen-array-existing`, the runtime treats a row as new and removes it
+physically.
+
 ### Example: File Uploader Component
 
 ```json
