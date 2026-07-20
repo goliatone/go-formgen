@@ -10,7 +10,6 @@ import {
   type ValidationResult,
   getGlobalConfig,
   resolveGlobalConfig,
-  setGlobalConfig,
 } from "./config";
 import { MemoryCache } from "./state";
 import {
@@ -56,6 +55,17 @@ function defaultRenderer(context: RendererContext): void {
       const node = document.createElement("option");
       node.value = option.value;
       node.textContent = option.label;
+      node.disabled = option.disabled === true;
+      if (option.description) {
+        node.dataset.optionDescription = option.description;
+      }
+      if (option.meta != null) {
+        try {
+          node.dataset.optionMetadata = JSON.stringify(option.meta);
+        } catch {
+          // Ignore non-serializable presentation metadata.
+        }
+      }
       if (finalSelection.has(option.value)) {
         node.selected = true;
       }
@@ -70,6 +80,7 @@ function defaultRenderer(context: RendererContext): void {
       const node = document.createElement("option");
       node.value = option.value;
       node.label = option.label;
+      node.disabled = option.disabled === true;
       element.appendChild(node);
     });
     return;
@@ -96,6 +107,7 @@ export interface RegistrationOptions {
 
 export class ResolverRegistry {
   private readonly resolvers = new Map<HTMLElement, Resolver>();
+  private readonly rootCleanups = new Map<Document | HTMLElement, Set<() => void>>();
   private readonly renderers = new Map<string, Renderer>();
   private readonly customResolvers: CustomResolver[] = [];
   private readonly config: ResolvedGlobalConfig;
@@ -104,9 +116,6 @@ export class ResolverRegistry {
 
   constructor(config?: GlobalConfig) {
     this.config = config ? resolveGlobalConfig(config) : getGlobalConfig();
-    if (config) {
-      setGlobalConfig(this.config);
-    }
     this.cacheConfig = this.config.cache ?? {};
     this.cacheAdapter = this.resolveCacheAdapter(this.cacheConfig);
     this.registerRenderer(DEFAULT_RENDERER_KEY, defaultRenderer);
@@ -164,6 +173,44 @@ export class ResolverRegistry {
 
   get(element: HTMLElement): Resolver | undefined {
     return this.resolvers.get(element);
+  }
+
+  unregister(element: HTMLElement): void {
+    const resolver = this.resolvers.get(element);
+    resolver?.destroy();
+    this.resolvers.delete(element);
+  }
+
+  registerRootCleanup(root: Document | HTMLElement, cleanup: () => void): void {
+    let cleanups = this.rootCleanups.get(root);
+    if (!cleanups) {
+      cleanups = new Set();
+      this.rootCleanups.set(root, cleanups);
+    }
+    cleanups.add(cleanup);
+  }
+
+  destroy(root?: Document | HTMLElement): void {
+    for (const [element, resolver] of this.resolvers) {
+      if (root && element !== root && !root.contains(element)) {
+        continue;
+      }
+      resolver.destroy();
+      this.resolvers.delete(element);
+    }
+    for (const [owner, cleanups] of this.rootCleanups) {
+      if (root && owner !== root && !root.contains(owner)) {
+        continue;
+      }
+      this.rootCleanups.delete(owner);
+      for (const cleanup of cleanups) {
+        try {
+          cleanup();
+        } catch (err) {
+          this.config.logger?.warn?.("Failed to clean up formgen runtime root", err);
+        }
+      }
+    }
   }
 
   async resolve(element: HTMLElement): Promise<void> {

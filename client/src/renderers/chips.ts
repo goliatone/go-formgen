@@ -98,6 +98,8 @@ interface ChipStore {
   searchInput?: HTMLInputElement;
   searchValue: string;
   theme: ChipsClassMap;
+  nativeSelectClassesAdded: string[];
+  requiredAttributeRemoved: boolean;
   icon: IconConfig | null;
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
@@ -277,6 +279,10 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   container.append(inner, menu);
 
   select.insertAdjacentElement("beforebegin", container);
+  const nativeSelectClassesAdded = (theme.nativeSelect ?? []).filter(
+    (className) => !select.classList.contains(className)
+  );
+  const requiredAttributeRemoved = select.hasAttribute("required");
   addElementClasses(select, theme.nativeSelect);
   handleRequiredAttribute(select, container);
 
@@ -351,6 +357,8 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     searchInput,
     searchValue: "",
     theme,
+    nativeSelectClassesAdded,
+    requiredAttributeRemoved,
     icon: iconConfig,
     iconElement: renderedIcon,
     // Loading state
@@ -1219,6 +1227,7 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     button.setAttribute("data-fg-chip-option", "true");
+    button.disabled = option.disabled === true;
 
     const label = option.label ?? option.value;
     const hasRichContent = option.avatar || option.icon || option.description;
@@ -1780,6 +1789,9 @@ function destroyChipStore(store: ChipStore): void {
     store.select.removeEventListener("formgen:relationship:success", store.successHandler);
     store.select.removeEventListener("formgen:relationship:error", store.successHandler);
   }
+  store.container.remove();
+  removeElementClasses(store.select, store.nativeSelectClassesAdded);
+  restoreRequiredAttribute(store.select, store.requiredAttributeRemoved);
 }
 
 function handleRequiredAttribute(select: HTMLSelectElement, target: HTMLElement): void {
@@ -1789,6 +1801,14 @@ function handleRequiredAttribute(select: HTMLSelectElement, target: HTMLElement)
   select.dataset.validationRequiredNative = "true";
   select.removeAttribute("required");
   target.setAttribute("aria-required", "true");
+}
+
+function restoreRequiredAttribute(select: HTMLSelectElement, removed: boolean): void {
+  if (!removed) {
+    return;
+  }
+  select.setAttribute("required", "");
+  delete select.dataset.validationRequiredNative;
 }
 
 registerRendererCleanup("chips", stores, (_select, store) => {

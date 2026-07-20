@@ -107,6 +107,36 @@ await initRelationships({
 });
 ```
 
+### Embedded fields-only roots
+
+For HTML inserted after page load, initialize only that root and bind its
+resolver lifecycle to the embedded controller:
+
+```typescript
+import { initFormgenRoot, attachFormController } from '@goliatone/formgen-runtime';
+
+const root = document.querySelector<HTMLElement>('[data-formgen-render-mode="fields"]')!;
+const registry = await initFormgenRoot(root);
+const controller = attachFormController(root, { registry });
+
+// Restore rendered defaults and synchronize enhanced widgets.
+controller.reset();
+// Aborts option requests and removes all root-scoped runtime state.
+controller.destroy();
+```
+
+Each `initFormgenRoot` call with configuration overrides owns an independent
+registry and does not mutate page-wide resolver state. Always pass its returned
+registry to `attachFormController`; controller hydration and teardown then stay
+within that root. Teardown removes refresh/search listeners, cancels pending
+debounce/throttle work, disposes enhanced widgets/components/repeaters, and
+clears binding markers so the same DOM root can be initialized again.
+`initRelationships` remains the page-wide initializer.
+
+`Option` supports `value`, `label`, `description`, `disabled`, and `meta`.
+Static multi-value selects can opt into chips with
+`data-endpoint-renderer="chips"` without declaring a remote endpoint.
+
 ### Edit Action (for selected single relationships)
 
 For single-select typeahead relationships, the runtime can show an "Edit ..." action only after an option is selected. The host fetches the full record, opens its edit UI, and may return an updated `{value,label}` option so the selected label is replaced without reloading.

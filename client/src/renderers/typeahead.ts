@@ -59,6 +59,8 @@ interface TypeaheadStore {
   searchQuery: string;
   documentHandler: (event: MouseEvent) => void;
   theme: TypeaheadClassMap;
+  nativeSelectClassesAdded: string[];
+  requiredAttributeRemoved: boolean;
   icon: IconConfig | null;
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
@@ -205,6 +207,10 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   container.append(control, dropdown);
 
   select.insertAdjacentElement("beforebegin", container);
+  const nativeSelectClassesAdded = (theme.nativeSelect ?? []).filter(
+    (className) => !select.classList.contains(className)
+  );
+  const requiredAttributeRemoved = select.hasAttribute("required");
   addElementClasses(select, theme.nativeSelect);
   handleRequiredAttribute(select, control, input);
 
@@ -256,6 +262,8 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
     searchQuery: "",
     documentHandler: () => {},
     theme,
+    nativeSelectClassesAdded,
+    requiredAttributeRemoved,
     icon: iconConfig,
     iconElement: null,
     // Loading state
@@ -713,6 +721,9 @@ function moveHighlight(store: TypeaheadStore, delta: number): void {
 }
 
 function selectOption(store: TypeaheadStore, option: Option): void {
+  if (option.disabled) {
+    return;
+  }
   const { select, input } = store;
   for (const node of Array.from(select.options)) {
     node.selected = node.value === option.value;
@@ -893,6 +904,7 @@ function renderOptions(store: TypeaheadStore): void {
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     button.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
+    button.disabled = option.disabled === true;
     button.dataset.selected = option.value === selectedValue ? "true" : "false";
 
     // Create label span
@@ -1422,6 +1434,9 @@ function destroyTypeaheadStore(store: TypeaheadStore): void {
     store.select.removeEventListener("formgen:relationship:success", store.successHandler);
     store.select.removeEventListener("formgen:relationship:error", store.successHandler);
   }
+  store.container.remove();
+  removeElementClasses(store.select, store.nativeSelectClassesAdded);
+  restoreRequiredAttribute(store.select, store.requiredAttributeRemoved);
 }
 
 function handleRequiredAttribute(
@@ -1436,6 +1451,14 @@ function handleRequiredAttribute(
   select.removeAttribute("required");
   control.setAttribute("aria-required", "true");
   input.setAttribute("aria-required", "true");
+}
+
+function restoreRequiredAttribute(select: HTMLSelectElement, removed: boolean): void {
+  if (!removed) {
+    return;
+  }
+  select.setAttribute("required", "");
+  delete select.dataset.validationRequiredNative;
 }
 
 registerRendererCleanup("typeahead", stores, (_select, store) => {

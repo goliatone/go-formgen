@@ -8,6 +8,7 @@ import (
 	"io"
 	"maps"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/goliatone/go-formgen/pkg/model"
@@ -15,9 +16,10 @@ import (
 )
 
 const (
-	templatePrefix = "templates/components/"
-	runtimeScript  = "/runtime/formgen-relationships.min.js"
-	runtimeInit    = `(function(){function init(){var api=window.FormgenRelationships;if(api&&typeof api.initRelationships==="function"){try{api.initRelationships();}catch(e){}}}if(typeof document==="undefined"){return;}if(document.readyState==="loading"){window.addEventListener("DOMContentLoaded",init);}else{init();}})();`
+	templatePrefix          = "templates/components/"
+	inputTemplatePartialKey = "forms.input"
+	runtimeScript           = "/runtime/formgen-relationships.min.js"
+	runtimeInit             = `(function(){function init(){var api=window.FormgenRelationships;if(api&&typeof api.initRelationships==="function"){try{api.initRelationships();}catch(e){}}}if(typeof document==="undefined"){return;}if(document.readyState==="loading"){window.addEventListener("DOMContentLoaded",init);}else{init();}})();`
 )
 
 // NewDefaultRegistry constructs a registry pre-populated with the built-in
@@ -26,7 +28,7 @@ func NewDefaultRegistry() *Registry {
 	registry := New()
 
 	registry.MustRegister(NameInput, Descriptor{
-		Renderer: templateComponentRenderer("forms.input", templatePrefix+"input.tmpl"),
+		Renderer: templateComponentRenderer(inputTemplatePartialKey, templatePrefix+"input.tmpl"),
 	})
 	registry.MustRegister(NameTextarea, Descriptor{
 		Renderer: templateComponentRenderer("forms.textarea", templatePrefix+"textarea.tmpl"),
@@ -89,8 +91,12 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 			}
 		}
 
+		templateField := field
+		if partialKey == inputTemplatePartialKey {
+			templateField = fieldForInputTemplate(field)
+		}
 		payload := map[string]any{
-			"field":        field,
+			"field":        templateField,
 			"config":       data.Config,
 			"theme":        data.Theme,
 			"style_mode":   data.StyleMode,
@@ -105,13 +111,76 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 	}
 }
 
+// fieldForInputTemplate converts numeric defaults to their shortest decimal control
+// representation without changing the typed field model used by renderers and
+// option selection. This also keeps zero truthy in Pongo templates so the
+// bundled input template emits value="0" instead of omitting the default.
+func fieldForInputTemplate(field model.Field) model.Field {
+	if field.Default == nil || (field.Type != model.FieldTypeInteger && field.Type != model.FieldTypeNumber) {
+		return field
+	}
+	if value, ok := formatNumericControlValue(field.Default); ok {
+		field.Default = value
+	}
+	return field
+}
+
+func formatNumericControlValue(value any) (string, bool) {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return "", false
+	}
+
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(reflected.Int(), 10), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return strconv.FormatUint(reflected.Uint(), 10), true
+	case reflect.Float32:
+		return strconv.FormatFloat(reflected.Float(), 'f', -1, 32), true
+	case reflect.Float64:
+		return strconv.FormatFloat(reflected.Float(), 'f', -1, 64), true
+	case reflect.String:
+		return reflected.String(), true
+	default:
+		return "", false
+	}
+}
+
 type enumOption struct {
-	Value    string
-	Label    string
-	Selected bool
+	Value       string
+	Label       string
+	Description string
+	Metadata    string
+	Disabled    bool
+	Selected    bool
 }
 
 func enumOptions(field model.Field) []enumOption {
+	if len(field.Options) > 0 {
+		out := make([]enumOption, 0, len(field.Options))
+		for _, option := range field.Options {
+			label := strings.TrimSpace(option.Label)
+			if label == "" {
+				label = fmt.Sprint(option.Value)
+			}
+			metadata := ""
+			if len(option.Metadata) > 0 {
+				if encoded, err := json.Marshal(option.Metadata); err == nil {
+					metadata = string(encoded)
+				}
+			}
+			out = append(out, enumOption{
+				Value:       submission.EncodeEnumControlValue(option.Value),
+				Label:       label,
+				Description: strings.TrimSpace(option.Description),
+				Metadata:    metadata,
+				Disabled:    option.Disabled,
+				Selected:    enumSelected(field.Default, option.Value),
+			})
+		}
+		return out
+	}
 	if field.Relationship != nil && len(field.Enum) == 0 {
 		return relationshipCurrentOptions(field)
 	}

@@ -63,6 +63,14 @@ export function initComponents(root: Document | HTMLElement = document): void {
   }
 }
 
+export function destroyComponents(root: Document | HTMLElement = document): void {
+  for (const element of collectComponentRoots(root)) {
+    const instance = instances.get(element);
+    instance?.teardown?.();
+    instances.delete(element);
+  }
+}
+
 export function __resetComponentRegistryForTests(): void {
   factories.clear();
   instances = new WeakMap();

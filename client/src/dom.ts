@@ -4,7 +4,7 @@ import {
   type RelationshipUpdateDetail,
 } from "./relationship-events";
 
-const FIELD_SELECTOR = "[data-endpoint-url]";
+const FIELD_SELECTOR = '[data-endpoint-url], [data-endpoint-renderer="chips"]';
 const HIDDEN_CONTAINER_ATTR = "data-relationship-hidden";
 const HIDDEN_INITIALISED_ATTR = "data-relationship-hidden-initialised";
 const JSON_INITIALISED_ATTR = "data-relationship-json-initialised";

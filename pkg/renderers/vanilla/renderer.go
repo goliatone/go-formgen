@@ -229,6 +229,8 @@ type sectionGroup struct {
 	Description    string          `json:"description"`
 	DescriptionKey string          `json:"descriptionKey,omitempty"`
 	Fieldset       bool            `json:"fieldset"`
+	Collapsible    bool            `json:"collapsible,omitempty"`
+	Collapsed      bool            `json:"collapsed,omitempty"`
 	Fields         []renderedField `json:"fields"`
 }
 
@@ -1376,10 +1378,17 @@ func initialiseSections(ctx *layoutContext, metas []sectionMeta) map[string]*sec
 			Description:    meta.Description,
 			DescriptionKey: meta.DescriptionKey,
 			Fieldset:       meta.Fieldset,
+			Collapsible:    truthySectionHint(meta.UIHints, "collapsible"),
+			Collapsed:      truthySectionHint(meta.UIHints, "collapsed"),
 		}
 		index[meta.ID] = &ctx.Sections[i]
 	}
 	return index
+}
+
+func truthySectionHint(hints map[string]string, key string) bool {
+	value := strings.ToLower(strings.TrimSpace(hints[key]))
+	return value == "true" || value == "1" || value == "yes" || value == "on"
 }
 
 func collectSectionedOutputs(sectioned []sectionedField, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) (bool, error) {
@@ -1776,7 +1785,7 @@ func componentNameFromHints(field model.Field) string {
 		return components.NameObject
 	case uiHint(field, "input") == "collection":
 		return components.NameArray
-	case len(field.Enum) > 0:
+	case len(field.Enum) > 0 || len(field.Options) > 0:
 		return components.NameSelect
 	case uiHint(field, "widget") == components.NameTextarea:
 		return components.NameTextarea

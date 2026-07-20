@@ -90,16 +90,16 @@
 
     {% if layout.sections %}
     {% for section in layout.sections %}
-    <section{% if section.fieldset %}{% if chrome_classes.fieldset %} class="{{ chrome_classes.fieldset }}"{% elif not unstyled %} class="{{ default_fieldset_class }}"{% endif %}{% else %}{% if chrome_classes.section %} class="{{ chrome_classes.section }}"{% elif not unstyled %} class="{{ default_section_class }}"{% endif %}{% endif %}>
+    {% if section.collapsible %}<details data-formgen-section="{{ section.id }}"{% if not section.collapsed %} open{% endif %}{% if section.fieldset %}{% if chrome_classes.fieldset %} class="{{ chrome_classes.fieldset }}"{% elif not unstyled %} class="{{ default_fieldset_class }}"{% endif %}{% else %}{% if chrome_classes.section %} class="{{ chrome_classes.section }}"{% elif not unstyled %} class="{{ default_section_class }}"{% endif %}{% endif %}>{% else %}<section{% if section.fieldset %}{% if chrome_classes.fieldset %} class="{{ chrome_classes.fieldset }}"{% elif not unstyled %} class="{{ default_fieldset_class }}"{% endif %}{% else %}{% if chrome_classes.section %} class="{{ chrome_classes.section }}"{% elif not unstyled %} class="{{ default_section_class }}"{% endif %}{% endif %}>{% endif %}
         {% if section.title or section.description %}
-        <header{% if not unstyled %} class="space-y-1"{% endif %}>
+        {% if section.collapsible %}<summary{% if not unstyled %} class="space-y-1 cursor-pointer"{% endif %}>{% else %}<header{% if not unstyled %} class="space-y-1"{% endif %}>{% endif %}
             {% if section.title %}
             <h2{% if not unstyled %} class="text-lg font-semibold text-gray-900 dark:text-white"{% endif %}>{{ section.title }}</h2>
             {% endif %}
             {% if section.description %}
             <p{% if not unstyled %} class="text-sm text-gray-600 dark:text-gray-400"{% endif %}>{{ section.description }}</p>
             {% endif %}
-        </header>
+        {% if section.collapsible %}</summary>{% else %}</header>{% endif %}
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
@@ -120,7 +120,7 @@
             {% endfor %}
         </div>
         {% endif %}
-    </section>
+    {% if section.collapsible %}</details>{% else %}</section>{% endif %}
     {% endfor %}
     {% endif %}
 

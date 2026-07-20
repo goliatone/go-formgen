@@ -59,7 +59,7 @@
             {% endif %}
         {% endif %}
         {% for option in enum_options %}
-            <option value="{{ option.Value }}"{% if option.Selected %} selected{% endif %}>{{ option.Label }}</option>
+            <option value="{{ option.Value }}"{% if option.Selected %} selected{% endif %}{% if option.Disabled %} disabled{% endif %}{% if option.Description %} data-option-description="{{ option.Description }}"{% endif %}{% if option.Metadata %} data-option-metadata="{{ option.Metadata }}"{% endif %}>{{ option.Label }}</option>
         {% endfor %}
     {% else %}
         {% if field.uiHints.placeholder %}

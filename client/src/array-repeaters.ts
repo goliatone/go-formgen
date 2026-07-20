@@ -11,6 +11,13 @@ const ARRAY_ITEM_ATTR = "data-formgen-array-item";
 const ARRAY_EXISTING_ATTR = "data-formgen-array-existing";
 const PROTOTYPE_DISABLED_ATTR = "data-formgen-prototype-disabled";
 
+interface ArrayRepeaterInstance {
+  button: HTMLButtonElement;
+  handleAdd: () => void;
+}
+
+const arrayRepeaterInstances = new WeakMap<HTMLElement, ArrayRepeaterInstance>();
+
 let generatedRowKeyCounter = 0;
 
 interface ReindexContext {
@@ -44,6 +51,19 @@ export function initArrayRepeaters(
     button.addEventListener("click", handleAdd);
     items.addEventListener("click", handleRemove);
     items.setAttribute(ARRAY_INITIALIZED_ATTR, "true");
+    arrayRepeaterInstances.set(items, { button, handleAdd });
+  }
+}
+
+export function destroyArrayRepeaters(root: Document | HTMLElement = document): void {
+  for (const items of collectArrayItemContainers(root)) {
+    const instance = arrayRepeaterInstances.get(items);
+    if (instance) {
+      instance.button.removeEventListener("click", instance.handleAdd);
+      items.removeEventListener("click", handleRemove);
+      arrayRepeaterInstances.delete(items);
+    }
+    items.removeAttribute(ARRAY_INITIALIZED_ATTR);
   }
 }
 

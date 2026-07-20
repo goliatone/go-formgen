@@ -1,9 +1,22 @@
+export type CancelableInvoker<T extends (...args: any[]) => void> = T & {
+  cancel: () => void;
+};
+
+function cancelNestedInvoker(callback: (...args: any[]) => void): void {
+  const cancel = (callback as { cancel?: () => void }).cancel;
+  if (typeof cancel === "function") {
+    cancel();
+  }
+}
+
 export function createThrottledInvoker<T extends (...args: any[]) => void>(
   callback: T,
   interval: number
-): T {
+): CancelableInvoker<T> {
   if (!interval || interval <= 0) {
-    return callback as T;
+    const immediate = ((...args: Parameters<T>) => callback(...args)) as CancelableInvoker<T>;
+    immediate.cancel = () => cancelNestedInvoker(callback);
+    return immediate;
   }
 
   let lastCall = 0;
@@ -40,15 +53,26 @@ export function createThrottledInvoker<T extends (...args: any[]) => void>(
     }
   };
 
-  return throttled as T;
+  const cancelable = throttled as CancelableInvoker<T>;
+  cancelable.cancel = () => {
+    if (trailingTimer !== undefined) {
+      clearTimeout(trailingTimer);
+      trailingTimer = undefined;
+    }
+    trailingArgs = undefined;
+    cancelNestedInvoker(callback);
+  };
+  return cancelable;
 }
 
 export function createDebouncedInvoker<T extends (...args: any[]) => void>(
   callback: T,
   interval: number
-): T {
+): CancelableInvoker<T> {
   if (!interval || interval <= 0) {
-    return callback as T;
+    const immediate = ((...args: Parameters<T>) => callback(...args)) as CancelableInvoker<T>;
+    immediate.cancel = () => cancelNestedInvoker(callback);
+    return immediate;
   }
 
   let timer: number | undefined;
@@ -62,5 +86,13 @@ export function createDebouncedInvoker<T extends (...args: any[]) => void>(
     }, interval) as unknown as number;
   };
 
-  return debounced as T;
+  const cancelable = debounced as CancelableInvoker<T>;
+  cancelable.cancel = () => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+    cancelNestedInvoker(callback);
+  };
+  return cancelable;
 }

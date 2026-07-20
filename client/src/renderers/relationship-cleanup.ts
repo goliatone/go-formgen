@@ -20,6 +20,12 @@ export function registerRendererCleanup<T>(
   ensureObserver();
 }
 
+export function destroyRendererWidgets(root: Document | HTMLElement): void {
+  for (const registration of registrations) {
+    destroyRegistrationStores(root, registration);
+  }
+}
+
 function ensureObserver(): void {
   if (observer || typeof window === "undefined" || typeof document === "undefined") {
     return;
@@ -47,19 +53,23 @@ function handleRemovedNode(node: Node): void {
   }
 
   for (const registration of registrations) {
-    const { renderer, stores, onDestroy } = registration;
-    const selects = collectMatchingSelects(node, renderer);
-    for (const select of selects) {
-      const store = stores.get(select);
-      if (store) {
-        onDestroy(select, store);
-        stores.delete(select);
-      }
+    destroyRegistrationStores(node, registration);
+  }
+}
+
+function destroyRegistrationStores<T>(root: Document | HTMLElement, registration: Registration<T>): void {
+  const { renderer, stores, onDestroy } = registration;
+  const selects = collectMatchingSelects(root, renderer);
+  for (const select of selects) {
+    const store = stores.get(select);
+    if (store) {
+      onDestroy(select, store);
+      stores.delete(select);
     }
   }
 }
 
-function collectMatchingSelects(node: HTMLElement, renderer: string): HTMLSelectElement[] {
+function collectMatchingSelects(root: Document | HTMLElement, renderer: string): HTMLSelectElement[] {
   const HTMLSelectElementCtor =
     typeof globalThis !== "undefined"
       ? (globalThis as { HTMLSelectElement?: typeof HTMLSelectElement }).HTMLSelectElement
@@ -67,12 +77,12 @@ function collectMatchingSelects(node: HTMLElement, renderer: string): HTMLSelect
   const results = new Set<HTMLSelectElement>();
   if (
     typeof HTMLSelectElementCtor === "function" &&
-    node instanceof HTMLSelectElementCtor &&
-    node.dataset.endpointRenderer === renderer
+    root instanceof HTMLSelectElementCtor &&
+    root.dataset.endpointRenderer === renderer
   ) {
-    results.add(node);
+    results.add(root);
   }
-  node
+  root
     .querySelectorAll<HTMLSelectElement>(`select[data-endpoint-renderer='${renderer}']`)
     .forEach((select) => results.add(select));
   return Array.from(results);

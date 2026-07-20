@@ -9,6 +9,8 @@ export type RelationshipCardinality = "one" | "many";
 export interface Option {
   value: string;
   label: string;
+  /** Prevents selection while keeping the option visible. */
+  disabled?: boolean;
   /** Icon name for registry lookup (not raw HTML for security). */
   icon?: string;
   /** URL to avatar image for display in options and chips. */

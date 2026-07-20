@@ -4,6 +4,7 @@ import type {
   GlobalConfig,
   FieldConfig,
 } from "./config";
+import { setGlobalConfig } from "./config";
 import {
   locateRelationshipFields,
   readDataset,
@@ -14,8 +15,9 @@ import { datasetToEndpoint, datasetToFieldConfig } from "./relationship-config";
 import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
 import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
-import { initComponents } from "./components/registry";
-import { initArrayRepeaters } from "./array-repeaters";
+import { destroyComponents, initComponents } from "./components/registry";
+import { destroyArrayRepeaters, initArrayRepeaters } from "./array-repeaters";
+import { destroyRendererWidgets } from "./renderers/relationship-cleanup";
 import { clearFieldError, renderFieldError } from "./errors";
 import { emitRelationshipUpdate } from "./relationship-events";
 import {
@@ -30,12 +32,23 @@ import {
  */
 let activeRegistry: ResolverRegistry | null = null;
 
+interface RuntimeRootLifecycle {
+  cleanups: Set<() => void>;
+  disposed: boolean;
+}
+
+const runtimeRootLifecycles = new WeakMap<
+  ResolverRegistry,
+  WeakMap<HTMLElement, RuntimeRootLifecycle>
+>();
+
 export async function initRelationships(
   config: GlobalConfig = {}
 ): Promise<ResolverRegistry> {
   const hasOverrides = Object.keys(config ?? {}).length > 0;
   const reuseExisting = activeRegistry && !hasOverrides ? activeRegistry : null;
-  const registry = reuseExisting ?? new ResolverRegistry(hasOverrides ? config : undefined);
+  const globalConfig = hasOverrides ? setGlobalConfig(config) : undefined;
+  const registry = reuseExisting ?? new ResolverRegistry(globalConfig);
 
   if (!reuseExisting) {
     activeRegistry = registry;
@@ -59,6 +72,26 @@ export async function initRelationships(
     await Promise.all(promises);
   }
 
+  return registry;
+}
+
+// initFormgenRoot initializes option resolvers and widgets only within one
+// dynamically inserted form root. Hosts can pair the returned registry with a
+// Formgen controller so controller teardown also aborts root-scoped resolvers.
+export async function initFormgenRoot(
+  root: HTMLElement,
+  config: GlobalConfig = {}
+): Promise<ResolverRegistry> {
+  const hasOverrides = Object.keys(config ?? {}).length > 0;
+  const registry = activeRegistry && !hasOverrides
+    ? activeRegistry
+    : new ResolverRegistry(hasOverrides ? config : undefined);
+  registerChipRenderer(registry);
+  registerTypeaheadRenderer(registry);
+  const pending = initializeRuntimeRoot(root, registry, config);
+  if (pending.length > 0) {
+    await Promise.all(pending);
+  }
   return registry;
 }
 
@@ -98,9 +131,10 @@ export { RUNTIME_VERSION } from "./version";
 export {
   registerComponent,
   initComponents,
+  destroyComponents,
   __resetComponentRegistryForTests as resetComponentRegistryForTests,
 } from "./components/registry";
-export { initArrayRepeaters, addArrayItem } from "./array-repeaters";
+export { initArrayRepeaters, destroyArrayRepeaters, addArrayItem } from "./array-repeaters";
 export { registerErrorRenderer } from "./errors";
 export {
   registerThemeClasses,
@@ -157,6 +191,7 @@ function initializeRuntimeRoot(
   registry: ResolverRegistry,
   config: GlobalConfig
 ): Promise<void>[] {
+  const lifecycle = runtimeRootLifecycle(root, registry);
   initComponents(root);
   initArrayRepeaters(root, {
     onItemAdded: (itemRoot) => {
@@ -194,15 +229,48 @@ function initializeRuntimeRoot(
       bootstrapTypeahead(element, registry);
     }
 
-    setupDependentRefresh(element, field, root, registry);
-    setupManualRefresh(element, field, root, registry);
-    setupSearchMode(element, field, registry);
+    setupDependentRefresh(element, field, root, registry, lifecycle);
+    setupManualRefresh(element, field, root, registry, lifecycle);
+    setupSearchMode(element, field, registry, lifecycle);
 
-    if (shouldAutoResolve(field)) {
+    if (shouldAutoResolve(field, endpoint)) {
       promises.push(registry.resolve(element));
     }
   }
   return promises;
+}
+
+function runtimeRootLifecycle(root: HTMLElement, registry: ResolverRegistry): RuntimeRootLifecycle {
+  let roots = runtimeRootLifecycles.get(registry);
+  if (!roots) {
+    roots = new WeakMap();
+    runtimeRootLifecycles.set(registry, roots);
+  }
+  const existing = roots.get(root);
+  if (existing && !existing.disposed) {
+    return existing;
+  }
+
+  const lifecycle: RuntimeRootLifecycle = {
+    cleanups: new Set(),
+    disposed: false,
+  };
+  roots.set(root, lifecycle);
+  registry.registerRootCleanup(root, () => {
+    if (lifecycle.disposed) {
+      return;
+    }
+    lifecycle.disposed = true;
+    for (const cleanup of lifecycle.cleanups) {
+      cleanup();
+    }
+    lifecycle.cleanups.clear();
+    destroyRendererWidgets(root);
+    destroyArrayRepeaters(root);
+    destroyComponents(root);
+    roots?.delete(root);
+  });
+  return lifecycle;
 }
 
 function applySelectValues(
@@ -270,7 +338,10 @@ function syncRelationshipMirrors(select: HTMLSelectElement, submitAs?: FieldConf
   }
 }
 
-function shouldAutoResolve(field: FieldConfig): boolean {
+function shouldAutoResolve(field: FieldConfig, endpoint: ReturnType<typeof datasetToEndpoint>): boolean {
+  if (!endpoint.url) {
+    return false;
+  }
   if (field.refreshMode === "manual") {
     return false;
   }
@@ -291,12 +362,14 @@ export interface HydrationPayload {
 
 export interface FormControllerOptions {
   includeHidden?: boolean;
+  registry?: ResolverRegistry;
 }
 
 export interface FormController {
   root: Document | HTMLElement;
   getValues(options?: FormControllerOptions): Record<string, unknown>;
   setValues(values: Record<string, unknown>): void;
+  reset(): void;
   setErrors(errors: Record<string, string | string[]>): void;
   clearErrors(names?: string[]): void;
   onChange(callback: (values: Record<string, unknown>, event: Event) => void): () => void;
@@ -311,6 +384,7 @@ export function attachFormController(
   options: FormControllerOptions = {}
 ): FormController {
   const resolvedRoot = resolveControllerRoot(root);
+  const controllerRegistry = options.registry ?? activeRegistry;
   let destroyed = false;
 
   const controller: FormController = {
@@ -325,12 +399,23 @@ export function attachFormController(
     },
     setValues(values) {
       if (!destroyed) {
-        hydrateFormValues(resolvedRoot, { values });
+        hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry);
       }
+    },
+    reset() {
+      if (destroyed) {
+        return;
+      }
+      resetControllerFields(resolvedRoot);
+      const values = collectControllerValues(resolvedRoot, {
+        includeHidden: options.includeHidden ?? true,
+      });
+      hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry);
+      hydrateFormValuesWithRegistry(resolvedRoot, { errors: buildClearErrorPayload(resolvedRoot) }, controllerRegistry);
     },
     setErrors(errors) {
       if (!destroyed) {
-        hydrateFormValues(resolvedRoot, { errors });
+        hydrateFormValuesWithRegistry(resolvedRoot, { errors }, controllerRegistry);
       }
     },
     clearErrors(names) {
@@ -338,7 +423,7 @@ export function attachFormController(
         return;
       }
       const payload = buildClearErrorPayload(resolvedRoot, names);
-      hydrateFormValues(resolvedRoot, { errors: payload });
+      hydrateFormValuesWithRegistry(resolvedRoot, { errors: payload }, controllerRegistry);
     },
     onChange(callback) {
       if (destroyed) {
@@ -375,6 +460,7 @@ export function attachFormController(
       const listeners = controllerListeners.get(controller) ?? [];
       listeners.forEach((unsubscribe) => unsubscribe());
       controllerListeners.delete(controller);
+      controllerRegistry?.destroy(resolvedRoot);
     },
   };
 
@@ -395,6 +481,14 @@ export function hydrateFormValues(
   root: Document | HTMLElement = document,
   payload: HydrationPayload = {}
 ): void {
+  hydrateFormValuesWithRegistry(root, payload, activeRegistry);
+}
+
+function hydrateFormValuesWithRegistry(
+  root: Document | HTMLElement,
+  payload: HydrationPayload,
+  registry: ResolverRegistry | null
+): void {
   const scope = root ?? document;
   const fields = locateHydratableFields(scope);
   if (fields.length === 0) {
@@ -405,8 +499,8 @@ export function hydrateFormValues(
   const errorIndex = buildPayloadIndex(payload.errors);
 
   fields.forEach((element) => {
-    applyHydratedValue(element, valueIndex);
-    applyHydratedErrors(element, errorIndex);
+    applyHydratedValue(element, valueIndex, registry);
+    applyHydratedErrors(element, errorIndex, registry);
   });
 }
 
@@ -452,6 +546,30 @@ function controllerFields(root: Document | HTMLElement): Array<HTMLInputElement 
     .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea")
     .forEach((field) => fields.add(field));
   return Array.from(fields);
+}
+
+function resetControllerFields(root: Document | HTMLElement): void {
+  controllerFields(root).forEach((field) => {
+    if (field instanceof HTMLInputElement) {
+      const type = field.type.toLowerCase();
+      if (type === "checkbox" || type === "radio") {
+        field.checked = field.defaultChecked;
+      } else if (type !== "file") {
+        field.value = field.defaultValue;
+      }
+      return;
+    }
+    if (field instanceof HTMLTextAreaElement) {
+      field.value = field.defaultValue;
+      return;
+    }
+    Array.from(field.options).forEach((option) => {
+      option.selected = option.defaultSelected;
+    });
+    if (!field.multiple && field.selectedIndex < 0 && field.options.length > 0) {
+      field.selectedIndex = 0;
+    }
+  });
 }
 
 function shouldCollectField(
@@ -514,14 +632,16 @@ function readControllerValue(
 }
 
 function assignControllerValue(target: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split(".").filter(Boolean);
+  const parts = safeControllerPathSegments(path);
   if (parts.length === 0) {
     return;
   }
   let cursor: Record<string, unknown> = target;
   parts.forEach((part, index) => {
     if (index === parts.length - 1) {
-      const existing = cursor[part];
+      const existing = Object.prototype.hasOwnProperty.call(cursor, part)
+        ? cursor[part]
+        : undefined;
       if (Array.isArray(existing) && Array.isArray(value)) {
         cursor[part] = existing.concat(value);
       } else {
@@ -529,7 +649,12 @@ function assignControllerValue(target: Record<string, unknown>, path: string, va
       }
       return;
     }
-    if (!cursor[part] || typeof cursor[part] !== "object" || Array.isArray(cursor[part])) {
+    if (
+      !Object.prototype.hasOwnProperty.call(cursor, part) ||
+      !cursor[part] ||
+      typeof cursor[part] !== "object" ||
+      Array.isArray(cursor[part])
+    ) {
       cursor[part] = {};
     }
     cursor = cursor[part] as Record<string, unknown>;
@@ -544,8 +669,9 @@ function buildClearErrorPayload(
   const targets = names && names.length > 0 ? names : controllerFields(root).map(fieldName);
   targets.forEach((name) => {
     const trimmed = name.trim();
-    if (trimmed) {
-      payload[toDotKey(stripArraySuffix(trimmed))] = [];
+    const dotted = toDotKey(stripArraySuffix(trimmed));
+    if (safeControllerPathSegments(dotted).length > 0) {
+      payload[dotted] = [];
     }
   });
   return payload;
@@ -561,6 +687,9 @@ function findControllerField(
     return null;
   }
   const dotted = toDotKey(stripArraySuffix(trimmed));
+  if (safeControllerPathSegments(dotted).length === 0) {
+    return null;
+  }
   [trimmed, dotted, toBracketKey(dotted), `${toBracketKey(dotted)}[]`].forEach((item) => {
     if (item) {
       variants.add(item);
@@ -632,6 +761,9 @@ function flattenPayload(
       return;
     }
     const nextKey = prefix ? `${prefix}.${trimmedKey}` : trimmedKey;
+    if (safeControllerPathSegments(nextKey).length === 0) {
+      return;
+    }
     if (
       value &&
       typeof value === "object" &&
@@ -693,6 +825,17 @@ function toDotKey(value: string): string {
     .replace(/^\./, "");
 }
 
+const unsafeControllerPathSegments = new Set(["__proto__", "constructor", "prototype"]);
+
+function safeControllerPathSegments(value: string): string[] {
+  const dotted = toDotKey(stripArraySuffix(value));
+  const segments = dotted.split(".").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length === 0 || segments.some((segment) => unsafeControllerPathSegments.has(segment))) {
+    return [];
+  }
+  return segments;
+}
+
 function toBracketKey(value: string): string {
   if (!value.includes(".")) {
     return value;
@@ -718,9 +861,12 @@ function collectFieldKeys(element: HTMLElement): string[] {
     if (!value) {
       return;
     }
+    const dotted = toDotKey(stripArraySuffix(value));
+    if (safeControllerPathSegments(dotted).length === 0) {
+      return;
+    }
     keys.add(value);
     keys.add(stripArraySuffix(value));
-    const dotted = toDotKey(value);
     keys.add(dotted);
     keys.add(stripArraySuffix(dotted));
     keys.add(toBracketKey(dotted));
@@ -744,7 +890,8 @@ function resolvePayloadEntry(
 
 function applyHydratedValue(
   element: HTMLElement,
-  index: Map<string, unknown>
+  index: Map<string, unknown>,
+  registry: ResolverRegistry | null
 ): void {
   const entry = resolvePayloadEntry(index, element);
   if (!entry.found) {
@@ -792,7 +939,7 @@ function applyHydratedValue(
 
   updateRelationshipCurrentAttribute(element, normalized);
 
-  const resolver = activeRegistry?.get(element);
+  const resolver = registry?.get(element);
   if (resolver) {
     resolver.setCurrentValue(normalized);
   }
@@ -870,14 +1017,15 @@ function radioHydratedChecked(
 
 function applyHydratedErrors(
   element: HTMLElement,
-  index: Map<string, unknown>
+  index: Map<string, unknown>,
+  registry: ResolverRegistry | null
 ): void {
   const entry = resolvePayloadEntry(index, element);
   if (!entry.found) {
     return;
   }
   const messages = normalizeErrorMessages(entry.value);
-  const resolver = activeRegistry?.get(element);
+  const resolver = registry?.get(element);
 
   if (messages.length === 0) {
     clearFieldError(element);
@@ -995,7 +1143,8 @@ function setupDependentRefresh(
   element: HTMLElement,
   field: FieldConfig,
   root: HTMLElement,
-  registry: ResolverRegistry
+  registry: ResolverRegistry,
+  lifecycle: RuntimeRootLifecycle
 ): void {
   if (!field.refreshOn || field.refreshOn.length === 0) {
     return;
@@ -1015,12 +1164,21 @@ function setupDependentRefresh(
     registry.resolve(element).catch(() => undefined);
   };
 
+  const bindings: Array<{ target: HTMLElement; eventType: string }> = [];
+
   field.refreshOn.forEach((reference) => {
     const targets = findDependencyTargets(scope, reference);
     targets.forEach((target) => {
       const eventType = target instanceof HTMLInputElement && target.type === "text" ? "input" : "change";
       target.addEventListener(eventType, trigger);
+      bindings.push({ target, eventType });
     });
+  });
+  lifecycle.cleanups.add(() => {
+    for (const binding of bindings) {
+      binding.target.removeEventListener(binding.eventType, trigger);
+    }
+    delete element.dataset.relationshipRefreshBound;
   });
 }
 
@@ -1028,20 +1186,20 @@ function setupManualRefresh(
   element: HTMLElement,
   field: FieldConfig,
   root: HTMLElement,
-  registry: ResolverRegistry
+  registry: ResolverRegistry,
+  lifecycle: RuntimeRootLifecycle
 ): void {
   if (field.refreshMode !== "manual") {
+    return;
+  }
+  const name = field.name ?? element.getAttribute("id");
+  if (!name) {
     return;
   }
   if (element.dataset.relationshipManualBound === "true") {
     return;
   }
   element.dataset.relationshipManualBound = "true";
-
-  const name = field.name ?? element.getAttribute("id");
-  if (!name) {
-    return;
-  }
 
   const escaped = safeSelectorValue(name);
   const doc = root.ownerDocument ?? element.ownerDocument ?? document;
@@ -1061,22 +1219,33 @@ function setupManualRefresh(
     ?.querySelectorAll<HTMLElement>("[data-endpoint-refresh-trigger]")
     .forEach((node) => triggers.add(node));
 
-  triggers.forEach((trigger) => {
-    if (trigger.dataset.relationshipRefreshListener === "true") {
+  const bindings: Array<{ trigger: HTMLElement; handler: (event: Event) => void }> = [];
+  triggers.forEach((triggerElement) => {
+    if (triggerElement.dataset.relationshipRefreshListener === "true") {
       return;
     }
-    trigger.dataset.relationshipRefreshListener = "true";
-    trigger.addEventListener("click", (event) => {
+    triggerElement.dataset.relationshipRefreshListener = "true";
+    const handler = (event: Event) => {
       event.preventDefault();
       registry.resolve(element).catch(() => undefined);
-    });
+    };
+    triggerElement.addEventListener("click", handler);
+    bindings.push({ trigger: triggerElement, handler });
+  });
+  lifecycle.cleanups.add(() => {
+    for (const binding of bindings) {
+      binding.trigger.removeEventListener("click", binding.handler);
+      delete binding.trigger.dataset.relationshipRefreshListener;
+    }
+    delete element.dataset.relationshipManualBound;
   });
 }
 
 function setupSearchMode(
   element: HTMLElement,
   field: FieldConfig,
-  registry: ResolverRegistry
+  registry: ResolverRegistry,
+  lifecycle: RuntimeRootLifecycle
 ): void {
   if (field.mode !== "search") {
     return;
@@ -1094,15 +1263,8 @@ function setupSearchMode(
     registry.resolve(element).catch(() => undefined);
   };
 
-  let trigger = () => invoke();
-
-  if (debounceMs > 0) {
-    trigger = createDebouncedInvoker(trigger, debounceMs);
-  }
-
-  if (throttleMs > 0) {
-    trigger = createThrottledInvoker(trigger, throttleMs);
-  }
+  let trigger = createDebouncedInvoker(invoke, debounceMs);
+  trigger = createThrottledInvoker(trigger, throttleMs);
 
   const updateSearchValue = () => {
     if (
@@ -1124,6 +1286,14 @@ function setupSearchMode(
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
     element.addEventListener("change", handleSearchEvent);
   }
+  lifecycle.cleanups.add(() => {
+    element.removeEventListener("input", handleSearchEvent);
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.removeEventListener("change", handleSearchEvent);
+    }
+    trigger.cancel();
+    delete element.dataset.relationshipSearchBound;
+  });
 }
 
 function findDependencyTargets(scope: Document | HTMLElement, reference: string): HTMLElement[] {

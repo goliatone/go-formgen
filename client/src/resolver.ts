@@ -162,6 +162,7 @@ export class Resolver {
   private lastContext: ResolverContext | null = null;
   private preserveServerValidation = false;
   private userInteracted = false;
+  private readonly interactionHandler = () => this.handleUserInteraction();
 
   constructor(options: ResolverOptions) {
     this.element = options.element;
@@ -368,9 +369,14 @@ export class Resolver {
   }
 
   private bindInteractionHandlers(): void {
-    const handler = () => this.handleUserInteraction();
-    this.element.addEventListener("input", handler);
-    this.element.addEventListener("change", handler);
+    this.element.addEventListener("input", this.interactionHandler);
+    this.element.addEventListener("change", this.interactionHandler);
+  }
+
+  destroy(): void {
+    this.cancelInFlight();
+    this.element.removeEventListener("input", this.interactionHandler);
+    this.element.removeEventListener("change", this.interactionHandler);
   }
 
   private handleUserInteraction(): void {
@@ -931,7 +937,9 @@ export class Resolver {
     const record = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null;
     let value = getByPath(item, valuePath);
     let label = getByPath(item, labelPath);
-    const meta = metaPath ? getByPath(item, metaPath) : undefined;
+    const meta = metaPath
+      ? getByPath(item, metaPath)
+      : record?.["metadata"] ?? record?.["meta"];
 
     if ((value === undefined || value === null) && record) {
       if (record["value"] != null) {
@@ -955,6 +963,8 @@ export class Resolver {
     return {
       value: stringValue,
       label: stringLabel,
+      description: typeof record?.["description"] === "string" ? String(record["description"]) : undefined,
+      disabled: record?.["disabled"] === true,
       meta,
       raw: item,
     };
