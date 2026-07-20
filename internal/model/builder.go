@@ -663,6 +663,9 @@ func truthyExtension(ext map[string]any, keys ...string) (bool, bool) {
 			return fmt.Sprint(typed) != "0", true
 		case float32, float64:
 			return fmt.Sprint(typed) != "0", true
+		case json.Number:
+			number, err := typed.Float64()
+			return number != 0, err == nil
 		}
 	}
 	return false, false
