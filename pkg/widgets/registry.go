@@ -180,7 +180,7 @@ func isChipsWidget(field model.Field) bool {
 	if field.Type != model.FieldTypeArray {
 		return false
 	}
-	if len(field.Enum) > 0 {
+	if len(field.Enum) > 0 || len(field.Options) > 0 {
 		return true
 	}
 	if mode := strings.TrimSpace(field.Metadata["relationship.endpoint.mode"]); mode != "" {
@@ -194,7 +194,7 @@ func isSelectWidget(field model.Field) bool {
 	if field.Type == model.FieldTypeArray || field.Type == model.FieldTypeObject {
 		return false
 	}
-	return len(field.Enum) > 0 || field.Relationship != nil
+	return len(field.Enum) > 0 || len(field.Options) > 0 || field.Relationship != nil
 }
 
 func isCodeEditorWidget(field model.Field) bool {
