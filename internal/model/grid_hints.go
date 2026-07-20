@@ -125,8 +125,6 @@ func toIntValue(value any) (int, bool) {
 	default:
 		return 0, false
 	}
-
-	return 0, false
 }
 
 func integralFloatToInt(value float64) (int, bool) {
