@@ -3,7 +3,6 @@ package jsonschema
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -187,7 +186,7 @@ func parseJSONSchema(raw []byte) (map[string]any, error) {
 		return nil, errors.New("jsonschema: raw schema is empty")
 	}
 	var payload map[string]any
-	if err := json.Unmarshal(trimmed, &payload); err != nil {
+	if err := decodeJSON(trimmed, &payload); err != nil {
 		return nil, fmt.Errorf("jsonschema: parse schema: %w", err)
 	}
 	if payload == nil {
@@ -228,7 +227,7 @@ func detectJSONSchema(raw []byte) bool {
 		return false
 	}
 	var payload map[string]any
-	if err := json.Unmarshal(trimmed, &payload); err != nil {
+	if err := decodeJSON(trimmed, &payload); err != nil {
 		return false
 	}
 	if payload == nil {

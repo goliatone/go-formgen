@@ -1,6 +1,7 @@
 package jsonschema
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -810,6 +811,9 @@ func isRawNullSchema(node any) bool {
 
 func toFloat(value any) (float64, bool) {
 	switch v := value.(type) {
+	case json.Number:
+		parsed, err := v.Float64()
+		return parsed, err == nil
 	case float64:
 		return v, true
 	case float32:
@@ -825,23 +829,45 @@ func toFloat(value any) (float64, bool) {
 
 func toInt(value any) (int, bool) {
 	switch v := value.(type) {
+	case json.Number:
+		if parsed, err := v.Int64(); err == nil {
+			return int64ToInt(parsed)
+		}
+		parsed, err := v.Float64()
+		if err != nil {
+			return 0, false
+		}
+		return floatToInt(parsed)
 	case float64:
-		if v == math.Trunc(v) {
-			return int(v), true
-		}
-		return 0, false
+		return floatToInt(v)
 	case float32:
-		if v == float32(math.Trunc(float64(v))) {
-			return int(v), true
-		}
-		return 0, false
+		return floatToInt(float64(v))
 	case int:
 		return v, true
 	case int64:
-		return int(v), true
+		return int64ToInt(v)
 	default:
 		return 0, false
 	}
+}
+
+func floatToInt(value float64) (int, bool) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) {
+		return 0, false
+	}
+	converted := int(value)
+	if float64(converted) != value {
+		return 0, false
+	}
+	return converted, true
+}
+
+func int64ToInt(value int64) (int, bool) {
+	converted := int(value)
+	if int64(converted) != value {
+		return 0, false
+	}
+	return converted, true
 }
 
 func isAllowedType(value string) bool {

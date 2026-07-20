@@ -91,16 +91,18 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 			}
 		}
 
-		templateField := field
+		controlValue, hasValue := "", false
 		if partialKey == inputTemplatePartialKey {
-			templateField = fieldForInputTemplate(field)
+			controlValue, hasValue = formatControlValue(field.Default)
 		}
 		payload := map[string]any{
-			"field":        templateField,
-			"config":       data.Config,
-			"theme":        data.Theme,
-			"style_mode":   data.StyleMode,
-			"enum_options": enumOptions(field),
+			"field":         field,
+			"config":        data.Config,
+			"theme":         data.Theme,
+			"style_mode":    data.StyleMode,
+			"enum_options":  enumOptions(field),
+			"control_value": controlValue,
+			"has_value":     hasValue,
 		}
 		rendered, err := data.Template.RenderTemplate(resolvedTemplate, payload)
 		if err != nil {
@@ -111,24 +113,31 @@ func templateComponentRenderer(partialKey, templateName string) Renderer {
 	}
 }
 
-// fieldForInputTemplate converts numeric defaults to their shortest decimal control
-// representation without changing the typed field model used by renderers and
-// option selection. This also keeps zero truthy in Pongo templates so the
-// bundled input template emits value="0" instead of omitting the default.
-func fieldForInputTemplate(field model.Field) model.Field {
-	if field.Default == nil || (field.Type != model.FieldTypeInteger && field.Type != model.FieldTypeNumber) {
-		return field
-	}
-	if value, ok := formatNumericControlValue(field.Default); ok {
-		field.Default = value
-	}
-	return field
-}
-
-func formatNumericControlValue(value any) (string, bool) {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
+func formatControlValue(value any) (string, bool) {
+	if value == nil {
 		return "", false
+	}
+	reflected := reflect.ValueOf(value)
+	if (reflected.Kind() == reflect.Interface || reflected.Kind() == reflect.Pointer) && reflected.IsNil() {
+		return "", false
+	}
+
+	switch typed := value.(type) {
+	case string:
+		return typed, true
+	case json.Number:
+		return typed.String(), true
+	case fmt.Stringer:
+		return typed.String(), true
+	case bool:
+		return strconv.FormatBool(typed), true
+	}
+
+	for reflected.IsValid() && (reflected.Kind() == reflect.Interface || reflected.Kind() == reflect.Pointer) {
+		if reflected.IsNil() {
+			return "", false
+		}
+		reflected = reflected.Elem()
 	}
 
 	switch reflected.Kind() {
@@ -142,8 +151,10 @@ func formatNumericControlValue(value any) (string, bool) {
 		return strconv.FormatFloat(reflected.Float(), 'f', -1, 64), true
 	case reflect.String:
 		return reflected.String(), true
+	case reflect.Bool:
+		return strconv.FormatBool(reflected.Bool()), true
 	default:
-		return "", false
+		return fmt.Sprint(value), true
 	}
 }
 

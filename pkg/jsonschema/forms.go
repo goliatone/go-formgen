@@ -1,7 +1,6 @@
 package jsonschema
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,7 +22,7 @@ func DiscoverFormsFromBytes(raw []byte, opts FormDiscoveryOptions) ([]schema.For
 		return nil, errors.New("jsonschema: raw schema is empty")
 	}
 	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := decodeJSON(raw, &payload); err != nil {
 		return nil, fmt.Errorf("jsonschema: parse schema: %w", err)
 	}
 	return DiscoverFormsFromMap(payload, opts)

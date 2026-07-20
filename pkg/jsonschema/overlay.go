@@ -1,7 +1,6 @@
 package jsonschema
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/url"
@@ -73,7 +72,7 @@ func parseOverlayPayload(raw []byte) (map[string]any, error) {
 		return nil, OverlayError{Message: "overlay document is empty"}
 	}
 	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	if err := decodeJSON(raw, &payload); err != nil {
 		return nil, OverlayError{Message: fmt.Sprintf("parse overlay: %v", err)}
 	}
 	if payload == nil {

@@ -53,7 +53,7 @@
     {% if disabled_value %}disabled{% endif %}
     {% if readonly_value %}readonly{% endif %}
     {% if readonly_value %}aria-readonly="true"{% endif %}
-    {% if field.default %}value="{{ field.default }}"{% endif %}
+    {% if has_value %}value="{{ control_value }}"{% endif %}
     {% if min_value or min_value == 0 %}min="{{ min_value }}"{% endif %}
     {% if max_value or max_value == 0 %}max="{{ max_value }}"{% endif %}
     {% if step_value or step_value == 0 %}step="{{ step_value }}"{% endif %}
