@@ -302,6 +302,7 @@ func (b *Builder) fieldFromArray(name string, schema schema.Schema, required boo
 	if len(schema.Enum) > 0 {
 		field.Enum = append([]any(nil), schema.Enum...)
 	}
+	field.Options = optionsFromExtensions(schema.Extensions)
 	applyValidations(&field, schema)
 	arrayMeta, arrayHints := ParseUIExtensions(schema.Extensions)
 	mergeMetadata(field.ensureMetadata(), arrayMeta)
@@ -376,6 +377,7 @@ func (b *Builder) fieldFromPrimitive(name string, schema schema.Schema, required
 	if len(schema.Enum) > 0 {
 		field.Enum = append([]any(nil), schema.Enum...)
 	}
+	field.Options = optionsFromExtensions(schema.Extensions)
 	if schema.Default != nil {
 		field.Default = schema.Default
 	}
@@ -409,6 +411,49 @@ func mapType(schemaType string) FieldType {
 	default:
 		return FieldTypeString
 	}
+}
+
+func optionsFromExtensions(ext map[string]any) []Option {
+	if len(ext) == 0 {
+		return nil
+	}
+	nested, ok := ext[extensionNamespace].(map[string]any)
+	if !ok {
+		return nil
+	}
+	raw, ok := nested["options"].([]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	options := make([]Option, 0, len(raw))
+	for _, item := range raw {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		value, exists := entry["value"]
+		if !exists || value == nil {
+			continue
+		}
+		option := Option{Value: value}
+		if label, ok := entry["label"].(string); ok {
+			option.Label = strings.TrimSpace(label)
+		}
+		if description, ok := entry["description"].(string); ok {
+			option.Description = strings.TrimSpace(description)
+		}
+		if disabled, ok := entry["disabled"].(bool); ok {
+			option.Disabled = disabled
+		}
+		if metadata, ok := entry["metadata"].(map[string]any); ok && len(metadata) > 0 {
+			option.Metadata = maps.Clone(metadata)
+		}
+		options = append(options, option)
+	}
+	if len(options) == 0 {
+		return nil
+	}
+	return options
 }
 
 func discriminatorValue(option schema.Schema) (string, bool) {
