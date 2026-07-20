@@ -1,5 +1,25 @@
 # Changelog
 
+# [0.30.1](https://github.com/goliatone/go-formgen/compare/v0.30.0...v0.30.1) - (2026-07-20)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.30.1 ([6b2ca5b](https://github.com/goliatone/go-formgen/commit/6b2ca5bb014c249c7c4a01123b0c2e2297adad2c))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Builder decoder handle number ([6a653d5](https://github.com/goliatone/go-formgen/commit/6a653d540588df46fff7a2bc2d6f94d4125f985e))  - (goliatone)
+- Json schema decoder ([283c200](https://github.com/goliatone/go-formgen/commit/283c2005d8182ac48091aa142f887991375436cd))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.30.0 ([7681cf7](https://github.com/goliatone/go-formgen/commit/7681cf7ff628723698343bc830a1613a97b89b07))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update tests ([24ca1f6](https://github.com/goliatone/go-formgen/commit/24ca1f6b2596c05442cfd886280b5b12acd0416f))  - (goliatone)
+- Update docs ([4b489fc](https://github.com/goliatone/go-formgen/commit/4b489fce20b33145e5d0e1f3a5df73c84cd08de5))  - (goliatone)
+
 # [0.30.0](https://github.com/goliatone/go-formgen/compare/v0.29.1...v0.30.0) - (2026-07-20)
 
 ## <!-- 1 -->🐛 Bug Fixes
