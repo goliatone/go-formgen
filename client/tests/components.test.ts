@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   registerComponent,
   initComponents,
+  destroyComponents,
   resetComponentRegistryForTests,
 } from "../src/index";
 
@@ -43,6 +44,23 @@ describe("component registry", () => {
     initComponents(root);
 
     expect(factory).toHaveBeenCalledTimes(1);
+  });
+
+  it("tears down and reinitializes components within a mounted root", () => {
+    const teardown = vi.fn();
+    const factory = vi.fn(() => teardown);
+    registerComponent("custom", factory);
+
+    const root = document.createElement("div");
+    root.innerHTML = `<div data-component="custom"></div>`;
+    document.body.appendChild(root);
+
+    initComponents(root);
+    destroyComponents(root);
+    initComponents(root);
+
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(teardown).toHaveBeenCalledTimes(1);
   });
 
   it("ignores unknown component names", () => {

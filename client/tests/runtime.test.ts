@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   initRelationships,
+  initFormgenRoot,
   hydrateFormValues,
   resetGlobalRegistry,
   resetComponentRegistryForTests,
@@ -190,6 +191,22 @@ describe("runtime resolver", () => {
     const option = field.querySelector<HTMLOptionElement>("option");
     expect(option?.value).toBe("1");
     expect(option?.textContent).toBe("Alice");
+  });
+
+  it("preserves rich dynamic option presentation", async () => {
+    const field = createMarkup();
+    fetchSpy.mockResolvedValue(mockResponse([
+      { value: "active", label: "Active", description: "Available now", disabled: false, metadata: { tier: 1 } },
+      { value: "retired", label: "Retired", disabled: true },
+    ]));
+
+    await initRelationships();
+
+    const active = field.querySelector<HTMLOptionElement>('option[value="active"]')!;
+    const retired = field.querySelector<HTMLOptionElement>('option[value="retired"]')!;
+    expect(active.dataset.optionDescription).toBe("Available now");
+    expect(active.dataset.optionMetadata).toBe('{"tier":1}');
+    expect(retired.disabled).toBe(true);
   });
 
   it("handles legacy envelopes when resultsPath is provided", async () => {
@@ -1673,7 +1690,7 @@ describe("runtime resolver", () => {
   });
 
   describe("form controller", () => {
-    it("collects, sets, clears, focuses, and tears down", () => {
+    it("collects, sets, resets, clears, focuses, and tears down", () => {
       document.body.innerHTML = `
         <div id="root" data-formgen-auto-init="true" data-formgen-render-mode="fields">
           <input name="article[title]" value="Draft" />
@@ -1703,6 +1720,14 @@ describe("runtime resolver", () => {
       controller.setErrors({ "article.title": ["Required"] });
       const title = document.querySelector<HTMLInputElement>('input[name="article[title]"]')!;
       expect(title.getAttribute("data-validation-state")).toBe("invalid");
+      controller.reset();
+      expect(controller.getValues()).toEqual({
+        article: { title: "Draft", summary: "", published: false, status: "draft" },
+        _csrf: "token",
+      });
+      expect(title.getAttribute("data-validation-state")).toBeNull();
+
+      controller.setErrors({ "article.title": ["Required"] });
       controller.clearErrors(["article.title"]);
       expect(title.getAttribute("data-validation-state")).toBeNull();
       expect(controller.focus("article.title")).toBe(true);
@@ -1714,6 +1739,258 @@ describe("runtime resolver", () => {
       controller.destroy();
       title.dispatchEvent(new Event("input", { bubbles: true }));
       expect(changes).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects prototype-polluting paths and only traverses own controller values", () => {
+      delete (Object.prototype as Record<string, unknown>).polluted;
+      delete (Object.prototype as Record<string, unknown>).injected;
+      document.body.innerHTML = `
+        <div id="root" data-formgen-render-mode="fields">
+          <input name="__proto__[polluted]" value="yes" />
+          <input name="constructor[prototype][injected]" value="yes" />
+          <input name="article[toString]" value="own value" />
+          <input name="article[title]" value="Draft" />
+        </div>
+      `;
+
+      const root = document.getElementById("root")!;
+      const controller = attachFormController(root);
+      const values = controller.getValues();
+      const article = values.article as Record<string, unknown>;
+
+      expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined();
+      expect((Object.prototype as Record<string, unknown>).injected).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty.call(article, "toString")).toBe(true);
+      expect(article.toString).toBe("own value");
+      expect(article.title).toBe("Draft");
+
+      const unsafeValues = JSON.parse(
+        '{"__proto__":{"polluted":"hydrated"},"constructor":{"prototype":{"injected":"hydrated"}},"article":{"title":"Published"}}'
+      ) as Record<string, unknown>;
+      controller.setValues(unsafeValues);
+      expect((root.querySelector('input[name="article[title]"]') as HTMLInputElement).value).toBe("Published");
+      expect((root.querySelector('input[name="__proto__[polluted]"]') as HTMLInputElement).value).toBe("yes");
+      expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined();
+      expect((Object.prototype as Record<string, unknown>).injected).toBeUndefined();
+
+      controller.setErrors({ "__proto__.polluted": ["unsafe"], "article.title": ["required"] });
+      expect(root.querySelector('input[name="__proto__[polluted]"]')?.getAttribute("data-validation-state")).toBeNull();
+      expect(root.querySelector('input[name="article[title]"]')?.getAttribute("data-validation-state")).toBe("invalid");
+      expect(controller.focus("__proto__.polluted")).toBe(false);
+
+      controller.destroy();
+      delete (Object.prototype as Record<string, unknown>).polluted;
+      delete (Object.prototype as Record<string, unknown>).injected;
+    });
+
+    it("initializes and tears down resolvers for an embedded root", async () => {
+      document.body.innerHTML = `
+        <div id="root" data-formgen-render-mode="fields">
+          <select name="source" data-endpoint-url="/api/sources">
+            <option value="">Select a source</option>
+          </select>
+        </div>
+      `;
+      fetchSpy.mockResolvedValue(mockResponse([{ value: "one", label: "One" }]));
+
+      const root = document.getElementById("root")!;
+      const registry = await initFormgenRoot(root);
+      const select = root.querySelector("select")!;
+      expect(registry.get(select)).toBeDefined();
+
+      const controller = attachFormController(root, { registry });
+      controller.destroy();
+      expect(registry.get(select)).toBeUndefined();
+    });
+
+    it("fully tears down and reinitializes the same embedded root", async () => {
+      document.body.innerHTML = `
+          <div id="root" data-formgen-render-mode="fields">
+            <input name="kind" value="initial" />
+            <select name="dependent" data-endpoint-url="/api/dependent" data-endpoint-refresh-on="kind"></select>
+            <button type="button" data-endpoint-refresh-target="manual">Refresh manual</button>
+            <select name="manual" data-endpoint-url="/api/manual" data-endpoint-refresh="manual"></select>
+            <input name="search" data-endpoint-url="/api/search" data-endpoint-mode="search" data-endpoint-debounce="25" />
+            <select name="tags" multiple required data-endpoint-renderer="chips">
+              <option value="alpha">Alpha</option>
+            </select>
+            <select name="owner" required data-endpoint-url="/api/owners" data-endpoint-renderer="typeahead">
+              <option value="one">One</option>
+            </select>
+            <div>
+              <div data-formgen-array-items="true" data-formgen-array-name="rows" data-formgen-array-next-index="0" data-formgen-array-prototype-path="rows[0]" data-formgen-array-prototype-id-prefix="fg-rows-0">
+                <template data-formgen-array-prototype="true"><div data-formgen-array-item="true"><input id="fg-rows-0-name" name="rows[0].name" /></div></template>
+              </div>
+              <button type="button" data-formgen-array-action="add">Add row</button>
+            </div>
+          </div>
+      `;
+      fetchSpy.mockResolvedValue(mockResponse([]));
+      const root = document.getElementById("root")!;
+      const kind = root.querySelector<HTMLInputElement>('[name="kind"]')!;
+      const search = root.querySelector<HTMLInputElement>('[name="search"]')!;
+      const manualTrigger = root.querySelector<HTMLButtonElement>('[data-endpoint-refresh-target="manual"]')!;
+      const dependent = root.querySelector<HTMLSelectElement>('[name="dependent"]')!;
+      const manual = root.querySelector<HTMLSelectElement>('[name="manual"]')!;
+      const tags = root.querySelector<HTMLSelectElement>('[name="tags"]')!;
+      const owner = root.querySelector<HTMLSelectElement>('[name="owner"]')!;
+      const arrayItems = root.querySelector<HTMLElement>('[data-formgen-array-items]')!;
+      const addRow = root.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!;
+      let firstRequests = 0;
+      let secondRequests = 0;
+
+      const firstRegistry = await initFormgenRoot(root, {
+        beforeFetch: () => {
+          firstRequests += 1;
+        },
+      });
+      const firstController = attachFormController(root, { registry: firstRegistry });
+      const firstRequestBaseline = firstRequests;
+      search.value = "stale";
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      firstController.destroy();
+
+      expect(firstRegistry.get(dependent)).toBeUndefined();
+      expect(dependent.dataset.relationshipRefreshBound).toBeUndefined();
+      expect(manual.dataset.relationshipManualBound).toBeUndefined();
+      expect(manualTrigger.dataset.relationshipRefreshListener).toBeUndefined();
+      expect(search.dataset.relationshipSearchBound).toBeUndefined();
+      expect(root.querySelectorAll("[data-fg-chip-root]")).toHaveLength(0);
+      expect(root.querySelectorAll("[data-fg-typeahead-root]")).toHaveLength(0);
+      expect(tags.required).toBe(true);
+      expect(owner.required).toBe(true);
+      expect(arrayItems.dataset.formgenArrayInitialized).toBeUndefined();
+
+      const secondRegistry = await initFormgenRoot(root, {
+        beforeFetch: () => {
+          secondRequests += 1;
+        },
+      });
+      const secondController = attachFormController(root, { registry: secondRegistry });
+      const secondRequestBaseline = secondRequests;
+
+      expect(root.querySelectorAll("[data-fg-chip-root]")).toHaveLength(1);
+      expect(root.querySelectorAll("[data-fg-typeahead-root]")).toHaveLength(1);
+      expect(arrayItems.dataset.formgenArrayInitialized).toBe("true");
+
+      kind.dispatchEvent(new Event("input", { bubbles: true }));
+      manualTrigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      search.value = "fresh";
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      await flush();
+
+      expect(firstRequests).toBe(firstRequestBaseline);
+      expect(secondRequests).toBe(secondRequestBaseline + 3);
+
+      addRow.click();
+      expect(arrayItems.querySelectorAll(':scope > [data-formgen-array-item="true"]')).toHaveLength(1);
+      secondController.destroy();
+
+      let thirdRequests = 0;
+      const thirdRegistry = await initFormgenRoot(root, {
+        beforeFetch: () => {
+          thirdRequests += 1;
+        },
+      });
+      const thirdController = attachFormController(root, { registry: thirdRegistry });
+      const thirdRequestBaseline = thirdRequests;
+      kind.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+
+      expect(firstRequests).toBe(firstRequestBaseline);
+      expect(secondRequests).toBe(secondRequestBaseline + 3);
+      expect(thirdRequests).toBe(thirdRequestBaseline + 1);
+      expect(root.querySelectorAll("[data-fg-chip-root]")).toHaveLength(1);
+      expect(root.querySelectorAll("[data-fg-typeahead-root]")).toHaveLength(1);
+      thirdController.destroy();
+    });
+
+    it("keeps configured embedded roots isolated through hydration and teardown", async () => {
+      document.body.innerHTML = `
+        <div id="root-a" data-formgen-render-mode="fields">
+          <select name="target" data-endpoint-url="/api/a" data-endpoint-mode="search" data-endpoint-hydrate-param="ids">
+            <option value="">Select A</option>
+          </select>
+        </div>
+        <div id="root-b" data-formgen-render-mode="fields">
+          <select name="target" data-endpoint-url="/api/b" data-endpoint-mode="search" data-endpoint-hydrate-param="ids">
+            <option value="">Select B</option>
+          </select>
+        </div>
+      `;
+      fetchSpy.mockResolvedValue(mockResponse([]));
+      const requestsA: string[] = [];
+      const requestsB: string[] = [];
+      const globalBefore = getGlobalConfig();
+      const rootA = document.getElementById("root-a")!;
+      const rootB = document.getElementById("root-b")!;
+      const registryA = await initFormgenRoot(rootA, {
+        beforeFetch: ({ request }) => {
+          requestsA.push(request.url);
+        },
+      });
+      const registryB = await initFormgenRoot(rootB, {
+        beforeFetch: ({ request }) => {
+          requestsB.push(request.url);
+        },
+      });
+
+      expect(getGlobalConfig()).toBe(globalBefore);
+      expect((globalThis as Record<string, unknown>).formgenRelationships).toBeUndefined();
+
+      const selectA = rootA.querySelector("select")!;
+      const selectB = rootB.querySelector("select")!;
+      const controllerA = attachFormController(rootA, { registry: registryA });
+      const controllerB = attachFormController(rootB, { registry: registryB });
+      controllerA.setValues({ target: "alpha" });
+      controllerB.setValues({ target: "beta" });
+      controllerA.setErrors({ target: ["A is invalid"] });
+      controllerB.setErrors({ target: ["B is invalid"] });
+
+      expect(registryA.get(selectA)?.state.validation?.messages).toEqual(["A is invalid"]);
+      expect(registryB.get(selectB)?.state.validation?.messages).toEqual(["B is invalid"]);
+      await registryA.resolve(selectA);
+      expect(requestsA).toHaveLength(1);
+      expect(requestsA[0]).toContain("ids=alpha");
+      expect(requestsB).toHaveLength(0);
+      await registryB.resolve(selectB);
+      expect(requestsB).toHaveLength(1);
+      expect(requestsB[0]).toContain("ids=beta");
+
+      controllerA.reset();
+      expect(registryA.get(selectA)?.state.validation).toBeUndefined();
+      expect(registryB.get(selectB)?.state.validation?.messages).toEqual(["B is invalid"]);
+      controllerA.destroy();
+      expect(registryA.get(selectA)).toBeUndefined();
+      expect(registryB.get(selectB)).toBeDefined();
+      controllerB.destroy();
+    });
+
+    it("keeps global relationship initialization backward compatible", async () => {
+      const beforeFetch = vi.fn();
+      const registry = await initRelationships({ beforeFetch });
+
+      expect((globalThis as Record<string, unknown>).formgenRelationships).toBe(registry);
+      expect(getGlobalConfig().beforeFetch).toBe(beforeFetch);
+    });
+
+    it("initializes static chips without requiring a remote endpoint", async () => {
+      document.body.innerHTML = `
+        <div id="root" data-formgen-render-mode="fields">
+          <select name="tags" multiple data-endpoint-renderer="chips">
+            <option value="alpha">Alpha</option>
+            <option value="beta" data-option-description="Beta choice">Beta</option>
+          </select>
+        </div>
+      `;
+
+      const root = document.getElementById("root")!;
+      const registry = await initFormgenRoot(root);
+      const select = root.querySelector("select")!;
+      expect(registry.get(select)).toBeDefined();
+      expect(root.querySelector('[data-fg-chip-root]')).not.toBeNull();
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 
