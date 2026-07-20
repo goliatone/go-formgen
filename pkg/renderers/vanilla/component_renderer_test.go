@@ -1,6 +1,7 @@
 package vanilla
 
 import (
+	"encoding/json"
 	"io"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,41 @@ func TestComponentRendererUsesThemePartial(t *testing.T) {
 	}
 	if got := template.calls[0]; got != "themes/custom/input.tmpl" {
 		t.Fatalf("theme partial not applied, got %q", got)
+	}
+}
+
+func TestComponentRendererInputTemplatePreservesTypedNumericDefault(t *testing.T) {
+	template := &recordingTemplateRenderer{}
+	renderer := newComponentRenderer(template, components.NewDefaultRegistry(), nil, rendererTheme{}, nil)
+	defaultValue := json.Number("9007199254740993")
+
+	_, err := renderer.render(model.Field{
+		Name:    "count",
+		Type:    model.FieldTypeInteger,
+		Default: defaultValue,
+	}, "count")
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if len(template.data) == 0 {
+		t.Fatal("expected template payload")
+	}
+	payload, ok := template.data[0].(map[string]any)
+	if !ok {
+		t.Fatalf("template payload type = %T, want map[string]any", template.data[0])
+	}
+	field, ok := payload["field"].(model.Field)
+	if !ok {
+		t.Fatalf("template field type = %T, want model.Field", payload["field"])
+	}
+	if got, ok := field.Default.(json.Number); !ok || got.String() != defaultValue.String() {
+		t.Fatalf("template field default = %#v (%T), want unchanged json.Number", field.Default, field.Default)
+	}
+	if got := payload["control_value"]; got != defaultValue.String() {
+		t.Fatalf("control_value = %#v, want %q", got, defaultValue)
+	}
+	if got := payload["has_value"]; got != true {
+		t.Fatalf("has_value = %#v, want true", got)
 	}
 }
 
@@ -171,6 +207,7 @@ func normalizeHTML(input string) string {
 
 type recordingTemplateRenderer struct {
 	calls []string
+	data  []any
 }
 
 func (r *recordingTemplateRenderer) Render(name string, data any, out ...io.Writer) (string, error) {
@@ -179,6 +216,7 @@ func (r *recordingTemplateRenderer) Render(name string, data any, out ...io.Writ
 
 func (r *recordingTemplateRenderer) RenderTemplate(name string, data any, out ...io.Writer) (string, error) {
 	r.calls = append(r.calls, name)
+	r.data = append(r.data, data)
 	return "", nil
 }
 

@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -60,6 +61,52 @@ func TestAdapterNormalize_Success(t *testing.T) {
 	}
 	if form.Schema.Properties["title"].Type != "string" {
 		t.Fatalf("expected title type string, got %q", form.Schema.Properties["title"].Type)
+	}
+}
+
+func TestAdapterNormalize_PreservesNumericDefaultLexemes(t *testing.T) {
+	adapter := NewAdapter(failingLoader{})
+	raw := []byte(`{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"numeric.defaults",
+  "type":"object",
+  "properties":{
+    "large":{"type":"integer","default":9007199254740993},
+    "decimal":{"type":"number","default":1.25}
+  }
+}`)
+	doc := MustNewDocument(SourceFromFS("root.json"), raw)
+
+	ir, err := adapter.Normalize(context.Background(), doc, schema.NormalizeOptions{})
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	form, ok := ir.Form("numeric.defaults.edit")
+	if !ok {
+		t.Fatal("expected numeric.defaults.edit form")
+	}
+
+	for name, want := range map[string]string{
+		"large":   "9007199254740993",
+		"decimal": "1.25",
+	} {
+		got, ok := form.Schema.Properties[name].Default.(json.Number)
+		if !ok {
+			t.Fatalf("%s default type = %T, want json.Number", name, form.Schema.Properties[name].Default)
+		}
+		if got.String() != want {
+			t.Fatalf("%s default = %q, want %q", name, got, want)
+		}
+	}
+
+	formModel, err := pkgmodel.NewBuilder().Build(form)
+	if err != nil {
+		t.Fatalf("build model: %v", err)
+	}
+	fields := fieldsByName(formModel.Fields)
+	large, ok := fields["large"].Default.(json.Number)
+	if !ok || large.String() != "9007199254740993" {
+		t.Fatalf("large model default = %#v (%T), want exact json.Number", fields["large"].Default, fields["large"].Default)
 	}
 }
 

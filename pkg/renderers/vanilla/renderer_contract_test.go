@@ -82,7 +82,8 @@ func TestRenderer_FormatsNumericDefaultsForHTMLControls(t *testing.T) {
 		"properties": {
 			"integer": { "type": "integer", "default": 1 },
 			"zero": { "type": "integer", "default": 0 },
-			"decimal": { "type": "number", "default": 1.25 }
+			"decimal": { "type": "number", "default": 1.25 },
+			"large": { "type": "integer", "default": 9007199254740993 }
 		}
 	}`)
 	renderer, err := vanilla.New()
@@ -105,6 +106,7 @@ func TestRenderer_FormatsNumericDefaultsForHTMLControls(t *testing.T) {
 		{name: "integer", want: "1"},
 		{name: "zero", want: "0"},
 		{name: "decimal", want: "1.25"},
+		{name: "large", want: "9007199254740993"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			pattern := regexp.MustCompile(`(?s)<input\b[^>]*\bname="` + regexp.QuoteMeta(test.name) + `"[^>]*>`)
