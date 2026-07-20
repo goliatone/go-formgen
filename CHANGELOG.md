@@ -1,5 +1,28 @@
 # Changelog
 
+# [0.30.0](https://github.com/goliatone/go-formgen/compare/v0.29.1...v0.30.0) - (2026-07-20)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Integer handling ([8ff386e](https://github.com/goliatone/go-formgen/commit/8ff386e5b2ee4cd89a84b4150c684a20bcfe4285))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.30.0 ([03655f7](https://github.com/goliatone/go-formgen/commit/03655f7278c43b4ee3b6179a878cbb006962b812))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Form options ([47169f3](https://github.com/goliatone/go-formgen/commit/47169f311e3a5bb9809563e47f3bcdd463be2c25))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.29.1 ([9953d7a](https://github.com/goliatone/go-formgen/commit/9953d7a00663cf4427c8888806a4fde04a8eda8a))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([4a4d93a](https://github.com/goliatone/go-formgen/commit/4a4d93a377255984b75345435cbd31be7128be12))  - (goliatone)
+- Update tests ([f5bf9cd](https://github.com/goliatone/go-formgen/commit/f5bf9cdc60daa0ea0e293e31d6bd8e6f61d7de5d))  - (goliatone)
+
 # [0.29.1](https://github.com/goliatone/go-formgen/compare/v0.29.0...v0.29.1) - (2026-06-24)
 
 ## <!-- 1 -->🐛 Bug Fixes
