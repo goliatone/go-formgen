@@ -46,6 +46,10 @@ const (
 // remain string typed to keep JSON snapshots deterministic.
 type ValidationRule = internalmodel.ValidationRule
 
+// Option preserves rich choice presentation independently of JSON Schema enum
+// compatibility.
+type Option = internalmodel.Option
+
 // Field mirrors internal model fields for renderer consumption.
 type Field = internalmodel.Field
 type FormModel = internalmodel.FormModel
