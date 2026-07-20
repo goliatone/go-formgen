@@ -52,6 +52,22 @@ func TestResolve_Builtins(t *testing.T) {
 			expect: WidgetSelect,
 		},
 		{
+			name: "array chips rich options",
+			field: model.Field{
+				Type:    model.FieldTypeArray,
+				Options: []model.Option{{Value: "a"}},
+			},
+			expect: WidgetChips,
+		},
+		{
+			name: "select rich options",
+			field: model.Field{
+				Type:    model.FieldTypeString,
+				Options: []model.Option{{Value: "a"}},
+			},
+			expect: WidgetSelect,
+		},
+		{
 			name: "code editor json format",
 			field: model.Field{
 				Type:   model.FieldTypeString,

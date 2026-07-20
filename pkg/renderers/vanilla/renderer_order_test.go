@@ -16,7 +16,7 @@ func TestBuildLayoutContext_AppliesSectionFieldOrder(t *testing.T) {
 
 	sections := []sectionMeta{
 		{ID: "primary", Order: 0, Fieldset: true},
-		{ID: "secondary", Order: 1},
+		{ID: "secondary", Order: 1, UIHints: map[string]string{"collapsible": "true", "collapsed": "true"}},
 	}
 	sectionsPayload, err := json.Marshal(sections)
 	if err != nil {
@@ -75,6 +75,9 @@ func TestBuildLayoutContext_AppliesSectionFieldOrder(t *testing.T) {
 	}
 
 	secondary := findSectionByID(t, layout, "secondary")
+	if !secondary.Collapsible || !secondary.Collapsed {
+		t.Fatalf("secondary section collapse hints were not preserved: %#v", secondary)
+	}
 	if got := namesFromRendered(secondary.Fields); !equalSlice(got, []string{"notes"}) {
 		t.Fatalf("secondary fields order mismatch: %v", got)
 	}

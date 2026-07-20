@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -70,6 +71,83 @@ func TestRenderer_EncodesEnumOptionValues(t *testing.T) {
 	}
 	if !strings.Contains(html, `>2</option>`) {
 		t.Fatalf("expected enum label to remain display value in output:\n%s", html)
+	}
+}
+
+func TestRenderer_FormatsNumericDefaultsForHTMLControls(t *testing.T) {
+	form := buildFormFromJSONSchema(t, `{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id": "numeric-defaults",
+		"type": "object",
+		"properties": {
+			"integer": { "type": "integer", "default": 1 },
+			"zero": { "type": "integer", "default": 0 },
+			"decimal": { "type": "number", "default": 1.25 }
+		}
+	}`)
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode: render.RenderModeFields,
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := string(output)
+	for _, test := range []struct {
+		name string
+		want string
+	}{
+		{name: "integer", want: "1"},
+		{name: "zero", want: "0"},
+		{name: "decimal", want: "1.25"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pattern := regexp.MustCompile(`(?s)<input\b[^>]*\bname="` + regexp.QuoteMeta(test.name) + `"[^>]*>`)
+			tag := pattern.FindString(html)
+			if tag == "" {
+				t.Fatalf("input %q not found in output:\n%s", test.name, html)
+			}
+			if !strings.Contains(tag, `value="`+test.want+`"`) {
+				t.Fatalf("input %q value mismatch, want %q in:\n%s", test.name, test.want, tag)
+			}
+		})
+	}
+}
+
+func TestRenderer_RendersRichOptions(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "richOptions",
+		Fields: []model.Field{{
+			Name: "environment",
+			Type: model.FieldTypeString,
+			Options: []model.Option{
+				{Value: "prod", Label: "Production", Description: "Live data", Metadata: map[string]any{"tier": 1}},
+				{Value: "retired", Label: "Retired", Disabled: true},
+			},
+		}},
+	}
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{RenderMode: render.RenderModeFields})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(output)
+	for _, want := range []string{
+		`value="prod" data-option-description="Live data" data-option-metadata="{&quot;tier&quot;:1}">Production</option>`,
+		`value="retired" disabled>Retired</option>`,
+		`data-formgen-render-mode="fields"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("expected %q in rich option output:\n%s", want, html)
+		}
 	}
 }
 
