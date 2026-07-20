@@ -8,12 +8,13 @@ import (
 )
 
 func TestToIntValueAcceptsLosslessJSONNumbers(t *testing.T) {
-	tests := []struct {
+	type testCase struct {
 		name  string
 		value any
 		want  int
 		ok    bool
-	}{
+	}
+	tests := []testCase{
 		{name: "integer", value: json.Number("2"), want: 2, ok: true},
 		{name: "integral decimal", value: json.Number("2.0"), want: 2, ok: true},
 		{name: "fraction", value: json.Number("2.5"), ok: false},
@@ -24,18 +25,8 @@ func TestToIntValueAcceptsLosslessJSONNumbers(t *testing.T) {
 
 	if strconv.IntSize == 64 {
 		tests = append(tests,
-			struct {
-				name  string
-				value any
-				want  int
-				ok    bool
-			}{name: "maximum int", value: json.Number("9223372036854775807"), want: math.MaxInt, ok: true},
-			struct {
-				name  string
-				value any
-				want  int
-				ok    bool
-			}{name: "integer overflow", value: json.Number("9223372036854775808"), ok: false},
+			testCase{name: "maximum int", value: json.Number("9223372036854775807"), want: math.MaxInt, ok: true},
+			testCase{name: "integer overflow", value: json.Number("9223372036854775808"), ok: false},
 		)
 	}
 
