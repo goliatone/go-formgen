@@ -265,8 +265,38 @@ render.RenderOptions{RenderMode: render.RenderModeFields} // controls only, no <
 ```
 
 The browser bundle also exposes `window.Formgen.attach(root)`, returning a
-controller with `getValues`, `setValues`, `setErrors`, `clearErrors`, `onChange`,
-`focus`, and `destroy`.
+controller with `getValues`, `setValues`, `reset`, `setErrors`, `clearErrors`,
+`onChange`, `focus`, and `destroy`. `reset` restores rendered defaults, clears
+field errors, and resynchronizes enhanced widgets.
+
+For fields-only roots that use remote scalar or chips options, initialize the
+root before attaching the final controller:
+
+```js
+const registry = await FormgenRelationships.initFormgenRoot(root, {
+  beforeFetch(context) {
+    // Hosts may authorize, sign, or rewrite context.request in place.
+  },
+});
+const controller = FormgenRelationships.Formgen.attach(root, { registry });
+// Later: controller.destroy(), or registry.destroy(root).
+```
+
+`initFormgenRoot` keeps its registry and configuration local to that root; it
+does not replace `globalThis.formgenRelationships` or the global resolver
+configuration. Passing the returned registry to `Formgen.attach` also keeps
+value, reset, and error hydration bound to that root. Destroying the controller
+or calling `registry.destroy(root)` removes refresh/search listeners, cancels
+pending delayed work, and tears down enhanced widgets, components, and array
+repeaters, so the same mounted root can be initialized again safely. Use
+`initRelationships` when intentionally initializing and publishing the
+page-wide registry.
+
+`model.Field.Options` carries stable values, labels, descriptions, disabled
+state, and JSON-safe metadata. Generic `x-endpoint` fields may select the
+`select` or `chips` renderer and use dependency-driven refresh, debounce,
+request cancellation/stale-response protection, cache policy, and selection
+preservation without declaring a relationship.
 
 Sensitive defaults are redacted from descriptor and browser renderer output by
 default. Fields are marked sensitive by `format: password`, `x-formgen.sensitive`,

@@ -676,9 +676,32 @@ Other supported hints:
 Runtime note: the WYSIWYG editor and runtime-backed form widgets are implemented in the browser runtime bundle `formgen-relationships.min.js` (`/runtime/formgen-relationships.min.js`). The `wysiwyg`, `file_uploader`, and `media_picker` components inject this runtime automatically; if you render relationship fields without one of those components, include the runtime yourself and call `FormgenRelationships.initRelationships()`.
 
 For embedded forms, the same bundle exposes `window.Formgen.attach(root)`. The
-returned controller supports `getValues`, `setValues`, `setErrors`,
+returned controller supports `getValues`, `setValues`, `reset`, `setErrors`,
 `clearErrors`, `onChange`, `focus`, and `destroy`, and works with full form roots
-or fields-only roots.
+or fields-only roots. Runtime-backed option fields should use the root-scoped
+lifecycle so resolver state is also torn down:
+
+```js
+const registry = await FormgenRelationships.initFormgenRoot(root, resolverConfig);
+const controller = FormgenRelationships.Formgen.attach(root, { registry });
+// controller.reset() restores defaults and synchronizes enhanced widgets.
+// controller.destroy() destroys its registry; registry.destroy(root) is also
+// available when the host owns lifecycle directly.
+```
+
+Root initialization is isolated: `resolverConfig` and the returned registry do
+not replace global resolver configuration or `globalThis.formgenRelationships`.
+The attached controller uses that exact registry for value/error hydration.
+Controller or registry teardown also disposes refresh/search listeners, pending
+delayed work, enhanced relationship widgets, components, array repeaters, and
+binding markers. A still-mounted root can therefore be initialized again with a
+new registry or configuration without stale closures or duplicate handlers.
+Call `initRelationships` only when a page-wide registry is intended.
+
+`resolverConfig.beforeFetch` can rewrite or sign a generic option request while
+preserving its `AbortSignal`. This is the intended host boundary for protected
+option endpoints; loading, empty/error state, dependent refresh, caching,
+stale-response rejection, and select/chips DOM updates remain runtime-owned.
 
 ### Custom Repeatable Array Renderers
 

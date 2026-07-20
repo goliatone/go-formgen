@@ -11,7 +11,13 @@
   inside nested objects, and inside array item objects. A single ordered field is
   honored; unordered siblings follow in deterministic property-name order.
 - Added browser controller hooks at `window.Formgen.attach(root)` for value
-  collection, value/error hydration, subscriptions, focus, and teardown.
+  collection, value/error hydration, default restoration via `reset`,
+  subscriptions, focus, and teardown.
+- Added rich renderer-neutral options, generic select/chips option resolvers,
+  and root-scoped `initFormgenRoot` registry lifecycle for embedded forms.
+- Embedded-root teardown now disposes refresh/search listeners, pending delayed
+  work, enhanced widgets, components, and array repeaters, allowing safe
+  reinitialization of the same mounted DOM root.
 - Added vanilla `StyleModeDefault`, `StyleModeMinimal`, and `StyleModeUnstyled`
   for host-owned styling.
 - Added `Field.Sensitive` detection and default redaction for descriptor and
