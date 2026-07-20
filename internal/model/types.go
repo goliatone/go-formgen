@@ -56,6 +56,17 @@ type ValidationRule struct {
 	Params map[string]string `json:"params,omitempty"`
 }
 
+// Option is a renderer-neutral choice for scalar and multi-value controls.
+// Value remains JSON typed while presentation metadata is preserved for rich
+// select, chips, and remotely refreshed option widgets.
+type Option struct {
+	Value       any            `json:"value"`
+	Label       string         `json:"label,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Disabled    bool           `json:"disabled,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+}
+
 // Field models an individual input inside a generated form. Struct fields are
 // annotated so renderers can serialise them directly when needed.
 type Field struct {
@@ -71,6 +82,7 @@ type Field struct {
 	Default      any               `json:"default,omitempty"`
 	Sensitive    bool              `json:"sensitive,omitempty"`
 	Enum         []any             `json:"enum,omitempty"`
+	Options      []Option          `json:"options,omitempty"`
 	Nested       []Field           `json:"nested,omitempty"`
 	Items        *Field            `json:"items,omitempty"`
 	OneOf        []Field           `json:"oneOf,omitempty"`
