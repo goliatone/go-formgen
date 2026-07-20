@@ -33,6 +33,10 @@ Composition keywords such as `allOf`, `anyOf`, `if/then/else`,
 `dependentSchemas`, and advanced JSON Schema vocabularies are **not** supported
 yet. `oneOf` is supported only for block unions on array items.
 
+JSON numeric defaults retain their source lexemes through form-model creation.
+This keeps integers beyond IEEE-754's exact range intact and lets renderers
+emit concise values such as `1`, `0`, and `1.25` without float padding.
+
 ### Sensitive Fields
 
 Fields are marked sensitive when `format` is `password` or any supported

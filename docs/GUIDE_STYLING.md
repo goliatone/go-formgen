@@ -357,6 +357,12 @@ The `forms.form` partial overrides the root form template (formerly only
 overrideable via `WithTemplatesFS`). Use it when you need to customize the
 wrapper chrome or layout structure globally for a theme.
 
+The `forms.input` partial receives the original typed `field` together with
+`control_value` (the scalar formatted for an HTML `value` attribute) and
+`has_value` (explicit presence, including zero and empty-string defaults).
+Use the latter two keys when rendering the `value` attribute; do not format or
+test `field.default` through template truthiness.
+
 **Template lookup order:**
 
 1. Variant-specific template (if defined in variant)
