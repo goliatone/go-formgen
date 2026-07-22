@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.31.0](https://github.com/goliatone/go-formgen/compare/v0.30.2...v0.31.0) - (2026-07-22)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Enhanced multi select keep generated hidden inputs ([4030a4d](https://github.com/goliatone/go-formgen/commit/4030a4d17e58066d6436047eb52007c7248a1f9a))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.31.0 ([6fd4253](https://github.com/goliatone/go-formgen/commit/6fd4253aea393ac62b66c56c744aeaebb55402d1))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.30.2 ([511eb59](https://github.com/goliatone/go-formgen/commit/511eb5981d56e76d955f22bf8aaf12202e660323))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([12191ee](https://github.com/goliatone/go-formgen/commit/12191eee965eb12e2f495ef84bc0ed57f1b39c85))  - (goliatone)
+
 # [0.30.2](https://github.com/goliatone/go-formgen/compare/v0.30.1...v0.30.2) - (2026-07-22)
 
 ## <!-- 1 -->🐛 Bug Fixes
