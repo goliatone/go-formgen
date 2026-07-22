@@ -292,6 +292,13 @@ repeaters, so the same mounted root can be initialized again safely. Use
 `initRelationships` when intentionally initializing and publishing the
 page-wide registry.
 
+Relationship multi-selects may generate hidden inputs for native form
+submission. Those inputs are submission mirrors, not controller fields:
+`controller.getValues()` reads the authoritative select once and preserves an
+array even when only one option is selected. The same rule applies to JSON
+submission mirrors; ordinary application-owned hidden inputs remain available
+unless `includeHidden: false` is requested.
+
 `model.Field.Options` carries stable values, labels, descriptions, disabled
 state, and JSON-safe metadata. Generic `x-endpoint` fields may select the
 `select` or `chips` renderer and use dependency-driven refresh, debounce,

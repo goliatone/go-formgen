@@ -698,6 +698,13 @@ binding markers. A still-mounted root can therefore be initialized again with a
 new registry or configuration without stale closures or duplicate handlers.
 Call `initRelationships` only when a page-wide registry is intended.
 
+Enhanced multi-selects keep their generated hidden inputs for native browser
+submission, but the controller excludes those transport mirrors from
+`getValues()`. It reads the underlying select as the authoritative field, so a
+one-item multi-select remains an array and JSON submission mirrors do not turn
+controller values into serialized strings. Host-authored hidden inputs are
+still included by default.
+
 `resolverConfig.beforeFetch` can rewrite or sign a generic option request while
 preserving its `AbortSignal`. This is the intended host boundary for protected
 option endpoints; loading, empty/error state, dependent refresh, caching,
