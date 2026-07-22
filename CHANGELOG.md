@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.30.2](https://github.com/goliatone/go-formgen/compare/v0.30.1...v0.30.2) - (2026-07-22)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Preserve RFC 3896 abs routes ([42bdf7f](https://github.com/goliatone/go-formgen/commit/42bdf7fcaa10ce6ee5c7b7a7867a2feee79bfeb5))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.30.2 ([2531ec5](https://github.com/goliatone/go-formgen/commit/2531ec5eb2556c5b62717e954c82b99648835e84))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.30.1 ([a68fe36](https://github.com/goliatone/go-formgen/commit/a68fe36c55695d845cacc0e848b65222b972ef45))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update test ([fa9bcd9](https://github.com/goliatone/go-formgen/commit/fa9bcd9abc32182f4a6ef62f65d4084900039b03))  - (goliatone)
+
 # [0.30.1](https://github.com/goliatone/go-formgen/compare/v0.30.0...v0.30.1) - (2026-07-20)
 
 ## <!-- 13 -->📦 Bumps
