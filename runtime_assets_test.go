@@ -15,6 +15,7 @@ func TestRuntimeAssetsFSContainsRuntimeBundle(t *testing.T) {
 		t.Fatalf("expected runtime bundle to be readable: %v", err)
 	}
 	assertBundleExposesFormgenController(t, data)
+	assertBundlePreservesAbsoluteURISchemes(t, data)
 }
 
 func TestVanillaAssetsFSContainsCurrentRuntimeBundle(t *testing.T) {
@@ -23,6 +24,7 @@ func TestVanillaAssetsFSContainsCurrentRuntimeBundle(t *testing.T) {
 		t.Fatalf("expected vanilla runtime bundle to be readable: %v", err)
 	}
 	assertBundleExposesFormgenController(t, data)
+	assertBundlePreservesAbsoluteURISchemes(t, data)
 }
 
 func TestRuntimeAssetsFSBehaviorsBundleIncludesAutoResize(t *testing.T) {
@@ -41,5 +43,12 @@ func assertBundleExposesFormgenController(t *testing.T, data []byte) {
 	bundle := string(data)
 	if !strings.Contains(bundle, "Formgen") || !strings.Contains(bundle, "attach") {
 		t.Fatalf("expected runtime bundle to expose window.Formgen.attach")
+	}
+}
+
+func assertBundlePreservesAbsoluteURISchemes(t *testing.T, data []byte) {
+	t.Helper()
+	if !strings.Contains(string(data), `^[a-z][a-z0-9+.-]*:`) {
+		t.Fatalf("expected runtime bundle to preserve absolute URI schemes for beforeFetch hooks")
 	}
 }
