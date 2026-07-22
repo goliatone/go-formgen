@@ -8,6 +8,7 @@ import { setGlobalConfig } from "./config";
 import {
   locateRelationshipFields,
   readDataset,
+  RELATIONSHIP_ORIGINAL_NAME_ATTR,
   syncHiddenInputs,
   syncJsonInput,
 } from "./dom";
@@ -580,6 +581,13 @@ function shouldCollectField(
     return false;
   }
   if (field instanceof HTMLInputElement) {
+    // Relationship renderers create hidden inputs to preserve native form
+    // submission semantics. The select remains the authoritative controller
+    // field; collecting its mirrors would overwrite arrays with scalar or
+    // serialized values when the controller walks the DOM.
+    if (field.closest("[data-relationship-hidden]")) {
+      return false;
+    }
     const type = field.type.toLowerCase();
     if (["button", "submit", "reset", "file"].includes(type)) {
       return false;
@@ -594,6 +602,7 @@ function shouldCollectField(
 function fieldName(field: HTMLElement): string {
   return (
     field.getAttribute("name") ||
+    field.getAttribute(RELATIONSHIP_ORIGINAL_NAME_ATTR) ||
     field.getAttribute("data-field-path") ||
     field.dataset.fieldName ||
     field.id ||
@@ -852,6 +861,7 @@ function collectFieldKeys(element: HTMLElement): string[] {
   const keys = new Set<string>();
   const candidates = [
     element.getAttribute("name"),
+    element.getAttribute(RELATIONSHIP_ORIGINAL_NAME_ATTR),
     element.dataset.fieldName,
     element.getAttribute("data-field-path"),
     element.id,

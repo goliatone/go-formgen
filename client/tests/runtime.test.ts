@@ -1762,6 +1762,44 @@ describe("runtime resolver", () => {
       expect(changes).toHaveBeenCalledTimes(1);
     });
 
+    it("preserves relationship multi-select arrays instead of collecting native submission mirrors", async () => {
+      document.body.innerHTML = `
+        <div id="root" data-formgen-render-mode="fields">
+          <select name="indexes" multiple data-endpoint-url="/api/indexes" data-endpoint-renderer="chips">
+            <option value="site_content" selected>Site Content</option>
+            <option value="archive_media">Archive Media</option>
+          </select>
+          <select name="json_indexes" multiple data-endpoint-url="/api/indexes" data-endpoint-renderer="chips" data-endpoint-submit-as="json">
+            <option value="archive_media" selected>Archive Media</option>
+          </select>
+          <input type="hidden" name="_csrf" value="token" />
+        </div>
+      `;
+      fetchSpy.mockResolvedValue(
+        mockResponse([
+          { value: "site_content", label: "Site Content" },
+          { value: "archive_media", label: "Archive Media" },
+        ])
+      );
+
+      const root = document.getElementById("root")!;
+      const registry = await initFormgenRoot(root);
+      const controller = attachFormController(root, { registry });
+
+      expect(root.querySelectorAll('[data-relationship-hidden] input[type="hidden"]')).toHaveLength(2);
+      expect(controller.getValues()).toEqual({
+        indexes: ["site_content"],
+        json_indexes: ["archive_media"],
+        _csrf: "token",
+      });
+      expect(controller.getValues({ includeHidden: false })).toEqual({
+        indexes: ["site_content"],
+        json_indexes: ["archive_media"],
+      });
+
+      controller.destroy();
+    });
+
     it("rejects prototype-polluting paths and only traverses own controller values", () => {
       delete (Object.prototype as Record<string, unknown>).polluted;
       delete (Object.prototype as Record<string, unknown>).injected;

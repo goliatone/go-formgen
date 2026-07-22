@@ -10,7 +10,7 @@ const HIDDEN_INITIALISED_ATTR = "data-relationship-hidden-initialised";
 const JSON_INITIALISED_ATTR = "data-relationship-json-initialised";
 const JSON_INPUT_ATTR = "data-relationship-json";
 const SUBMIT_MODE_ATTR = "data-relationship-submit-mode";
-const ORIGINAL_NAME_ATTR = "data-relationship-original-name";
+export const RELATIONSHIP_ORIGINAL_NAME_ATTR = "data-relationship-original-name";
 
 export function locateRelationshipFields(
   root: Document | HTMLElement = document
@@ -115,7 +115,7 @@ export function attachJsonInputSync(select: HTMLSelectElement): void {
   ensureRelationshipSelectionBridge(select);
   const originalName = select.getAttribute("name");
   if (originalName) {
-    select.setAttribute(ORIGINAL_NAME_ATTR, originalName);
+    select.setAttribute(RELATIONSHIP_ORIGINAL_NAME_ATTR, originalName);
     select.removeAttribute("name");
   }
   syncJsonInput(select);
@@ -140,7 +140,7 @@ export function syncJsonInput(select: HTMLSelectElement): void {
     container.appendChild(input);
   }
 
-  const originalName = select.getAttribute(ORIGINAL_NAME_ATTR) ?? select.getAttribute("name");
+  const originalName = select.getAttribute(RELATIONSHIP_ORIGINAL_NAME_ATTR) ?? select.getAttribute("name");
   if (originalName) {
     const trimmed = originalName.endsWith("[]")
       ? originalName.slice(0, originalName.length - 2)
