@@ -806,7 +806,12 @@ export class Resolver {
   }
 
   private normaliseBaseUrl(url: string): string {
-    if (/^https?:/i.test(url)) {
+    // Preserve every RFC 3986 absolute URI reference, not only HTTP(S).
+    // Hosts use synthetic schemes as a safe transport boundary and rewrite
+    // them in beforeFetch. Converting `command-options://...` into
+    // `/command-options://...` makes it a same-origin application route before
+    // the host has a chance to identify it.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
       return url;
     }
     const base = this.config.baseUrl?.replace(/\/$/, "") ?? "";

@@ -175,6 +175,27 @@ describe("runtime resolver", () => {
     expect(option?.textContent).toBe("ALICE");
   });
 
+  it("preserves absolute URI schemes until beforeFetch rewrites them", async () => {
+    const field = createMarkup();
+    field.dataset.endpointUrl = "command-options://search.repair/indexes";
+    field.dataset.endpointMethod = "POST";
+    fetchSpy.mockResolvedValue(mockResponse(fixtures.simplified));
+    let hookUrl = "";
+
+    await initRelationships({
+      beforeFetch: ({ request }) => {
+        hookUrl = request.url;
+        request.url = "/admin/debug/api/panels/commands/actions/resolve_options";
+      },
+    });
+
+    expect(hookUrl).toBe("command-options://search.repair/indexes?format=options");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/admin/debug/api/panels/commands/actions/resolve_options",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
   it("requests simplified options format by default", async () => {
     const field = createMarkup();
     let requestedUrl: string | undefined;

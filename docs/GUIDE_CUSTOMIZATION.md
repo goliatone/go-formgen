@@ -702,6 +702,10 @@ Call `initRelationships` only when a page-wide registry is intended.
 preserving its `AbortSignal`. This is the intended host boundary for protected
 option endpoints; loading, empty/error state, dependent refresh, caching,
 stale-response rejection, and select/chips DOM updates remain runtime-owned.
+Absolute URI references, including host-owned synthetic schemes such as
+`command-options://`, are preserved until this hook runs. Relative endpoint
+paths continue to use `baseUrl`. A synthetic scheme must always be rewritten by
+the hook; it is never an application route and should not be dispatched as-is.
 
 ### Custom Repeatable Array Renderers
 
