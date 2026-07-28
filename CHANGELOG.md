@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.32.0](https://github.com/goliatone/go-formgen/compare/v0.31.0...v0.32.0) - (2026-07-28)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.32.0 ([884caed](https://github.com/goliatone/go-formgen/commit/884caed91806edb340df51c975a4e28665d4d543))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Updated preact hydration, harden readonly, stable data hooks ([871e277](https://github.com/goliatone/go-formgen/commit/871e277c46cf897df08e3df0dd32a71cc884aa90))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.31.0 ([ebf79ad](https://github.com/goliatone/go-formgen/commit/ebf79ad9208022d7e855369f25d0b5475aba585c))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Update docs ([fe36552](https://github.com/goliatone/go-formgen/commit/fe3655247c10d1e5ad6ae3c2a8204e0518b643f4))  - (goliatone)
+
 # [0.31.0](https://github.com/goliatone/go-formgen/compare/v0.30.2...v0.31.0) - (2026-07-22)
 
 ## <!-- 1 -->🐛 Bug Fixes
