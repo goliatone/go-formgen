@@ -23,6 +23,8 @@ github.com/goliatone/go-template v0.3.1 h1:x714biuWqtCyrtTmIrt2YjXWPYBOIS/Y2DPdW
 github.com/goliatone/go-template v0.3.1/go.mod h1:2mFRGMnfvAn3r4ClMmlu4wBVkSKXgtXhVdmmmhhgSr4=
 github.com/goliatone/go-theme v0.4.0 h1:IzP23Xm88YKmw0GjDg3dsvydDduB1lj53awUjObZDak=
 github.com/goliatone/go-theme v0.4.0/go.mod h1:ZmjyB8jDSzO1ABpVfw/UrnO4wgYllpdogvo7al4csOQ=
+github.com/goliatone/go-theme v0.5.0 h1:Mk9WNPKCncVHrrZ+9LV3iYMOZpQwdiJ26TUgjsqcZgM=
+github.com/goliatone/go-theme v0.5.0/go.mod h1:ZmjyB8jDSzO1ABpVfw/UrnO4wgYllpdogvo7al4csOQ=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec h1:qv2VnGeEQHchGaZ/u7lxST/RaJw+cv273q79D81Xbog=
