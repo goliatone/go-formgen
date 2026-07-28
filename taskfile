@@ -896,6 +896,44 @@ function version:check {
 ## Arguments:
 ## @arg 1 {string} [level=patch]
 ##        Accepted major, minor, patch
+function release:preflight {
+    (
+        set -euo pipefail
+
+        local preflight_base
+        local preflight_root
+        local preflight_source
+
+        preflight_base=${TMPDIR:-/tmp}
+        preflight_base=${preflight_base%/}
+        preflight_base=$(cd "${preflight_base}" && pwd -P)
+        preflight_root=$(mktemp -d "${preflight_base}/go-formgen-release.XXXXXX")
+        preflight_source="${preflight_root}/source"
+
+        function release:preflight:cleanup {
+            case "${preflight_root}" in
+                "${preflight_base}"/go-formgen-release.*)
+                    if [ -d "${preflight_root}" ]; then
+                        chmod -R u+w "${preflight_root}"
+                        rm -r -- "${preflight_root}"
+                    fi
+                    ;;
+                *)
+                    echo "Refusing to remove unexpected preflight directory: ${preflight_root}" >&2
+                    return 1
+                    ;;
+            esac
+        }
+        trap release:preflight:cleanup EXIT HUP INT TERM
+
+        mkdir -p "${preflight_source}"
+        git archive --format=tar HEAD | tar -x -C "${preflight_source}"
+
+        cd "${preflight_source}"
+        GOWORK=off GOFLAGS=-mod=readonly go test ./...
+    )
+}
+
 function release {
     local tag
     local level
@@ -908,6 +946,9 @@ function release {
 
     # Pull tags to make sure we have
     git pull --tags -f
+
+    # Test the exact tracked source that the tag will publish.
+    release:preflight
 
     level=${1:-"patch"}
 
