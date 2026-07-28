@@ -1,5 +1,42 @@
 # Release Notes & Migration Guide (Phase 10)
 
+## Semantic Theme Contract (proposed v0.32.0)
+
+- The opt-in `pkg/orchestrator/defaults` theme integration now uses go-theme's
+  constrained projection API with the portable profile extended by
+  go-formgen-owned `form.*` tokens.
+- `render.ThemeConfig` carries deterministic safe inline variables, supported
+  semantic tokens, and projection diagnostics without adding go-theme to the
+  headless model or core orchestrator dependency path.
+- Vanilla and Preact now share package-token to portable-token fallback
+  semantics for form chrome, controls, focus, validation, disabled, readonly,
+  loading, placeholder, help, and responsive states.
+- Preact now renders disabled/readonly attributes and server field/form errors
+  in its client runtime, including accessible invalid-state hooks.
+- Preact hydration now preserves document, form, and fields structure.
+  Readonly chips/typeahead controls remain submittable while rejecting all
+  user mutation paths and reflecting runtime loading state.
+- `OmitAssets` now suppresses link, style, and script tags consistently in
+  both HTML renderers while preserving theme, variant, and semantic root hooks.
+- Empty or unsupported semantic input preserves existing renderer defaults;
+  direct legacy `ThemeConfig`, partials, assets, variants, render modes,
+  vanilla style modes, and class overrides remain compatible.
+
+### Semantic theme migration
+
+- This release requires go-theme v0.5.0 or later. Do not pin the unpublished
+  candidate with a repository `replace`, pseudo-version, or checked-in
+  workspace; update the dependency only after the reviewed go-theme version is
+  published.
+- Prefer dotted semantic keys such as `form.control.background`,
+  `color.text.primary`, and `color.focus.ring`. Safe legacy keys continue to
+  project as CSS variables but are diagnosed as unsupported by the semantic
+  profile and are not consumed automatically.
+- Invalid token values are intentionally omitted from inline CSS. Inspect the
+  `formgen-theme` JSON diagnostics for `invalid`, `unsupported`, `consumed`,
+  and `unused` outcomes.
+- No template or golden refresh is required when semantic tokens are absent.
+
 ## API Embedding and Renderer Improvements
 
 - Added a `json` descriptor renderer with a versioned envelope separating form,

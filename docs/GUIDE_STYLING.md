@@ -208,8 +208,84 @@ gen := formgen.NewOrchestrator(
 - `Variant` — Variant name (`"default"`)
 - `Partials` — Template path map (`{"forms.input": "themes/acme/input.tmpl"}`)
 - `Tokens` — Design token map (`{"primary-color": "#3b82f6"}`)
-- `CSSVars` — Auto-generated CSS variables (`{"--primary-color": "#3b82f6"}`)
+- `CSSVars` — Safely projected CSS variables (`{"--primary-color": "#3b82f6"}`)
 - `AssetURL(key)` — Function resolving `"logo"` → `"/static/themes/acme/logo.svg"`
+
+The renderer-enabled defaults integration projects tokens with go-theme's
+portable profile plus go-formgen's form profile. Importing
+`pkg/orchestrator` alone remains headless; opt in through
+`pkg/orchestrator/defaults` or the root compatibility helpers.
+
+### Semantic Form Tokens
+
+Vanilla and Preact consume the same semantic form tokens. Resolution is:
+
+```text
+form token -> portable token -> existing renderer default
+```
+
+The final step does not emit a new CSS literal. When neither semantic token is
+present, the renderer's existing stylesheet and classes remain authoritative.
+
+| Form token | Portable fallback |
+| --- | --- |
+| `form.control.background` | `color.surface.default` |
+| `form.control.text` | `color.text.primary` |
+| `form.control.border` | `color.border.default` |
+| `form.control.border-focus` | `color.focus.ring` |
+| `form.control.placeholder` | `color.text.secondary` |
+| `form.control.disabled-background` | `color.surface.subtle` |
+| `form.control.disabled-text` | `color.text.secondary` |
+| `form.control.invalid-border` | `color.status.danger` |
+| `form.control.height` | `size.control.height` |
+| `form.control.radius` | `radius.control` |
+| `form.label.text` | `color.text.primary` |
+| `form.help.text` | `color.text.secondary` |
+| `form.error.text` | `color.status.danger` |
+
+Portable typography, spacing, action, motion, surface, and radius tokens are
+also consumed where the renderer has a matching hook. For example:
+
+```go
+manifest := &theme.Manifest{
+    Name: "acme",
+    Tokens: map[string]string{
+        "color.surface.default":       "#0f172a",
+        "color.text.primary":          "#e2e8f0",
+        "color.focus.ring":            "#60a5fa",
+        "form.control.background":     "#111827",
+        "form.control.invalid-border": "#f87171",
+        "space.stack":                 "1rem",
+    },
+}
+```
+
+Only values accepted by the token's constraint reach inline CSS. Invalid
+names, unsafe values, and collisions are omitted. Safe legacy tokens remain
+available as CSS variables but are reported as unsupported by the semantic
+profile. The `formgen-theme` JSON payload includes deterministic projection
+diagnostics and renderer-level `consumed` or `unused` outcomes; Preact also
+includes the safe `semanticTokens` map used by its client context.
+
+Semantic CSS is additive:
+
+- vanilla default and minimal modes emit it; unstyled mode emits no default or
+  semantic presentation;
+- Preact document, form, and fields modes emit the same safe variables and
+  semantic state meanings;
+- explicit templates, `ChromeClasses`, theme assets, and renderer-specific
+  styles keep their existing precedence;
+- direct legacy `render.ThemeConfig` values keep their historical path.
+
+When `RenderOptions.OmitAssets` is enabled, both HTML renderers omit every
+`<link>`, `<style>`, and `<script>` tag but retain theme name, variant, and
+semantic attributes on the rendered root. The embedding host is then
+responsible for supplying all required styles, runtime scripts, and—in Preact
+mode—the hydration descriptor.
+
+The semantic projection API requires go-theme v0.5.0 or later. Until that
+version is published, coordinated development should use an explicit external
+workspace rather than a repository `go.work`, `replace`, or pseudo-version.
 
 ### Theme Variants
 
@@ -568,6 +644,15 @@ The renderer includes theme metadata in the HTML output:
     "--brand": "#60a5fa",
     "--container-max-width": "64rem",
     ...
+  },
+  "diagnostics": [
+    {
+      "token": "form.control.background",
+      "canonical": "form.control.background",
+      "variable": "--form-control-background",
+      "status": "consumed",
+      "consumer": "go-formgen/vanilla"
+    }
   }
 }
 </script>
