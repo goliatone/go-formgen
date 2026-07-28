@@ -2,6 +2,7 @@ package defaults
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	pkgmodel "github.com/goliatone/go-formgen/pkg/model"
@@ -183,6 +184,125 @@ func TestWithThemeProviderUsesDefaults(t *testing.T) {
 	if got := cfg.AssetURL("preact.stylesheet"); got != "/assets/themes/acme/theme.css" {
 		t.Fatalf("unexpected stylesheet asset url: %s", got)
 	}
+}
+
+func TestThemeResolverUsesSemanticProjectionContract(t *testing.T) {
+	manifest := &theme.Manifest{
+		Name: "acme",
+		Tokens: map[string]string{
+			"color.text.primary":      "#111827",
+			"form.control.background": "#ffffff",
+			"form.control.text":       `red;display:none`,
+			"form.control.radius":     "8px",
+			"legacy.custom":           "calc(100% - 1rem)",
+			"legacy.unsafe":           `url("javascript:alert(1)")`,
+		},
+		Variants: map[string]theme.Variant{
+			"dark": {
+				Tokens: map[string]string{
+					"form.control.background": "#0f172a",
+				},
+			},
+		},
+	}
+	selector := &stubThemeSelector{selection: &theme.Selection{
+		Theme:    "acme",
+		Variant:  "dark",
+		Manifest: manifest,
+	}}
+
+	resolver := themeResolver(selector, nil)
+	options, err := resolver(
+		context.Background(),
+		orchestrator.Request{ThemeName: "acme", ThemeVariant: "dark"},
+		pkgmodel.FormModel{},
+		render.RenderOptions{},
+	)
+	if err != nil {
+		t.Fatalf("resolve theme: %v", err)
+	}
+
+	cfg := options.Theme
+	if cfg == nil {
+		t.Fatal("expected theme config")
+	}
+	if cfg.Variant != "dark" {
+		t.Fatalf("expected selected variant, got %q", cfg.Variant)
+	}
+	if got := cfg.CSSVars["--form-control-background"]; got != "#0f172a" {
+		t.Fatalf("expected variant projection, got %q", got)
+	}
+	if _, ok := cfg.CSSVars["--form-control-text"]; ok {
+		t.Fatal("expected invalid component value to be omitted")
+	}
+	if _, ok := cfg.CSSVars["--legacy-unsafe"]; ok {
+		t.Fatal("expected unsafe legacy value to be omitted")
+	}
+	if got := cfg.CSSVars["--legacy-custom"]; got != "calc(100% - 1rem)" {
+		t.Fatalf("expected safe unknown token to remain transportable, got %q", got)
+	}
+	if strings.Contains(cfg.SafeCSSVarsInline, "display:none") ||
+		strings.Contains(cfg.SafeCSSVarsInline, "javascript") {
+		t.Fatalf("unsafe value reached inline projection: %q", cfg.SafeCSSVarsInline)
+	}
+
+	background, ok := cfg.ResolveSemanticToken("form.control.background")
+	if !ok || background.Token != "form.control.background" || background.Value != "#0f172a" {
+		t.Fatalf("unexpected package resolution: %+v, %v", background, ok)
+	}
+	text, ok := cfg.ResolveSemanticToken("form.control.text")
+	if !ok || text.Token != "color.text.primary" || text.Value != "#111827" {
+		t.Fatalf("unexpected portable fallback: %+v, %v", text, ok)
+	}
+	if got := cfg.SemanticTokens["form.control.radius"]; got != "8px" {
+		t.Fatalf("expected safe semantic length, got %q", got)
+	}
+	if _, ok := cfg.SemanticTokens["legacy.custom"]; ok {
+		t.Fatal("unsupported token must not be marked semantically consumable")
+	}
+
+	assertThemeDiagnostic(t, cfg.Diagnostics, "form.control.text", "invalid")
+	assertThemeDiagnostic(t, cfg.Diagnostics, "form.control.background", "supported")
+	assertThemeDiagnostic(t, cfg.Diagnostics, "legacy.custom", "unsupported")
+}
+
+func TestDirectLegacyThemeConfigRemainsUntouched(t *testing.T) {
+	legacy := &render.ThemeConfig{
+		Theme: "legacy",
+		Tokens: map[string]string{
+			"brand": "#123456",
+		},
+		CSSVars: map[string]string{
+			"--brand": "#123456",
+		},
+	}
+
+	resolver := themeResolver(&stubThemeSelector{}, nil)
+	options, err := resolver(
+		context.Background(),
+		orchestrator.Request{},
+		pkgmodel.FormModel{},
+		render.RenderOptions{Theme: legacy},
+	)
+	if err != nil {
+		t.Fatalf("resolve direct config: %v", err)
+	}
+	if options.Theme != legacy {
+		t.Fatal("expected direct ThemeConfig identity to be preserved")
+	}
+	if options.Theme.CSSVars["--brand"] != "#123456" {
+		t.Fatal("expected direct legacy CSS variables to remain unchanged")
+	}
+}
+
+func assertThemeDiagnostic(t *testing.T, diagnostics []render.ThemeTokenDiagnostic, token, status string) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Token == token && diagnostic.Status == status {
+			return
+		}
+	}
+	t.Fatalf("missing %s diagnostic for %s: %+v", status, token, diagnostics)
 }
 
 type stubSource struct{}

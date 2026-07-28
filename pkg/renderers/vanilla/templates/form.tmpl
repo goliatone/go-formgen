@@ -18,6 +18,9 @@
 
 
 {% endif -%}
+{% if theme.semantic_style -%}
+<style data-formgen-semantic-style>{{ theme.semantic_style|safe }}</style>
+{% endif -%}
 {% if theme.json -%}
 <script id="formgen-theme" type="application/json">{{ theme.json|safe }}</script>
 {% endif -%}
@@ -44,9 +47,9 @@
 {% set include_hidden = render_options.include_hidden -%}
 {% set unstyled = style_mode == "unstyled" -%}
 {%- if not include_form -%}
-<div data-formgen-auto-init="true" data-formgen-render-mode="fields"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+<div data-formgen-auto-init="true" data-formgen-render-mode="fields"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}{% if theme.semantic %} data-formgen-semantic="true"{% endif %}>
 {%- else -%}
-<form{% if chrome_classes.form %} class="{{ chrome_classes.form }}"{% elif not unstyled %} class="{{ default_form_class }}"{% endif %} method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}>
+<form{% if chrome_classes.form %} class="{{ chrome_classes.form }}"{% elif not unstyled %} class="{{ default_form_class }}"{% endif %} method="{{ render_options.method_attr }}" action="{{ form.endpoint }}" data-formgen-auto-init="true"{% if theme.name %} data-formgen-theme="{{ theme.name }}"{% endif %}{% if theme.variant %} data-formgen-theme-variant="{{ theme.variant }}"{% endif %}{% if theme.semantic %} data-formgen-semantic="true"{% endif %}>
 {%- endif %}
     {%- if include_hidden %}
     {% if render_options.method_override %}
@@ -79,7 +82,7 @@
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+    <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
         {% for field in layout.unsectioned %}
         <div{% if field.style %}{{ field.style|safe }}{% endif %}>
             {{ field.html|safe }}
@@ -103,7 +106,7 @@
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+            <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
                 {% for field in section.fields %}
                 <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                     {{ field.html|safe }}
@@ -112,7 +115,7 @@
             </div>
         </fieldset>
         {% else %}
-        <div{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+        <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
             {% for field in section.fields %}
             <div{% if field.style %}{{ field.style|safe }}{% endif %}>
                 {{ field.html|safe }}
@@ -129,13 +132,13 @@
         {% if actions and actions|length > 0 %}
             {% for action in actions %}
                 {% if action.href %}
-                <a{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' %} border-transparent bg-blue-600 text-white hover:bg-blue-700{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %} href="{{ action.href }}">{{ action.label }}</a>
+                <a{% if action.kind == 'primary' %} data-formgen-action="primary"{% endif %}{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' %} border-transparent bg-blue-600 text-white hover:bg-blue-700{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %} href="{{ action.href }}">{{ action.label }}</a>
                 {% else %}
-                <button type="{{ action.type }}"{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' or not action.kind %} border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %}>{{ action.label }}</button>
+                <button type="{{ action.type }}"{% if action.kind == 'primary' or not action.kind %} data-formgen-action="primary"{% endif %}{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border{% if action.kind == 'primary' or not action.kind %} border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2{% else %} border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:bg-slate-900 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800{% endif %} disabled:opacity-50 disabled:pointer-events-none"{% endif %}>{{ action.label }}</button>
                 {% endif %}
             {% endfor %}
         {% else %}
-            <button type="submit"{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"{% endif %}>Submit</button>
+            <button type="submit" data-formgen-action="primary"{% if not unstyled %} class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"{% endif %}>Submit</button>
         {% endif %}
     </div>
     {%- endif %}

@@ -124,6 +124,166 @@ func TestRenderer_RedactsSensitiveDefaultsAndSupportsPartialMode(t *testing.T) {
 	}
 }
 
+func TestRenderer_SemanticThemePreservesDocumentAndPartialModes(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "semanticPreact",
+		Endpoint:    "/semantic",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "title", Type: model.FieldTypeString, Label: "Title"},
+		},
+	}
+	themeConfig := &render.ThemeConfig{
+		Theme:   "acme",
+		Variant: "dark",
+		CSSVars: map[string]string{
+			"--form-control-background": "#0f172a",
+			"--form-control-border":     "#334155",
+		},
+		SafeCSSVarsInline: "--form-control-background:#0f172a;--form-control-border:#334155;",
+		SemanticTokens: map[string]string{
+			"form.control.background": "#0f172a",
+			"form.control.border":     "#334155",
+		},
+		Diagnostics: []render.ThemeTokenDiagnostic{{
+			Token:     "form.control.background",
+			Canonical: "form.control.background",
+			Status:    "supported",
+		}},
+	}
+
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	for _, mode := range []render.RenderMode{
+		render.RenderModeDocument,
+		render.RenderModeForm,
+		render.RenderModeFields,
+	} {
+		t.Run(string(mode), func(t *testing.T) {
+			output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+				RenderMode: mode,
+				Theme:      themeConfig,
+				Errors:     map[string][]string{"title": {"Required"}},
+				FormErrors: []string{"Unable to save"},
+			})
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := string(output)
+			for _, want := range []string{
+				`<link rel="stylesheet"`,
+				`data-formgen-theme="acme"`,
+				`data-formgen-theme-variant="dark"`,
+				`data-formgen-semantic="true"`,
+				`data-formgen-semantic-style`,
+				`data-formgen-theme-vars`,
+				`var(--form-control-background, var(--color-surface-default))`,
+				`"semanticTokens"`,
+				`"status":"consumed"`,
+				`"consumer":"go-formgen/preact"`,
+				`"errors":{"title":["Required"]}`,
+				`"formErrors":["Unable to save"]`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Fatalf("semantic output missing %q:\n%s", want, html)
+				}
+			}
+			if mode != render.RenderModeDocument && strings.Contains(html, "<html") {
+				t.Fatalf("partial mode emitted a document:\n%s", html)
+			}
+		})
+	}
+}
+
+func TestRenderer_OmitAssetsPreservesThemeIdentityWithoutAssetTags(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "preactOmitAssets",
+		Endpoint:    "/semantic",
+		Method:      "POST",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString}},
+	}
+	themeConfig := &render.ThemeConfig{
+		Theme:             "acme",
+		Variant:           "dark",
+		SafeCSSVarsInline: "--color-surface-default:#0f172a;",
+		SemanticTokens:    map[string]string{"color.surface.default": "#0f172a"},
+		Diagnostics:       []render.ThemeTokenDiagnostic{{Token: "color.surface.default", Status: "supported"}},
+	}
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+
+	for _, mode := range []render.RenderMode{
+		render.RenderModeDocument,
+		render.RenderModeForm,
+		render.RenderModeFields,
+	} {
+		t.Run(string(mode), func(t *testing.T) {
+			output, renderErr := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+				RenderMode: mode,
+				Theme:      themeConfig,
+				OmitAssets: true,
+			})
+			if renderErr != nil {
+				t.Fatalf("render: %v", renderErr)
+			}
+			html := string(output)
+			for _, want := range []string{
+				`id="formgen-preact-root"`,
+				`data-formgen-theme="acme"`,
+				`data-formgen-theme-variant="dark"`,
+				`data-formgen-semantic="true"`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Fatalf("omit-assets output missing %q:\n%s", want, html)
+				}
+			}
+			for _, forbidden := range []string{"<link", "<style", "<script"} {
+				if strings.Contains(html, forbidden) {
+					t.Fatalf("omit-assets output contains %q:\n%s", forbidden, html)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderer_SemanticThemeOmitsInvalidAndAbsentValues(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "semanticSafety",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString}},
+	}
+	renderer, err := preact.New()
+	if err != nil {
+		t.Fatalf("preact.New: %v", err)
+	}
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		Theme: &render.ThemeConfig{
+			Theme: "acme",
+			Diagnostics: []render.ThemeTokenDiagnostic{{
+				Token:  "form.control.background",
+				Status: "invalid",
+				Reason: "invalid color",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(output)
+	if strings.Contains(html, "data-formgen-semantic") ||
+		strings.Contains(html, "data-formgen-theme-vars") ||
+		strings.Contains(html, "invalid-color-value") {
+		t.Fatalf("absent or unsafe semantic values changed presentation:\n%s", html)
+	}
+	if !strings.Contains(html, `"status":"invalid"`) {
+		t.Fatalf("projection diagnostic missing:\n%s", html)
+	}
+}
+
 func TestRenderer_RenderWithAssetURLPrefix(t *testing.T) {
 	form := testsupport.MustLoadFormModel(t, filepath.Join("testdata", "form_model.json"))
 

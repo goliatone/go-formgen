@@ -54,7 +54,7 @@
         
         
         <fieldset>
-            <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+            <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
                 
                 <div style="grid-column: span 8 / span 8">
                     <div class="flex flex-col gap-2" data-component="input">
@@ -239,7 +239,7 @@
         
         
         <fieldset>
-            <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+            <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
                 
                 <div style="grid-column: span 12 / span 12">
                     <div class="flex flex-col gap-2" data-component="input">
@@ -374,7 +374,7 @@
         </header>
         
         
-        <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+        <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
             
             <div style="grid-column: span 6 / span 6">
                 <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/Author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
@@ -530,7 +530,7 @@
         </header>
         
         
-        <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+        <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
             
             <div style="grid-column: span 12 / span 12">
                 <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/Contributor" data-relationship-cardinality="many" data-relationship-inverse="article">
@@ -616,7 +616,7 @@
                 
             
                 
-                <button type="submit" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Publish Article</button>
+                <button type="submit" data-formgen-action="primary" class="py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none">Publish Article</button>
                 
             
         

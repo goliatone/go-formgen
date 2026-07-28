@@ -320,6 +320,170 @@ func TestRenderer_UnstyledModeOmitsDefaultClasses(t *testing.T) {
 	}
 }
 
+func TestRenderer_SemanticThemePreservesModesAndOverrides(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "semantic",
+		Endpoint:    "/semantic",
+		Method:      "POST",
+		Fields: []model.Field{
+			{Name: "title", Type: model.FieldTypeString, Label: "Title", Placeholder: "Title"},
+			{Name: "locked", Type: model.FieldTypeString, Label: "Locked"},
+		},
+	}
+	themeConfig := &render.ThemeConfig{
+		Theme:   "acme",
+		Variant: "dark",
+		CSSVars: map[string]string{
+			"--color-text-primary":      "#e2e8f0",
+			"--form-control-background": "#0f172a",
+			"--form-control-border":     "#334155",
+		},
+		SafeCSSVarsInline: "--color-text-primary:#e2e8f0;--form-control-background:#0f172a;--form-control-border:#334155;",
+		SemanticTokens: map[string]string{
+			"color.text.primary":      "#e2e8f0",
+			"form.control.background": "#0f172a",
+			"form.control.border":     "#334155",
+		},
+		Diagnostics: []render.ThemeTokenDiagnostic{{
+			Token:     "form.control.background",
+			Canonical: "form.control.background",
+			Status:    "supported",
+		}},
+	}
+
+	renderer, err := vanilla.New(vanilla.WithDefaultStyles())
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	for _, mode := range []render.StyleMode{render.StyleModeDefault, render.StyleModeMinimal} {
+		t.Run(string(mode), func(t *testing.T) {
+			output, renderErr := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+				StyleMode: mode,
+				Theme:     themeConfig,
+				Values: map[string]any{
+					"locked": render.ValueWithProvenance{Value: "fixed", Readonly: true},
+				},
+				Errors: map[string][]string{"title": {"Required"}},
+				ChromeClasses: &render.ChromeClasses{
+					Form: "custom-form",
+				},
+			})
+			if renderErr != nil {
+				t.Fatalf("render: %v", renderErr)
+			}
+			html := string(output)
+			for _, want := range []string{
+				`class="custom-form"`,
+				`data-formgen-theme="acme"`,
+				`data-formgen-theme-variant="dark"`,
+				`data-formgen-semantic="true"`,
+				`data-formgen-semantic-style`,
+				`var(--form-control-background, var(--color-surface-default))`,
+				`aria-invalid="true"`,
+				`readonly`,
+				`"status":"consumed"`,
+				`"consumer":"go-formgen/vanilla"`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Fatalf("semantic output missing %q:\n%s", want, html)
+				}
+			}
+		})
+	}
+
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		StyleMode: render.StyleModeUnstyled,
+		Theme:     themeConfig,
+	})
+	if err != nil {
+		t.Fatalf("render unstyled: %v", err)
+	}
+	html := string(output)
+	if strings.Contains(html, "data-formgen-semantic") ||
+		strings.Contains(html, "data-formgen-theme-vars") ||
+		strings.Contains(html, vanilla.DefaultFormClass) {
+		t.Fatalf("unstyled mode leaked semantic/default presentation:\n%s", html)
+	}
+}
+
+func TestRenderer_SemanticThemeAppliesToFieldsMode(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "semanticFields",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString, Label: "Title"}},
+	}
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode: render.RenderModeFields,
+		Theme: &render.ThemeConfig{
+			Theme: "acme",
+			SemanticTokens: map[string]string{
+				"form.control.text": "#111827",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render fields: %v", err)
+	}
+	html := string(output)
+	if strings.Contains(html, "<form") {
+		t.Fatalf("fields mode emitted a form:\n%s", html)
+	}
+	if !strings.Contains(html, `data-formgen-render-mode="fields"`) ||
+		!strings.Contains(html, `data-formgen-semantic="true"`) {
+		t.Fatalf("fields mode omitted semantic root hooks:\n%s", html)
+	}
+}
+
+func TestRenderer_OmitAssetsPreservesThemeIdentityWithoutAssetTags(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "vanillaOmitAssets",
+		Endpoint:    "/semantic",
+		Method:      "POST",
+		Fields:      []model.Field{{Name: "title", Type: model.FieldTypeString}},
+	}
+	renderer, err := vanilla.New(
+		vanilla.WithDefaultStyles(),
+		vanilla.WithStylesheet("/assets/custom.css"),
+	)
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+	output, err := renderer.Render(testsupport.Context(), form, render.RenderOptions{
+		RenderMode: render.RenderModeFields,
+		OmitAssets: true,
+		Theme: &render.ThemeConfig{
+			Theme:             "acme",
+			Variant:           "dark",
+			SafeCSSVarsInline: "--color-surface-default:#0f172a;",
+			SemanticTokens:    map[string]string{"color.surface.default": "#0f172a"},
+			Diagnostics:       []render.ThemeTokenDiagnostic{{Token: "color.surface.default", Status: "supported"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(output)
+	for _, want := range []string{
+		`data-formgen-render-mode="fields"`,
+		`data-formgen-theme="acme"`,
+		`data-formgen-theme-variant="dark"`,
+		`data-formgen-semantic="true"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("omit-assets output missing %q:\n%s", want, html)
+		}
+	}
+	for _, forbidden := range []string{"<link", "<style", "<script"} {
+		if strings.Contains(html, forbidden) {
+			t.Fatalf("omit-assets output contains %q:\n%s", forbidden, html)
+		}
+	}
+}
+
 func TestRenderer_RenderContractWysiwygOnlyInjectsRuntime(t *testing.T) {
 	form := model.FormModel{
 		OperationID: "wysiwygOnly",

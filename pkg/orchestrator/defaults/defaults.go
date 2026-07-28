@@ -116,14 +116,77 @@ func themeResolver(selector theme.ThemeSelector, fallbacks map[string]string) or
 			return render.RenderOptions{}, fmt.Errorf("orchestrator defaults: theme selector returned nil selection")
 		}
 		cfg := selection.RendererTheme(resolvedFallbacks)
+		profile := FormSemanticProfile()
+		projection := theme.ProjectCSSVariables(cfg.Tokens, theme.ProjectionOptions{
+			Profile: &profile,
+		})
 		options.Theme = &render.ThemeConfig{
-			Theme:    cfg.Theme,
-			Variant:  cfg.Variant,
-			Partials: cfg.Partials,
-			Tokens:   cfg.Tokens,
-			CSSVars:  cfg.CSSVars,
-			AssetURL: cfg.AssetURL,
+			Theme:             cfg.Theme,
+			Variant:           cfg.Variant,
+			Partials:          cfg.Partials,
+			Tokens:            cfg.Tokens,
+			CSSVars:           projection.Variables,
+			SafeCSSVarsInline: projection.Inline,
+			SemanticTokens:    semanticTokens(projection, profile),
+			Diagnostics:       themeDiagnostics(projection.Diagnostics),
+			AssetURL:          cfg.AssetURL,
 		}
 		return options, nil
 	}
+}
+
+// FormSemanticProfile returns go-theme's portable profile extended with the
+// go-formgen-owned form token registry.
+func FormSemanticProfile() theme.TokenProfile {
+	profile := theme.PortableSemanticProfile()
+	profile.Name = "go-formgen"
+	if profile.Tokens == nil {
+		profile.Tokens = map[string]theme.TokenSpec{}
+	}
+	for token, spec := range render.FormSemanticTokenSpecs() {
+		profile.Tokens[token] = theme.TokenSpec{
+			Constraint: theme.ValueConstraint(spec.Constraint),
+		}
+	}
+	return profile
+}
+
+func semanticTokens(projection theme.CSSProjection, profile theme.TokenProfile) map[string]string {
+	out := map[string]string{}
+	for _, diagnostic := range projection.Diagnostics {
+		if diagnostic.Status != theme.TokenResolved {
+			continue
+		}
+		if _, supported := profile.Tokens[diagnostic.Canonical]; !supported {
+			continue
+		}
+		value, projected := projection.Variables[diagnostic.Variable]
+		if !projected {
+			continue
+		}
+		out[diagnostic.Canonical] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func themeDiagnostics(diagnostics []theme.TokenDiagnostic) []render.ThemeTokenDiagnostic {
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	out := make([]render.ThemeTokenDiagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		out = append(out, render.ThemeTokenDiagnostic{
+			Token:      diagnostic.Token,
+			Canonical:  diagnostic.Canonical,
+			Variable:   diagnostic.Variable,
+			Constraint: string(diagnostic.Constraint),
+			Status:     string(diagnostic.Status),
+			Consumer:   diagnostic.Consumer,
+			Reason:     diagnostic.Reason,
+		})
+	}
+	return out
 }

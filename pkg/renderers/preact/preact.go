@@ -51,13 +51,17 @@ type assetPaths struct {
 }
 
 type rendererTheme struct {
-	Name         string            `json:"name"`
-	Variant      string            `json:"variant"`
-	Partials     map[string]string `json:"partials,omitempty"`
-	Tokens       map[string]string `json:"tokens,omitempty"`
-	CSSVars      map[string]string `json:"cssVars,omitempty"`
-	CSSVarsStyle string            `json:"css_vars_style,omitempty"`
-	JSON         string            `json:"json,omitempty"`
+	Name           string                        `json:"name"`
+	Variant        string                        `json:"variant"`
+	Partials       map[string]string             `json:"partials,omitempty"`
+	Tokens         map[string]string             `json:"tokens,omitempty"`
+	CSSVars        map[string]string             `json:"cssVars,omitempty"`
+	SemanticTokens map[string]string             `json:"semanticTokens,omitempty"`
+	Semantic       bool                          `json:"semantic,omitempty"`
+	SemanticStyle  string                        `json:"semantic_style,omitempty"`
+	Diagnostics    []render.ThemeTokenDiagnostic `json:"diagnostics,omitempty"`
+	CSSVarsStyle   string                        `json:"css_vars_style,omitempty"`
+	JSON           string                        `json:"json,omitempty"`
 }
 
 var defaultAssetPaths = assetPaths{
@@ -278,6 +282,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"form_errors": formErrors,
 		"theme":       templateTheme,
 		"render_mode": renderMode(renderOptions.RenderMode),
+		"omit_assets": renderOptions.OmitAssets,
 	}
 
 	rendered, err := r.templates.RenderTemplate(templateName, data)
@@ -566,14 +571,19 @@ func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
+	semanticStyle, consumed := semanticThemeCSS(cfg)
 	ctx := rendererTheme{
-		Name:     cfg.Theme,
-		Variant:  cfg.Variant,
-		Partials: copyStringMap(cfg.Partials),
-		Tokens:   copyStringMap(cfg.Tokens),
-		CSSVars:  copyStringMap(cfg.CSSVars),
+		Name:           cfg.Theme,
+		Variant:        cfg.Variant,
+		Partials:       copyStringMap(cfg.Partials),
+		Tokens:         copyStringMap(cfg.Tokens),
+		CSSVars:        copyStringMap(cfg.CSSVars),
+		SemanticTokens: copyStringMap(cfg.SemanticTokens),
+		Semantic:       semanticStyle != "",
+		SemanticStyle:  semanticStyle,
+		Diagnostics:    render.ThemeDiagnosticsForConsumer(cfg, preactThemeConsumer, consumed),
 	}
-	ctx.CSSVarsStyle = cssVarsStyle(ctx.CSSVars)
+	ctx.CSSVarsStyle = render.ThemeCSSVariablesStyle(cfg)
 	ctx.JSON = themeJSON(ctx)
 	return ctx
 }
@@ -585,7 +595,11 @@ func buildTemplateThemeContext(ctx rendererTheme, resolver func(string) string) 
 		"partials":       ctx.Partials,
 		"tokens":         ctx.Tokens,
 		"cssVars":        ctx.CSSVars,
+		"semanticTokens": ctx.SemanticTokens,
 		"css_vars_style": ctx.CSSVarsStyle,
+		"semantic":       ctx.Semantic,
+		"semantic_style": ctx.SemanticStyle,
+		"diagnostics":    ctx.Diagnostics,
 		"json":           ctx.JSON,
 		"assetURL": func(key any) string {
 			trimmed := strings.TrimSpace(anyToString(key))
@@ -641,39 +655,21 @@ func copyStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-func cssVarsStyle(vars map[string]string) string {
-	if len(vars) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(vars))
-	for key := range vars {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var b strings.Builder
-	b.WriteString(":root {\n")
-	for _, key := range keys {
-		b.WriteString(key)
-		b.WriteString(": ")
-		b.WriteString(vars[key])
-		b.WriteString(";\n")
-	}
-	b.WriteString("}")
-	return b.String()
-}
-
 func themeJSON(cfg rendererTheme) string {
 	payload := struct {
-		Name    string            `json:"name,omitempty"`
-		Variant string            `json:"variant,omitempty"`
-		Tokens  map[string]string `json:"tokens,omitempty"`
-		CSSVars map[string]string `json:"cssVars,omitempty"`
+		Name           string                        `json:"name,omitempty"`
+		Variant        string                        `json:"variant,omitempty"`
+		Tokens         map[string]string             `json:"tokens,omitempty"`
+		CSSVars        map[string]string             `json:"cssVars,omitempty"`
+		SemanticTokens map[string]string             `json:"semanticTokens,omitempty"`
+		Diagnostics    []render.ThemeTokenDiagnostic `json:"diagnostics,omitempty"`
 	}{
-		Name:    cfg.Name,
-		Variant: cfg.Variant,
-		Tokens:  cfg.Tokens,
-		CSSVars: cfg.CSSVars,
+		Name:           cfg.Name,
+		Variant:        cfg.Variant,
+		Tokens:         cfg.Tokens,
+		CSSVars:        cfg.CSSVars,
+		SemanticTokens: cfg.SemanticTokens,
+		Diagnostics:    cfg.Diagnostics,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

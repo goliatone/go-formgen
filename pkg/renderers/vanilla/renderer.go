@@ -181,13 +181,16 @@ const (
 )
 
 type rendererTheme struct {
-	Name         string            `json:"name"`
-	Variant      string            `json:"variant"`
-	Partials     map[string]string `json:"partials,omitempty"`
-	Tokens       map[string]string `json:"tokens,omitempty"`
-	CSSVars      map[string]string `json:"cssVars,omitempty"`
-	CSSVarsStyle string            `json:"css_vars_style,omitempty"`
-	JSON         string            `json:"json,omitempty"`
+	Name          string                        `json:"name"`
+	Variant       string                        `json:"variant"`
+	Partials      map[string]string             `json:"partials,omitempty"`
+	Tokens        map[string]string             `json:"tokens,omitempty"`
+	CSSVars       map[string]string             `json:"cssVars,omitempty"`
+	Semantic      bool                          `json:"semantic,omitempty"`
+	SemanticStyle string                        `json:"semantic_style,omitempty"`
+	Diagnostics   []render.ThemeTokenDiagnostic `json:"diagnostics,omitempty"`
+	CSSVarsStyle  string                        `json:"css_vars_style,omitempty"`
+	JSON          string                        `json:"json,omitempty"`
 }
 
 const (
@@ -417,6 +420,12 @@ func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOpti
 	if renderOptions.StyleMode == render.StyleModeUnstyled {
 		return renderAssetBundle{}
 	}
+	templateTheme := buildTemplateThemeContext(buildThemeContext(renderOptions.Theme), assetResolver)
+	if renderOptions.OmitAssets {
+		return renderAssetBundle{
+			templateTheme: omitTemplateThemeAssets(templateTheme),
+		}
+	}
 	componentStyles, componentScripts := componentRenderer.assets()
 	stylesheets := append([]string(nil), r.stylesheets...)
 	stylesheets = append(stylesheets, componentStyles...)
@@ -427,15 +436,26 @@ func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOpti
 		stylesheets:      resolveAssets(stylesheets, assetResolver),
 		inlineStyles:     r.inlineStyle,
 		componentScripts: scriptPayloads(componentScripts),
-		templateTheme:    buildTemplateThemeContext(buildThemeContext(renderOptions.Theme), assetResolver),
+		templateTheme:    templateTheme,
 	}
 	if layout.HasResponsiveGrid {
 		assets.responsiveGridStyles = strings.TrimSpace(responsiveGridCSS)
 	}
-	if renderOptions.OmitAssets {
-		return renderAssetBundle{}
-	}
 	return assets
+}
+
+func omitTemplateThemeAssets(theme map[string]any) map[string]any {
+	if len(theme) == 0 {
+		return theme
+	}
+	out := make(map[string]any, len(theme))
+	for key, value := range theme {
+		out[key] = value
+	}
+	out["css_vars_style"] = ""
+	out["semantic_style"] = ""
+	out["json"] = ""
+	return out
 }
 
 func formTemplateName(cfg *render.ThemeConfig) string {
@@ -484,14 +504,18 @@ func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
+	semanticStyle, consumed := semanticThemeCSS(cfg)
 	ctx := rendererTheme{
-		Name:     cfg.Theme,
-		Variant:  cfg.Variant,
-		Partials: copyStringMap(cfg.Partials),
-		Tokens:   copyStringMap(cfg.Tokens),
-		CSSVars:  copyStringMap(cfg.CSSVars),
+		Name:          cfg.Theme,
+		Variant:       cfg.Variant,
+		Partials:      copyStringMap(cfg.Partials),
+		Tokens:        copyStringMap(cfg.Tokens),
+		CSSVars:       copyStringMap(cfg.CSSVars),
+		Semantic:      semanticStyle != "",
+		SemanticStyle: semanticStyle,
+		Diagnostics:   render.ThemeDiagnosticsForConsumer(cfg, vanillaThemeConsumer, consumed),
 	}
-	ctx.CSSVarsStyle = cssVarsStyle(ctx.CSSVars)
+	ctx.CSSVarsStyle = render.ThemeCSSVariablesStyle(cfg)
 	ctx.JSON = themeJSON(ctx)
 	return ctx
 }
@@ -504,6 +528,9 @@ func buildTemplateThemeContext(ctx rendererTheme, resolver func(string) string) 
 		"tokens":         ctx.Tokens,
 		"cssVars":        ctx.CSSVars,
 		"css_vars_style": ctx.CSSVarsStyle,
+		"semantic":       ctx.Semantic,
+		"semantic_style": ctx.SemanticStyle,
+		"diagnostics":    ctx.Diagnostics,
 		"json":           ctx.JSON,
 		"assetURL": func(key any) string {
 			trimmed := strings.TrimSpace(anyToString(key))
@@ -556,39 +583,19 @@ func copyStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-func cssVarsStyle(vars map[string]string) string {
-	if len(vars) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(vars))
-	for key := range vars {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var b strings.Builder
-	b.WriteString(":root {\n")
-	for _, key := range keys {
-		b.WriteString(key)
-		b.WriteString(": ")
-		b.WriteString(vars[key])
-		b.WriteString(";\n")
-	}
-	b.WriteString("}")
-	return b.String()
-}
-
 func themeJSON(cfg rendererTheme) string {
 	payload := struct {
-		Name    string            `json:"name,omitempty"`
-		Variant string            `json:"variant,omitempty"`
-		Tokens  map[string]string `json:"tokens,omitempty"`
-		CSSVars map[string]string `json:"cssVars,omitempty"`
+		Name        string                        `json:"name,omitempty"`
+		Variant     string                        `json:"variant,omitempty"`
+		Tokens      map[string]string             `json:"tokens,omitempty"`
+		CSSVars     map[string]string             `json:"cssVars,omitempty"`
+		Diagnostics []render.ThemeTokenDiagnostic `json:"diagnostics,omitempty"`
 	}{
-		Name:    cfg.Name,
-		Variant: cfg.Variant,
-		Tokens:  cfg.Tokens,
-		CSSVars: cfg.CSSVars,
+		Name:        cfg.Name,
+		Variant:     cfg.Variant,
+		Tokens:      cfg.Tokens,
+		CSSVars:     cfg.CSSVars,
+		Diagnostics: cfg.Diagnostics,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

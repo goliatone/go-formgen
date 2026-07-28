@@ -68,12 +68,15 @@ const (
 // integration. It intentionally mirrors the fields renderers need without
 // forcing the headless orchestrator or render package to import go-theme.
 type ThemeConfig struct {
-	Theme    string
-	Variant  string
-	Partials map[string]string
-	Tokens   map[string]string
-	CSSVars  map[string]string
-	AssetURL func(string) string
+	Theme             string
+	Variant           string
+	Partials          map[string]string
+	Tokens            map[string]string
+	CSSVars           map[string]string
+	SafeCSSVarsInline string
+	SemanticTokens    map[string]string
+	Diagnostics       []ThemeTokenDiagnostic
+	AssetURL          func(string) string
 }
 
 // RenderOptions describe per-request data that renderers can use to customise
