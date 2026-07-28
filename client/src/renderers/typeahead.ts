@@ -22,6 +22,7 @@ import {
   deriveSearchPlaceholder,
   buildHighlightedFragment,
   getSelectedValues,
+  relationshipControlLock,
 } from "./relationship-utils";
 import { registerRendererCleanup } from "./relationship-cleanup";
 import {
@@ -65,6 +66,7 @@ interface TypeaheadStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
+  controlLockObserver?: MutationObserver;
   updateHandler?: (event: Event) => void;
   // Loading state
   loading: boolean;
@@ -148,6 +150,7 @@ const typeaheadRenderer = (context: RendererContext, registry: ResolverRegistry)
 function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   const existing = stores.get(select);
   if (existing) {
+    syncControlLock(existing);
     return existing;
   }
 
@@ -302,10 +305,12 @@ function ensureStore(select: HTMLSelectElement): TypeaheadStore {
   bindEvents(store);
 
   bindValidationState(store);
+  bindControlLockState(store);
   bindLoadingState(store);
   bindSelectionListener(store);
   stores.set(select, store);
 
+  syncControlLock(store);
   updateClearState(store);
 
   if (typeof requestAnimationFrame === "function") {
@@ -423,6 +428,10 @@ function updateInputFromSelection(
 }
 
 function handleInput(store: TypeaheadStore): void {
+  if (relationshipControlLock(store.select).locked) {
+    updateInputFromSelection(store, getSelectedValues(store.select));
+    return;
+  }
   const { input, select } = store;
   const trimmed = input.value.trim();
   store.highlightedIndex = -1;
@@ -440,6 +449,9 @@ function handleInput(store: TypeaheadStore): void {
 }
 
 function handleKeydown(store: TypeaheadStore, event: KeyboardEvent): void {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const actionableKeys = new Set([
     "ArrowDown",
     "ArrowUp",
@@ -566,6 +578,9 @@ function ensureCreateIntegration(
 }
 
 function shouldOfferCreate(store: TypeaheadStore, query: string): boolean {
+  if (relationshipControlLock(store.select).locked) {
+    return false;
+  }
   const trimmed = query.trim();
   if (!trimmed) {
     return false;
@@ -588,6 +603,9 @@ function shouldOfferCreate(store: TypeaheadStore, query: string): boolean {
 }
 
 async function createAndSelect(store: TypeaheadStore, query: string): Promise<void> {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const create = store.createOption;
   if (!create) {
     return;
@@ -721,7 +739,7 @@ function moveHighlight(store: TypeaheadStore, delta: number): void {
 }
 
 function selectOption(store: TypeaheadStore, option: Option): void {
-  if (option.disabled) {
+  if (option.disabled || relationshipControlLock(store.select).locked) {
     return;
   }
   const { select, input } = store;
@@ -745,6 +763,10 @@ function selectOption(store: TypeaheadStore, option: Option): void {
 }
 
 function clearSelection(store: TypeaheadStore): void {
+  if (relationshipControlLock(store.select).locked) {
+    syncControlLock(store);
+    return;
+  }
   const { select, input } = store;
   for (const node of Array.from(select.options)) {
     node.selected = false;
@@ -790,6 +812,10 @@ function syncSelectedDataset(store: TypeaheadStore, value: string, label: string
 }
 
 function openDropdown(store: TypeaheadStore): void {
+  if (relationshipControlLock(store.select).locked) {
+    syncControlLock(store);
+    return;
+  }
   if (store.isOpen) {
     return;
   }
@@ -879,6 +905,7 @@ function renderOptions(store: TypeaheadStore): void {
       create.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
       create.setAttribute("data-fg-create-option", "true");
       create.textContent = store.createLabel(rawQuery);
+      create.disabled = relationshipControlLock(store.select).locked;
       create.addEventListener("click", () => {
         createAndSelect(store, rawQuery).catch(() => undefined);
       });
@@ -904,7 +931,8 @@ function renderOptions(store: TypeaheadStore): void {
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     button.setAttribute(TYPEAHEAD_OPTION_ATTR, "true");
-    button.disabled = option.disabled === true;
+    button.disabled =
+      option.disabled === true || relationshipControlLock(store.select).locked;
     button.dataset.selected = option.value === selectedValue ? "true" : "false";
 
     // Create label span
@@ -975,7 +1003,10 @@ function renderEditAction(store: TypeaheadStore): void {
     store.editActionElement.remove();
     store.editActionElement = null;
   }
-  if (!store.editActionEnabled) {
+  if (
+    !store.editActionEnabled ||
+    relationshipControlLock(store.select).locked
+  ) {
     return;
   }
 
@@ -1047,7 +1078,10 @@ function renderCreateAction(store: TypeaheadStore): void {
     store.createActionElement.remove();
     store.createActionElement = null;
   }
-  if (!store.createActionEnabled) {
+  if (
+    !store.createActionEnabled ||
+    relationshipControlLock(store.select).locked
+  ) {
     return;
   }
 
@@ -1136,6 +1170,9 @@ function updateCreateActionFocus(store: TypeaheadStore): void {
  * Trigger the create action: invoke hook or dispatch event.
  */
 async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const config = store.registry.getConfig();
   const query = store.searchQuery.trim();
 
@@ -1189,6 +1226,9 @@ async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
 }
 
 async function triggerEditAction(store: TypeaheadStore): Promise<void> {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const selected = getSelectedOption(store);
   if (!selected) {
     return;
@@ -1252,6 +1292,9 @@ function getSelectedOption(store: TypeaheadStore): Option | null {
 }
 
 function applyUpdatedOption(store: TypeaheadStore, option: Option): void {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const selected = getSelectedOption(store);
   if (!selected) {
     return;
@@ -1309,6 +1352,9 @@ function applyUpdatedOption(store: TypeaheadStore, option: Option): void {
  * For typeahead (single-select), this replaces the current selection.
  */
 function applyCreatedOption(store: TypeaheadStore, option: Option): void {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   // Add option to the native select if not present
   const existing = Array.from(store.select.options).find(
     (node) => node.value === option.value
@@ -1335,7 +1381,56 @@ function updateClearState(store: TypeaheadStore): void {
   const hasSelection = Array.from(select.options).some(
     (option) => option.selected && option.value !== ""
   );
-  clear.disabled = !(hasInput || hasSelection);
+  clear.disabled =
+    relationshipControlLock(store.select).locked || !(hasInput || hasSelection);
+}
+
+function syncControlLock(store: TypeaheadStore): void {
+  const lock = relationshipControlLock(store.select);
+  if (lock.readonly) {
+    store.container.setAttribute("aria-readonly", "true");
+    store.container.setAttribute("data-readonly", "true");
+    store.control.setAttribute("aria-readonly", "true");
+    store.input.setAttribute("aria-readonly", "true");
+  } else {
+    store.container.removeAttribute("aria-readonly");
+    store.container.removeAttribute("data-readonly");
+    store.control.removeAttribute("aria-readonly");
+    store.input.removeAttribute("aria-readonly");
+  }
+  if (lock.disabled) {
+    store.container.setAttribute("aria-disabled", "true");
+    store.control.setAttribute("aria-disabled", "true");
+  } else {
+    store.container.removeAttribute("aria-disabled");
+    store.control.removeAttribute("aria-disabled");
+  }
+  store.input.readOnly = lock.readonly;
+  store.input.disabled = lock.disabled;
+  store.toggle.disabled = lock.locked;
+  updateClearState(store);
+  if (lock.locked) {
+    closeDropdown(store);
+  }
+}
+
+function bindControlLockState(store: TypeaheadStore): void {
+  if (typeof MutationObserver === "undefined") {
+    return;
+  }
+  store.controlLockObserver = new MutationObserver(() => {
+    syncControlLock(store);
+    renderOptions(store);
+  });
+  store.controlLockObserver.observe(store.select, {
+    attributes: true,
+    attributeFilter: [
+      "disabled",
+      "readonly",
+      "aria-readonly",
+      "data-readonly",
+    ],
+  });
 }
 
 function resetInputPlaceholder(store: TypeaheadStore): void {
@@ -1395,12 +1490,17 @@ function bindSelectionListener(store: TypeaheadStore): void {
 function bindLoadingState(store: TypeaheadStore): void {
   const loadingHandler = () => {
     store.loading = true;
+    store.container.setAttribute("data-state", "loading");
     renderOptions(store);
   };
   const successHandler = () => {
     const wasCreateFocused = store.createActionFocused;
     const wasInputFocused = document.activeElement === store.input;
     store.loading = false;
+    store.container.setAttribute(
+      "data-state",
+      store.select.getAttribute("data-state") || "ready"
+    );
     renderOptions(store);
     if (wasCreateFocused && store.createActionElement) {
       store.createActionElement.focus();
@@ -1424,6 +1524,7 @@ function destroyTypeaheadStore(store: TypeaheadStore): void {
     );
   }
   store.validationObserver?.disconnect();
+  store.controlLockObserver?.disconnect();
   if (store.updateHandler) {
     store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
   }

@@ -85,6 +85,116 @@ afterEach(() => {
 });
 
 describe("preact renderer runtime widgets", () => {
+  it.each([
+    ["document", "section", "fg-preact", 1],
+    ["form", "form", "fg-preact-form", 1],
+    ["fields", "div", "fg-preact-fields", 0],
+  ])(
+    "hydrates %s mode with the matching structural root",
+    async (mode, rootType, rootClass, formCount) => {
+      document.body.innerHTML = `
+        <div id="formgen-preact-root" data-render-mode="${mode}"></div>
+        <script id="formgen-preact-data" type="application/json"></script>
+      `;
+      const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+      dataNode.textContent = JSON.stringify({
+        operationId: "renderMode",
+        endpoint: "/submit",
+        method: "POST",
+        fields: [{ name: "title", type: "string" }],
+      });
+
+      await loadPreactBundle();
+
+      const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+      const tree = (mount as any).__tree;
+      expect(tree.type).toBe(rootType);
+      expect(tree.props.class).toBe(rootClass);
+      expect(findAll(tree, (node) => node?.type === "form")).toHaveLength(formCount);
+    },
+  );
+
+  it("renders disabled, readonly, field-error, and form-error states", async () => {
+    document.body.innerHTML = `
+      <div id="formgen-preact-root"></div>
+      <script id="formgen-preact-data" type="application/json"></script>
+    `;
+
+    const payload = {
+      operationId: "semanticStates",
+      fields: [
+        { name: "disabled_name", type: "string", disabled: true },
+        { name: "locked_name", type: "string", readonly: true },
+        {
+          name: "locked_status",
+          type: "string",
+          readonly: true,
+          default: "active",
+          enumOptions: [{ value: "active", label: "Active", selected: true }],
+        },
+        { name: "locked_flag", type: "boolean", readonly: true, default: true },
+        { name: "title", type: "string" },
+      ],
+      errors: { title: ["Title is required"] },
+      formErrors: ["Unable to save"],
+    };
+    const dataNode = document.getElementById("formgen-preact-data") as HTMLElement;
+    dataNode.textContent = JSON.stringify(payload);
+
+    await loadPreactBundle();
+
+    const mount = document.getElementById("formgen-preact-root") as HTMLElement;
+    const tree = (mount as any).__tree;
+    const disabled = findAll(tree, (node) => node?.props?.name === "disabled_name")[0];
+    const readonly = findAll(tree, (node) => node?.props?.name === "locked_name")[0];
+    const readonlySelect = findAll(tree, (node) => node?.props?.name === "locked_status")[0];
+    const readonlyCheckbox = findAll(tree, (node) => node?.props?.name === "locked_flag")[0];
+    const invalid = findAll(tree, (node) => node?.props?.name === "title")[0];
+    const fieldErrors = findAll(tree, (node) => node?.props?.class === "fg-preact-error");
+    const formErrors = findAll(tree, (node) => node?.props?.class === "fg-preact-form-errors");
+
+    expect(disabled.props.disabled).toBe("disabled");
+    expect(readonly.props.readOnly).toBe("readOnly");
+    expect(readonly.props["aria-readonly"]).toBe("true");
+    expect(readonlySelect.props.disabled).toBeUndefined();
+    expect(readonlySelect.props["aria-readonly"]).toBe("true");
+    expect(readonlySelect.props["data-readonly"]).toBe("true");
+    expect(typeof readonlySelect.props.onChange).toBe("function");
+    const selectOptions = [
+      { value: "active", selected: false },
+      { value: "inactive", selected: true },
+    ];
+    let selectPrevented = false;
+    readonlySelect.props.onChange({
+      currentTarget: { options: selectOptions },
+      preventDefault: () => {
+        selectPrevented = true;
+      },
+    });
+    expect(selectPrevented).toBe(true);
+    expect(selectOptions[0].selected).toBe(true);
+    expect(selectOptions[1].selected).toBe(false);
+    expect(readonlyCheckbox.props.disabled).toBeUndefined();
+    expect(readonlyCheckbox.props["aria-readonly"]).toBe("true");
+    expect(readonlyCheckbox.props["data-readonly"]).toBe("true");
+    expect(typeof readonlyCheckbox.props.onClick).toBe("function");
+    let checkboxPrevented = false;
+    readonlyCheckbox.props.onClick({
+      preventDefault: () => {
+        checkboxPrevented = true;
+      },
+    });
+    expect(checkboxPrevented).toBe(true);
+    expect(invalid.props["aria-invalid"]).toBe("true");
+    expect(invalid.props["data-validation-state"]).toBe("invalid");
+    expect(findAll(fieldErrors[0], (node) => node?.type === "p")[0].children.join("")).toContain(
+      "Title is required",
+    );
+    expect(findAll(formErrors[0], (node) => node?.type === "p")[0].children.join("")).toContain(
+      "Unable to save",
+    );
+  });
+
   it("renders json-editor widget as a textarea with JSON content", async () => {
     document.body.innerHTML = `
       <div id="formgen-preact-root"></div>

@@ -14,6 +14,7 @@ import {
   deriveSearchPlaceholder,
   getSelectedValues,
   buildHighlightedFragment,
+  relationshipControlLock,
 } from "./relationship-utils";
 import { registerRendererCleanup } from "./relationship-cleanup";
 import {
@@ -104,6 +105,7 @@ interface ChipStore {
   iconElement: HTMLElement | null;
   validationHandler?: (event: Event) => void;
   validationObserver?: MutationObserver;
+  controlLockObserver?: MutationObserver;
   updateHandler?: (event: Event) => void;
   // Loading state
   loading: boolean;
@@ -210,6 +212,7 @@ const chipsRenderer = (context: RendererContext, registry: ResolverRegistry): vo
 function ensureStore(select: HTMLSelectElement): ChipStore {
   const existing = stores.get(select);
   if (existing) {
+    syncControlLock(existing);
     return existing;
   }
 
@@ -380,6 +383,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
     endpoint: {} as EndpointConfig,
     registry: null as unknown as ResolverRegistry,
   };
+  syncControlLock(store);
 
   if (searchMode && searchInput) {
     select.setAttribute("data-endpoint-search-value", "");
@@ -762,6 +766,7 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   });
 
   bindValidationState(store);
+  bindControlLockState(store);
   bindLoadingState(store);
   bindSelectionListener(store);
   stores.set(select, store);
@@ -776,6 +781,59 @@ function ensureStore(select: HTMLSelectElement): ChipStore {
   }
 
   return store;
+}
+
+function syncControlLock(store: ChipStore): void {
+  const lock = relationshipControlLock(store.select);
+  if (lock.readonly) {
+    store.container.setAttribute("aria-readonly", "true");
+    store.container.setAttribute("data-readonly", "true");
+  } else {
+    store.container.removeAttribute("aria-readonly");
+    store.container.removeAttribute("data-readonly");
+  }
+  if (lock.disabled) {
+    store.container.setAttribute("aria-disabled", "true");
+  } else {
+    store.container.removeAttribute("aria-disabled");
+  }
+  store.toggle.disabled = lock.locked;
+  if (store.searchInput) {
+    store.searchInput.readOnly = lock.readonly;
+    store.searchInput.disabled = lock.disabled;
+    if (lock.readonly) {
+      store.searchInput.setAttribute("aria-readonly", "true");
+    } else {
+      store.searchInput.removeAttribute("aria-readonly");
+    }
+  }
+  updateClearState(store, getSelectedValues(store.select));
+  if (lock.locked) {
+    store.menu.hidden = true;
+    store.isOpen = false;
+    store.toggle.setAttribute("aria-expanded", "false");
+  }
+}
+
+function bindControlLockState(store: ChipStore): void {
+  if (typeof MutationObserver === "undefined") {
+    return;
+  }
+  store.controlLockObserver = new MutationObserver(() => {
+    syncControlLock(store);
+    const selected = getSelectedValues(store.select);
+    renderChips(store, selected);
+    renderMenu(store, selected);
+  });
+  store.controlLockObserver.observe(store.select, {
+    attributes: true,
+    attributeFilter: [
+      "disabled",
+      "readonly",
+      "aria-readonly",
+      "data-readonly",
+    ],
+  });
 }
 
 function ensureCreateIntegration(
@@ -817,7 +875,11 @@ function ensureCreateIntegration(
 }
 
 function canCreate(store: ChipStore): boolean {
-  return store.allowCreate && typeof store.createOption === "function";
+  return (
+    !relationshipControlLock(store.select).locked &&
+    store.allowCreate &&
+    typeof store.createOption === "function"
+  );
 }
 
 function getMenuOptions(store: ChipStore): HTMLButtonElement[] {
@@ -1004,6 +1066,9 @@ function shouldOfferCreate(
 }
 
 async function createAndSelect(store: ChipStore, query: string): Promise<void> {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const create = store.createOption;
   if (!create) {
     return;
@@ -1106,6 +1171,7 @@ function renderChips(store: ChipStore, selectedValues: Set<string>): void {
       setElementClasses(remove, theme.chipRemove);
       remove.setAttribute("aria-label", `Remove ${label}`);
       remove.innerHTML = "&times;";
+      remove.disabled = relationshipControlLock(store.select).locked;
       remove.addEventListener("click", () => {
         const updated = new Set(selectedValues);
         updated.delete(value);
@@ -1227,7 +1293,8 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
     button.setAttribute("role", "option");
     button.dataset.value = option.value;
     button.setAttribute("data-fg-chip-option", "true");
-    button.disabled = option.disabled === true;
+    button.disabled =
+      option.disabled === true || relationshipControlLock(store.select).locked;
 
     const label = option.label ?? option.value;
     const hasRichContent = option.avatar || option.icon || option.description;
@@ -1313,6 +1380,10 @@ function renderMenu(store: ChipStore, selectedValues: Set<string>): void {
 }
 
 function updateSelected(store: ChipStore, values: Set<string>): void {
+  if (relationshipControlLock(store.select).locked) {
+    syncControlLock(store);
+    return;
+  }
   const { select } = store;
   for (const option of Array.from(select.options)) {
     option.selected = values.has(option.value);
@@ -1343,7 +1414,8 @@ function updateSelected(store: ChipStore, values: Set<string>): void {
 }
 
 function updateClearState(store: ChipStore, selectedValues: Set<string>): void {
-  store.clear.disabled = selectedValues.size === 0;
+  store.clear.disabled =
+    relationshipControlLock(store.select).locked || selectedValues.size === 0;
 }
 
 const CHIPS_CREATE_ACTION_ATTR = "data-fg-chips-create-action";
@@ -1359,7 +1431,10 @@ function renderCreateActionFooter(store: ChipStore): void {
   menuFooter.innerHTML = "";
   store.createActionElement = null;
 
-  if (!store.createActionEnabled) {
+  if (
+    !store.createActionEnabled ||
+    relationshipControlLock(store.select).locked
+  ) {
     menuFooter.hidden = true;
     return;
   }
@@ -1432,6 +1507,9 @@ function renderCreateActionFooter(store: ChipStore): void {
  * Implements Model 1 behavior: close dropdown + clear query on activation.
  */
 async function triggerCreateAction(store: ChipStore): Promise<void> {
+  if (relationshipControlLock(store.select).locked) {
+    return;
+  }
   const config = store.registry.getConfig();
   const query = store.searchValue.trim();
 
@@ -1608,6 +1686,10 @@ function updateInputWidth(store: ChipStore): void {
 }
 
 function toggleMenu(store: ChipStore, open: boolean, restoreFocus = false): void {
+  if (open && relationshipControlLock(store.select).locked) {
+    syncControlLock(store);
+    return;
+  }
   if (store.animationInProcess) {
     if (store.isOpen === open) {
       return;
@@ -1750,6 +1832,7 @@ function bindSelectionListener(store: ChipStore): void {
 function bindLoadingState(store: ChipStore): void {
   const loadingHandler = () => {
     store.loading = true;
+    store.container.setAttribute("data-state", "loading");
     const selectedValues = getSelectedValues(store.select);
     renderMenu(store, selectedValues);
   };
@@ -1757,6 +1840,10 @@ function bindLoadingState(store: ChipStore): void {
     const wasSearchFocused =
       store.searchInput && document.activeElement === store.searchInput;
     store.loading = false;
+    store.container.setAttribute(
+      "data-state",
+      store.select.getAttribute("data-state") || "ready"
+    );
     const selectedValues = getSelectedValues(store.select);
     renderMenu(store, selectedValues);
     if (wasSearchFocused && store.searchInput) {
@@ -1779,6 +1866,7 @@ function destroyChipStore(store: ChipStore): void {
     );
   }
   store.validationObserver?.disconnect();
+  store.controlLockObserver?.disconnect();
   if (store.updateHandler) {
     store.select.removeEventListener(RELATIONSHIP_UPDATE_EVENT, store.updateHandler as EventListener);
   }

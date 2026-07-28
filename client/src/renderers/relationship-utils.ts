@@ -6,6 +6,33 @@ export interface SyncOptionsConfig {
   placeholder?: string;
 }
 
+export interface RelationshipControlLock {
+  disabled: boolean;
+  readonly: boolean;
+  locked: boolean;
+}
+
+/**
+ * Returns the interaction state shared by native relationship controls and
+ * their enhanced chips/typeahead presentation. Readonly selects stay enabled
+ * so their values remain part of native form submission, while their enhanced
+ * controls must still reject user mutations.
+ */
+export function relationshipControlLock(
+  select: HTMLSelectElement
+): RelationshipControlLock {
+  const disabled = select.disabled;
+  const readonly =
+    select.getAttribute("aria-readonly") === "true" ||
+    select.getAttribute("data-readonly") === "true" ||
+    select.hasAttribute("readonly");
+  return {
+    disabled,
+    readonly,
+    locked: disabled || readonly,
+  };
+}
+
 /**
  * Synchronises the native <select> options with the resolver output while
  * preserving existing selections and labels for stale values.

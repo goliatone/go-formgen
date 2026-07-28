@@ -1267,6 +1267,128 @@ describe("runtime resolver", () => {
     expect(inputEvent).toHaveBeenCalled();
   });
 
+  it("keeps readonly relationship enhancers non-interactive and synchronized", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="readonly_tags"
+          name="article[tag_ids][]"
+          multiple
+          aria-readonly="true"
+          data-readonly="true"
+          data-endpoint-url="/api/tags"
+          data-endpoint-renderer="chips"
+          data-endpoint-refresh="manual"
+          data-relationship-cardinality="many"
+        >
+          <option value="alpha" selected>Alpha</option>
+          <option value="beta">Beta</option>
+        </select>
+        <select
+          id="readonly_publisher"
+          name="article[publisher_id]"
+          aria-readonly="true"
+          data-readonly="true"
+          data-endpoint-url="/api/publishers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-refresh="manual"
+          data-relationship-cardinality="one"
+        >
+          <option value="atlas" selected>Atlas Press</option>
+          <option value="lumen">Lumen House</option>
+        </select>
+      </form>
+    `;
+
+    await initRelationships();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await flush();
+
+    const chipsSelect = document.getElementById("readonly_tags") as HTMLSelectElement;
+    const chips = chipsSelect.previousElementSibling as HTMLElement;
+    const chipToggle = chips.querySelector<HTMLButtonElement>(
+      'button[aria-haspopup="listbox"]',
+    );
+    const chipRemove = chips.querySelector<HTMLButtonElement>(
+      "[data-fg-chip-value] button",
+    );
+    expect(chips.getAttribute("aria-readonly")).toBe("true");
+    expect(chipToggle?.disabled).toBe(true);
+    expect(chipRemove?.disabled).toBe(true);
+    chipRemove?.click();
+    expect(Array.from(chipsSelect.selectedOptions).map((option) => option.value)).toEqual([
+      "alpha",
+    ]);
+
+    const typeaheadSelect = document.getElementById(
+      "readonly_publisher",
+    ) as HTMLSelectElement;
+    const typeahead = typeaheadSelect.previousElementSibling as HTMLElement;
+    const input = typeahead.querySelector<HTMLInputElement>('input[type="text"]');
+    const typeaheadToggle = typeahead.querySelector<HTMLButtonElement>(
+      'button[aria-haspopup="listbox"]',
+    );
+    const clear = typeahead.querySelector<HTMLButtonElement>(
+      '[aria-label="Clear selection"]',
+    );
+    expect(typeahead.getAttribute("aria-readonly")).toBe("true");
+    expect(input?.readOnly).toBe(true);
+    expect(typeaheadToggle?.disabled).toBe(true);
+    expect(clear?.disabled).toBe(true);
+    input?.click();
+    clear?.click();
+    expect(typeaheadSelect.value).toBe("atlas");
+    expect(
+      typeahead.querySelector('[role="listbox"]')?.parentElement?.hasAttribute("hidden"),
+    ).toBe(true);
+
+    chipsSelect.removeAttribute("aria-readonly");
+    chipsSelect.removeAttribute("data-readonly");
+    typeaheadSelect.removeAttribute("aria-readonly");
+    typeaheadSelect.removeAttribute("data-readonly");
+    await flush();
+    expect(chipToggle?.disabled).toBe(false);
+    expect(input?.readOnly).toBe(false);
+    expect(typeaheadToggle?.disabled).toBe(false);
+  });
+
+  it("mirrors relationship loading and terminal state on enhanced controls", async () => {
+    document.body.innerHTML = `
+      <form data-formgen-auto-init="true">
+        <select
+          id="stateful_tags"
+          multiple
+          data-endpoint-url="/api/tags"
+          data-endpoint-renderer="chips"
+          data-endpoint-refresh="manual"
+          data-relationship-cardinality="many"
+        ></select>
+        <select
+          id="stateful_publisher"
+          data-endpoint-url="/api/publishers"
+          data-endpoint-renderer="typeahead"
+          data-endpoint-refresh="manual"
+          data-relationship-cardinality="one"
+        ></select>
+      </form>
+    `;
+
+    await initRelationships();
+    await flush();
+
+    for (const id of ["stateful_tags", "stateful_publisher"]) {
+      const select = document.getElementById(id) as HTMLSelectElement;
+      const enhancer = select.previousElementSibling as HTMLElement;
+      select.setAttribute("data-state", "loading");
+      select.dispatchEvent(new CustomEvent("formgen:relationship:loading"));
+      expect(enhancer.getAttribute("data-state")).toBe("loading");
+
+      select.setAttribute("data-state", "error");
+      select.dispatchEvent(new CustomEvent("formgen:relationship:error"));
+      expect(enhancer.getAttribute("data-state")).toBe("error");
+    }
+  });
+
   it("permits custom resolvers to short-circuit fetch", async () => {
     const field = createMarkup();
     fetchSpy.mockResolvedValue(mockResponse([{ value: "server", label: "Server" }]));
