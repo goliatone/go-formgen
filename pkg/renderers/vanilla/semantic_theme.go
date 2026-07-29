@@ -160,7 +160,7 @@ func writeSemanticFocusRing(css *strings.Builder, cfg *render.ThemeConfig, consu
 
 func writeSemanticLoadingRule(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}) {
 	writeSemanticRule(css, cfg, consumed,
-		`:where([data-formgen-semantic="true"][aria-busy="true"], [data-formgen-semantic="true"][data-formgen-loading="true"]) :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root]), [data-formgen-semantic="true"] :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root])[data-state="loading"]`,
+		`[data-formgen-semantic="true"]:where([aria-busy="true"], [data-formgen-loading="true"]) :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root]), [data-formgen-semantic="true"] :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root])[data-state="loading"]`,
 		[]semanticProperty{
 			{name: "background-color", token: "form.control.disabled-background"},
 			{name: "color", token: "form.control.disabled-text"},

@@ -71,6 +71,7 @@ func TestSemanticThemeCSSCoversStatesAndResponsiveHook(t *testing.T) {
 		`[data-formgen-action="primary"]`,
 		`[data-formgen-layout="grid"]`,
 		`@media (max-width:640px)`,
+		`[data-formgen-semantic="true"]:where([aria-busy="true"], [data-formgen-loading="true"])`,
 	} {
 		if !strings.Contains(css, want) {
 			t.Fatalf("semantic state %q missing:\n%s", want, css)
