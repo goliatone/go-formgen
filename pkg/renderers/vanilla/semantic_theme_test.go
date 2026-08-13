@@ -13,7 +13,7 @@ func TestSemanticThemeCSSUsesPackageAndPortableFallbacks(t *testing.T) {
 			"form.control.background": "#ffffff",
 		},
 	}
-	css, consumed := semanticThemeCSS(packageTheme)
+	css, consumed := semanticThemeCSS(packageTheme, render.RenderModeDocument)
 	if !strings.Contains(css, "background-color:var(--form-control-background, var(--color-surface-default))") {
 		t.Fatalf("package semantic fallback missing:\n%s", css)
 	}
@@ -26,7 +26,7 @@ func TestSemanticThemeCSSUsesPackageAndPortableFallbacks(t *testing.T) {
 			"color.surface.default": "#f8fafc",
 		},
 	}
-	css, consumed = semanticThemeCSS(portableTheme)
+	css, consumed = semanticThemeCSS(portableTheme, render.RenderModeDocument)
 	if !strings.Contains(css, "background-color:var(--form-control-background, var(--color-surface-default))") {
 		t.Fatalf("portable semantic fallback missing:\n%s", css)
 	}
@@ -34,7 +34,7 @@ func TestSemanticThemeCSSUsesPackageAndPortableFallbacks(t *testing.T) {
 		t.Fatalf("portable token not recorded as consumed: %v", consumed)
 	}
 
-	if css, consumed := semanticThemeCSS(&render.ThemeConfig{}); css != "" || len(consumed) != 0 {
+	if css, consumed := semanticThemeCSS(&render.ThemeConfig{}, render.RenderModeDocument); css != "" || len(consumed) != 0 {
 		t.Fatalf("empty theme must preserve current defaults, got %q, %v", css, consumed)
 	}
 }
@@ -56,7 +56,7 @@ func TestSemanticThemeCSSCoversStatesAndResponsiveHook(t *testing.T) {
 		},
 	}
 
-	css, _ := semanticThemeCSS(cfg)
+	css, _ := semanticThemeCSS(cfg, render.RenderModeDocument)
 	for _, want := range []string{
 		`::placeholder`,
 		`):focus`,
@@ -87,13 +87,27 @@ func TestSemanticThemeCSSAppliesContainerWidthOnlyToForms(t *testing.T) {
 		render.FormContainerMaxWidthToken: "100%",
 	}}
 
-	css, consumed := semanticThemeCSS(cfg)
-	if !strings.Contains(css, `form[data-formgen-semantic="true"]{max-width:var(--form-container-max-width)}`) {
-		t.Fatalf("form container width rule missing:\n%s", css)
+	for _, mode := range []render.RenderMode{render.RenderModeDocument, render.RenderModeForm} {
+		css, consumed := semanticThemeCSS(cfg, mode)
+		if !strings.Contains(css, `form[data-formgen-semantic="true"]{max-width:var(--form-container-max-width)}`) {
+			t.Fatalf("%s mode form container width rule missing:\n%s", mode, css)
+		}
+		if !containsToken(consumed, render.FormContainerMaxWidthToken) {
+			t.Fatalf("%s mode form container token not recorded as consumed: %v", mode, consumed)
+		}
 	}
-	if !containsToken(consumed, render.FormContainerMaxWidthToken) {
-		t.Fatalf("form container token not recorded as consumed: %v", consumed)
+
+	css, consumed := semanticThemeCSS(cfg, render.RenderModeFields)
+	if strings.Contains(css, "max-width") {
+		t.Fatalf("fields mode emitted a form-only width rule:\n%s", css)
 	}
+	if containsToken(consumed, render.FormContainerMaxWidthToken) {
+		t.Fatalf("fields mode recorded an unrendered form token as consumed: %v", consumed)
+	}
+	assertThemeDiagnosticStatus(t, buildThemeContext(cfg, render.RenderModeFields).Diagnostics,
+		render.FormContainerMaxWidthToken, vanillaThemeConsumer, "unused")
+	assertThemeDiagnosticStatus(t, buildThemeContext(cfg, render.RenderModeDocument).Diagnostics,
+		render.FormContainerMaxWidthToken, vanillaThemeConsumer, "consumed")
 }
 
 func containsToken(tokens []string, want string) bool {
@@ -103,4 +117,17 @@ func containsToken(tokens []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func assertThemeDiagnosticStatus(t *testing.T, diagnostics []render.ThemeTokenDiagnostic, token, consumer, want string) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Canonical == token && diagnostic.Consumer == consumer {
+			if diagnostic.Status != want {
+				t.Fatalf("diagnostic status for %s/%s = %q, want %q", token, consumer, diagnostic.Status, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("diagnostic for %s/%s not found: %+v", token, consumer, diagnostics)
 }

@@ -110,7 +110,11 @@ describe("preact renderer runtime widgets", () => {
       const tree = (mount as any).__tree;
       expect(tree.type).toBe(rootType);
       expect(tree.props.class).toBe(rootClass);
-      expect(findAll(tree, (node) => node?.type === "form")).toHaveLength(formCount);
+      const forms = findAll(tree, (node) => node?.type === "form");
+      expect(forms).toHaveLength(formCount);
+      for (const form of forms) {
+        expect(form.props["data-formgen-auto-init"]).toBe("true");
+      }
     },
   );
 

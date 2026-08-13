@@ -11,6 +11,9 @@
   `container-max-width` token and `--container-max-width` CSS variable remain
   compatible, canonical configuration wins, and omission retains the existing
   56rem default.
+- Preact document mode now targets its nested hydrated form through the stable
+  `data-formgen-auto-init` hook. Document/form modes report the token consumed;
+  fields mode emits no form-only width rule and reports it unused.
 
 ## Semantic Theme Contract (proposed v0.32.0)
 

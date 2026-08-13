@@ -265,7 +265,8 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		return nil, fmt.Errorf("preact renderer: template renderer is nil")
 	}
 
-	themeCtx := buildThemeContext(renderOptions.Theme)
+	mode := renderMode(renderOptions.RenderMode)
+	themeCtx := buildThemeContext(renderOptions.Theme, mode)
 	assetResolver := themeAssetResolver(renderOptions.Theme)
 	urls := r.assetURLs(assetResolver)
 	templateTheme := buildTemplateThemeContext(themeCtx, assetResolver)
@@ -281,7 +282,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		},
 		"form_errors": formErrors,
 		"theme":       templateTheme,
-		"render_mode": renderMode(renderOptions.RenderMode),
+		"render_mode": mode,
 		"omit_assets": renderOptions.OmitAssets,
 	}
 
@@ -567,11 +568,11 @@ func fieldOrderPayload(metadata map[string]string) string {
 	return string(payload)
 }
 
-func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
+func buildThemeContext(cfg *render.ThemeConfig, mode render.RenderMode) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
-	semanticStyle, consumed := semanticThemeCSS(cfg)
+	semanticStyle, consumed := semanticThemeCSS(cfg, mode)
 	ctx := rendererTheme{
 		Name:           cfg.Theme,
 		Variant:        cfg.Variant,

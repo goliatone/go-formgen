@@ -354,7 +354,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 
 	templateOptions := prepareRenderContext(&form, renderOptions)
 	decorated := decorateFormModel(form)
-	themeCtx := buildThemeContext(renderOptions.Theme)
+	themeCtx := buildThemeContext(renderOptions.Theme, templateOptions.RenderMode)
 	assetResolver := themeAssetResolver(renderOptions.Theme)
 
 	componentRenderer := newComponentRenderer(r.templates, r.components, r.overrides, themeCtx, assetResolver, templateOptions.StyleMode)
@@ -420,7 +420,7 @@ func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOpti
 	if renderOptions.StyleMode == render.StyleModeUnstyled {
 		return renderAssetBundle{}
 	}
-	templateTheme := buildTemplateThemeContext(buildThemeContext(renderOptions.Theme), assetResolver)
+	templateTheme := buildTemplateThemeContext(buildThemeContext(renderOptions.Theme, vanillaRenderMode(renderOptions.RenderMode)), assetResolver)
 	if renderOptions.OmitAssets {
 		return renderAssetBundle{
 			templateTheme: omitTemplateThemeAssets(templateTheme),
@@ -500,11 +500,11 @@ func vanillaStyleMode(mode render.StyleMode) renderStyleMode {
 	}
 }
 
-func buildThemeContext(cfg *render.ThemeConfig) rendererTheme {
+func buildThemeContext(cfg *render.ThemeConfig, mode render.RenderMode) rendererTheme {
 	if cfg == nil {
 		return rendererTheme{}
 	}
-	semanticStyle, consumed := semanticThemeCSS(cfg)
+	semanticStyle, consumed := semanticThemeCSS(cfg, mode)
 	ctx := rendererTheme{
 		Name:          cfg.Theme,
 		Variant:       cfg.Variant,

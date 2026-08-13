@@ -278,7 +278,9 @@ Semantic CSS is additive:
 - vanilla default and minimal modes emit it; unstyled mode emits no default or
   semantic presentation;
 - Preact document, form, and fields modes emit the same safe variables and
-  semantic state meanings;
+  semantic state meanings; form-only tokens such as
+  `form.container.max-width` are consumed only by document/form modes and are
+  reported unused in fields mode;
 - explicit templates, `ChromeClasses`, theme assets, and renderer-specific
   styles keep their existing precedence;
 - direct legacy `render.ThemeConfig` values keep their historical path.

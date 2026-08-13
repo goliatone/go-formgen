@@ -13,14 +13,14 @@ type semanticProperty struct {
 	token string
 }
 
-func semanticThemeCSS(cfg *render.ThemeConfig) (string, []string) {
+func semanticThemeCSS(cfg *render.ThemeConfig, mode render.RenderMode) (string, []string) {
 	if cfg == nil || len(cfg.SemanticTokens) == 0 {
 		return "", nil
 	}
 
 	var css strings.Builder
 	consumed := map[string]struct{}{}
-	writeSemanticBaseRules(&css, cfg, consumed)
+	writeSemanticBaseRules(&css, cfg, consumed, mode != render.RenderModeFields)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input, textarea)::placeholder`,
 		[]semanticProperty{{name: "color", token: "form.control.placeholder"}},
@@ -91,13 +91,15 @@ func semanticThemeCSS(cfg *render.ThemeConfig) (string, []string) {
 	return strings.TrimSpace(css.String()), tokens
 }
 
-func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}) {
-	writeSemanticRule(css, cfg, consumed,
-		`form[data-formgen-semantic="true"]`,
-		[]semanticProperty{
-			{name: "max-width", token: render.FormContainerMaxWidthToken},
-		},
-	)
+func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}, includeForm bool) {
+	if includeForm {
+		writeSemanticRule(css, cfg, consumed,
+			`form[data-formgen-semantic="true"]`,
+			[]semanticProperty{
+				{name: "max-width", token: render.FormContainerMaxWidthToken},
+			},
+		)
+	}
 	writeSemanticRule(css, cfg, consumed,
 		`[data-formgen-semantic="true"]`,
 		[]semanticProperty{
