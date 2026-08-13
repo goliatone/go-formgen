@@ -9,8 +9,8 @@ import (
 const vanillaThemeConsumer = "go-formgen/vanilla"
 
 type semanticProperty struct {
-	name  string
-	token string
+	name     string
+	themeKey string
 }
 
 func semanticThemeCSS(cfg *render.ThemeConfig, mode render.RenderMode) (string, []string) {
@@ -23,63 +23,63 @@ func semanticThemeCSS(cfg *render.ThemeConfig, mode render.RenderMode) (string, 
 	writeSemanticBaseRules(&css, cfg, consumed, mode != render.RenderModeFields)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input, textarea)::placeholder`,
-		[]semanticProperty{{name: "color", token: "form.control.placeholder"}},
+		[]semanticProperty{{name: "color", themeKey: "form.control.placeholder"}},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input:not([type="hidden"]), select, textarea, [contenteditable="true"]):focus`,
 		[]semanticProperty{
-			{name: "border-color", token: "form.control.border-focus"},
-			{name: "outline-color", token: "form.control.border-focus"},
+			{name: "border-color", themeKey: "form.control.border-focus"},
+			{name: "outline-color", themeKey: "form.control.border-focus"},
 		},
 	)
 	writeSemanticFocusRing(&css, cfg, consumed)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input, select, textarea, [contenteditable="true"])[aria-invalid="true"]`,
-		[]semanticProperty{{name: "border-color", token: "form.control.invalid-border"}},
+		[]semanticProperty{{name: "border-color", themeKey: "form.control.invalid-border"}},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input, select, textarea, button):disabled`,
 		[]semanticProperty{
-			{name: "background-color", token: "form.control.disabled-background"},
-			{name: "color", token: "form.control.disabled-text"},
+			{name: "background-color", themeKey: "form.control.disabled-background"},
+			{name: "color", themeKey: "form.control.disabled-text"},
 		},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input, textarea)[readonly]`,
 		[]semanticProperty{
-			{name: "background-color", token: "form.control.disabled-background"},
-			{name: "color", token: "form.control.disabled-text"},
+			{name: "background-color", themeKey: "form.control.disabled-background"},
+			{name: "color", themeKey: "form.control.disabled-text"},
 		},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] [data-formgen-chrome="label"]`,
 		[]semanticProperty{
-			{name: "color", token: "form.label.text"},
-			{name: "font-size", token: "font.size.label"},
-			{name: "font-weight", token: "font.weight.emphasis"},
+			{name: "color", themeKey: "form.label.text"},
+			{name: "font-size", themeKey: "font.size.label"},
+			{name: "font-weight", themeKey: "font.weight.emphasis"},
 		},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where([data-formgen-chrome="description"], [data-formgen-chrome="help"])`,
-		[]semanticProperty{{name: "color", token: "form.help.text"}},
+		[]semanticProperty{{name: "color", themeKey: "form.help.text"}},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(.formgen-error, .formgen-errors, [role="alert"])`,
-		[]semanticProperty{{name: "color", token: "form.error.text"}},
+		[]semanticProperty{{name: "color", themeKey: "form.error.text"}},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] [data-formgen-action="primary"]`,
 		[]semanticProperty{
-			{name: "background-color", token: "color.action.primary"},
-			{name: "color", token: "color.text.inverse"},
-			{name: "border-radius", token: "radius.control"},
-			{name: "transition-duration", token: "motion.duration.fast"},
-			{name: "transition-timing-function", token: "motion.easing.standard"},
+			{name: "background-color", themeKey: "color.action.primary"},
+			{name: "color", themeKey: "color.text.inverse"},
+			{name: "border-radius", themeKey: "radius.control"},
+			{name: "transition-duration", themeKey: "motion.duration.fast"},
+			{name: "transition-timing-function", themeKey: "motion.easing.standard"},
 		},
 	)
 	writeSemanticRule(&css, cfg, consumed,
 		`[data-formgen-semantic="true"] [data-formgen-action="primary"]:hover`,
-		[]semanticProperty{{name: "background-color", token: "color.action.primary-hover"}},
+		[]semanticProperty{{name: "background-color", themeKey: "color.action.primary-hover"}},
 	)
 	writeSemanticLoadingRule(&css, cfg, consumed)
 	writeSemanticResponsiveRule(&css, cfg, consumed)
@@ -96,42 +96,42 @@ func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consu
 		writeSemanticRule(css, cfg, consumed,
 			`form[data-formgen-semantic="true"]`,
 			[]semanticProperty{
-				{name: "max-width", token: render.FormContainerMaxWidthToken},
+				{name: "max-width", themeKey: render.FormContainerMaxWidthToken},
 			},
 		)
 	}
 	writeSemanticRule(css, cfg, consumed,
 		`[data-formgen-semantic="true"]`,
 		[]semanticProperty{
-			{name: "background-color", token: "color.surface.default"},
-			{name: "color", token: "color.text.primary"},
-			{name: "border-color", token: "color.border.default"},
-			{name: "border-radius", token: "radius.surface"},
-			{name: "padding", token: "space.surface"},
-			{name: "font-family", token: "font.family.body"},
-			{name: "font-size", token: "font.size.body"},
-			{name: "font-weight", token: "font.weight.body"},
-			{name: "line-height", token: "line.height.body"},
-			{name: "letter-spacing", token: "letter.spacing.body"},
+			{name: "background-color", themeKey: "color.surface.default"},
+			{name: "color", themeKey: "color.text.primary"},
+			{name: "border-color", themeKey: "color.border.default"},
+			{name: "border-radius", themeKey: "radius.surface"},
+			{name: "padding", themeKey: "space.surface"},
+			{name: "font-family", themeKey: "font.family.body"},
+			{name: "font-size", themeKey: "font.size.body"},
+			{name: "font-weight", themeKey: "font.weight.body"},
+			{name: "line-height", themeKey: "line.height.body"},
+			{name: "letter-spacing", themeKey: "letter.spacing.body"},
 		},
 	)
 	writeSemanticRule(css, cfg, consumed,
 		`[data-formgen-semantic="true"] :where(input:not([type="hidden"]), select, textarea, [contenteditable="true"])`,
 		[]semanticProperty{
-			{name: "background-color", token: "form.control.background"},
-			{name: "color", token: "form.control.text"},
-			{name: "border-color", token: "form.control.border"},
-			{name: "border-radius", token: "form.control.radius"},
-			{name: "min-height", token: "form.control.height"},
-			{name: "padding-inline", token: "space.control.inline"},
-			{name: "padding-block", token: "space.control.block"},
-			{name: "font-family", token: "font.family.body"},
-			{name: "font-size", token: "font.size.body"},
-			{name: "font-weight", token: "font.weight.body"},
-			{name: "line-height", token: "line.height.body"},
-			{name: "letter-spacing", token: "letter.spacing.body"},
-			{name: "transition-duration", token: "motion.duration.fast"},
-			{name: "transition-timing-function", token: "motion.easing.standard"},
+			{name: "background-color", themeKey: "form.control.background"},
+			{name: "color", themeKey: "form.control.text"},
+			{name: "border-color", themeKey: "form.control.border"},
+			{name: "border-radius", themeKey: "form.control.radius"},
+			{name: "min-height", themeKey: "form.control.height"},
+			{name: "padding-inline", themeKey: "space.control.inline"},
+			{name: "padding-block", themeKey: "space.control.block"},
+			{name: "font-family", themeKey: "font.family.body"},
+			{name: "font-size", themeKey: "font.size.body"},
+			{name: "font-weight", themeKey: "font.weight.body"},
+			{name: "line-height", themeKey: "line.height.body"},
+			{name: "letter-spacing", themeKey: "letter.spacing.body"},
+			{name: "transition-duration", themeKey: "motion.duration.fast"},
+			{name: "transition-timing-function", themeKey: "motion.easing.standard"},
 		},
 	)
 }
@@ -139,7 +139,7 @@ func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consu
 func writeSemanticRule(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}, selector string, properties []semanticProperty) {
 	declarations := make([]string, 0, len(properties))
 	for _, property := range properties {
-		value, resolution, ok := cfg.SemanticCSSValue(property.token)
+		value, resolution, ok := cfg.SemanticCSSValue(property.themeKey)
 		if !ok {
 			continue
 		}
@@ -170,8 +170,8 @@ func writeSemanticLoadingRule(css *strings.Builder, cfg *render.ThemeConfig, con
 	writeSemanticRule(css, cfg, consumed,
 		`[data-formgen-semantic="true"]:where([aria-busy="true"], [data-formgen-loading="true"]) :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root]), [data-formgen-semantic="true"] :where(input, select, textarea, button, [data-fg-chip-root], [data-fg-typeahead-root])[data-state="loading"]`,
 		[]semanticProperty{
-			{name: "background-color", token: "form.control.disabled-background"},
-			{name: "color", token: "form.control.disabled-text"},
+			{name: "background-color", themeKey: "form.control.disabled-background"},
+			{name: "color", themeKey: "form.control.disabled-text"},
 		},
 	)
 }

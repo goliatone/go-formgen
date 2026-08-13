@@ -449,9 +449,7 @@ func omitTemplateThemeAssets(theme map[string]any) map[string]any {
 		return theme
 	}
 	out := make(map[string]any, len(theme))
-	for key, value := range theme {
-		out[key] = value
-	}
+	maps.Copy(out, theme)
 	out["css_vars_style"] = ""
 	out["semantic_style"] = ""
 	out["json"] = ""
