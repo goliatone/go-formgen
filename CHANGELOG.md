@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.33.0](https://github.com/goliatone/go-formgen/compare/v0.32.4...v0.33.0) - (2026-08-13)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.33.0 ([8085f08](https://github.com/goliatone/go-formgen/commit/8085f0841e5c5624c53789c7109b16a0fdc155bc))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Form.conatiner.max-wdith support ([c58d032](https://github.com/goliatone/go-formgen/commit/c58d0320b6f86382ec0a1a928db49d80108dbfc8))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.32.4 ([293b626](https://github.com/goliatone/go-formgen/commit/293b626d781785aa0c66f2f233c722f83525c240))  - (goliatone)
+
 # [0.32.4](https://github.com/goliatone/go-formgen/compare/v0.32.3...v0.32.4) - (2026-07-29)
 
 ## <!-- 13 -->📦 Bumps
