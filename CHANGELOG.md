@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.33.1](https://github.com/goliatone/go-formgen/compare/v0.33.0...v0.33.1) - (2026-08-13)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Semantic theme support ([f199bf6](https://github.com/goliatone/go-formgen/commit/f199bf61b11c9aa4a99c67a21a5e362cee0539d0))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.33.1 ([8329bf7](https://github.com/goliatone/go-formgen/commit/8329bf798163350b1174e4443ad5359a897f65ea))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.33.0 ([16113ab](https://github.com/goliatone/go-formgen/commit/16113ab6287938b6d870ab068269e2167fe2c6e9))  - (goliatone)
+
 # [0.33.0](https://github.com/goliatone/go-formgen/compare/v0.32.4...v0.33.0) - (2026-08-13)
 
 ## <!-- 13 -->📦 Bumps
