@@ -1,6 +1,7 @@
 package vanilla
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -111,12 +112,7 @@ func TestSemanticThemeCSSAppliesContainerWidthOnlyToForms(t *testing.T) {
 }
 
 func containsToken(tokens []string, want string) bool {
-	for _, token := range tokens {
-		if token == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tokens, want)
 }
 
 func assertThemeDiagnosticStatus(t *testing.T, diagnostics []render.ThemeTokenDiagnostic, token, consumer, want string) {

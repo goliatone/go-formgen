@@ -90,8 +90,8 @@ func TestAdapterNormalize_PreservesNumericDefaultLexemes(t *testing.T) {
 		"large":   "9007199254740993",
 		"decimal": "1.25",
 	} {
-		got, ok := form.Schema.Properties[name].Default.(json.Number)
-		if !ok {
+		got, isNumber := form.Schema.Properties[name].Default.(json.Number)
+		if !isNumber {
 			t.Fatalf("%s default type = %T, want json.Number", name, form.Schema.Properties[name].Default)
 		}
 		if got.String() != want {
