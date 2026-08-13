@@ -5,6 +5,8 @@ import "testing"
 func TestFormSemanticTokenSpecsReturnsDefensiveCopy(t *testing.T) {
 	first := FormSemanticTokenSpecs()
 	first["form.control.background"] = SemanticTokenSpec{Constraint: "changed"}
+	container := first[FormContainerMaxWidthToken]
+	container.Aliases[0] = "changed"
 
 	second := FormSemanticTokenSpecs()
 	if got := second["form.control.background"].Constraint; got != "color" {
@@ -12,6 +14,13 @@ func TestFormSemanticTokenSpecsReturnsDefensiveCopy(t *testing.T) {
 	}
 	if got := second["form.control.background"].Fallback; got != "color.surface.default" {
 		t.Fatalf("unexpected portable fallback %q", got)
+	}
+	container = second[FormContainerMaxWidthToken]
+	if got := container.Constraint; got != "nonnegative-length" {
+		t.Fatalf("unexpected container constraint %q", got)
+	}
+	if len(container.Aliases) != 1 || container.Aliases[0] != LegacyContainerMaxWidthToken {
+		t.Fatalf("unexpected container aliases %v", container.Aliases)
 	}
 }
 
@@ -55,6 +64,23 @@ func TestThemeConfigResolveSemanticToken(t *testing.T) {
 	}
 	if resolved.Token != "color.text.primary" {
 		t.Fatalf("expected portable token to supply the value, got %+v", resolved)
+	}
+}
+
+func TestThemeConfigResolvesFormContainerMaxWidth(t *testing.T) {
+	cfg := &ThemeConfig{SemanticTokens: map[string]string{
+		FormContainerMaxWidthToken: "100%",
+	}}
+
+	expression, resolved, ok := cfg.SemanticCSSValue(FormContainerMaxWidthToken)
+	if !ok {
+		t.Fatal("expected form container max-width resolution")
+	}
+	if want := "var(--form-container-max-width)"; expression != want {
+		t.Fatalf("unexpected CSS expression: want %q, got %q", want, expression)
+	}
+	if resolved.Token != FormContainerMaxWidthToken || resolved.Value != "100%" {
+		t.Fatalf("unexpected resolution: %+v", resolved)
 	}
 }
 

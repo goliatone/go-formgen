@@ -82,6 +82,21 @@ func TestSemanticThemeCSSCoversStatesAndResponsiveHook(t *testing.T) {
 	}
 }
 
+func TestSemanticThemeCSSAppliesContainerWidthOnlyToForms(t *testing.T) {
+	cfg := &render.ThemeConfig{SemanticTokens: map[string]string{
+		render.FormContainerMaxWidthToken: "100%",
+	}}
+
+	css, consumed := semanticThemeCSS(cfg)
+	want := `#formgen-preact-root[data-formgen-semantic="true"] > .fg-preact-form{max-width:var(--form-container-max-width)}`
+	if !strings.Contains(css, want) {
+		t.Fatalf("form container width rule missing:\n%s", css)
+	}
+	if !containsToken(consumed, render.FormContainerMaxWidthToken) {
+		t.Fatalf("form container token not recorded as consumed: %v", consumed)
+	}
+}
+
 func containsToken(tokens []string, want string) bool {
 	for _, token := range tokens {
 		if token == want {

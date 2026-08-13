@@ -17,11 +17,20 @@ type ThemeTokenDiagnostic struct {
 	Reason     string `json:"reason,omitempty"`
 }
 
-// SemanticTokenSpec declares the constraint and portable fallback for one
-// go-formgen-owned semantic token.
+const (
+	// FormContainerMaxWidthToken controls the maximum width of a rendered form.
+	FormContainerMaxWidthToken = "form.container.max-width"
+	// LegacyContainerMaxWidthToken is the compatibility alias used by the
+	// original form stylesheet.
+	LegacyContainerMaxWidthToken = "container-max-width"
+)
+
+// SemanticTokenSpec declares the constraint, portable fallback, and legacy
+// aliases for one go-formgen-owned semantic token.
 type SemanticTokenSpec struct {
 	Constraint string
 	Fallback   string
+	Aliases    []string
 }
 
 // SemanticTokenResolution identifies the selected token and safe value.
@@ -31,6 +40,7 @@ type SemanticTokenResolution struct {
 }
 
 var formSemanticTokenSpecs = map[string]SemanticTokenSpec{
+	FormContainerMaxWidthToken:         {Constraint: "nonnegative-length", Aliases: []string{LegacyContainerMaxWidthToken}},
 	"form.control.background":          {Constraint: "color", Fallback: "color.surface.default"},
 	"form.control.text":                {Constraint: "color", Fallback: "color.text.primary"},
 	"form.control.border":              {Constraint: "color", Fallback: "color.border.default"},
@@ -52,6 +62,7 @@ var formSemanticTokenSpecs = map[string]SemanticTokenSpec{
 func FormSemanticTokenSpecs() map[string]SemanticTokenSpec {
 	out := make(map[string]SemanticTokenSpec, len(formSemanticTokenSpecs))
 	for token, spec := range formSemanticTokenSpecs {
+		spec.Aliases = append([]string(nil), spec.Aliases...)
 		out[token] = spec
 	}
 	return out

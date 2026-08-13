@@ -9,7 +9,7 @@
 
 /* Semantic chrome classes */
 .formgen-form {
-  max-width: var(--container-max-width, 56rem);
+  max-width: var(--form-container-max-width, var(--container-max-width, 56rem));
   margin-left: auto;
   margin-right: auto;
   padding: var(--formgen-form-padding, 1.5rem);

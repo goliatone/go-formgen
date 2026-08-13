@@ -421,9 +421,9 @@ manifest := &theme.Manifest{
 
     // Design tokens (auto converted to CSS vars)
     Tokens: map[string]string{
-        "primary-color":       "#3b82f6",
-        "container-max-width": "100%",
-        "border-radius":       "0.5rem",
+        "primary-color":            "#3b82f6",
+        "form.container.max-width": "100%",
+        "border-radius":            "0.5rem",
     },
 
     // Theme variants
@@ -486,7 +486,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 :root {
   --bg-primary: #1f2937;
   --border-radius: 0.5rem;
-  --container-max-width: 100%;
+  --form-container-max-width: 100%;
   --primary-color: #60a5fa;
 }
 </style>

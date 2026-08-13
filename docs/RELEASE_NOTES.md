@@ -1,5 +1,17 @@
 # Release Notes & Migration Guide (Phase 10)
 
+## Form Container Width Token (next release)
+
+- Added the canonical `form.container.max-width` semantic token and exported
+  `render.FormContainerMaxWidthToken` / `render.LegacyContainerMaxWidthToken`
+  constants.
+- `render.SemanticTokenSpec` now exposes defensive `Aliases` metadata so host
+  profiles can compose the go-formgen registry without duplicating aliases.
+- Vanilla and Preact consume the canonical token. The legacy
+  `container-max-width` token and `--container-max-width` CSS variable remain
+  compatible, canonical configuration wins, and omission retains the existing
+  56rem default.
+
 ## Semantic Theme Contract (proposed v0.32.0)
 
 - The opt-in `pkg/orchestrator/defaults` theme integration now uses go-theme's

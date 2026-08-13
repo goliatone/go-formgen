@@ -82,6 +82,20 @@ func TestSemanticThemeCSSCoversStatesAndResponsiveHook(t *testing.T) {
 	}
 }
 
+func TestSemanticThemeCSSAppliesContainerWidthOnlyToForms(t *testing.T) {
+	cfg := &render.ThemeConfig{SemanticTokens: map[string]string{
+		render.FormContainerMaxWidthToken: "100%",
+	}}
+
+	css, consumed := semanticThemeCSS(cfg)
+	if !strings.Contains(css, `form[data-formgen-semantic="true"]{max-width:var(--form-container-max-width)}`) {
+		t.Fatalf("form container width rule missing:\n%s", css)
+	}
+	if !containsToken(consumed, render.FormContainerMaxWidthToken) {
+		t.Fatalf("form container token not recorded as consumed: %v", consumed)
+	}
+}
+
 func containsToken(tokens []string, want string) bool {
 	for _, token := range tokens {
 		if token == want {

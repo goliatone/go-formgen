@@ -24,6 +24,9 @@ describe("theme build", () => {
     const css = await readFile(themeOutput, "utf8");
     expect(css.length).toBeGreaterThan(0);
     expect(css).toContain(".formgen-form");
+    expect(css).toContain(
+      "max-width:var(--form-container-max-width,var(--container-max-width,56rem))",
+    );
     expect(css).toContain(".ring-blue-500");
     expect(css).toContain(".shadow-xl");
   });

@@ -25,7 +25,7 @@ renderer, _ := vanilla.New(
 ```
 
 This gives you:
-- **Fixed max width** via `--container-max-width` (defaults to 56rem)
+- **Fixed max width** via `--form-container-max-width` (defaults to 56rem)
 - **Centered**, padded, and rounded container
 - **Dark mode support** via `prefers-color-scheme` fallbacks and theme tokens
 
@@ -227,8 +227,14 @@ form token -> portable token -> existing renderer default
 The final step does not emit a new CSS literal. When neither semantic token is
 present, the renderer's existing stylesheet and classes remain authoritative.
 
+`container-max-width` remains a compatibility alias for
+`form.container.max-width`. If both names are present, the canonical token
+wins. The base stylesheet also reads the legacy `--container-max-width` CSS
+variable after the canonical variable so direct CSS integrations keep working.
+
 | Form token | Portable fallback |
 | --- | --- |
+| `form.container.max-width` | Existing 56rem stylesheet default |
 | `form.control.background` | `color.surface.default` |
 | `form.control.text` | `color.text.primary` |
 | `form.control.border` | `color.border.default` |
@@ -758,7 +764,7 @@ Apply via theme tokens or inline styles.
 ### Scenario 1: Fluid-Width Forms
 
 **Problem:** Default form container is `formgen-form` with
-`--container-max-width` defaulting to 56rem.
+`--form-container-max-width` defaulting to 56rem.
 
 **Solution A: Theme tokens / CSS vars**
 
@@ -766,7 +772,7 @@ Set a token that maps to the CSS variable:
 
 ```go
 Tokens: map[string]string{
-    "container-max-width": "100%", // fluid
+    "form.container.max-width": "100%", // fluid
 }
 ```
 
@@ -1068,7 +1074,8 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 
 | Token | Purpose | Example |
 |-------|---------|---------|
-| `container-max-width` | Form container max width | `"100%"` |
+| `form.container.max-width` | Form container max width | `"100%"` |
+| `container-max-width` | Deprecated alias for `form.container.max-width` | `"100%"` |
 | `container-class` | Form container classes (template override only) | `"w-full"` |
 | `grid-columns-mobile` | Mobile grid columns | `"1"` |
 | `grid-columns-desktop` | Desktop grid columns | `"2"` |

@@ -143,9 +143,15 @@ func FormSemanticProfile() theme.TokenProfile {
 	if profile.Tokens == nil {
 		profile.Tokens = map[string]theme.TokenSpec{}
 	}
+	if profile.Aliases == nil {
+		profile.Aliases = map[string]string{}
+	}
 	for token, spec := range render.FormSemanticTokenSpecs() {
 		profile.Tokens[token] = theme.TokenSpec{
 			Constraint: theme.ValueConstraint(spec.Constraint),
+		}
+		for _, alias := range spec.Aliases {
+			profile.Aliases[alias] = token
 		}
 	}
 	return profile

@@ -191,6 +191,7 @@ func TestThemeResolverUsesSemanticProjectionContract(t *testing.T) {
 		Name: "acme",
 		Tokens: map[string]string{
 			"color.text.primary":      "#111827",
+			"container-max-width":     "100%",
 			"form.control.background": "#ffffff",
 			"form.control.text":       `red;display:none`,
 			"form.control.radius":     "8px",
@@ -232,6 +233,12 @@ func TestThemeResolverUsesSemanticProjectionContract(t *testing.T) {
 	if got := cfg.CSSVars["--form-control-background"]; got != "#0f172a" {
 		t.Fatalf("expected variant projection, got %q", got)
 	}
+	if got := cfg.CSSVars["--form-container-max-width"]; got != "100%" {
+		t.Fatalf("expected legacy width alias to project canonically, got %q", got)
+	}
+	if got := cfg.SemanticTokens[render.FormContainerMaxWidthToken]; got != "100%" {
+		t.Fatalf("expected legacy width alias to be semantically consumable, got %q", got)
+	}
 	if _, ok := cfg.CSSVars["--form-control-text"]; ok {
 		t.Fatal("expected invalid component value to be omitted")
 	}
@@ -262,8 +269,28 @@ func TestThemeResolverUsesSemanticProjectionContract(t *testing.T) {
 	}
 
 	assertThemeDiagnostic(t, cfg.Diagnostics, "form.control.text", "invalid")
+	assertThemeDiagnostic(t, cfg.Diagnostics, render.LegacyContainerMaxWidthToken, "supported")
 	assertThemeDiagnostic(t, cfg.Diagnostics, "form.control.background", "supported")
 	assertThemeDiagnostic(t, cfg.Diagnostics, "legacy.custom", "unsupported")
+}
+
+func TestFormSemanticProfileProjectsContainerWidthAliasAndCanonicalPrecedence(t *testing.T) {
+	profile := FormSemanticProfile()
+
+	legacy := theme.ProjectCSSVariables(map[string]string{
+		render.LegacyContainerMaxWidthToken: "100%",
+	}, theme.ProjectionOptions{Profile: &profile})
+	if got := legacy.Variables["--form-container-max-width"]; got != "100%" {
+		t.Fatalf("legacy alias projection = %q, want 100%%", got)
+	}
+
+	canonical := theme.ProjectCSSVariables(map[string]string{
+		render.LegacyContainerMaxWidthToken: "64rem",
+		render.FormContainerMaxWidthToken:   "72rem",
+	}, theme.ProjectionOptions{Profile: &profile})
+	if got := canonical.Variables["--form-container-max-width"]; got != "72rem" {
+		t.Fatalf("canonical projection = %q, want 72rem", got)
+	}
 }
 
 func TestDirectLegacyThemeConfigRemainsUntouched(t *testing.T) {

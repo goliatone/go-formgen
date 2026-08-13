@@ -93,6 +93,12 @@ func semanticThemeCSS(cfg *render.ThemeConfig) (string, []string) {
 
 func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}) {
 	writeSemanticRule(css, cfg, consumed,
+		`form[data-formgen-semantic="true"]`,
+		[]semanticProperty{
+			{name: "max-width", token: render.FormContainerMaxWidthToken},
+		},
+	)
+	writeSemanticRule(css, cfg, consumed,
 		`[data-formgen-semantic="true"]`,
 		[]semanticProperty{
 			{name: "background-color", token: "color.surface.default"},

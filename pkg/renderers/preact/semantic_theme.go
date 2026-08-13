@@ -79,6 +79,12 @@ func semanticThemeCSS(cfg *render.ThemeConfig) (string, []string) {
 
 func writeSemanticBaseRules(css *strings.Builder, cfg *render.ThemeConfig, consumed map[string]struct{}) {
 	writeSemanticRule(css, cfg, consumed,
+		`#formgen-preact-root[data-formgen-semantic="true"] > .fg-preact-form`,
+		[]semanticProperty{
+			{name: "max-width", token: render.FormContainerMaxWidthToken},
+		},
+	)
+	writeSemanticRule(css, cfg, consumed,
 		`#formgen-preact-root[data-formgen-semantic="true"] > :where(.fg-preact, .fg-preact-form, .fg-preact-fields)`,
 		[]semanticProperty{
 			{name: "background-color", token: "color.surface.default"},
