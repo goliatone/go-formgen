@@ -1,3 +1,5 @@
+@import "./grid-layout.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -83,6 +85,104 @@
 
   .formgen-actions {
     border-color: var(--border-color, #374151);
+  }
+}
+
+/* Native choice groups (choice, choice-multiple, scale) */
+.formgen-choice {
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.formgen-choice-legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.formgen-choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--formgen-choice-gap, 0.5rem);
+}
+
+.formgen-choice--single .formgen-choice-options,
+.formgen-choice--multiple .formgen-choice-options {
+  flex-direction: column;
+}
+
+.formgen-choice--scale .formgen-choice-options {
+  flex-direction: row;
+}
+
+.formgen-choice-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--formgen-choice-target, 2.75rem);
+  min-width: var(--formgen-choice-target, 2.75rem);
+  padding: var(--formgen-choice-padding, 0.5rem 0.75rem);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--formgen-choice-radius, var(--border-radius, 0.5rem));
+  background-color: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.formgen-choice--scale .formgen-choice-option {
+  justify-content: center;
+}
+
+.formgen-choice-option[data-selected="true"] {
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 1px var(--primary-color, #2563eb);
+}
+
+.formgen-choice-option[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.formgen-choice-input {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.formgen-choice-input:focus-visible,
+.formgen-choice-option:has(.formgen-choice-input:focus-visible) {
+  outline: 3px solid var(--formgen-focus-ring, var(--primary-color, #2563eb));
+  outline-offset: 2px;
+}
+
+.formgen-choice-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.formgen-choice[data-validation-state="invalid"] .formgen-choice-option {
+  border-color: var(--formgen-error-border, #f87171);
+}
+
+.formgen-choice-scale-end {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.formgen-choice .formgen-error[aria-hidden="true"] {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .formgen-choice-option {
+    background-color: var(--bg-primary, #0f172a);
+    border-color: var(--border-color, #374151);
+    color: var(--text-primary, #f9fafb);
   }
 }
 

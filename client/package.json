@@ -6,6 +6,7 @@
   "scripts": {
     "build": "npm run build:types && npm run build:theme && npm run build:bundle",
     "build:bundle": "tsx scripts/build.ts",
+    "build:grid": "node scripts/grid-layout.mjs",
     "build:theme": "node scripts/build-theme.mjs",
     "build:stats": "tsx scripts/build.ts --analyze",
     "build:types": "tsc --project tsconfig.build.json",

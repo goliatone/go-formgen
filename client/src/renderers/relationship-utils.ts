@@ -55,6 +55,13 @@ export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
       .filter((option) => option.selected && option.value !== "")
       .map((option) => option.value)
   );
+  // Preserve rendered defaults so controller reset can restore them after the
+  // widget rebuilds its option nodes.
+  const defaultSelection = new Set(
+    Array.from(select.options)
+      .filter((option) => option.defaultSelected && option.value !== "")
+      .map((option) => option.value)
+  );
 
   select.innerHTML = "";
   if (placeholder) {
@@ -77,6 +84,7 @@ export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
     const node = document.createElement("option");
     node.value = option.value;
     node.textContent = option.label;
+    node.defaultSelected = defaultSelection.has(option.value);
     node.selected = currentSelection.has(option.value);
     select.appendChild(node);
   }

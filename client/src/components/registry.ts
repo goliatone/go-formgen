@@ -63,6 +63,47 @@ export function initComponents(root: Document | HTMLElement = document): void {
   }
 }
 
+/** Runtime preflight entry for one `[data-component]` wrapper. */
+export interface RuntimeComponentPreflight {
+  name: string;
+  element: HTMLElement;
+  /** True when a browser enhancement factory is registered for the name. */
+  enhanced: boolean;
+  /** Present when `data-component-config` is not a JSON object. */
+  configError?: string;
+}
+
+/** Names with registered browser enhancement factories (defaults plus host registrations). */
+export function registeredComponentNames(): string[] {
+  return Array.from(factories.keys()).sort();
+}
+
+/**
+ * Inspect rendered component wrappers before or after initialization. Wrappers
+ * rendered by the server registry without a browser factory (inputs, selects,
+ * native choice groups) report `enhanced: false`; that is expected and only
+ * meaningful for names the host intends to enhance. Malformed inline config is
+ * reported instead of silently ignored. Nothing is instantiated.
+ */
+export function preflightComponents(root: Document | HTMLElement = document): RuntimeComponentPreflight[] {
+  return collectComponentRoots(root).map((element) => {
+    const name = normalize(element.dataset.component ?? "");
+    const entry: RuntimeComponentPreflight = { name, element, enhanced: factories.has(name) };
+    const raw = element.getAttribute("data-component-config");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          entry.configError = "data-component-config must be a JSON object";
+        }
+      } catch (error) {
+        entry.configError = `data-component-config is not valid JSON: ${(error as Error).message}`;
+      }
+    }
+    return entry;
+  });
+}
+
 export function destroyComponents(root: Document | HTMLElement = document): void {
   for (const element of collectComponentRoots(root)) {
     const instance = instances.get(element);

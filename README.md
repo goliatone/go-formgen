@@ -1,6 +1,6 @@
 # formgen
 
-A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loads and parses an OpenAPI document, builds a typed form model, then renders HTML (or interactive CLI prompts) through pluggable renderers.
+A Go library that builds typed form models from OpenAPI 3.x operations or JSON Schema. Render HTML, JSON descriptors or interactive CLI prompts through pluggable renderers, and parse/validate submitted values against the form model.
 
 ## Documentation
 
@@ -11,12 +11,27 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 - [Task & Roadmap Notes](TODO.md)
 - [JSON Schema Adapter Guide](docs/README_JSON_SCHEMA.md)
 
+## Package map
+
+| Package | Responsibility |
+|----|----|
+| Root `formgen`, `pkg/orchestrator/defaults` | Rendering convenience helpers; opt into concrete renderer/theme dependencies |
+| `pkg/orchestrator` | Headless model builds and explicit renderer/adapter composition |
+| `pkg/openapi`, `pkg/jsonschema`, `pkg/schema` | Sources, document adapters, schema discovery and normalization |
+| `pkg/model`, `pkg/uischema`, `pkg/widgets`, `pkg/visibility/*` | Typed forms, overlays, widgets and conditional visibility |
+| `pkg/render`, `pkg/render/template/*`, `pkg/renderers/*` | Render contracts/options and vanilla, JSON, Preact and TUI implementations |
+| `pkg/submission`, `pkg/validation` | Form-model parsing/coercion/error mapping and JSON Schema validator contracts |
+| `components/timezones`, `components/timezones/formgenwiring` | Optional timezone lookup handler and form endpoint wiring |
+| Root asset helpers, `pkg/testsupport` | Embedded `pkg/runtime/assets` bundles and fixture helpers |
+
+These share the root Go module. `examples/http` has its own module and must be run/tested from that directory. The compiler/renderers do not mount submission routes or persist records. Timezone lookup routes are mounted only through an explicit host call to `timezones.RegisterRoutes`.
+
 ## Features
 
 - OpenAPI 3.x → typed `FormModel` (fields, validations, relationships, metadata/UI hints)
 - JSON Schema Draft 2020-12 adapter with deterministic `$ref` resolution and form discovery
 - Loaders for file, `fs.FS`, or HTTP; parser wraps kin-openapi output in stable domain types and merges `allOf`
-- Pluggable renderers: vanilla (Go templates), Preact (hydrated, embedded assets), and TUI/CLI
+- Pluggable renderers: vanilla (Go templates), JSON descriptors, Preact (hydrated, embedded assets), and TUI/CLI
 - Orchestrator wiring with renderer registry, widget registry, endpoint overrides, and visibility evaluators
 - UI schema overlays (JSON/YAML) for sections, layout, icons, actions, and component overrides without touching templates
 - Optional i18n: UI schema `*Key` fields + render-time localization and template helpers
@@ -28,50 +43,50 @@ A Go library that turns OpenAPI 3.x operations into ready-to-embed forms. It loa
 
 ## Installation
 
-```bash
+``` bash
 go get github.com/goliatone/go-formgen
 ```
 
-Requires Go 1.23+.
+Requires Go 1.25 or newer, as declared by `go.mod`.
 
 ## Quick Start
 
-```go
+``` go
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
+    "context"
+    "fmt"
+    "log"
 
-	"github.com/goliatone/go-formgen"
-	"github.com/goliatone/go-formgen/pkg/openapi"
+    "github.com/goliatone/go-formgen"
+    "github.com/goliatone/go-formgen/pkg/openapi"
 )
 
 func main() {
-	ctx := context.Background()
+    ctx := context.Background()
 
-	html, err := formgen.GenerateHTML(
-		ctx,
-		openapi.SourceFromFile("examples/fixtures/petstore.json"),
-		"createPet",
-		"vanilla", // or "preact", "tui"
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+    html, err := formgen.GenerateHTML(
+        ctx,
+        openapi.SourceFromFile("examples/fixtures/petstore.json"),
+        "createPet",
+        "vanilla", // defaults also include "json"; register Preact/TUI explicitly
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
 
-	fmt.Println(string(html))
+    fmt.Println(string(html))
 }
 ```
 
 ## How It Works
 
-1) Loader resolves an OpenAPI document (file, `fs.FS`, or HTTP).
-2) Parser wraps operations into `formgen.Document`/`Operation` types.
-3) Builder emits a typed `FormModel` (`Fields`, validation rules, metadata, relationships).
-4) Renderer turns the model into HTML (vanilla/Preact) or CLI prompts (TUI).
-5) Optional UI schema decorators and endpoint overrides enrich metadata and layout hints.
+1)  Loader resolves an OpenAPI document (file, `fs.FS`, or HTTP).
+2)  Parser wraps operations into `formgen.Document`/`Operation` types.
+3)  Builder emits a typed `FormModel` (`Fields`, validation rules, metadata, relationships).
+4)  Renderer turns the model into HTML (vanilla/Preact) or CLI prompts (TUI).
+5)  Optional UI schema decorators and endpoint overrides enrich metadata and layout hints.
 
 Use `pkg/orchestrator` when you need a renderer-free `FormModel`, or the root/default helpers when you want rendering dependencies wired for you.
 
@@ -79,18 +94,18 @@ Use `pkg/orchestrator` when you need a renderer-free `FormModel`, or the root/de
 
 `pkg/orchestrator` is safe for compiler-only consumers. It builds `model.FormModel` values without importing concrete renderers, `go-theme`, template engines, or sanitizer dependencies.
 
-```go
+``` go
 orch := orchestrator.New()
 
 form, err := orch.BuildFormModel(ctx, orchestrator.BuildRequest{
-	Source:      openapi.SourceFromFile("openapi.json"),
-	OperationID: "createPet",
+    Source:      openapi.SourceFromFile("openapi.json"),
+    OperationID: "createPet",
 })
 ```
 
 JSON Schema callers can avoid temporary files:
 
-```go
+``` go
 form, err := orch.BuildFormModelFromJSONSchemaBytes(ctx, rawSchema, "article.edit")
 ```
 
@@ -100,10 +115,10 @@ Call `Generate` only after registering renderers explicitly, or use `formgen.New
 
 `pkg/submission` parses and validates submitted payloads against a `model.FormModel`.
 
-```go
+``` go
 parsed, err := submission.ParseRequest(form, r)
 if err != nil {
-	return err
+    return err
 }
 issues := append(parsed.Issues, submission.Validate(form, parsed.Values)...)
 fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(form, issues)
@@ -111,29 +126,32 @@ fieldErrors, formErrors := submission.IssuesToFieldAndFormErrors(form, issues)
 
 The package supports JSON, form-urlencoded, multipart, dotted paths, bracket/indexed arrays, raw JSON object fields, field-aware coercion, typed enum control values, and renderer-compatible error mapping.
 
+Parsing and validation are separate: inspect parse issues, call `Validate`, then map their combined issues. Unknown fields are dropped with an issue by default; `WithUnknownFields` selects ignore/preserve behavior. Multipart defaults are 32 MiB memory and 64 MiB total body size; `WithMultipartMaxBodyBytes` applies to multipart parsing. Hosts cap JSON/urlencoded bodies, clean up multipart resources, authenticate/authorize submissions, enforce CSRF and persist through application services. Hidden/read-only rendering is not server authorization. See [submission contracts](pkg/submission/types.go) and [schema guidance](docs/README_SCHEMA.md).
+
 ## Renderers
 
+- `json`: Structured form descriptors for headless clients.
 - `vanilla`: Server-rendered HTML using Go templates. Accepts `WithTemplatesFS`/`WithTemplatesDir` and `WithTemplateFuncs` for custom bundles/helpers.
 - `preact`: Hydrate-able markup plus embedded JS/CSS (`preact.AssetsFS()`); `WithAssetURLPrefix` rewrites asset URLs for HTTP servers or CDNs.
 - `tui`: Interactive terminal prompts (JSON/form-url-encoded/pretty output). Run with `--renderer tui` in the CLI example or register it in the renderer registry.
 
-```go
+``` go
 registry := render.NewRegistry()
 vanillaRenderer, err := vanilla.New(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()))
 if err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 registry.MustRegister(vanillaRenderer)
 preactRenderer, err := preact.New()
 if err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 registry.MustRegister(preactRenderer)
 
 gen := orchestrator.New(
-	orchestrator.WithRegistry(registry),
-	orchestrator.WithDefaultRenderer("vanilla"),
-	orchestrator.WithWidgetRegistry(widgets.NewRegistry()), // adapters can RegisterWidget later
+    orchestrator.WithRegistry(registry),
+    orchestrator.WithDefaultRenderer("vanilla"),
+    orchestrator.WithWidgetRegistry(widgets.NewRegistry()), // adapters can RegisterWidget later
 )
 ```
 
@@ -141,53 +159,53 @@ gen := orchestrator.New(
 
 Compose your own pipeline when you need custom sources, decorators, or render options:
 
-```go
+``` go
 ctx := context.Background()
 
 loader := formgen.NewLoader(openapi.WithDefaultSources())
 registry := render.NewRegistry()
 vanillaRenderer, err := vanilla.New(vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()))
 if err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 registry.MustRegister(vanillaRenderer)
 
 gen := orchestrator.New(
-	orchestrator.WithLoader(loader),
-	orchestrator.WithParser(formgen.NewParser()),
-	orchestrator.WithModelBuilder(model.NewBuilder()),
-	orchestrator.WithRegistry(registry),
-	orchestrator.WithEndpointOverrides([]formgen.EndpointOverride{
-		{
-			OperationID: "createPet",
-			FieldPath:   "owner_id",
-			Endpoint: formgen.EndpointConfig{
-				URL:        "https://api.example.com/owners",
-				Method:     "GET",
-				LabelField: "name",
-				ValueField: "id",
-			},
-		},
-	}),
-	formgen.WithThemeProvider(myThemeProvider, "default", "light"),
-	orchestrator.WithVisibilityEvaluator(myVisibilityEvaluator),
+    orchestrator.WithLoader(loader),
+    orchestrator.WithParser(formgen.NewParser()),
+    orchestrator.WithModelBuilder(model.NewBuilder()),
+    orchestrator.WithRegistry(registry),
+    orchestrator.WithEndpointOverrides([]formgen.EndpointOverride{
+        {
+            OperationID: "createPet",
+            FieldPath:   "owner_id",
+            Endpoint: formgen.EndpointConfig{
+                URL:        "https://api.example.com/owners",
+                Method:     "GET",
+                LabelField: "name",
+                ValueField: "id",
+            },
+        },
+    }),
+    formgen.WithThemeProvider(myThemeProvider, "default", "light"),
+    orchestrator.WithVisibilityEvaluator(myVisibilityEvaluator),
 )
 
 output, err := gen.Generate(ctx, orchestrator.Request{
-	Source:      openapi.SourceFromFile("openapi.json"),
-	OperationID: "createPet",
-	RenderOptions: render.RenderOptions{
-		Method: "PATCH",
-		Subset: render.FieldSubset{Groups: []string{"notifications"}}, // render a tab/section subset
-		Values: map[string]any{
-			"name": render.ValueWithProvenance{
-				Value:      "Fido",
-				Provenance: "tenant default",
-				Disabled:   true,
-			},
-		},
-		Errors: map[string][]string{"slug": {"Taken"}}, // surface server errors (go-errors compatible)
-	},
+    Source:      openapi.SourceFromFile("openapi.json"),
+    OperationID: "createPet",
+    RenderOptions: render.RenderOptions{
+        Method: "PATCH",
+        Subset: render.FieldSubset{Groups: []string{"notifications"}}, // render a tab/section subset
+        Values: map[string]any{
+            "name": render.ValueWithProvenance{
+                Value:      "Fido",
+                Provenance: "tenant default",
+                Disabled:   true,
+            },
+        },
+        Errors: map[string][]string{"slug": {"Taken"}}, // surface server errors (go-errors compatible)
+    },
 })
 ```
 
@@ -195,7 +213,7 @@ UI schema files can be injected with `orchestrator.WithUISchemaFS`, and custom d
 
 Add a transformer when you need to rename fields or inject metadata without changing the OpenAPI source:
 
-```go
+``` go
 jsonPreset, _ := orchestrator.NewJSONPresetTransformerFromFS(os.DirFS("./presets"), "article.json")
 gen := formgen.NewOrchestrator(orchestrator.WithSchemaTransformer(jsonPreset))
 ```
@@ -219,7 +237,7 @@ When serving HTML, remember to register and set a default renderer, and ensure t
 
 Example mount:
 
-```go
+``` go
 mux.Handle("/runtime/",
   http.StripPrefix("/runtime/",
     http.FileServerFS(formgen.RuntimeAssetsFS()),
@@ -229,7 +247,7 @@ mux.Handle("/runtime/",
 
 Runtime usage (vanilla renderer or custom pages):
 
-```html
+``` html
 <script src="/runtime/formgen-relationships.min.js" defer></script>
 <script>
   window.addEventListener("DOMContentLoaded", () => {
@@ -242,7 +260,7 @@ Runtime usage (vanilla renderer or custom pages):
 
 Register or use the default JSON descriptor renderer when a host app owns the UI:
 
-```go
+``` go
 output, err := gen.Generate(ctx, orchestrator.Request{
   Source:      openapi.SourceFromFile("schema.json"),
   OperationID: "createArticle",
@@ -253,26 +271,28 @@ output, err := gen.Generate(ctx, orchestrator.Request{
 })
 ```
 
-The descriptor envelope separates `form`, `values`, field `errors`, `formErrors`,
-`hiddenFields`, and `metadata`. Use `jsonrenderer.WithoutEnvelope()` when you
-only need the raw `FormModel` snapshot.
+The descriptor envelope separates `form`, `values`, field `errors`, `formErrors`, `hiddenFields`, and `metadata`. Use `jsonrenderer.WithoutEnvelope()` when you only need the raw `FormModel` snapshot.
 
 Vanilla and Preact support embeddable modes:
 
-```go
+``` go
 render.RenderOptions{RenderMode: render.RenderModeForm}   // one <form>, no page shell
 render.RenderOptions{RenderMode: render.RenderModeFields} // controls only, no <form>
 ```
 
-The browser bundle also exposes `window.Formgen.attach(root)`, returning a
-controller with `getValues`, `setValues`, `reset`, `setErrors`, `clearErrors`,
-`onChange`, `focus`, and `destroy`. `reset` restores rendered defaults, clears
-field errors, and resynchronizes enhanced widgets.
+The browser bundle also exposes `window.Formgen.attach(root)`, returning a controller with `getValues`, `setValues`, `reset`, `setErrors`, `clearErrors`, `onChange`, `focus`, and `destroy`. `reset` restores rendered defaults, clears field errors, and resynchronizes enhanced widgets.
 
-For fields-only roots that use remote scalar or chips options, initialize the
-root before attaching the final controller:
+`setValues(values)` and `reset()` keep their legacy contract: patch semantics and one `onChange` callback per native input/change event. Passing an options object opts into the embedded hydration contract. `setValues(values, { notify: false })` suppresses that controller's subscribers while widgets, submission mirrors, and dependent fields still synchronize. `setValues(values, { notify: true })` settles into one callback and emits nothing when no control changed. `setValues(snapshot, { mode: "replace" })` clears omitted managed values, treats `null` as an explicit clear, replaces arrays, and throws before mutating when a payload row has no rendered row. `reset(options)` settles the same way. Every callback receives a third `meta` argument with `origin` (`ui`, `program`, `hydrate`, or `reset`) and canonical `paths` such as `rows[1].name`.
 
-```js
+Passing the complete form model (or the JSON descriptor envelope) to `Formgen.attach(root, { model })` adds model-aware operations: `controller.normalize()` returns typed values plus parse issues aligned with the Go `submission` package, and `controller.validate({ paths: ["colors"] })` validates selected canonical paths (or the full form without a scope) without fetching options or submitting. `getValues()` stays raw. The same helpers are exported as `normalizeValues` and `validateValues`.
+
+When the model carries `formgen.conditions/v1` rules, the controller compiles them once and settles applicability on attach, after every user edit, after hydration, reset, and replace restoration, and after repeater row changes: inapplicable controls are hidden (`hidden` on their component wrapper, with `data-formgen-applicable` markers), conditional requiredness drives the `required` attribute, inapplicable values are cleared (or kept aside under the `retain` policy), obsolete issues disappear, and each change notification carries `meta.applicable`. `controller.effective()` returns the effective values, retained values, applicability, and requiredness; `validate()` applies the same server-equivalent composition (conditional requiredness, inactive members excluded from counts, `inactiveInput` for stale supplied answers). Invalid definitions surface as `condition` issues and leave legacy behavior unchanged.
+
+`controller.setIssues(issues)` presents browser or server issues: a precise path such as `rows[1].name` displays inline on that exact control, form-level and unmapped issues go to a replaceable summary (`[data-formgen-form-errors]`), repeater items and fieldsets with invalid descendants gain `data-formgen-group-invalid`, and `focusIssue(issue)` focuses the first visible, enabled control or falls back to the summary. `clearIssues()` removes every displayed issue while preserving values. See `examples/embedded` for the runnable compile → render → hydrate → validate → server issues → snapshot → destroy flow.
+
+For fields-only roots that use remote scalar or chips options, initialize the root before attaching the final controller:
+
+``` js
 const registry = await FormgenRelationships.initFormgenRoot(root, {
   beforeFetch(context) {
     // Hosts may authorize, sign, or rewrite context.request in place.
@@ -282,34 +302,13 @@ const controller = FormgenRelationships.Formgen.attach(root, { registry });
 // Later: controller.destroy(), or registry.destroy(root).
 ```
 
-`initFormgenRoot` keeps its registry and configuration local to that root; it
-does not replace `globalThis.formgenRelationships` or the global resolver
-configuration. Passing the returned registry to `Formgen.attach` also keeps
-value, reset, and error hydration bound to that root. Destroying the controller
-or calling `registry.destroy(root)` removes refresh/search listeners, cancels
-pending delayed work, and tears down enhanced widgets, components, and array
-repeaters, so the same mounted root can be initialized again safely. Use
-`initRelationships` when intentionally initializing and publishing the
-page-wide registry.
+`initFormgenRoot` keeps its registry and configuration local to that root; it does not replace `globalThis.formgenRelationships` or the global resolver configuration. Passing the returned registry to `Formgen.attach` also keeps value, reset, and error hydration bound to that root. Destroying the controller or calling `registry.destroy(root)` removes refresh/search listeners, cancels pending delayed work, and tears down enhanced widgets, components, and array repeaters, so the same mounted root can be initialized again safely. Use `initRelationships` when intentionally initializing and publishing the page-wide registry.
 
-Relationship multi-selects may generate hidden inputs for native form
-submission. Those inputs are submission mirrors, not controller fields:
-`controller.getValues()` reads the authoritative select once and preserves an
-array even when only one option is selected. The same rule applies to JSON
-submission mirrors; ordinary application-owned hidden inputs remain available
-unless `includeHidden: false` is requested.
+Relationship multi-selects may generate hidden inputs for native form submission. Those inputs are submission mirrors, not controller fields: `controller.getValues()` reads the authoritative select once and preserves an array even when only one option is selected. The same rule applies to JSON submission mirrors; ordinary application-owned hidden inputs remain available unless `includeHidden: false` is requested.
 
-`model.Field.Options` carries stable values, labels, descriptions, disabled
-state, and JSON-safe metadata. Generic `x-endpoint` fields may select the
-`select` or `chips` renderer and use dependency-driven refresh, debounce,
-request cancellation/stale-response protection, cache policy, and selection
-preservation without declaring a relationship.
+`model.Field.Options` carries stable values, labels, descriptions, disabled state, and JSON-safe metadata. Generic `x-endpoint` fields may select the `select` or `chips` renderer and use dependency-driven refresh, debounce, request cancellation/stale-response protection, cache policy, and selection preservation without declaring a relationship.
 
-Sensitive defaults are redacted from descriptor and browser renderer output by
-default. Fields are marked sensitive by `format: password`, `x-formgen.sensitive`,
-`x-formgen.secret`, `x-admin.secret`, `x-formgen-sensitive`,
-`x-formgen-secret`, `x-admin-secret`, or `cli.secret`. Set
-`RenderOptions.IncludeSensitiveDefaults` only for trusted server-side output.
+Sensitive defaults are redacted from descriptor and browser renderer output by default. Fields are marked sensitive by `format: password`, `x-formgen.sensitive`, `x-formgen.secret`, `x-admin.secret`, `x-formgen-sensitive`, `x-formgen-secret`, `x-admin-secret`, or `cli.secret`. Set `RenderOptions.IncludeSensitiveDefaults` only for trusted server-side output.
 
 ## Localization (i18n)
 
@@ -317,9 +316,9 @@ Formgen supports localization without depending on a specific i18n package: supp
 
 ### How To
 
-1) Add explicit translation keys in your UI schema while keeping human readable fallbacks:
+1)  Add explicit translation keys in your UI schema while keeping human readable fallbacks:
 
-```json
+``` json
 {
   "operations": {
     "createPet": {
@@ -332,9 +331,9 @@ Formgen supports localization without depending on a specific i18n package: supp
 }
 ```
 
-2) Provide locale + translator at render time (missing translations go through `OnMissing`):
+2)  Provide locale + translator at render time (missing translations go through `OnMissing`):
 
-```go
+``` go
 output, err := gen.Generate(ctx, orchestrator.Request{
   Source:      openapi.SourceFromFile("openapi.json"),
   OperationID: "createPet",
@@ -348,9 +347,9 @@ output, err := gen.Generate(ctx, orchestrator.Request{
 })
 ```
 
-3) (Optional) Use template level translation helpers in custom templates:
+3)  (Optional) Use template level translation helpers in custom templates:
 
-```go
+``` go
 funcs := render.TemplateI18nFuncs(myTranslator, render.TemplateI18nConfig{
   FuncName:  "translate",
   LocaleKey: "locale",
@@ -371,7 +370,8 @@ Formgen provides multiple layers of styling customization, from default Tailwind
 ### Quick Styling Options
 
 **Use default styles:**
-```go
+
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()),
     vanilla.WithDefaultStyles(),  // Bundled Tailwind CSS
@@ -379,7 +379,8 @@ renderer, _ := vanilla.New(
 ```
 
 **Inject custom CSS:**
-```go
+
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithInlineStyles(`
         form[data-formgen-auto-init] { width: 100%; max-width: none; }
@@ -388,14 +389,16 @@ renderer, _ := vanilla.New(
 ```
 
 **Add external stylesheet:**
-```go
+
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithStylesheet("/static/custom-forms.css"),
 )
 ```
 
 **Disable all styles:**
-```go
+
+``` go
 renderer, _ := vanilla.New(vanilla.WithoutStyles())
 ```
 
@@ -404,6 +407,7 @@ renderer, _ := vanilla.New(vanilla.WithoutStyles())
 Formgen integrates with [`go-theme`](https://github.com/goliatone/go-theme) to provide theme management:
 
 **Key Features:**
+
 - Multi theme support with runtime switching
 - Theme variants (light/dark, compact/spacious, etc.)
 - Design tokens auto converted to CSS variables
@@ -412,7 +416,7 @@ Formgen integrates with [`go-theme`](https://github.com/goliatone/go-theme) to p
 
 **Basic Example:**
 
-```go
+``` go
 import theme "github.com/goliatone/go-theme"
 
 manifest := &theme.Manifest{
@@ -480,7 +484,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 **What gets rendered:**
 
-```html
+``` html
 <!-- CSS variables from theme tokens -->
 <style data-formgen-theme-vars>
 :root {
@@ -502,6 +506,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 ```
 
 **See the [Styling Guide](docs/GUIDE_STYLING.md#4-theme-integration-go-theme) for:**
+
 - Complete theme manifest structure
 - Token merging and precedence
 - Template lookup order
@@ -512,7 +517,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 Control grid layout via UI schema metadata:
 
-```json
+``` json
 {
   "uiHints": {
     "layout.gridColumns": "12"
@@ -532,7 +537,7 @@ Control grid layout via UI schema metadata:
 
 Or use responsive CSS:
 
-```css
+``` css
 @media (min-width: 1024px) {
   form[data-formgen-auto-init] .grid {
     grid-template-columns: repeat(2, 1fr);
@@ -541,6 +546,7 @@ Or use responsive CSS:
 ```
 
 **See the complete [Styling & Customization Guide](docs/GUIDE_STYLING.md) for:**
+
 - Custom template bundles
 - Fluid vs. fixed width containers
 - Responsive two column layouts
@@ -556,7 +562,7 @@ Beyond styling, formgen supports extensive form behavior customization through *
 
 Add submit, reset, cancel, or custom buttons via UI schema:
 
-```json
+``` json
 {
   "operations": {
     "createArticle": {
@@ -588,7 +594,7 @@ Add submit, reset, cancel, or custom buttons via UI schema:
 
 Organize fields into logical sections with custom grid layouts:
 
-```json
+``` json
 {
   "operations": {
     "createPet": {
@@ -632,7 +638,7 @@ Organize fields into logical sections with custom grid layouts:
 
 Use built-in widgets or register custom components:
 
-```json
+``` json
 {
   "fields": {
     "description": {
@@ -655,7 +661,7 @@ Use built-in widgets or register custom components:
 
 Add client-side behaviors like auto slug:
 
-```json
+``` json
 {
   "fields": {
     "title": {
@@ -675,7 +681,7 @@ Add client-side behaviors like auto slug:
 
 ### Loading UI Schemas
 
-```go
+``` go
 //go:embed ui-schemas
 var uiSchemas embed.FS
 
@@ -690,6 +696,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 ```
 
 **See the complete [Form Customization Guide](docs/GUIDE_CUSTOMIZATION.md) for:**
+
 - Action button configuration (submit, reset, cancel, custom)
 - Section and fieldset organization
 - Field-level customization (labels, help text, grid positioning)
@@ -702,18 +709,16 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 ## Testing & Tooling
 
-```
-./taskfile go:tools:all        # install pinned golangci-lint, govulncheck, and gosec
-./taskfile go:quality:pr       # format check, tests, and new-code lint
-./taskfile go:quality:all      # fmt, fix, tests, race, lint, and security checks
-./taskfile go:lint:report      # report lint findings without failing the task
-./taskfile dev:test            # compatibility wrapper for go:test
-./taskfile dev:test:contracts  # contract + integration suites (renderer coverage)
-./taskfile dev:test:examples   # compile example binaries with -tags example (vanilla + Preact)
-./taskfile dev:ci              # PR quality checks, contracts, examples, and client CI
-./taskfile dev:goldens         # regenerate vanilla/Preact snapshots via scripts/update_goldens.sh
-./scripts/update_goldens.sh    # refresh vanilla/Preact snapshots and rerun example builds
-```
+    ./taskfile go:tools:all        # install pinned golangci-lint, govulncheck, and gosec
+    ./taskfile go:quality:pr       # format check, tests, and new-code lint
+    ./taskfile go:quality:all      # fmt, fix, tests, race, lint, and security checks
+    ./taskfile go:lint:report      # report lint findings without failing the task
+    ./taskfile dev:test            # compatibility wrapper for go:test
+    ./taskfile dev:test:contracts  # contract + integration suites (renderer coverage)
+    ./taskfile dev:test:examples   # compile example binaries with -tags example (vanilla + Preact)
+    ./taskfile dev:ci              # PR quality checks, contracts, examples, and client CI
+    ./taskfile dev:goldens         # regenerate vanilla/Preact snapshots via scripts/update_goldens.sh
+    ./scripts/update_goldens.sh    # refresh vanilla/Preact snapshots and rerun example builds
 
 The Go quality tasks cover the root module and `examples/http` by default. Override the module list with `GO_QUALITY_MODULES`, for example `GO_QUALITY_MODULES="." ./taskfile go:test`.
 

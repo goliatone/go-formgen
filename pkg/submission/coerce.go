@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -228,20 +229,9 @@ func coerceBoolean(value any, path string) (any, []Issue) {
 }
 
 func coerceArray(field model.Field, value any, opts Options, path string) (any, []Issue) {
-	if value == nil {
+	values, ok := arrayItems(value)
+	if !ok {
 		return nil, nil
-	}
-	var values []any
-	switch v := value.(type) {
-	case []any:
-		values = v
-	case []string:
-		values = make([]any, len(v))
-		for i, item := range v {
-			values[i] = item
-		}
-	default:
-		values = []any{v}
 	}
 	itemField := model.Field{Name: field.Name, Type: inferEnumType(field.Enum), Enum: field.Enum}
 	if field.Items != nil {
@@ -256,6 +246,54 @@ func coerceArray(field model.Field, value any, opts Options, path string) (any, 
 		out = append(out, coerced)
 	}
 	return out, issues
+}
+
+// arrayItems unwraps the []any shape JSON decoding produces as well as typed
+// slices, arrays and pointers to them, so ParseMap parses host containers the
+// way ParseJSON parses their encoding. Nil values, slices and pointers are JSON
+// null and report ok=false; byte slices stay one item because they encode as a
+// single base64 string, while byte arrays encode as JSON arrays and unwrap;
+// any other value is a single item.
+func arrayItems(value any) ([]any, bool) {
+	switch v := value.(type) {
+	case nil:
+		return nil, false
+	case []any:
+		return v, v != nil
+	case []string:
+		if v == nil {
+			return nil, false
+		}
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = item
+		}
+		return out, true
+	}
+	rv := reflect.ValueOf(value)
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil, false
+		}
+		rv = rv.Elem()
+	}
+	switch rv.Kind() {
+	case reflect.Slice:
+		if rv.IsNil() {
+			return nil, false
+		}
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			return []any{rv.Interface()}, true
+		}
+	case reflect.Array:
+	default:
+		return []any{rv.Interface()}, true
+	}
+	out := make([]any, rv.Len())
+	for i := range out {
+		out[i] = rv.Index(i).Interface()
+	}
+	return out, true
 }
 
 func coerceObject(field model.Field, value any, opts Options, path string) (any, []Issue) {

@@ -386,5 +386,5 @@ npm test -- --reporter=verbose
 ## Next Steps
 
 - Read [dev/README.md](dev/README.md) for sandbox details
-- Check [../JS_TDD.md](../JS_TDD.md) for technical design
+- Check [runtime client guide](README.md) for technical design
 - See test files in `tests/` for examples

@@ -1,4 +1,4 @@
-{%- if not stylesheets and not inline_styles and not responsive_grid_styles -%}
+{%- if not stylesheets and not inline_styles -%}
 {{ top_padding|safe }}
 {%- endif -%}
 {% if stylesheets -%}
@@ -8,9 +8,6 @@
 {%- endif -%}
 {% if theme.css_vars_style %}
 <style data-formgen-theme-vars>{{ theme.css_vars_style|safe }}</style>
-{% endif -%}
-{% if responsive_grid_styles -%}
-<style data-formgen-responsive-grid>{{ responsive_grid_styles|safe }}</style>
 {% endif -%}
 {%- if inline_styles -%}
 <style data-formgen-default-style>{{ inline_styles|safe }}
@@ -31,15 +28,9 @@
 {% if not grid_columns -%}
 {% set grid_columns = 12 -%}
 {% endif -%}
-{% set grid_gutter = layout.gutter -%}
+{% set grid_gutter = layout.gutterValue -%}
 {% if not grid_gutter -%}
 {% set grid_gutter = 'md' -%}
-{% endif %}
-{% set grid_gap = '1.5rem' -%}
-{% if grid_gutter == 'sm' -%}
-{% set grid_gap = '1rem' -%}
-{% elif grid_gutter == 'lg' -%}
-{% set grid_gap = '2rem' -%}
 {% endif -%}
 {% set chrome_classes = render_options.chrome_classes -%}
 {% set include_form = render_options.include_form -%}
@@ -62,7 +53,7 @@
     {% endif %}
     {% endif -%}
     {% if render_options.form_errors %}
-    <div{% if chrome_classes.errors %} class="{{ chrome_classes.errors }}"{% elif not unstyled %} class="{{ default_errors_class }}"{% endif %} role="alert">
+    <div{% if chrome_classes.errors %} class="{{ chrome_classes.errors }}"{% elif not unstyled %} class="{{ default_errors_class }}"{% endif %} role="alert" data-formgen-form-errors="true" tabindex="-1">
         <ul{% if not unstyled %} class="list-disc space-y-1 pl-4"{% endif %}>
         {% for message in render_options.form_errors %}
             <li>{{ message }}</li>
@@ -82,9 +73,9 @@
     {% endif %}
 
     {% if layout.unsectioned and layout.unsectioned|length > 0 %}
-    <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+    <div data-formgen-layout="grid" data-formgen-columns="{{ grid_columns }}" data-formgen-gutter="{{ grid_gutter }}"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}>
         {% for field in layout.unsectioned %}
-        <div{% if field.style %}{{ field.style|safe }}{% endif %}>
+        <div{% if field.attrs %}{{ field.attrs|safe }}{% endif %}>
             {{ field.html|safe }}
         </div>
         {% endfor %}
@@ -106,18 +97,18 @@
         {% endif %}
         {% if section.fieldset %}
         <fieldset>
-            <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+            <div data-formgen-layout="grid" data-formgen-columns="{{ grid_columns }}" data-formgen-gutter="{{ grid_gutter }}"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}>
                 {% for field in section.fields %}
-                <div{% if field.style %}{{ field.style|safe }}{% endif %}>
+                <div{% if field.attrs %}{{ field.attrs|safe }}{% endif %}>
                     {{ field.html|safe }}
                 </div>
                 {% endfor %}
             </div>
         </fieldset>
         {% else %}
-        <div data-formgen-layout="grid"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}{% if chrome_classes.grid %}{% if grid_columns and grid_columns > 1 %} style="grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr))"{% endif %}{% elif not unstyled %} style="--formgen-grid-gap: {{ grid_gap }}{% if grid_columns and grid_columns > 1 %}; grid-template-columns: repeat({{ grid_columns }}, minmax(0, 1fr)){% endif %}"{% endif %}>
+        <div data-formgen-layout="grid" data-formgen-columns="{{ grid_columns }}" data-formgen-gutter="{{ grid_gutter }}"{% if chrome_classes.grid %} class="{{ chrome_classes.grid }}"{% elif not unstyled %} class="{{ default_grid_class }}"{% endif %}>
             {% for field in section.fields %}
-            <div{% if field.style %}{{ field.style|safe }}{% endif %}>
+            <div{% if field.attrs %}{{ field.attrs|safe }}{% endif %}>
                 {{ field.html|safe }}
             </div>
             {% endfor %}

@@ -22,6 +22,7 @@ func TestExampleBinariesBuild(t *testing.T) {
 		pkg string
 	}{
 		"cli":            {pkg: "./examples/cli"},
+		"embedded":       {pkg: "./examples/embedded"},
 		"http":           {dir: "examples/http", pkg: "."},
 		"multi-renderer": {pkg: "./examples/multi-renderer"},
 	}

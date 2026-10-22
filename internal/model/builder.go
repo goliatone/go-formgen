@@ -70,6 +70,17 @@ func (b *Builder) Build(form schema.Form) (FormModel, error) {
 		return FormModel{}, err
 	}
 	output.Fields = fields
+	// Supplying the versioned root extension explicitly opts into conditions.
+	for _, extensions := range []map[string]any{form.Extensions, form.Schema.Extensions} {
+		if namespace, ok := extensions[extensionNamespace].(map[string]any); ok {
+			if raw, exists := namespace["conditions"]; exists {
+				output.Conditions, err = DecodeConditions(raw)
+				if err != nil {
+					return FormModel{}, err
+				}
+			}
+		}
+	}
 
 	if len(output.Metadata) == 0 {
 		output.Metadata = nil

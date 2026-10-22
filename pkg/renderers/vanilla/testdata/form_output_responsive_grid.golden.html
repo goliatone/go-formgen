@@ -1,48 +1,11 @@
 
+
+
+
 <style data-formgen-theme-vars>:root {
 --brand: #123456;
 }</style>
-<style data-formgen-responsive-grid>@media (min-width: 640px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-sm, var(--fg-span, 12)) / span var(--fg-span-sm, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-sm, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-sm, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 768px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-md, var(--fg-span, 12)) / span var(--fg-span-md, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-md, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-md, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 1024px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-lg, var(--fg-span, 12)) / span var(--fg-span-lg, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-lg, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-lg, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-xl, var(--fg-span, 12)) / span var(--fg-span-xl, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-xl, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-xl, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 1536px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-2xl, var(--fg-span, 12)) / span var(--fg-span-2xl, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-2xl, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-2xl, var(--fg-row, auto)) !important;
-  }
-}</style>
 <script id="formgen-theme" type="application/json">{"name":"acme","variant":"dark","tokens":{"brand":"#123456"},"cssVars":{"--brand":"#123456"}}</script>
-
 <form class="formgen-form" method="post" action="/responsive" data-formgen-auto-init="true" data-formgen-theme="acme" data-formgen-theme-variant="dark">
     
     
@@ -50,9 +13,9 @@
     
 
     
-    <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+    <div data-formgen-layout="grid" data-formgen-columns="12" data-formgen-gutter="md" class="formgen-grid">
         
-        <div class="fg-grid-responsive" style="grid-column: span 12 / span 12; --fg-span: 12; --fg-start: auto; --fg-row: auto; --fg-span-lg: 6">
+        <div data-formgen-span="12" data-formgen-span-lg="6">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-title-label" for="fg-title" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Title
@@ -69,7 +32,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-summary-label" for="fg-summary" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Summary

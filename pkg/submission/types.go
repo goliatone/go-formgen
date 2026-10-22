@@ -42,6 +42,8 @@ type Options struct {
 	EmptyStrings  EmptyStringPolicy
 	MaxMemory     int64
 	MaxBodyBytes  int64
+	required      map[string]bool
+	inactive      []string
 }
 
 // Option mutates Options.
@@ -120,20 +122,24 @@ func (r Result) Valid() bool {
 type IssueCode string
 
 const (
-	CodeUnknownField IssueCode = "unknownField"
-	CodePathConflict IssueCode = "pathConflict"
-	CodeInvalidJSON  IssueCode = "invalidJSON"
-	CodeRequired     IssueCode = "required"
-	CodeType         IssueCode = "type"
-	CodeEnum         IssueCode = "enum"
-	CodeMin          IssueCode = "min"
-	CodeMax          IssueCode = "max"
-	CodeMinLength    IssueCode = "minLength"
-	CodeMaxLength    IssueCode = "maxLength"
-	CodePattern      IssueCode = "pattern"
-	CodeMinItems     IssueCode = "minItems"
-	CodeMaxItems     IssueCode = "maxItems"
-	CodeObject       IssueCode = "object"
+	CodeUnknownField  IssueCode = "unknownField"
+	CodePathConflict  IssueCode = "pathConflict"
+	CodeInvalidJSON   IssueCode = "invalidJSON"
+	CodeRequired      IssueCode = "required"
+	CodeType          IssueCode = "type"
+	CodeEnum          IssueCode = "enum"
+	CodeMin           IssueCode = "min"
+	CodeMax           IssueCode = "max"
+	CodeMinLength     IssueCode = "minLength"
+	CodeMaxLength     IssueCode = "maxLength"
+	CodePattern       IssueCode = "pattern"
+	CodeMinItems      IssueCode = "minItems"
+	CodeMaxItems      IssueCode = "maxItems"
+	CodeObject        IssueCode = "object"
+	CodeInvalidPath   IssueCode = "invalidPath"
+	CodeUniqueItems   IssueCode = "uniqueItems"
+	CodeInactiveInput IssueCode = "inactiveInput"
+	CodeCondition     IssueCode = "condition"
 )
 
 // Issue describes a parser or validation problem.

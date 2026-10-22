@@ -2,7 +2,9 @@ package model
 
 import (
 	"errors"
+	"fmt"
 
+	internalconditions "github.com/goliatone/go-formgen/internal/conditions"
 	internalmodel "github.com/goliatone/go-formgen/internal/model"
 	"github.com/goliatone/go-formgen/pkg/schema"
 )
@@ -69,7 +71,14 @@ func (b *builder) Build(form schema.Form) (FormModel, error) {
 	if b == nil || b.delegate == nil {
 		return FormModel{}, errors.New("model: builder delegate is nil")
 	}
-	return b.delegate.Build(form)
+	output, err := b.delegate.Build(form)
+	if err != nil {
+		return FormModel{}, err
+	}
+	if _, diagnostics := internalconditions.Compile(output); len(diagnostics) > 0 {
+		return FormModel{}, fmt.Errorf("model: %s at %s: %s", diagnostics[0].Code, diagnostics[0].Path, diagnostics[0].Message)
+	}
+	return output, nil
 }
 
 func (b *builder) Decorate(form *FormModel) error {

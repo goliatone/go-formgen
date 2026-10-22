@@ -35,13 +35,14 @@ type Relationship struct {
 }
 
 const (
-	ValidationRuleMin       = "min"
-	ValidationRuleMax       = "max"
-	ValidationRuleMinLength = "minLength"
-	ValidationRuleMaxLength = "maxLength"
-	ValidationRuleMinItems  = "minItems"
-	ValidationRuleMaxItems  = "maxItems"
-	ValidationRulePattern   = "pattern"
+	ValidationRuleMin         = "min"
+	ValidationRuleMax         = "max"
+	ValidationRuleMinLength   = "minLength"
+	ValidationRuleMaxLength   = "maxLength"
+	ValidationRuleMinItems    = "minItems"
+	ValidationRuleMaxItems    = "maxItems"
+	ValidationRulePattern     = "pattern"
+	ValidationRuleUniqueItems = "uniqueItems"
 )
 
 // ValidationRule represents a single validation constraint applied to a field.
@@ -95,6 +96,7 @@ type Field struct {
 // FormModel is the top-level representation renderers consume, matching the
 // README structure in go-form-gen.md:111-158.
 type FormModel struct {
+	Conditions  *ConditionSet     `json:"conditions,omitempty"`
 	OperationID string            `json:"operationId"`
 	Endpoint    string            `json:"endpoint"`
 	Method      string            `json:"method"`
@@ -103,4 +105,37 @@ type FormModel struct {
 	Fields      []Field           `json:"fields"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	UIHints     map[string]string `json:"uiHints,omitempty"`
+}
+
+// ConditionsVersion identifies the opt-in embedded condition contract.
+const ConditionsVersion = "formgen.conditions/v1"
+
+// ConditionSet is an authoritative definition. Paths are absolute canonical
+// field paths, with explicit indexes; wildcards and relative paths are unsupported.
+type ConditionSet struct {
+	Version string          `json:"version"`
+	Rules   []ConditionRule `json:"rules"`
+}
+
+type ConditionRule struct {
+	Path           string      `json:"path"`
+	ApplicableWhen *Expression `json:"applicableWhen,omitempty"`
+	RequiredWhen   *Expression `json:"requiredWhen,omitempty"`
+	OnInapplicable string      `json:"onInapplicable,omitempty"` // clear (default) or retain
+}
+
+// Expression permits exactly one operator: present, eq, and, or. Equality
+// requires a present, non-null value; false and zero remain present.
+type Expression struct {
+	Op    string       `json:"op"`
+	Path  string       `json:"path,omitempty"`
+	Value any          `json:"value,omitempty"`
+	Args  []Expression `json:"args,omitempty"`
+}
+
+// DefinitionDiagnostic contains definition locations and never answer values.
+type DefinitionDiagnostic struct {
+	Code    string `json:"code"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
 }

@@ -2,6 +2,29 @@ export interface ArrayRepeaterInitOptions {
   onItemAdded?: (item: HTMLElement) => void | Promise<void>;
 }
 
+/** Bubbling notification that a repeater added or removed a row. */
+export const ARRAY_CHANGE_EVENT = "formgen:array:change" as const;
+
+export interface ArrayChangeDetail {
+  kind: "add" | "remove";
+  /** Canonical array name from `data-formgen-array-name`, when rendered. */
+  name: string;
+  container: HTMLElement;
+}
+
+function dispatchArrayChange(container: HTMLElement, kind: ArrayChangeDetail["kind"]): void {
+  try {
+    container.dispatchEvent(
+      new CustomEvent<ArrayChangeDetail>(ARRAY_CHANGE_EVENT, {
+        bubbles: true,
+        detail: { kind, name: container.dataset.formgenArrayName ?? "", container },
+      })
+    );
+  } catch (_err) {
+    // Ignore dispatch failures in environments without CustomEvent.
+  }
+}
+
 const ARRAY_ITEMS_ATTR = "data-formgen-array-items";
 const ARRAY_PROTOTYPE_ATTR = "data-formgen-array-prototype";
 const ARRAY_ADD_ACTION_SELECTOR = '[data-formgen-array-action="add"]';
@@ -95,6 +118,7 @@ export function addArrayItem(items: HTMLElement): HTMLElement[] {
   );
   items.insertBefore(fragment, template);
   items.dataset.formgenArrayNextIndex = String(nextIndex + 1);
+  dispatchArrayChange(items, "add");
   return added;
 }
 
@@ -148,12 +172,19 @@ function removeArrayItem(button: HTMLButtonElement): void {
   if (!item) {
     return;
   }
+  const container = item.closest<HTMLElement>(`[${ARRAY_ITEMS_ATTR}]`);
   if (isExistingArrayItem(item) && markArrayItemDeleted(item)) {
     item.hidden = true;
     item.setAttribute("aria-hidden", "true");
+    if (container) {
+      dispatchArrayChange(container, "remove");
+    }
     return;
   }
   item.remove();
+  if (container) {
+    dispatchArrayChange(container, "remove");
+  }
 }
 
 function isExistingArrayItem(item: HTMLElement): boolean {

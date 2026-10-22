@@ -74,6 +74,9 @@ func NewDefaultRegistry() *Registry {
 		},
 	})
 	registry.MustRegister(NameJSONEditor, jsonEditorDescriptor())
+	registry.MustRegister(NameChoice, Descriptor{Renderer: choiceRenderer})
+	registry.MustRegister(NameChoiceMultiple, Descriptor{Renderer: choiceMultipleRenderer})
+	registry.MustRegister(NameScale, Descriptor{Renderer: scaleRenderer})
 
 	return registry
 }

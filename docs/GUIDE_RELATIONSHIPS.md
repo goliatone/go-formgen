@@ -4,17 +4,17 @@ This guide explains how to model data relationships in go-formgen, configure dyn
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Relationship Types](#relationship-types)
-3. [OpenAPI Configuration](#openapi-configuration)
-4. [Endpoint Configuration](#endpoint-configuration)
-5. [Programmatic Overrides](#programmatic-overrides)
-6. [Rendering Behavior](#rendering-behavior)
-7. [Client-Side Integration](#client-side-integration)
-8. [Advanced Patterns](#advanced-patterns)
-9. [Troubleshooting](#troubleshooting)
+1.  [Overview](#overview)
+2.  [Relationship Types](#relationship-types)
+3.  [OpenAPI Configuration](#openapi-configuration)
+4.  [Endpoint Configuration](#endpoint-configuration)
+5.  [Programmatic Overrides](#programmatic-overrides)
+6.  [Rendering Behavior](#rendering-behavior)
+7.  [Client-Side Integration](#client-side-integration)
+8.  [Advanced Patterns](#advanced-patterns)
+9.  [Troubleshooting](#troubleshooting)
 
----
+------------------------------------------------------------------------
 
 ## Overview
 
@@ -23,24 +23,22 @@ Relationships in go-formgen bridge your **data model associations** with **inter
 ### What Gets Rendered
 
 | Relationship Type | Typical Widget | User Experience |
-|-------------------|----------------|-----------------|
+|----|----|----|
 | `belongsTo` | `<select>` dropdown | Choose one related entity (e.g., "Select Author") |
 | `hasOne` | Nested fieldset or select | Embedded object or single selection |
 | `hasMany` | Multi-select chips/array | Choose multiple entities (e.g., "Select Tags") |
 
 ### Data Flow
 
-```
-User selects "John Doe" in Author dropdown
-         ↓
-Form submits author_id: "abc-123"
-         ↓
-Server receives foreign key value
-         ↓
-Backend resolves relationship and persists
-```
+    User selects "John Doe" in Author dropdown
+             ↓
+    Form submits author_id: "abc-123"
+             ↓
+    Server receives foreign key value
+             ↓
+    Backend resolves relationship and persists
 
----
+------------------------------------------------------------------------
 
 ## Relationship Types
 
@@ -56,7 +54,7 @@ go-formgen supports three relationship kinds mirroring common ORM patterns:
 
 **Form Behavior**: Renders as dropdown populated with authors from `/api/authors`.
 
-```yaml
+``` yaml
 properties:
   author_id:
     type: string
@@ -77,7 +75,7 @@ properties:
 
 **Form Behavior**: Can render as nested fieldset or dropdown (if referencing existing profiles).
 
-```yaml
+``` yaml
 properties:
   profile:
     type: object
@@ -98,7 +96,7 @@ properties:
 
 **Form Behavior**: Multi-select chips or dynamic array editor fetching from `/api/books`.
 
-```yaml
+``` yaml
 properties:
   books:
     type: array
@@ -112,7 +110,7 @@ properties:
       sourceField: id
 ```
 
----
+------------------------------------------------------------------------
 
 ## OpenAPI Configuration
 
@@ -120,7 +118,7 @@ properties:
 
 The `x-relationships` extension defines the association metadata:
 
-```yaml
+``` yaml
 openapi: 3.0.3
 paths:
   /articles:
@@ -146,6 +144,7 @@ paths:
 ```
 
 **Field Attributes**:
+
 - `type` (required): `belongsTo`, `hasOne`, or `hasMany`
 - `target` (required): JSON Pointer to related schema (e.g., `#/components/schemas/Author`)
 - `foreignKey`: Foreign key field name (optional for belongsTo/hasOne)
@@ -155,7 +154,7 @@ paths:
 
 ### Complete Example with hasMany
 
-```yaml
+``` yaml
 components:
   schemas:
     Author:
@@ -195,7 +194,7 @@ components:
             foreignKey: author_id
 ```
 
----
+------------------------------------------------------------------------
 
 ## Endpoint Configuration
 
@@ -203,7 +202,7 @@ Relationships need **option data** (label/value pairs) to populate form controls
 
 ### Basic Endpoint
 
-```yaml
+``` yaml
 author_id:
   type: string
   x-relationships:
@@ -217,21 +216,19 @@ author_id:
 ```
 
 **Attributes**:
+
 - `url` (required): API endpoint returning option data
 - `method`: HTTP method (default: `GET`)
 - `labelField`: Response field to display (e.g., `name`)
 - `valueField`: Response field for form submission (e.g., `id`)
 
-**Default response contract**: when `resultsPath` and `mapping` are both unset,
-the runtime appends `format=options` to the request and expects an array of
-`{value,label}` objects. Set `params.format` yourself or configure `resultsPath`
-or `mapping` if your API returns a different payload.
+**Default response contract**: when `resultsPath` and `mapping` are both unset, the runtime appends `format=options` to the request and expects an array of `{value,label}` objects. Set `params.format` yourself or configure `resultsPath` or `mapping` if your API returns a different payload.
 
 ### Static Query Parameters
 
 Pass fixed filters to the endpoint:
 
-```yaml
+``` yaml
 x-endpoint:
   url: /api/authors
   method: GET
@@ -249,7 +246,7 @@ Renders request: `GET /api/authors?active=true&limit=50&order=name+asc`
 
 Reference other form fields for contextual filtering:
 
-```yaml
+``` yaml
 category_id:
   type: string
   x-relationships:
@@ -263,18 +260,15 @@ category_id:
       tenant_id: "{{field:tenant_id}}"
 ```
 
-When user selects `tenant_id`, the category dropdown reloads with:
-`GET /api/categories?tenant_id=<selected-value>`
+When user selects `tenant_id`, the category dropdown reloads with: `GET /api/categories?tenant_id=<selected-value>`
 
 ### Refresh Behavior (Auto vs Manual)
 
-By default, dependent fields refresh automatically when their `refreshOn` values
-change. This is derived from `x-endpoint.dynamicParams` and can be overridden
-manually via metadata.
+By default, dependent fields refresh automatically when their `refreshOn` values change. This is derived from `x-endpoint.dynamicParams` and can be overridden manually via metadata.
 
 **Preferred: UI schema metadata**
 
-```json
+``` json
 {
   "operations": {
     "createArticle": {
@@ -293,7 +287,7 @@ manually via metadata.
 
 **Equivalent raw HTML**
 
-```html
+``` html
 <select
   name="author_id"
   data-endpoint-refresh="manual"
@@ -310,15 +304,15 @@ manually via metadata.
 ```
 
 Notes:
+
 - `data-endpoint-refresh="manual"` disables auto-refresh and requires a trigger.
-- Triggers can be placed anywhere using `data-endpoint-refresh-target` or
-  `data-endpoint-refresh-for` with the field name.
+- Triggers can be placed anywhere using `data-endpoint-refresh-target` or `data-endpoint-refresh-for` with the field name.
 
 ### Search Mode (Autocomplete)
 
 Enable server-side search for large datasets:
 
-```yaml
+``` yaml
 x-endpoint:
   url: /api/authors
   method: GET
@@ -338,7 +332,7 @@ You can tune search responsiveness and cache behavior per field.
 
 **Preferred: UI schema metadata**
 
-```json
+``` json
 {
   "operations": {
     "createArticle": {
@@ -360,7 +354,7 @@ You can tune search responsiveness and cache behavior per field.
 
 **Equivalent raw HTML**
 
-```html
+``` html
 <select
   name="author_id"
   data-endpoint-mode="search"
@@ -375,7 +369,7 @@ You can tune search responsiveness and cache behavior per field.
 
 Specify how to authenticate API requests:
 
-```yaml
+``` yaml
 x-endpoint:
   url: /api/authors
   method: GET
@@ -389,13 +383,15 @@ x-endpoint:
 ```
 
 **Auth Strategies**:
+
 - `header` (supported): Add token to request header. For bearer auth, set `header: Authorization` and either include the `Bearer ` prefix in the token value or set `prefix: Bearer`.
 
 **Prefix**:
-- `prefix`: Optional string prepended to the token when using `strategy: header`
-  (e.g. `Bearer`).
+
+- `prefix`: Optional string prepended to the token when using `strategy: header` (e.g. `Bearer`).
 
 **Sources**:
+
 - `meta:<name>`: Read from `<meta name="<name>" content="...">`
 - `data:<attr>` / `element:<attr>`: Read from a DOM attribute on the field element (e.g. `data-auth-token`)
 - `token=<literal>`: Literal token value (mostly useful for demos/tests)
@@ -406,7 +402,7 @@ If you need `localStorage`-backed tokens, provide `buildHeaders` when calling `i
 
 Transform non-standard API responses:
 
-```yaml
+``` yaml
 x-endpoint:
   url: /api/authors
   method: GET
@@ -417,7 +413,8 @@ x-endpoint:
 ```
 
 Example response:
-```json
+
+``` json
 {
   "data": {
     "authors": [
@@ -431,7 +428,7 @@ Mapped to: `[{value: "abc", label: "Jane Doe"}]`
 
 ### Complete Endpoint Example
 
-```yaml
+``` yaml
 publisher_id:
   type: string
   x-relationships:
@@ -459,7 +456,7 @@ publisher_id:
       label: company_name
 ```
 
----
+------------------------------------------------------------------------
 
 ## Programmatic Overrides
 
@@ -467,7 +464,7 @@ When you can't modify the OpenAPI schema (third-party APIs, legacy specs), use *
 
 ### Basic Override
 
-```go
+``` go
 import (
     "github.com/goliatone/go-formgen"
     "github.com/goliatone/go-formgen/pkg/orchestrator"
@@ -491,7 +488,7 @@ gen := formgen.NewOrchestrator(
 
 ### Override with Authentication
 
-```go
+``` go
 orchestrator.WithEndpointOverrides([]orchestrator.EndpointOverride{
     {
         OperationID: "createBook",
@@ -515,7 +512,7 @@ orchestrator.WithEndpointOverrides([]orchestrator.EndpointOverride{
 
 Use dot notation for nested fields:
 
-```go
+``` go
 {
     OperationID: "createAuthor",
     FieldPath:   "profile.country_id",  // Nested field
@@ -529,7 +526,7 @@ Use dot notation for nested fields:
 
 ### Dynamic Parameters in Overrides
 
-```go
+``` go
 {
     OperationID: "createArticle",
     FieldPath:   "category_id",
@@ -549,7 +546,7 @@ Use dot notation for nested fields:
 
 Overrides are applied **after** the model builder runs and **only if** the field lacks existing endpoint metadata. This ensures OpenAPI schema values take precedence.
 
----
+------------------------------------------------------------------------
 
 ## Rendering Behavior
 
@@ -557,18 +554,18 @@ Overrides are applied **after** the model builder runs and **only if** the field
 
 The widget registry automatically selects components based on relationship metadata:
 
-| Field Pattern | Widget | Template |
-|---------------|--------|----------|
-| `type: belongsTo` + enum/relationship | `select` | Dropdown |
-| `type: hasMany` + array | `chips` | Multi-select chips |
-| `type: hasOne` + object with nested | `object` | Nested fieldset |
+| Field Pattern                          | Widget   | Template            |
+|----------------------------------------|----------|---------------------|
+| `type: belongsTo` + enum/relationship  | `select` | Dropdown            |
+| `type: hasMany` + array                | `chips`  | Multi-select chips  |
+| `type: hasOne` + object with nested    | `object` | Nested fieldset     |
 | `type: hasMany` + endpoint.mode=search | `select` | Searchable dropdown |
 
 ### Generated HTML Attributes
 
 Renderers emit `data-*` attributes consumed by client-side JavaScript:
 
-```html
+``` html
 <select
   id="fg-author_id"
   name="author_id"
@@ -585,27 +582,23 @@ Renderers emit `data-*` attributes consumed by client-side JavaScript:
 
 ### Preact Renderer (Interactive)
 
-The `preact` renderer ships a client bundle that reads the same `data-endpoint-*`
-and `data-relationship-*` attributes and hydrates richer controls (typeahead,
-chips, validation feedback). It also includes the relationship runtime script in
-its output page template.
+The `preact` renderer ships a client bundle that reads the same `data-endpoint-*` and `data-relationship-*` attributes and hydrates richer controls (typeahead, chips, validation feedback). It also includes the relationship runtime script in its output page template.
 
----
+------------------------------------------------------------------------
 
 ## Client-Side Integration
 
 ### Including the Runtime
 
-Relationship option loading is powered by the browser runtime bundle
-`formgen-relationships.min.js`. You must serve it and include it on pages that
-render relationship fields (e.g. vanilla HTML).
+Relationship option loading is powered by the browser runtime bundle `formgen-relationships.min.js`. You must serve it and include it on pages that render relationship fields (e.g. vanilla HTML).
 
-```html
+``` html
 <script src="/runtime/formgen-relationships.min.js" defer></script>
 ```
 
 Serve the runtime bundle from Go:
-```go
+
+``` go
 import (
     "net/http"
 
@@ -621,12 +614,9 @@ http.Handle("/runtime/",
 
 ### Manual Initialization
 
-The runtime attaches to `window.FormgenRelationships` and scans any container
-marked with `data-formgen-auto-init` for relationship-enabled fields.
-The built-in vanilla form template already sets `data-formgen-auto-init="true"`
-on the `<form>`.
+The runtime attaches to `window.FormgenRelationships` and scans any container marked with `data-formgen-auto-init` for relationship-enabled fields. The built-in vanilla form template already sets `data-formgen-auto-init="true"` on the `<form>`.
 
-```javascript
+``` javascript
 window.addEventListener("DOMContentLoaded", async () => {
   const api = window.FormgenRelationships;
   if (!api?.initRelationships) return;
@@ -642,18 +632,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 });
 ```
 
-For a deeper list of runtime hooks and events (including `createOption`,
-`onCreateAction`, caching, and error handling), see
-[client/README.md](../client/README.md).
+For a deeper list of runtime hooks and events (including `createOption`, `onCreateAction`, caching, and error handling), see [client/README.md](../client/README.md).
 
 ### Prefilling Current Values
 
-To pre-select relationship values before the runtime loads options, set
-`relationship.current` via render options (or `x-current-value` in the schema).
-The runtime expects a scalar string (single select) or a JSON array of strings
-(multi-select).
+To pre-select relationship values before the runtime loads options, set `relationship.current` via render options (or `x-current-value` in the schema). The runtime expects a scalar string (single select) or a JSON array of strings (multi-select).
 
-```go
+``` go
 html, err := renderer.Render(ctx, form, render.RenderOptions{
     Values: map[string]any{
         "author_id": render.ValueWithProvenance{
@@ -665,7 +650,8 @@ html, err := renderer.Render(ctx, form, render.RenderOptions{
 ```
 
 Renders `data-relationship-current`:
-```html
+
+``` html
 <select name="author_id" data-relationship-current="abc-123">
   <option value="abc-123" selected>abc-123</option>
 </select>
@@ -674,12 +660,13 @@ Renders `data-relationship-current`:
 ### Handling Relationship Updates
 
 The runtime dispatches lifecycle events on the field element:
+
 - `formgen:relationship:loading`
 - `formgen:relationship:success` (includes `detail.options`)
 - `formgen:relationship:error`
 - `formgen:relationship:validation`
 
-```javascript
+``` javascript
 document.addEventListener("formgen:relationship:success", (event) => {
   const { element, options, fromCache } = event.detail;
   console.log("options loaded", { name: element?.getAttribute("name"), fromCache, options });
@@ -702,7 +689,7 @@ async function refreshRelationship(selector) {
 }
 ```
 
----
+------------------------------------------------------------------------
 
 ## Advanced Patterns
 
@@ -710,7 +697,7 @@ async function refreshRelationship(selector) {
 
 Configure dependent relationships using `dynamicParams`:
 
-```yaml
+``` yaml
 properties:
   country_id:
     type: string
@@ -749,17 +736,15 @@ properties:
 ```
 
 User flow:
-1. Select "United States" → `state_id` dropdown loads US states
-2. Select "California" → `city_id` dropdown loads CA cities
+
+1.  Select "United States" → `state_id` dropdown loads US states
+2.  Select "California" → `city_id` dropdown loads CA cities
 
 ### Polymorphic Relationships
 
-Polymorphic targets are not first-class today (a relationship `target` must be a
-static schema pointer), and `x-endpoint.url` is not dynamically templated.
-If you need polymorphism, model it as a single endpoint and use `dynamicParams`
-to pass the discriminator.
+Polymorphic targets are not first-class today (a relationship `target` must be a static schema pointer), and `x-endpoint.url` is not dynamically templated. If you need polymorphism, model it as a single endpoint and use `dynamicParams` to pass the discriminator.
 
-```yaml
+``` yaml
 attachable_type:
   type: string
   enum: [Article, Video, Podcast]
@@ -782,7 +767,7 @@ attachable_id:
 
 Model many-to-many relationships using arrays:
 
-```yaml
+``` yaml
 components:
   schemas:
     Article:
@@ -806,7 +791,8 @@ components:
 ```
 
 Form submits:
-```json
+
+``` json
 {
   "title": "Go Patterns",
   "tags": ["abc-123", "def-456", "ghi-789"]
@@ -817,15 +803,13 @@ Backend resolves to junction table inserts.
 
 ### Create Action Modal (Related Entity Form)
 
-Use the "Create ..." action when related entities require a real form (multiple
-fields, permissions, validation) instead of inline creation. The runtime only
-triggers the action; your application owns the modal markup and submit logic.
+Use the "Create ..." action when related entities require a real form (multiple fields, permissions, validation) instead of inline creation. The runtime only triggers the action; your application owns the modal markup and submit logic.
 
 #### 1) Enable create action on the relationship field
 
 **Preferred: UI schema metadata**
 
-```json
+``` json
 {
   "operations": {
     "createArticle": {
@@ -849,7 +833,7 @@ triggers the action; your application owns the modal markup and submit logic.
 
 **Equivalent raw HTML attributes**
 
-```html
+``` html
 <select
   name="author_id"
   data-endpoint-url="/api/authors"
@@ -870,7 +854,7 @@ triggers the action; your application owns the modal markup and submit logic.
 
 Use `data-endpoint-edit-action="true"` when a selected single relationship should be editable through a host-owned modal or panel. The action is shown only when the typeahead has a selected value. The host can handle it with `onEditAction`:
 
-```ts
+``` ts
 await initRelationships({
   onEditAction: async (context, detail) => {
     const record = await fetch(`/api/authors/${detail.selectedValue}`).then(r => r.json());
@@ -886,10 +870,9 @@ The first implementation supports single-cardinality typeahead relationships. Ch
 
 #### 2) Define the modal and form (Pongo2 templates)
 
-Create a modal partial that includes **only the fields you want** for the
-related entity. This keeps the create flow focused and fast.
+Create a modal partial that includes **only the fields you want** for the related entity. This keeps the create flow focused and fast.
 
-```django
+```
 {# templates/partials/modals/author_create.tmpl #}
 <div
   id="modal-author-create"
@@ -913,7 +896,7 @@ related entity. This keeps the create flow focused and fast.
 </div>
 ```
 
-```django
+```
 {# templates/partials/forms/author_create_fields.tmpl #}
 <label class="block text-sm font-medium text-gray-700">Name</label>
 <input name="name" class="w-full rounded-md border px-3 py-2" />
@@ -924,13 +907,13 @@ related entity. This keeps the create flow focused and fast.
 
 Include the modal partial once on the page where the relationship field lives:
 
-```django
+```
 {% include "partials/modals/author_create.tmpl" %}
 ```
 
 #### 3) Wire the create action to the modal (vanilla TypeScript)
 
-```ts
+``` ts
 import { initRelationships } from "@goliatone/formgen-runtime";
 
 function openModal(modal: HTMLElement): void {
@@ -1000,21 +983,18 @@ await initRelationships({
 ```
 
 Notes:
-- For chips (multi-select), you can return multiple options and choose
-  append/replace using `data-endpoint-create-action-select`.
-- If you prefer DOM events instead of hooks, listen for
-  `formgen:relationship:create-action` and follow the same modal flow.
-- For a complete reference, see the advanced HTTP example at `/advanced` in
-  `examples/http`.
+
+- For chips (multi-select), you can return multiple options and choose append/replace using `data-endpoint-create-action-select`.
+- If you prefer DOM events instead of hooks, listen for `formgen:relationship:create-action` and follow the same modal flow.
+- For a complete reference, see the advanced HTTP example at `/advanced` in `examples/http`.
 
 ### Inline Create (Quick Tag Creation)
 
-Inline create is designed for lightweight values (tags, labels). It requires
-`mode: search` and a `createOption` hook.
+Inline create is designed for lightweight values (tags, labels). It requires `mode: search` and a `createOption` hook.
 
 **Preferred: UI schema metadata**
 
-```json
+``` json
 {
   "operations": {
     "createArticle": {
@@ -1033,7 +1013,7 @@ Inline create is designed for lightweight values (tags, labels). It requires
 
 **Equivalent raw HTML attributes**
 
-```html
+``` html
 <select
   name="tags"
   data-endpoint-mode="search"
@@ -1044,7 +1024,7 @@ Inline create is designed for lightweight values (tags, labels). It requires
 
 **Hook example:**
 
-```ts
+``` ts
 await initRelationships({
   createOption: async (_context, query) => {
     const response = await fetch("/api/tags", {
@@ -1060,10 +1040,9 @@ await initRelationships({
 
 ### Optimistic UI Updates
 
-Optimistic UI hooks are not part of the runtime API today. Use the emitted
-events plus normal DOM `change` handlers to implement app-specific behaviour.
+Optimistic UI hooks are not part of the runtime API today. Use the emitted events plus normal DOM `change` handlers to implement app-specific behaviour.
 
----
+------------------------------------------------------------------------
 
 ## Troubleshooting
 
@@ -1072,15 +1051,17 @@ events plus normal DOM `change` handlers to implement app-specific behaviour.
 **Symptoms**: Select renders but no options populate.
 
 **Checklist**:
-1. Verify endpoint URL is reachable: `curl /api/authors`
-2. Check browser Network tab for failed requests
-3. Confirm response format matches `resultsPath` configuration
-4. Validate `labelField` and `valueField` exist in response
-5. Check CORS headers if endpoint is cross-origin
-6. Verify authentication token is present (check `meta` tags)
+
+1.  Verify endpoint URL is reachable: `curl /api/authors`
+2.  Check browser Network tab for failed requests
+3.  Confirm response format matches `resultsPath` configuration
+4.  Validate `labelField` and `valueField` exist in response
+5.  Check CORS headers if endpoint is cross-origin
+6.  Verify authentication token is present (check `meta` tags)
 
 **Debug**:
-```javascript
+
+``` javascript
 await window.FormgenRelationships?.initRelationships?.({ logger: console });
 ```
 
@@ -1089,13 +1070,15 @@ await window.FormgenRelationships?.initRelationships?.({ logger: console });
 **Symptoms**: Dropdown doesn't reload when parent field changes.
 
 **Checklist**:
-1. Verify parent field name matches `dynamicParams` key exactly
-2. Check parent field has a value before dependent loads
-3. Confirm `data-endpoint-refresh-on` attribute exists on dependent field
-4. Ensure `formgen-relationships.min.js` is loaded
+
+1.  Verify parent field name matches `dynamicParams` key exactly
+2.  Check parent field has a value before dependent loads
+3.  Confirm `data-endpoint-refresh-on` attribute exists on dependent field
+4.  Ensure `formgen-relationships.min.js` is loaded
 
 **Manual Trigger**:
-```javascript
+
+``` javascript
 const registry = await window.FormgenRelationships?.initRelationships?.();
 const el = document.querySelector('[name="state_id"]');
 if (el instanceof HTMLElement) {
@@ -1108,26 +1091,28 @@ if (el instanceof HTMLElement) {
 **Symptoms**: 401/403 responses from relationship endpoints.
 
 **Checklist**:
-1. Verify auth configuration strategy matches server expectations
-2. Check meta tag exists: `<meta name="formgen-auth" content="token">`
-3. Confirm header name matches server requirements (case-sensitive)
-4. Test endpoint with curl using same headers
 
-If you need tokens from `localStorage` or other sources, provide `buildHeaders`
-when calling `initRelationships(...)` (see Manual Initialization).
+1.  Verify auth configuration strategy matches server expectations
+2.  Check meta tag exists: `<meta name="formgen-auth" content="token">`
+3.  Confirm header name matches server requirements (case-sensitive)
+4.  Test endpoint with curl using same headers
+
+If you need tokens from `localStorage` or other sources, provide `buildHeaders` when calling `initRelationships(...)` (see Manual Initialization).
 
 ### Wrong Options Displayed
 
 **Symptoms**: Dropdown shows incorrect entities.
 
 **Checklist**:
-1. Verify `target` schema matches intended entity
-2. Check static `params` aren't over-filtering
-3. Confirm `resultsPath` extracts correct array from response
-4. Validate `mapping` configuration if using custom fields
+
+1.  Verify `target` schema matches intended entity
+2.  Check static `params` aren't over-filtering
+3.  Confirm `resultsPath` extracts correct array from response
+4.  Validate `mapping` configuration if using custom fields
 
 **Inspect Metadata**:
-```javascript
+
+``` javascript
 const select = document.querySelector('[name="author_id"]');
 console.log(select.dataset);  // View all data-* attributes
 ```
@@ -1137,13 +1122,15 @@ console.log(select.dataset);  // View all data-* attributes
 **Symptoms**: Form submits but relationship field is missing/null.
 
 **Checklist**:
-1. Verify `name` attribute exists on select element
-2. Check field isn't disabled/readonly
-3. Confirm option has `value` attribute set
-4. Validate form serialization includes all fields
+
+1.  Verify `name` attribute exists on select element
+2.  Check field isn't disabled/readonly
+3.  Confirm option has `value` attribute set
+4.  Validate form serialization includes all fields
 
 **Debug Submission**:
-```javascript
+
+``` javascript
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   const data = new FormData(form);
@@ -1152,13 +1139,13 @@ form.addEventListener('submit', (e) => {
 });
 ```
 
----
+------------------------------------------------------------------------
 
 ## Reference
 
 ### Relationship Struct (Go)
 
-```go
+``` go
 type Relationship struct {
     Kind        RelationshipKind  // belongsTo, hasOne, hasMany
     Target      string            // JSON Pointer to schema
@@ -1171,7 +1158,7 @@ type Relationship struct {
 
 ### Endpoint Config (Go)
 
-```go
+``` go
 type EndpointConfig struct {
     URL           string
     Method        string
@@ -1188,7 +1175,7 @@ type EndpointConfig struct {
 
 ### Client-Side API
 
-```javascript
+``` javascript
 // Initialize (returns a registry)
 const registry = await window.FormgenRelationships.initRelationships(options);
 
@@ -1208,7 +1195,7 @@ document.addEventListener('formgen:relationship:validation', handler);
 ### Data Attributes Reference
 
 | Attribute | Purpose | Example |
-|-----------|---------|---------|
+|----|----|----|
 | `data-endpoint-url` | API endpoint | `/api/authors` |
 | `data-endpoint-method` | HTTP method | `GET` |
 | `data-endpoint-label-field` | Display field | `name` |
@@ -1241,14 +1228,15 @@ document.addEventListener('formgen:relationship:validation', handler);
 | `data-auth-source` | Token source | `meta:formgen-auth` |
 | `data-auth-prefix` | Auth prefix | `Bearer` |
 
----
+------------------------------------------------------------------------
 
 ## Examples
 
 ### Complete Working Example
 
 **OpenAPI Schema** (`api-spec.yaml`):
-```yaml
+
+``` yaml
 openapi: 3.0.3
 info:
   title: Blog API
@@ -1322,7 +1310,8 @@ components:
 ```
 
 **Go Integration**:
-```go
+
+``` go
 package main
 
 import (
@@ -1382,7 +1371,8 @@ func mustVanillaRenderer() *vanilla.Renderer {
 ```
 
 **HTML Page Template**:
-```html
+
+``` html
 <!DOCTYPE html>
 <html>
 <head>
@@ -1435,13 +1425,14 @@ func mustVanillaRenderer() *vanilla.Renderer {
 ```
 
 This example demonstrates:
+
 - belongsTo relationship (author_id → Author)
 - hasMany relationship (tags → Tag)
 - Search-enabled multi-select
 - Authentication via meta tag
 - Form submission with relationship data transformation
 
----
+------------------------------------------------------------------------
 
 ## Further Reading
 

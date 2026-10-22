@@ -27,7 +27,8 @@ func sanitizeClassList(value string) string {
 
 func labelSupportsFor(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case components.NameObject, components.NameArray, components.NameDatetimeRange:
+	case components.NameObject, components.NameArray, components.NameDatetimeRange,
+		components.NameChoice, components.NameChoiceMultiple, components.NameScale:
 		return false
 	default:
 		return true
@@ -36,7 +37,8 @@ func labelSupportsFor(componentName string) bool {
 
 func componentHandlesChrome(componentName string) bool {
 	switch strings.TrimSpace(componentName) {
-	case components.NameObject, components.NameArray, components.NameDatetimeRange:
+	case components.NameObject, components.NameArray, components.NameDatetimeRange,
+		components.NameChoice, components.NameChoiceMultiple, components.NameScale:
 		return true
 	default:
 		return false

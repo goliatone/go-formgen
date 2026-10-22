@@ -3,7 +3,6 @@
 
 
 
-
 <form class="formgen-form" method="post" action="/widgets" data-formgen-auto-init="true">
     
     
@@ -11,9 +10,9 @@
     
 
     
-    <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+    <div data-formgen-layout="grid" data-formgen-columns="12" data-formgen-gutter="md" class="formgen-grid">
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="textarea">
     <label data-formgen-chrome="label" id="fg-name-label" for="fg-name" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Name<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -38,7 +37,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="object">
     <fieldset id="fg-settings" class="space-y-4 p-4 border border-gray-200 rounded-lg dark:border-gray-700 border-s-4 border-s-blue-600" aria-labelledby="fg-settings-label"><legend id="fg-settings-label" class="text-sm font-semibold text-gray-900 dark:text-white">Settings</legend><div class="space-y-4"><div class="flex flex-col gap-2" data-component="input">
         <label data-formgen-chrome="label" id="fg-settings-threshold-label" for="fg-settings-threshold" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
@@ -77,7 +76,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="select">
     <label data-formgen-chrome="label" id="fg-tags-label" for="fg-tags" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Tags

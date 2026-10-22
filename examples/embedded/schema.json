@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "embedded-sample",
+  "title": "Embedded sample",
+  "description": "Synthetic enabled/level/colors/note definition for the embedded-form primitives example. No private data.",
+  "type": "object",
+  "required": ["enabled", "colors"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enable feature",
+      "x-formgen": { "label": "Enable feature", "component.name": "choice", "order": 1 }
+    },
+    "level": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "x-formgen": { "label": "Level (1-10)", "component.name": "scale", "component.config": { "lowLabel": "Low", "highLabel": "High" }, "order": 2 }
+    },
+    "colors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": { "type": "string", "enum": ["blue", "green"] },
+      "x-formgen": { "label": "Colors", "component.name": "choice-multiple", "order": 3 }
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 80,
+      "x-formgen": { "label": "Note", "component.name": "note-counter", "order": 4 }
+    },
+    "contact": {
+      "type": "object",
+      "x-formgen": { "order": 5 },
+      "properties": {
+        "email": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+$", "x-formgen": { "label": "Contact email" } }
+      }
+    }
+  },
+  "x-formgen": {
+    "conditions": {
+      "version": "formgen.conditions/v1",
+      "rules": [
+        {
+          "path": "level",
+          "applicableWhen": { "op": "eq", "path": "enabled", "value": true },
+          "requiredWhen": { "op": "present", "path": "enabled" },
+          "onInapplicable": "clear"
+        }
+      ]
+    }
+  }
+}

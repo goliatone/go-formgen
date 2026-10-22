@@ -121,9 +121,149 @@ const controller = attachFormController(root, { registry });
 
 // Restore rendered defaults and synchronize enhanced widgets.
 controller.reset();
+// Opt into the embedded hydration contract: settle once, or stay silent.
+controller.setValues({ enabled: true, level: 4 }, { notify: true });
+controller.setValues(snapshot, { mode: "replace", notify: false });
+controller.onChange((values, event, meta) => {
+  // meta.origin is "ui" | "program" | "hydrate" | "reset"; meta.paths lists
+  // canonical changed paths such as "rows[1].name". Legacy two-argument
+  // callbacks keep working.
+});
 // Aborts option requests and removes all root-scoped runtime state.
 controller.destroy();
 ```
+
+`setValues(values)` and `reset()` without options keep the legacy per-event
+notification contract. With an options object the mutation settles into a single
+callback (none when nothing changed), `notify: false` suppresses only that
+controller's subscribers, and `mode: "replace"` clears omitted enabled controls,
+treats `null` as an explicit clear, replaces arrays, hydrates rendered rows from
+arrays of objects, and throws before mutating when a payload row has no rendered
+row. Widgets, submission mirrors, dependent refreshes, and components keep
+synchronizing in every mode.
+
+### Model-aware values and scoped validation
+
+Attach with the complete form model (the `form` of the JSON descriptor) to
+normalize and validate against the same rules the Go `submission` package
+applies. These operations are pure and synchronous: they never fetch options,
+submit, or navigate.
+
+```typescript
+const controller = attachFormController(root, { model: descriptor.form });
+
+// Typed snapshot: booleans, integers, numbers, arrays; parse issues alongside.
+const { values, issues } = controller.normalize();
+
+// Validate one question without unrelated required fields blocking progression.
+controller.validate({ paths: ["colors"] });
+// Validate everything before the final submission.
+controller.validate();
+```
+
+Behavior notes:
+
+- `getValues()` stays raw. Normalization decodes typed enum control values,
+  turns empty optional non-string scalars into `null` (`emptyStrings:
+  "preserve"` keeps `""`), keeps `false` and `0`, keeps string `"false"` for
+  string fields, converts row objects keyed by index into arrays, and reports
+  `type` issues for non-integral or unsafe (beyond 2^53) integers instead of
+  rounding. Unknown keys report `unknownField` by default (`unknownFields:
+  "ignore" | "preserve"`); repeater transport keys such as `_present` are dropped.
+- Validation mirrors Go: `required` for missing or null values (`false`/`0`
+  pass), `type`, `enum`, `min`/`max` (with `exclusive`), `minLength`/`maxLength`
+  counted in Unicode code points, `pattern` (portable subset only; Go uses RE2),
+  `minItems`/`maxItems`, and `uniqueItems` with typed JSON equality. Issues carry
+  precise paths (`rows[1].name`), a legacy `rendererPath` (`rows.name`), and
+  replaceable messages; answer values are omitted.
+- Scopes use canonical paths. A container includes its subtree, a child never
+  validates siblings or parent cardinality, an empty list validates nothing,
+  and invalid or unknown paths report `invalidPath`/`unknownField`.
+- Inclusion follows the raw collection: disabled controls are excluded, hidden
+  inputs are included by default (`includeHidden: false` to exclude), and
+  readonly or CSS-hidden controls are included. Capture values before disabling
+  controls when a locked payload is needed.
+- Not covered here: condition evaluation and inactive-value handling (see the
+  applicability layer), asynchronous custom validators, and Preact/TUI
+  controller guarantees. A rendered subset of the model is not a valid input.
+
+### Reactive applicability
+
+When `model.conditions` declares `formgen.conditions/v1` rules, the controller
+compiles them once (`controller.conditionDiagnostics()` lists definition
+problems) and settles after every user edit, hydration, reset, replace
+restoration, and repeater row change (`formgen:array:change`):
+
+- inapplicable controls get `data-formgen-applicable="false"` on the control and
+  its component wrapper (or a matching `fg-<path>` group), plus `hidden` unless
+  `conditions: { hideInapplicable: false }`;
+- conditional requiredness sets or removes `required`/`aria-required` on
+  controls and `aria-required` on radiogroups, whose radio members toggle native
+  `required` only; checkbox groups toggle `data-formgen-required` and their
+  `[data-formgen-required-hint]` legend text instead;
+- inapplicable values are cleared (`onInapplicable: "clear"`, the default) or
+  kept in the control but excluded from the effective projection (`retain`);
+- issues displayed on inapplicable controls are cleared;
+- every change notification carries `meta.applicable`.
+
+`controller.effective()` returns `{ values, retained, applicable, required }`;
+send `effective().values` to the server. `controller.validate()` composes the
+Go-equivalent pipeline over the applicable values: conditional requiredness,
+inactive subtrees skipped, inactive array members excluded from counts, and
+conditionally required answers missing from existing rows. Inapplicable
+controls are the runtime's (cleared, retained, or rendered defaults), so
+`validate()` never reports `inactiveInput`; the server does for payloads that
+bypass `effective().values` (`conditions: { policy: "normalize" }` only affects
+the shared evaluator's handling of such payloads). `controller.settle()`
+re-evaluates after DOM changes the runtime cannot observe. Evaluation order and
+diagnostics mirror the Go `conditions` package and the shared fixture.
+
+### Typed snapshots with explicit presence
+
+With a model attached, the controller tracks per leaf path whether a value is
+`present` (including `false`, `0`, `""`, and `[]`), explicitly `null`, or
+`absent`, from hydration payloads and user actions rather than from control
+strings. `controller.snapshot()` returns an independent
+`{ version, values, presence, retained, issues, locked }` copy: effective typed
+values with conditions applied, retained inactive values kept apart, locked
+(disabled) controls still carrying their last values, and issues for unsafe
+integers, unknown controls, and detached rows. `controller.restore(snapshot,
+options)` hydrates present values, clears explicit nulls and absent paths
+(replace mode by default), returns retained values to their controls, restores
+presence, and reports unknown or unsafe snapshot paths instead of applying
+them. Raw `getValues()` is unchanged.
+
+### Component preflight
+
+`preflightComponents(root)` lists every `[data-component]` wrapper with its
+name, whether a browser factory will enhance it, and any `data-component-config`
+parse error; `registeredComponentNames()` lists the factories. Server-only
+components (inputs, selects, native choice groups) report `enhanced: false` by
+design. Register factories before `initRelationships`/`initFormgenRoot`.
+
+### Presenting issues
+
+```typescript
+const issues = controller.validate({ paths: ["colors"] });        // or a server payload
+const presented = controller.setIssues(issues);                   // replaces current display
+presented.field;    // issues shown inline on their exact control
+presented.summary;  // form-level issues and issues without a rendered control
+controller.focusIssue(issues[0]);                                 // control, else summary
+controller.clearIssues();                                          // values are untouched
+```
+
+Inline display uses the existing `registerErrorRenderer` hooks and precise
+paths (`rows[1].name` targets only that row). Choice groups rendered by the
+vanilla `choice`, `choice-multiple`, and `scale` components
+(`[data-formgen-choice]`) receive one group-level message and the invalid
+state on their fieldset. Form-level and unmapped issues
+render into `[data-formgen-form-errors]`; the vanilla form summary carries that
+hook, otherwise a `role="alert"` container is inserted at the top of the root.
+Replace its presentation with `registerFormErrorRenderer(name, renderer)` and
+`data-formgen-form-errors-renderer="name"`. Repeater items and fieldsets with
+an invalid descendant receive `data-formgen-group-invalid="true"`. Applying or
+clearing issues never changes values, submits, or starts requests, and
+unrelated edits do not clear displayed server issues.
 
 Each `initFormgenRoot` call with configuration overrides owns an independent
 registry and does not mutate page-wide resolver state. Always pass its returned
@@ -356,7 +496,7 @@ npm test -- --watch
 
 ### Theme Distribution
 
-Run `npm run build:theme` to compile the Tailwind bundle into `dist/themes/formgen.css`. This file now contains both the utility classes used by the Go templates and the runtime widget styling (chips/typeahead). The Go vanilla renderer embeds its stylesheet from `pkg/renderers/vanilla/assets/formgen-vanilla.css`; replace that file with the generated CSS when you want the library to ship the latest theme. Teams that prefer to self-host can publish `dist/themes/formgen.css` via their CDN or static pipeline and load it alongside the runtime bundle instead of copying it into the Go assets. Custom themes come from editing `client/src/theme/index.css` or extending `tailwind.config.js`, then rerunning `npm run build:theme` (or `npm run dev:theme` for watch mode) to emit the overridden CSS.
+Run `npm run build:theme` to compile the Tailwind bundle into `dist/themes/formgen.css`. This file now contains both the utility classes used by the Go templates and the runtime widget styling (chips/typeahead). The Go vanilla renderer embeds its stylesheet from `pkg/renderers/vanilla/assets/formgen-vanilla.css`; replace that file with the generated CSS when you want the library to ship the latest theme. Teams that prefer to self-host can publish `dist/themes/formgen.css` via their CDN or static pipeline and load it alongside the runtime bundle instead of copying it into the Go assets. Custom themes come from editing `client/src/theme/index.css` or extending `tailwind.config.js`, then rerunning `npm run build:theme` (or `npm run dev:theme` for watch mode) to emit the overridden CSS. The grid layout rules in `src/theme/grid-layout.css` (the `data-formgen-columns`/`-gutter`/`-span` contract the vanilla renderer emits instead of inline styles) are generated: change `scripts/grid-layout.mjs` and run `npm run build:grid`; `build:theme` refuses to run while the committed file is stale.
 
 ## Usage
 
@@ -793,12 +933,13 @@ When no schema is supplied the decorator is skipped and the vanilla renderer fal
 
 ## Documentation
 
-See parent repository docs:
-- [JS_TDD.md](../JS_TDD.md) - Technical design document
-- [JS_TSK.md](../JS_TSK.md) - Implementation tasks
-- [REL_TDD.md](../REL_TDD.md) - Relationship feature overview
-- [HAS_TDD.md](../HAS_TDD.md) - Create action feature for relationship fields
-- [go-form-gen.md](../go-form-gen.md) - Main formgen documentation
+See maintained repository docs:
+
+- [Client workflow](WORKFLOW.md) — Development and bundle generation
+- [Relationship guide](../docs/GUIDE_RELATIONSHIPS.md) — Endpoint and create/edit behavior
+- [Validation styles](../docs/VALIDATION_STYLES.md) — Server/client error rendering
+- [Form customization](../docs/GUIDE_CUSTOMIZATION.md) — Widgets and behavior overlays
+- [Architecture and usage](../go-form-gen.md)
 
 ## License
 

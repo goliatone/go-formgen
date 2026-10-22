@@ -217,12 +217,14 @@ const (
 )
 
 type layoutContext struct {
-	GridColumns       int             `json:"gridColumns"`
-	GridColumnsValue  string          `json:"gridColumnsValue"`
-	Gutter            string          `json:"gutter"`
-	HasResponsiveGrid bool            `json:"hasResponsiveGrid,omitempty"`
-	Sections          []sectionGroup  `json:"sections"`
-	Unsectioned       []renderedField `json:"unsectioned"`
+	GridColumns      int    `json:"gridColumns"`
+	GridColumnsValue string `json:"gridColumnsValue"`
+	// Gutter is the raw layout.gutter hint; GutterValue is the resolved
+	// sm|md|lg value the grid container emits as data-formgen-gutter.
+	Gutter      string          `json:"gutter"`
+	GutterValue string          `json:"gutterValue"`
+	Sections    []sectionGroup  `json:"sections"`
+	Unsectioned []renderedField `json:"unsectioned"`
 }
 
 type sectionGroup struct {
@@ -237,8 +239,14 @@ type sectionGroup struct {
 	Fields         []renderedField `json:"fields"`
 }
 
+// renderedField is a field's HTML plus the layout attributes of its grid
+// wrapper. Attrs holds the data-formgen-span/-start/-row attribute string
+// (see gridWrapperAttributes); Style carries the same string under the key
+// that custom form templates used when the wrapper carried an inline style
+// attribute, so those templates keep working.
 type renderedField struct {
 	HTML  string `json:"html"`
+	Attrs string `json:"attrs"`
 	Style string `json:"style"`
 }
 
@@ -363,7 +371,7 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		return nil, fmt.Errorf("vanilla renderer: build layout: %w", err)
 	}
 	actions := parseActions(decorated.Metadata)
-	assets := r.renderAssets(componentRenderer, renderOptions, layout, assetResolver)
+	assets := r.renderAssets(componentRenderer, renderOptions, assetResolver)
 	formTemplateName := formTemplateName(renderOptions.Theme)
 	chromeClasses := chromeClassMap(renderOptions.ChromeClasses)
 
@@ -374,7 +382,6 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 		"actions":                actions,
 		"stylesheets":            assets.stylesheets,
 		"inline_styles":          assets.inlineStyles,
-		"responsive_grid_styles": assets.responsiveGridStyles,
 		"component_scripts":      assets.componentScripts,
 		"theme":                  assets.templateTheme,
 		"top_padding":            strings.Repeat("\n", topPadding),
@@ -409,14 +416,13 @@ func (r *Renderer) Render(_ context.Context, form model.FormModel, renderOptions
 }
 
 type renderAssetBundle struct {
-	stylesheets          []string
-	inlineStyles         string
-	responsiveGridStyles string
-	componentScripts     []map[string]any
-	templateTheme        map[string]any
+	stylesheets      []string
+	inlineStyles     string
+	componentScripts []map[string]any
+	templateTheme    map[string]any
 }
 
-func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOptions render.RenderOptions, layout layoutContext, assetResolver func(string) string) renderAssetBundle {
+func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOptions render.RenderOptions, assetResolver func(string) string) renderAssetBundle {
 	if renderOptions.StyleMode == render.StyleModeUnstyled {
 		return renderAssetBundle{}
 	}
@@ -432,16 +438,12 @@ func (r *Renderer) renderAssets(componentRenderer *componentRenderer, renderOpti
 	for idx := range componentScripts {
 		componentScripts[idx] = resolveScriptAsset(componentScripts[idx], assetResolver)
 	}
-	assets := renderAssetBundle{
+	return renderAssetBundle{
 		stylesheets:      resolveAssets(stylesheets, assetResolver),
 		inlineStyles:     r.inlineStyle,
 		componentScripts: scriptPayloads(componentScripts),
 		templateTheme:    templateTheme,
 	}
-	if layout.HasResponsiveGrid {
-		assets.responsiveGridStyles = strings.TrimSpace(responsiveGridCSS)
-	}
-	return assets
 }
 
 func omitTemplateThemeAssets(theme map[string]any) map[string]any {
@@ -1310,20 +1312,21 @@ func decorateFormModel(form model.FormModel) model.FormModel {
 
 func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layoutContext, error) {
 	columns := gridColumnsFromHints(form.UIHints)
+	gutter := stringFromMap(form.UIHints, layoutGutterHintKey)
 	ctx := layoutContext{
 		GridColumns:      columns,
 		GridColumnsValue: strconv.Itoa(columns),
-		Gutter:           stringFromMap(form.UIHints, layoutGutterHintKey),
+		Gutter:           gutter,
+		GutterValue:      normalizeGutter(gutter),
 	}
 
 	metas := parseSectionsMetadata(stringFromMap(form.Metadata, layoutSectionsMetadataKey))
 	if len(metas) == 0 {
-		fields, responsive, err := renderUnsectionedFields(form.Fields, renderer, ctx.GridColumns)
+		fields, err := renderUnsectionedFields(form.Fields, renderer, ctx.GridColumns)
 		if err != nil {
 			return layoutContext{}, err
 		}
 		ctx.Unsectioned = fields
-		ctx.HasResponsiveGrid = responsive
 		return ctx, nil
 	}
 
@@ -1335,17 +1338,11 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 
 	sectioned := collectSectionedFields(form.Fields, "")
 	if len(sectioned) > 0 {
-		responsive, err := collectSectionedOutputs(sectioned, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx)
-		if err != nil {
+		if err := collectSectionedOutputs(sectioned, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx); err != nil {
 			return layoutContext{}, err
 		}
-		ctx.HasResponsiveGrid = ctx.HasResponsiveGrid || responsive
-	} else {
-		responsive, err := collectTopLevelSectionOutputs(form.Fields, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx)
-		if err != nil {
-			return layoutContext{}, err
-		}
-		ctx.HasResponsiveGrid = ctx.HasResponsiveGrid || responsive
+	} else if err := collectTopLevelSectionOutputs(form.Fields, renderer, ctx.GridColumns, index, sectionOutputs, &fallbackCounter, &ctx); err != nil {
+		return layoutContext{}, err
 	}
 
 	for id, group := range index {
@@ -1356,20 +1353,18 @@ func buildLayoutContext(form model.FormModel, renderer *componentRenderer) (layo
 	return ctx, nil
 }
 
-func renderUnsectionedFields(fields []model.Field, renderer *componentRenderer, columns int) ([]renderedField, bool, error) {
+func renderUnsectionedFields(fields []model.Field, renderer *componentRenderer, columns int) ([]renderedField, error) {
 	var out []renderedField
-	responsiveGrid := false
 	for _, field := range fields {
-		item, responsive, ok, err := renderLayoutField(renderer, field, field.Name, columns)
+		item, ok, err := renderLayoutField(renderer, field, field.Name, columns)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		if ok {
-			responsiveGrid = responsiveGrid || responsive
 			out = append(out, item)
 		}
 	}
-	return out, responsiveGrid, nil
+	return out, nil
 }
 
 func initialiseSections(ctx *layoutContext, metas []sectionMeta) map[string]*sectionGroup {
@@ -1396,17 +1391,15 @@ func truthySectionHint(hints map[string]string, key string) bool {
 	return value == "true" || value == "1" || value == "yes" || value == "on"
 }
 
-func collectSectionedOutputs(sectioned []sectionedField, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) (bool, error) {
-	responsiveGrid := false
+func collectSectionedOutputs(sectioned []sectionedField, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) error {
 	for _, sf := range sectioned {
-		item, responsive, ok, err := renderLayoutField(renderer, sf.field, sf.path, columns)
+		item, ok, err := renderLayoutField(renderer, sf.field, sf.path, columns)
 		if err != nil {
-			return false, err
+			return err
 		}
 		if !ok {
 			continue
 		}
-		responsiveGrid = responsiveGrid || responsive
 		if _, ok := index[sf.sectionID]; ok {
 			*fallbackCounter = *fallbackCounter + 1
 			outputs[sf.sectionID] = append(outputs[sf.sectionID], renderedSectionField{path: sf.path, field: item, fallback: *fallbackCounter})
@@ -1414,20 +1407,18 @@ func collectSectionedOutputs(sectioned []sectionedField, renderer *componentRend
 		}
 		ctx.Unsectioned = append(ctx.Unsectioned, item)
 	}
-	return responsiveGrid, nil
+	return nil
 }
 
-func collectTopLevelSectionOutputs(fields []model.Field, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) (bool, error) {
-	responsiveGrid := false
+func collectTopLevelSectionOutputs(fields []model.Field, renderer *componentRenderer, columns int, index map[string]*sectionGroup, outputs map[string][]renderedSectionField, fallbackCounter *int, ctx *layoutContext) error {
 	for _, field := range fields {
-		item, responsive, ok, err := renderLayoutField(renderer, field, field.Name, columns)
+		item, ok, err := renderLayoutField(renderer, field, field.Name, columns)
 		if err != nil {
-			return false, err
+			return err
 		}
 		if !ok {
 			continue
 		}
-		responsiveGrid = responsiveGrid || responsive
 		if sectionID := stringFromMap(field.Metadata, layoutSectionFieldKey); sectionID != "" {
 			if _, ok := index[sectionID]; ok {
 				*fallbackCounter = *fallbackCounter + 1
@@ -1437,19 +1428,19 @@ func collectTopLevelSectionOutputs(fields []model.Field, renderer *componentRend
 		}
 		ctx.Unsectioned = append(ctx.Unsectioned, item)
 	}
-	return responsiveGrid, nil
+	return nil
 }
 
-func renderLayoutField(renderer *componentRenderer, field model.Field, path string, columns int) (renderedField, bool, bool, error) {
+func renderLayoutField(renderer *componentRenderer, field model.Field, path string, columns int) (renderedField, bool, error) {
 	rendered, err := renderer.render(field, path)
 	if err != nil {
-		return renderedField{}, false, false, err
+		return renderedField{}, false, err
 	}
 	if strings.TrimSpace(rendered) == "" {
-		return renderedField{}, false, false, nil
+		return renderedField{}, false, nil
 	}
-	attrs, responsive := gridWrapperAttributes(field, columns)
-	return renderedField{HTML: rendered, Style: attrs}, responsive, true, nil
+	attrs := gridWrapperAttributes(field, columns)
+	return renderedField{HTML: rendered, Attrs: attrs, Style: attrs}, true, nil
 }
 
 func collectSectionedFields(fields []model.Field, parentPath string) []sectionedField {
@@ -1621,100 +1612,65 @@ func normalizeActionType(value string) string {
 	}
 }
 
-var responsiveGridBreakpoints = []string{"sm", "md", "lg", "xl", "2xl"}
+// gridBreakpoints are the responsive suffixes the UI schema accepts for
+// layout.span/.start/.row hints (layout.span.lg, ...). The bundled stylesheet
+// matches them at Tailwind's min-width breakpoints (640/768/1024/1280/1536px).
+var gridBreakpoints = []string{"sm", "md", "lg", "xl", "2xl"}
 
-const responsiveGridCSS = `
-@media (min-width: 640px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-sm, var(--fg-span, 12)) / span var(--fg-span-sm, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-sm, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-sm, var(--fg-row, auto)) !important;
-  }
+// gridGutters are the layout.gutter values the bundled stylesheet maps to a
+// --formgen-grid-gap value; anything else resolves to defaultGridGutter.
+var gridGutters = map[string]struct{}{"sm": {}, "md": {}, "lg": {}}
+
+const defaultGridGutter = "md"
+
+// gridWrapperAttributes returns the layout data attributes for a field's grid
+// wrapper. The vanilla stylesheet (client/src/theme/grid-layout.css) turns
+// them into grid placement, which keeps rendered forms free of inline style
+// attributes so a `style-src 'self'` Content-Security-Policy applies:
+//
+//	data-formgen-span="<n>"        grid-column-end: span n (default n = columns)
+//	data-formgen-start="<n>"       grid-column-start: n   (layout.start)
+//	data-formgen-row="<n>"         grid-row-start: n      (layout.row)
+//	data-formgen-{span,start,row}-<bp>="<n>"  the same inside min-width media queries
+//
+// The returned string starts with a space so templates can splice it into the
+// wrapper's start tag; it is empty only when no attribute applies.
+func gridWrapperAttributes(field model.Field, columns int) string {
+	var attrs strings.Builder
+	writeGridAttribute(&attrs, "span", "", intHintOrDefault(field.UIHints, fieldLayoutSpanHintKey, columns))
+	writeGridAttribute(&attrs, "start", "", intHintOrDefault(field.UIHints, fieldLayoutStartHintKey, 0))
+	writeGridAttribute(&attrs, "row", "", intHintOrDefault(field.UIHints, fieldLayoutRowHintKey, 0))
+	for _, breakpoint := range gridBreakpoints {
+		writeGridAttribute(&attrs, "span", breakpoint, intHintOrDefault(field.UIHints, fieldLayoutSpanHintKey+"."+breakpoint, 0))
+		writeGridAttribute(&attrs, "start", breakpoint, intHintOrDefault(field.UIHints, fieldLayoutStartHintKey+"."+breakpoint, 0))
+		writeGridAttribute(&attrs, "row", breakpoint, intHintOrDefault(field.UIHints, fieldLayoutRowHintKey+"."+breakpoint, 0))
+	}
+	return attrs.String()
 }
 
-@media (min-width: 768px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-md, var(--fg-span, 12)) / span var(--fg-span-md, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-md, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-md, var(--fg-row, auto)) !important;
-  }
+func writeGridAttribute(attrs *strings.Builder, name, breakpoint string, value int) {
+	if value <= 0 {
+		return
+	}
+	attrs.WriteString(" data-formgen-")
+	attrs.WriteString(name)
+	if breakpoint != "" {
+		attrs.WriteString("-")
+		attrs.WriteString(breakpoint)
+	}
+	attrs.WriteString(`="`)
+	attrs.WriteString(strconv.Itoa(value))
+	attrs.WriteString(`"`)
 }
 
-@media (min-width: 1024px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-lg, var(--fg-span, 12)) / span var(--fg-span-lg, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-lg, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-lg, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-xl, var(--fg-span, 12)) / span var(--fg-span-xl, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-xl, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-xl, var(--fg-row, auto)) !important;
-  }
-}
-
-@media (min-width: 1536px) {
-  .fg-grid-responsive {
-    grid-column: span var(--fg-span-2xl, var(--fg-span, 12)) / span var(--fg-span-2xl, var(--fg-span, 12)) !important;
-    grid-column-start: var(--fg-start-2xl, var(--fg-start, auto)) !important;
-    grid-row: var(--fg-row-2xl, var(--fg-row, auto)) !important;
-  }
-}
-`
-
-func gridWrapperAttributes(field model.Field, columns int) (string, bool) {
-	span := intHintOrDefault(field.UIHints, fieldLayoutSpanHintKey, columns)
-	start := strings.TrimSpace(field.UIHints[fieldLayoutStartHintKey])
-	row := strings.TrimSpace(field.UIHints[fieldLayoutRowHintKey])
-
-	parts := make([]string, 0, 12)
-	parts = append(parts, fmt.Sprintf("grid-column: span %d / span %d", span, span))
-	if start != "" {
-		parts = append(parts, fmt.Sprintf("grid-column-start: %s", start))
+// normalizeGutter resolves a layout.gutter hint to the sm|md|lg value the grid
+// container emits as data-formgen-gutter.
+func normalizeGutter(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if _, ok := gridGutters[value]; ok {
+		return value
 	}
-	if row != "" {
-		parts = append(parts, fmt.Sprintf("grid-row: %s", row))
-	}
-
-	breakpointParts := responsiveGridParts(field.UIHints)
-	if len(breakpointParts) == 0 {
-		return ` style="` + strings.Join(parts, "; ") + `"`, false
-	}
-
-	parts = append(parts, fmt.Sprintf("--fg-span: %d", span))
-	if start != "" {
-		parts = append(parts, fmt.Sprintf("--fg-start: %s", start))
-	} else {
-		parts = append(parts, "--fg-start: auto")
-	}
-	if row != "" {
-		parts = append(parts, fmt.Sprintf("--fg-row: %s", row))
-	} else {
-		parts = append(parts, "--fg-row: auto")
-	}
-	parts = append(parts, breakpointParts...)
-
-	return ` class="fg-grid-responsive" style="` + strings.Join(parts, "; ") + `"`, true
-}
-
-func responsiveGridParts(hints map[string]string) []string {
-	parts := make([]string, 0, len(responsiveGridBreakpoints))
-	for _, breakpoint := range responsiveGridBreakpoints {
-		appendResponsiveGridPart(&parts, hints, fieldLayoutSpanHintKey, "--fg-span-", breakpoint)
-		appendResponsiveGridPart(&parts, hints, fieldLayoutStartHintKey, "--fg-start-", breakpoint)
-		appendResponsiveGridPart(&parts, hints, fieldLayoutRowHintKey, "--fg-row-", breakpoint)
-	}
-	return parts
-}
-
-func appendResponsiveGridPart(parts *[]string, hints map[string]string, keyPrefix, cssPrefix, breakpoint string) {
-	value := intHintOrDefault(hints, keyPrefix+"."+breakpoint, 0)
-	if value > 0 {
-		*parts = append(*parts, fmt.Sprintf("%s%s: %d", cssPrefix, breakpoint, value))
-	}
+	return defaultGridGutter
 }
 
 func intHintOrDefault(hints map[string]string, key string, fallback int) int {

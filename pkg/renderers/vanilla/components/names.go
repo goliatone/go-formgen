@@ -13,4 +13,8 @@ const (
 	NameWysiwyg       = "wysiwyg"
 	NameFileUploader  = "file_uploader"
 	NameJSONEditor    = "json_editor"
+	// Optional native choice components, selected only through component metadata.
+	NameChoice         = "choice"
+	NameChoiceMultiple = "choice-multiple"
+	NameScale          = "scale"
 )

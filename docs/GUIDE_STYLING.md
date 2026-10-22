@@ -4,7 +4,9 @@
 
 `go-formgen` provides multiple layers of styling customization, from using the default Tailwind-based theme to building completely custom themes via the `go-theme` integration.
 
----
+------------------------------------------------------------------------
+
+Theme options live on root `formgen` or `pkg/orchestrator/defaults`. `pkg/orchestrator` stays headless; import the renderer-facing package when using `WithThemeProvider`, `WithThemeSelector` or `WithThemeFallbacks`.
 
 ## 1. Default Styling
 
@@ -12,7 +14,7 @@
 
 The vanilla renderer includes embedded Tailwind CSS styles. Enable them with:
 
-```go
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithTemplatesFS(formgen.EmbeddedTemplates()),
     vanilla.WithDefaultStyles(),  // Injects bundled Tailwind CSS
@@ -20,21 +22,22 @@ renderer, _ := vanilla.New(
 ```
 
 **Default form container class** ([form.tmpl:31](../pkg/renderers/vanilla/templates/form.tmpl#L31)):
-```html
+
+``` html
 <form class="formgen-form">
 ```
 
 This gives you:
+
 - **Fixed max width** via `--form-container-max-width` (defaults to 56rem)
 - **Centered**, padded, and rounded container
 - **Dark mode support** via `prefers-color-scheme` fallbacks and theme tokens
 
 ### Request scoped chrome overrides
 
-You can override high level chrome classes (form, header, section, grid, actions, errors)
-per render without replacing templates. Overrides replace defaults entirely:
+You can override high level chrome classes (form, header, section, grid, actions, errors) per render without replacing templates. Overrides replace defaults entirely:
 
-```go
+``` go
 output, _ := renderer.Render(ctx, form, render.RenderOptions{
     ChromeClasses: &render.ChromeClasses{
         Form: "formgen-form formgen-form--embed", // add your own override class
@@ -44,7 +47,7 @@ output, _ := renderer.Render(ctx, form, render.RenderOptions{
 
 To extend the defaults, compose your own string using `vanilla.DefaultFormClass`.
 
----
+------------------------------------------------------------------------
 
 ## 2. Custom Inline Styles
 
@@ -52,7 +55,7 @@ To extend the defaults, compose your own string using `vanilla.DefaultFormClass`
 
 Replace or supplement the default styles:
 
-```go
+``` go
 customCSS := `
   .formgen-form { width: 100%; max-width: none; }
   @media (min-width: 768px) {
@@ -65,9 +68,11 @@ renderer, _ := vanilla.New(
 )
 ```
 
+`WithInlineStyles` replaces the bundled stylesheet entirely, including the grid layout rules described in [§5](#5-responsive-layouts). When your forms rely on UI schema spans, columns, or breakpoints, append the generated rules from [client/src/theme/grid-layout.css](../client/src/theme/grid-layout.css) (or implement the same `data-formgen-*` selectors) to your CSS.
+
 Or add external stylesheets:
 
-```go
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithStylesheet("/static/custom-forms.css"),
 )
@@ -75,7 +80,7 @@ renderer, _ := vanilla.New(
 
 Disable all bundled styles:
 
-```go
+``` go
 renderer, _ := vanilla.New(
     vanilla.WithoutStyles(),  // No inline CSS or default links
 )
@@ -85,7 +90,7 @@ renderer, _ := vanilla.New(
 
 For per-render embedding, use `render.RenderOptions.StyleMode`:
 
-```go
+``` go
 output, _ := renderer.Render(ctx, form, render.RenderOptions{
     RenderMode: render.RenderModeFields,
     StyleMode:  render.StyleModeUnstyled,
@@ -94,10 +99,9 @@ output, _ := renderer.Render(ctx, form, render.RenderOptions{
 
 - `StyleModeDefault` preserves existing vanilla classes and configured assets.
 - `StyleModeMinimal` keeps semantic `formgen-*` chrome hooks while relying on caller CSS.
-- `StyleModeUnstyled` omits default visual classes and configured assets; explicit
-  `ChromeClasses` overrides are still honored.
+- `StyleModeUnstyled` omits default visual classes and configured assets; explicit `ChromeClasses` overrides are still honored.
 
----
+------------------------------------------------------------------------
 
 ## 3. Custom Templates
 
@@ -107,7 +111,7 @@ The form container is defined in [templates/form.tmpl](../pkg/renderers/vanilla/
 
 **Option A: Replace the entire template bundle**
 
-```go
+``` go
 customFS := os.DirFS("./my-templates")
 renderer, _ := vanilla.New(
     vanilla.WithTemplatesFS(customFS),
@@ -116,7 +120,7 @@ renderer, _ := vanilla.New(
 
 Your `my-templates/templates/form.tmpl` could start with:
 
-```html
+``` html
 <div class="w-full">  <!-- fluid wrapper -->
   <form class="formgen-form" method="{{ .render_options.method_attr }}" action="{{ .form.endpoint }}">
     <!-- rest of form -->
@@ -126,7 +130,7 @@ Your `my-templates/templates/form.tmpl` could start with:
 
 **Option B: Use theme partials (see §4)**
 
----
+------------------------------------------------------------------------
 
 ## 4. Theme Integration (`go-theme`)
 
@@ -145,15 +149,15 @@ Your `my-templates/templates/form.tmpl` could start with:
 
 The theme system follows this flow:
 
-1. **Define** a `theme.Manifest` with tokens, templates, and assets
-2. **Register** the manifest with a `theme.Registry` (the provider)
-3. **Configure** the orchestrator with `WithThemeProvider(provider, defaultTheme, defaultVariant)`
-4. **Request** forms with optional theme/variant overrides
-5. **Renderer receives** a `theme.RendererConfig` with resolved partials, tokens, CSS vars, and asset resolver
+1.  **Define** a `theme.Manifest` with tokens, templates, and assets
+2.  **Register** the manifest with a `theme.Registry` (the provider)
+3.  **Configure** the orchestrator with `WithThemeProvider(provider, defaultTheme, defaultVariant)`
+4.  **Request** forms with optional theme/variant overrides
+5.  **Renderer receives** a `theme.RendererConfig` with resolved partials, tokens, CSS vars, and asset resolver
 
-The orchestrator handles theme resolution ([orchestrator.go:344-356](../pkg/orchestrator/orchestrator.go#L344-356)):
+Renderer-facing defaults handle theme resolution ([defaults implementation](../pkg/orchestrator/defaults/defaults.go)):
 
-```go
+``` go
 func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererConfig, error) {
     selection, err := o.themeSelector.Select(themeName, variant)
     cfg := selection.RendererTheme(o.themeFallbacks)  // Merges with fallbacks
@@ -163,7 +167,7 @@ func (o *Orchestrator) resolveTheme(themeName, variant string) (*theme.RendererC
 
 ### Basic Theme Setup
 
-```go
+``` go
 import theme "github.com/goliatone/go-theme"
 
 manifest := &theme.Manifest{
@@ -198,11 +202,11 @@ provider := theme.NewRegistry()
 provider.Register(manifest)
 
 gen := formgen.NewOrchestrator(
-    orchestrator.WithThemeProvider(provider, "acme", "default"),
+    formgen.WithThemeProvider(provider, "acme", "default"),
 )
 ```
 
-**What gets passed to the renderer** ([orchestrator_theme_test.go:154-186](../pkg/orchestrator/orchestrator_theme_test.go#L154-186)):
+**What gets passed to the renderer** ([renderer defaults tests](../pkg/orchestrator/defaults/defaults_test.go)):
 
 - `Theme` — Theme name (`"acme"`)
 - `Variant` — Variant name (`"default"`)
@@ -211,48 +215,40 @@ gen := formgen.NewOrchestrator(
 - `CSSVars` — Safely projected CSS variables (`{"--primary-color": "#3b82f6"}`)
 - `AssetURL(key)` — Function resolving `"logo"` → `"/static/themes/acme/logo.svg"`
 
-The renderer-enabled defaults integration projects tokens with go-theme's
-portable profile plus go-formgen's form profile. Importing
-`pkg/orchestrator` alone remains headless; opt in through
-`pkg/orchestrator/defaults` or the root compatibility helpers.
+The renderer-enabled defaults integration projects tokens with go-theme's portable profile plus go-formgen's form profile. Importing `pkg/orchestrator` alone remains headless; opt in through `pkg/orchestrator/defaults` or the root compatibility helpers.
 
 ### Semantic Form Tokens
 
 Vanilla and Preact consume the same semantic form tokens. Resolution is:
 
-```text
+```
 form token -> portable token -> existing renderer default
 ```
 
-The final step does not emit a new CSS literal. When neither semantic token is
-present, the renderer's existing stylesheet and classes remain authoritative.
+The final step does not emit a new CSS literal. When neither semantic token is present, the renderer's existing stylesheet and classes remain authoritative.
 
-`container-max-width` remains a compatibility alias for
-`form.container.max-width`. If both names are present, the canonical token
-wins. The base stylesheet also reads the legacy `--container-max-width` CSS
-variable after the canonical variable so direct CSS integrations keep working.
+`container-max-width` remains a compatibility alias for `form.container.max-width`. If both names are present, the canonical token wins. The base stylesheet also reads the legacy `--container-max-width` CSS variable after the canonical variable so direct CSS integrations keep working.
 
-| Form token | Portable fallback |
-| --- | --- |
-| `form.container.max-width` | Existing 56rem stylesheet default |
-| `form.control.background` | `color.surface.default` |
-| `form.control.text` | `color.text.primary` |
-| `form.control.border` | `color.border.default` |
-| `form.control.border-focus` | `color.focus.ring` |
-| `form.control.placeholder` | `color.text.secondary` |
-| `form.control.disabled-background` | `color.surface.subtle` |
-| `form.control.disabled-text` | `color.text.secondary` |
-| `form.control.invalid-border` | `color.status.danger` |
-| `form.control.height` | `size.control.height` |
-| `form.control.radius` | `radius.control` |
-| `form.label.text` | `color.text.primary` |
-| `form.help.text` | `color.text.secondary` |
-| `form.error.text` | `color.status.danger` |
+| Form token                         | Portable fallback                 |
+|------------------------------------|-----------------------------------|
+| `form.container.max-width`         | Existing 56rem stylesheet default |
+| `form.control.background`          | `color.surface.default`           |
+| `form.control.text`                | `color.text.primary`              |
+| `form.control.border`              | `color.border.default`            |
+| `form.control.border-focus`        | `color.focus.ring`                |
+| `form.control.placeholder`         | `color.text.secondary`            |
+| `form.control.disabled-background` | `color.surface.subtle`            |
+| `form.control.disabled-text`       | `color.text.secondary`            |
+| `form.control.invalid-border`      | `color.status.danger`             |
+| `form.control.height`              | `size.control.height`             |
+| `form.control.radius`              | `radius.control`                  |
+| `form.label.text`                  | `color.text.primary`              |
+| `form.help.text`                   | `color.text.secondary`            |
+| `form.error.text`                  | `color.status.danger`             |
 
-Portable typography, spacing, action, motion, surface, and radius tokens are
-also consumed where the renderer has a matching hook. For example:
+Portable typography, spacing, action, motion, surface, and radius tokens are also consumed where the renderer has a matching hook. For example:
 
-```go
+``` go
 manifest := &theme.Manifest{
     Name: "acme",
     Tokens: map[string]string{
@@ -266,40 +262,24 @@ manifest := &theme.Manifest{
 }
 ```
 
-Only values accepted by the token's constraint reach inline CSS. Invalid
-names, unsafe values, and collisions are omitted. Safe legacy tokens remain
-available as CSS variables but are reported as unsupported by the semantic
-profile. The `formgen-theme` JSON payload includes deterministic projection
-diagnostics and renderer-level `consumed` or `unused` outcomes; Preact also
-includes the safe `semanticTokens` map used by its client context.
+Only values accepted by the token's constraint reach inline CSS. Invalid names, unsafe values, and collisions are omitted. Safe legacy tokens remain available as CSS variables but are reported as unsupported by the semantic profile. The `formgen-theme` JSON payload includes deterministic projection diagnostics and renderer-level `consumed` or `unused` outcomes; Preact also includes the safe `semanticTokens` map used by its client context.
 
 Semantic CSS is additive:
 
-- vanilla default and minimal modes emit it; unstyled mode emits no default or
-  semantic presentation;
-- Preact document, form, and fields modes emit the same safe variables and
-  semantic state meanings; form-only tokens such as
-  `form.container.max-width` are consumed only by document/form modes and are
-  reported unused in fields mode;
-- explicit templates, `ChromeClasses`, theme assets, and renderer-specific
-  styles keep their existing precedence;
+- vanilla default and minimal modes emit it; unstyled mode emits no default or semantic presentation;
+- Preact document, form, and fields modes emit the same safe variables and semantic state meanings; form-only tokens such as `form.container.max-width` are consumed only by document/form modes and are reported unused in fields mode;
+- explicit templates, `ChromeClasses`, theme assets, and renderer-specific styles keep their existing precedence;
 - direct legacy `render.ThemeConfig` values keep their historical path.
 
-When `RenderOptions.OmitAssets` is enabled, both HTML renderers omit every
-`<link>`, `<style>`, and `<script>` tag but retain theme name, variant, and
-semantic attributes on the rendered root. The embedding host is then
-responsible for supplying all required styles, runtime scripts, and—in Preact
-mode—the hydration descriptor.
+When `RenderOptions.OmitAssets` is enabled, both HTML renderers omit every `<link>`, `<style>`, and `<script>` tag but retain theme name, variant, and semantic attributes on the rendered root. The embedding host is then responsible for supplying all required styles, runtime scripts, and—in Preact mode—the hydration descriptor.
 
-The semantic projection API requires go-theme v0.5.0 or later. Until that
-version is published, coordinated development should use an explicit external
-workspace rather than a repository `go.work`, `replace`, or pseudo-version.
+The semantic projection API requires go-theme v0.5.0 or later. Until that version is published, coordinated development should use an explicit external workspace rather than a repository `go.work`, `replace`, or pseudo-version.
 
 ### Theme Variants
 
 Define multiple variants for different contexts (light/dark, fluid/boxed, etc.):
 
-```go
+``` go
 manifest := &theme.Manifest{
     Name: "acme",
 
@@ -348,9 +328,9 @@ manifest := &theme.Manifest{
 
 **Option 1: Set defaults at orchestrator creation**
 
-```go
+``` go
 gen := formgen.NewOrchestrator(
-    orchestrator.WithThemeProvider(provider, "acme", "dark"),
+    formgen.WithThemeProvider(provider, "acme", "dark"),
 )
 
 // All requests use "acme" theme with "dark" variant by default
@@ -361,7 +341,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 **Option 2: Override per request**
 
-```go
+``` go
 // Use different variant for this request
 output, _ := gen.Generate(ctx, orchestrator.Request{
     OperationID:  "createPet",
@@ -372,7 +352,7 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 **Option 3: Switch themes entirely**
 
-```go
+``` go
 output, _ := gen.Generate(ctx, orchestrator.Request{
     OperationID:  "createPet",
     ThemeName:    "corporate",  // Different theme
@@ -386,7 +366,7 @@ Theme tokens are automatically converted to CSS variables and injected into the 
 
 **Generated HTML:**
 
-```html
+``` html
 <style data-formgen-theme-vars>
 :root {
   --bg-primary: #1f2937;
@@ -401,7 +381,7 @@ Theme tokens are automatically converted to CSS variables and injected into the 
 
 **Using CSS variables in custom styles:**
 
-```css
+``` css
 form[data-formgen-auto-init] {
   max-width: var(--container-max-width, 56rem);
   border-color: var(--primary-color, #3b82f6);
@@ -419,7 +399,7 @@ input, textarea, select {
 
 Themes can override specific component templates:
 
-```go
+``` go
 manifest := &theme.Manifest{
     Name: "acme",
     Templates: map[string]string{
@@ -437,29 +417,23 @@ manifest := &theme.Manifest{
 }
 ```
 
-The `forms.form` partial overrides the root form template (formerly only
-overrideable via `WithTemplatesFS`). Use it when you need to customize the
-wrapper chrome or layout structure globally for a theme.
+The `forms.form` partial overrides the root form template (formerly only overrideable via `WithTemplatesFS`). Use it when you need to customize the wrapper chrome or layout structure globally for a theme.
 
-The `forms.input` partial receives the original typed `field` together with
-`control_value` (the scalar formatted for an HTML `value` attribute) and
-`has_value` (explicit presence, including zero and empty-string defaults).
-Use the latter two keys when rendering the `value` attribute; do not format or
-test `field.default` through template truthiness.
+The `forms.input` partial receives the original typed `field` together with `control_value` (the scalar formatted for an HTML `value` attribute) and `has_value` (explicit presence, including zero and empty-string defaults). Use the latter two keys when rendering the `value` attribute; do not format or test `field.default` through template truthiness.
 
 **Template lookup order:**
 
-1. Variant-specific template (if defined in variant)
-2. Theme base template (if defined in manifest)
-3. Fallback template (from `WithThemeFallbacks`)
-4. Default embedded template
+1.  Variant-specific template (if defined in variant)
+2.  Theme base template (if defined in manifest)
+3.  Fallback template (from `WithThemeFallbacks`)
+4.  Default embedded template
 
 **Setting fallbacks:**
 
-```go
+``` go
 gen := formgen.NewOrchestrator(
-    orchestrator.WithThemeProvider(provider, "acme", "dark"),
-    orchestrator.WithThemeFallbacks(map[string]string{
+    formgen.WithThemeProvider(provider, "acme", "dark"),
+    formgen.WithThemeFallbacks(map[string]string{
         "forms.form":          "templates/form.tmpl",
         "forms.input":         "templates/components/input.tmpl",
         "forms.select":        "templates/components/select.tmpl",
@@ -478,7 +452,7 @@ gen := formgen.NewOrchestrator(
 
 Themes can bundle assets (CSS, JS, images, fonts):
 
-```go
+``` go
 manifest := &theme.Manifest{
     Name: "acme",
     Assets: theme.Assets{
@@ -497,7 +471,7 @@ manifest := &theme.Manifest{
 
 **Resolving asset URLs** (automatically handled by the renderer):
 
-```go
+``` go
 // In your code or templates
 assetURL := renderOptions.Theme.AssetURL("logo")
 // Returns: "/static/themes/acme/logo.svg"
@@ -505,14 +479,14 @@ assetURL := renderOptions.Theme.AssetURL("logo")
 
 **In templates:**
 
-```html
+``` html
 <img src="{{ theme.assetURL "logo" }}" alt="Logo">
 <link rel="stylesheet" href="{{ theme.assetURL "stylesheet" }}">
 ```
 
 ### Complete Working Example
 
-```go
+``` go
 package main
 
 import (
@@ -592,8 +566,8 @@ func main() {
 
     gen := formgen.NewOrchestrator(
         orchestrator.WithRegistry(registry),
-        orchestrator.WithThemeProvider(provider, "corporate", "dark"),
-        orchestrator.WithThemeFallbacks(map[string]string{
+        formgen.WithThemeProvider(provider, "corporate", "dark"),
+        formgen.WithThemeFallbacks(map[string]string{
             "forms.select":   "templates/components/select.tmpl",
             "forms.checkbox": "templates/components/boolean.tmpl",
         }),
@@ -625,7 +599,7 @@ func main() {
 
 The renderer includes theme metadata in the HTML output:
 
-```html
+``` html
 <!-- CSS variables from theme tokens -->
 <style data-formgen-theme-vars>
 :root {
@@ -675,7 +649,7 @@ The renderer includes theme metadata in the HTML output:
 
 For advanced use cases, implement a custom theme selector:
 
-```go
+``` go
 type CustomSelector struct {
     registry theme.ThemeProvider
 }
@@ -692,25 +666,41 @@ func (s *CustomSelector) Select(name, variant string) (*theme.Selection, error) 
 }
 
 gen := formgen.NewOrchestrator(
-    orchestrator.WithThemeSelector(&CustomSelector{registry: provider}),
+    formgen.WithThemeSelector(&CustomSelector{registry: provider}),
 )
 ```
 
----
+------------------------------------------------------------------------
 
 ## 5. Responsive Layouts
 
 ### Grid Columns & Breakpoints
 
-Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/vanilla/templates/form.tmpl#L61)):
+Forms use CSS Grid. The vanilla renderer writes no inline `style` attributes for layout: it emits data attributes, and the bundled stylesheet (`formgen-vanilla.css`, generated from [client/src/theme/grid-layout.css](../client/src/theme/grid-layout.css)) turns them into grid placement. Forms therefore render under a `Content-Security-Policy` of `style-src 'self'` ([form.tmpl](../pkg/renderers/vanilla/templates/form.tmpl)):
 
-```html
-<div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+``` html
+<div data-formgen-layout="grid" data-formgen-columns="12" data-formgen-gutter="md" class="formgen-grid">
+  <div data-formgen-span="12">…</div>
+  <div data-formgen-span="6" data-formgen-start="7" data-formgen-row="2" data-formgen-span-lg="4">…</div>
+</div>
 ```
+
+**Grid layout contract**
+
+| Element | Attribute | Source hint | Stylesheet rule |
+|----|----|----|----|
+| Grid container | `data-formgen-columns="<n>"` | `layout.gridColumns` (default `12`) | `grid-template-columns: repeat(n, minmax(0, 1fr))` |
+| Grid container | `data-formgen-gutter="sm|md|lg"` | `layout.gutter` (default `md`; other values resolve to `md`) | `--formgen-grid-gap: 1rem | 1.5rem | 2rem`, consumed by `.formgen-grid { gap: var(--formgen-grid-gap, 1.5rem) }` |
+| Field wrapper | `data-formgen-span="<n>"` | `layout.span` (default = columns) | `grid-column-end: span n` |
+| Field wrapper | `data-formgen-start="<n>"` | `layout.start` | `grid-column-start: n` |
+| Field wrapper | `data-formgen-row="<n>"` | `layout.row` | `grid-row-start: n` |
+| Field wrapper | `data-formgen-{span,start,row}-<bp>="<n>"` | `layout.{span,start,row}.<bp>` | the same rule inside `@media (min-width: …)` |
+
+Breakpoints are Tailwind's: `sm` 640px, `md` 768px, `lg` 1024px, `xl` 1280px, `2xl` 1536px. Overrides cascade upward (mobile-first): `layout.span.lg: "6"` applies at `lg` and above until `xl` or `2xl` overrides it. The bundled rules cover values 1–24; larger values still emit the attribute, so add your own rule when you need them. Every selector is a single attribute selector (specificity 0,1,0), so your stylesheet can override any of them without `!important`. The attributes are emitted in every style mode, including `unstyled`, because they carry layout intent and no presentation; `display: grid` itself comes from the `formgen-grid` chrome class (or your `ChromeClasses.Grid` override).
 
 **Control grid columns** via UI schema metadata:
 
-```json
+``` json
 {
   "uiHints": {
     "layout.gridColumns": "12"
@@ -718,9 +708,9 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 }
 ```
 
-**Field-level spanning** ([renderer.go:1154-1179](../pkg/renderers/vanilla/renderer.go#L1154-1179)):
+**Field-level spanning** (`layout.span`, rendered as `data-formgen-span`):
 
-```json
+``` json
 {
   "fields": [
     {
@@ -741,38 +731,38 @@ Forms use CSS Grid with configurable columns ([form.tmpl:61](../pkg/renderers/va
 
 ### Two-Column Layout on Wide Screens
 
-Use custom CSS with media queries:
+Prefer the UI schema: keep `layout.gridColumns` at 12 and give fields `grid.span: 12` with `breakpoints.lg.span: 6` (see Scenario 2 below). The spans and the column count stay consistent, and nothing needs custom CSS.
 
-```css
-.formgen-grid {
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: 1fr;  /* single column mobile */
+If you override the column count in CSS instead, remember that field spans are still applied: a field spanning 12 columns inside a two-column grid overflows into implicit columns. Pair the override with spans that fit, or set `layout.gridColumns: 2` and spans of 1–2 instead:
+
+``` css
+/* Collapse the grid on phones, two columns on desktop */
+.formgen-grid[data-formgen-columns] {
+  grid-template-columns: 1fr;
 }
 
 @media (min-width: 1024px) {
-  .formgen-grid {
-    grid-template-columns: repeat(2, 1fr);  /* two columns desktop */
+  .formgen-grid[data-formgen-columns] {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 ```
 
-Apply via theme tokens or inline styles.
+`.formgen-grid[data-formgen-columns]` (specificity 0,2,0) beats the bundled `[data-formgen-columns="n"]` rule regardless of stylesheet order, so no `!important` is needed.
 
----
+------------------------------------------------------------------------
 
 ## 6. Common Customization Scenarios
 
 ### Scenario 1: Fluid-Width Forms
 
-**Problem:** Default form container is `formgen-form` with
-`--form-container-max-width` defaulting to 56rem.
+**Problem:** Default form container is `formgen-form` with `--form-container-max-width` defaulting to 56rem.
 
 **Solution A: Theme tokens / CSS vars**
 
 Set a token that maps to the CSS variable:
 
-```go
+``` go
 Tokens: map[string]string{
     "form.container.max-width": "100%", // fluid
 }
@@ -782,7 +772,7 @@ Tokens: map[string]string{
 
 Create `templates/form.tmpl` with a custom wrapper:
 
-```html
+``` html
 <form class="formgen-form formgen-form--fluid">
 ```
 
@@ -790,7 +780,7 @@ Then add CSS for your modifier class.
 
 **Solution C: CSS override**
 
-```css
+``` css
 .formgen-form {
   max-width: none !important;  /* fluid */
   width: 100%;
@@ -801,7 +791,7 @@ Then add CSS for your modifier class.
 
 Wrap the form with a custom div in your template partial override:
 
-```html
+``` html
 <div class="container-fluid">
   {{ original form HTML }}
 </div>
@@ -811,27 +801,29 @@ Wrap the form with a custom div in your template partial override:
 
 **Approach 1: Media queries in theme CSS**
 
-```css
+``` css
 @media (min-width: 1024px) {
-  .formgen-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+  .formgen-grid[data-formgen-columns] {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 ```
 
+Field spans still apply (`data-formgen-span`), so combine this with spans that fit two columns or prefer Approach 3.
+
 **Approach 2: Template override with custom class**
 
-Override [form.tmpl:61](../pkg/renderers/vanilla/templates/form.tmpl#L61):
+Override the grid container in [form.tmpl](../pkg/renderers/vanilla/templates/form.tmpl), keeping the layout attributes so the bundled rules and the runtime still find it:
 
-```html
-<div class="formgen-grid formgen-grid--two-col">
+``` html
+<div data-formgen-layout="grid" data-formgen-columns="{{ grid_columns }}" data-formgen-gutter="{{ grid_gutter }}" class="formgen-grid formgen-grid--two-col">
 ```
 
 **Approach 3: Dynamic grid columns via UI schema**
 
 Set `layout.gridColumns` and use breakpoint-aware spans:
 
-```json
+``` json
 {
   "operations": {
     "createPet": {
@@ -854,15 +846,16 @@ Set `layout.gridColumns` and use breakpoint-aware spans:
 ```
 
 Notes:
+
 - Vanilla also honors breakpoint spans when they are already present as UI hints on a field (for example `layout.span.lg: "6"`).
-- If you override `templates/form.tmpl`, include `responsive_grid_styles` (see “Template Variables”) so breakpoint spans keep working without custom CSS.
+- Breakpoint rules live in the bundled stylesheet, not in the rendered page. A custom `templates/form.tmpl` only has to keep `{{ field.attrs|safe }}` on each field wrapper and the `data-formgen-columns`/`data-formgen-gutter` attributes on the grid container.
 
 **Approach 4: JavaScript-based (not recommended)**
 
-```js
+``` js
 const updateGridColumns = () => {
   const form = document.querySelector('[data-formgen-auto-init]');
-  const grid = form.querySelector('.grid');
+  const grid = form.querySelector('[data-formgen-layout="grid"]');
   if (window.innerWidth >= 1024) {
     grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
   } else {
@@ -877,7 +870,7 @@ updateGridColumns();
 
 Override individual component templates:
 
-```go
+``` go
 manifest := &theme.Manifest{
     Templates: map[string]string{
         "forms.input":    "themes/acme/input.tmpl",
@@ -888,7 +881,7 @@ manifest := &theme.Manifest{
 
 Or register custom components:
 
-```go
+``` go
 registry := components.NewDefaultRegistry()
 registry.MustRegister("custom-input", components.Descriptor{
     Renderer: func(buf *bytes.Buffer, field model.Field, data components.ComponentData) error {
@@ -902,16 +895,18 @@ renderer, _ := vanilla.New(
 )
 ```
 
----
+------------------------------------------------------------------------
 
 ## 7. Complete Example: Custom Fluid Two-Column Theme
 
-```go
+``` go
 package main
 
 import (
     "context"
+    "fmt"
     "github.com/goliatone/go-formgen"
+    "github.com/goliatone/go-formgen/pkg/openapi"
     "github.com/goliatone/go-formgen/pkg/orchestrator"
     "github.com/goliatone/go-formgen/pkg/render"
     "github.com/goliatone/go-formgen/pkg/renderers/vanilla"
@@ -960,7 +955,7 @@ func main() {
     registry.MustRegister(renderer)
 
     gen := formgen.NewOrchestrator(
-        orchestrator.WithThemeProvider(provider, "responsive", "default"),
+        formgen.WithThemeProvider(provider, "responsive", "default"),
         orchestrator.WithRegistry(registry),
     )
 
@@ -969,36 +964,34 @@ func main() {
         OperationID: "createPet",
     })
 
-    // output now has fluid width + two-column layout on desktop
+    fmt.Println(string(output)) // fluid width + two-column layout on desktop
 }
 ```
 
----
+------------------------------------------------------------------------
 
 ## 8. Advanced: Custom Template Bundle
 
 ### Directory Structure
 
-```
-my-templates/
-├── templates/
-│   ├── form.tmpl                    # Main form wrapper
-│   └── components/
-│       ├── input.tmpl               # Text inputs
-│       ├── select.tmpl              # Dropdowns
-│       ├── boolean.tmpl             # Checkboxes
-│       ├── textarea.tmpl            # Text areas
-│       ├── array.tmpl               # Array fields
-│       ├── object.tmpl              # Nested objects
-│       ├── wysiwyg.tmpl             # Rich text editors
-│       ├── file_uploader.tmpl       # File uploads
-│       ├── media_picker.tmpl        # Media library picker
-│       └── json_editor.tmpl         # JSON editors
-```
+    my-templates/
+    ├── templates/
+    │   ├── form.tmpl                    # Main form wrapper
+    │   └── components/
+    │       ├── input.tmpl               # Text inputs
+    │       ├── select.tmpl              # Dropdowns
+    │       ├── boolean.tmpl             # Checkboxes
+    │       ├── textarea.tmpl            # Text areas
+    │       ├── array.tmpl               # Array fields
+    │       ├── object.tmpl              # Nested objects
+    │       ├── wysiwyg.tmpl             # Rich text editors
+    │       ├── file_uploader.tmpl       # File uploads
+    │       ├── media_picker.tmpl        # Media library picker
+    │       └── json_editor.tmpl         # JSON editors
 
 ### Loading Custom Templates
 
-```go
+``` go
 customFS := os.DirFS("./my-templates")
 renderer, _ := vanilla.New(
     vanilla.WithTemplatesFS(customFS),
@@ -1011,13 +1004,12 @@ renderer, _ := vanilla.New(
 The main `templates/form.tmpl` receives a context with:
 
 - `form` — The `FormModel` with fields, metadata, UI hints
-- `layout` — Grid columns, sections, unsectioned fields
+- `layout` — Grid columns (`gridColumns`, `gridColumnsValue`), gutter (`gutter`, resolved `gutterValue`), sections, unsectioned fields. Each field entry exposes `html` and `attrs`, the wrapper's `data-formgen-span`/`-start`/`-row` attribute string (`style` is kept as an alias for templates written before the inline-style removal)
 - `actions` — Action buttons parsed from metadata
 - `theme` — Theme tokens, CSS vars, partials
 - `render_options` — Method, hidden fields, form errors
 - `stylesheets` — External stylesheet URLs
 - `inline_styles` — Inline CSS block
-- `responsive_grid_styles` — Inline CSS for breakpoint spans (only set when responsive spans are present)
 - `component_scripts` — JavaScript dependencies
 
 Component templates receive:
@@ -1031,36 +1023,36 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 - `field` — The `Field` being rendered
 - `context` — IDs/flags used to render `<label>`, help text, etc.
 
----
+------------------------------------------------------------------------
 
 ## 9. Reference Tables
 
 ### Vanilla Renderer Options
 
-| Option | Purpose |
-|--------|---------|
-| `WithTemplatesFS(fs.FS)` | Supply custom template bundle |
-| `WithTemplatesDir(string)` | Load templates from directory |
-| `WithTemplateRenderer(renderer)` | Inject custom template engine |
-| `WithDefaultStyles()` | Include bundled Tailwind CSS |
-| `WithInlineStyles(css)` | Inject custom inline CSS |
-| `WithStylesheet(url)` | Add external stylesheet link |
-| `WithoutStyles()` | Disable all default styles |
-| `WithComponentRegistry(reg)` | Use custom component registry |
-| `WithComponentOverrides(map)` | Override components for specific fields |
+| Option                           | Purpose                                 |
+|----------------------------------|-----------------------------------------|
+| `WithTemplatesFS(fs.FS)`         | Supply custom template bundle           |
+| `WithTemplatesDir(string)`       | Load templates from directory           |
+| `WithTemplateRenderer(renderer)` | Inject custom template engine           |
+| `WithDefaultStyles()`            | Include bundled Tailwind CSS            |
+| `WithInlineStyles(css)`          | Inject custom inline CSS                |
+| `WithStylesheet(url)`            | Add external stylesheet link            |
+| `WithoutStyles()`                | Disable all default styles              |
+| `WithComponentRegistry(reg)`     | Use custom component registry           |
+| `WithComponentOverrides(map)`    | Override components for specific fields |
 
 ### Orchestrator Theme Options
 
-| Option | Purpose |
-|--------|---------|
-| `WithThemeProvider(provider, theme, variant)` | Use `go-theme` provider |
-| `WithThemeSelector(selector)` | Custom theme selector logic |
-| `WithThemeFallbacks(map)` | Fallback template paths |
+| Option                                        | Purpose                     |
+|-----------------------------------------------|-----------------------------|
+| `WithThemeProvider(provider, theme, variant)` | Use `go-theme` provider     |
+| `WithThemeSelector(selector)`                 | Custom theme selector logic |
+| `WithThemeFallbacks(map)`                     | Fallback template paths     |
 
 ### UI Schema Layout Hints
 
 | Hint Key | Purpose | Example |
-|----------|---------|---------|
+|----|----|----|
 | `layout.gridColumns` | Set grid column count | `"12"` |
 | `layout.gutter` | Grid gap size | `"md"` |
 | `layout.span` | Field column span | `"6"` (half width) |
@@ -1072,10 +1064,12 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 | `layout.sections` | Define form sections | JSON array |
 | `layout.section` | Assign field to section | `"personal"` |
 
+Layout hints are rendered as `data-formgen-*` attributes on the grid container and field wrappers; the bundled stylesheet turns them into grid placement (see [§5](#5-responsive-layouts)).
+
 ### Theme Token Conventions
 
 | Token | Purpose | Example |
-|-------|---------|---------|
+|----|----|----|
 | `form.container.max-width` | Form container max width | `"100%"` |
 | `container-max-width` | Deprecated alias for `form.container.max-width` | `"100%"` |
 | `container-class` | Form container classes (template override only) | `"w-full"` |
@@ -1084,17 +1078,17 @@ Chrome templates (`templates/components/chrome/_*.tmpl`) receive:
 | `primary-color` | Primary brand color | `"#3b82f6"` |
 | `border-radius` | Input border radius | `"0.375rem"` |
 
----
+------------------------------------------------------------------------
 
 ## Summary
 
 | Goal | Solution |
-|------|----------|
+|----|----|
 | **Use default styles** | `vanilla.WithDefaultStyles()` |
 | **Custom CSS** | `vanilla.WithInlineStyles(css)` or `WithStylesheet(url)` |
 | **No bundled styles** | `vanilla.WithoutStyles()` |
 | **Override templates** | `vanilla.WithTemplatesFS(customFS)` |
-| **Theme system** | `orchestrator.WithThemeProvider(provider, theme, variant)` |
+| **Theme system** | `formgen.WithThemeProvider(provider, theme, variant)` |
 | **Fluid container** | Override form template or CSS `max-width: none` |
 | **Responsive grid** | UI schema `grid.breakpoints` (or media queries / template overrides) |
 | **Per-field layout** | UI schema `grid.span/start/row` (+ `grid.breakpoints`) |

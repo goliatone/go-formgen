@@ -31,13 +31,14 @@ type Relationship = internalmodel.Relationship
 // Validation rule identifiers mirror OpenAPI keyword semantics and are emitted
 // by the form model builder when schemas define matching constraints.
 const (
-	ValidationRuleMin       = internalmodel.ValidationRuleMin
-	ValidationRuleMax       = internalmodel.ValidationRuleMax
-	ValidationRuleMinLength = internalmodel.ValidationRuleMinLength
-	ValidationRuleMaxLength = internalmodel.ValidationRuleMaxLength
-	ValidationRuleMinItems  = internalmodel.ValidationRuleMinItems
-	ValidationRuleMaxItems  = internalmodel.ValidationRuleMaxItems
-	ValidationRulePattern   = internalmodel.ValidationRulePattern
+	ValidationRuleMin         = internalmodel.ValidationRuleMin
+	ValidationRuleMax         = internalmodel.ValidationRuleMax
+	ValidationRuleMinLength   = internalmodel.ValidationRuleMinLength
+	ValidationRuleMaxLength   = internalmodel.ValidationRuleMaxLength
+	ValidationRuleMinItems    = internalmodel.ValidationRuleMinItems
+	ValidationRuleMaxItems    = internalmodel.ValidationRuleMaxItems
+	ValidationRulePattern     = internalmodel.ValidationRulePattern
+	ValidationRuleUniqueItems = internalmodel.ValidationRuleUniqueItems
 )
 
 // ValidationRule represents an OpenAPI-derived constraint. Threshold-based rules
@@ -53,3 +54,10 @@ type Option = internalmodel.Option
 // Field mirrors internal model fields for renderer consumption.
 type Field = internalmodel.Field
 type FormModel = internalmodel.FormModel
+
+const ConditionsVersion = internalmodel.ConditionsVersion
+
+type ConditionSet = internalmodel.ConditionSet
+type ConditionRule = internalmodel.ConditionRule
+type Expression = internalmodel.Expression
+type DefinitionDiagnostic = internalmodel.DefinitionDiagnostic

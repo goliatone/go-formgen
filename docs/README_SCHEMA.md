@@ -8,13 +8,13 @@ Looking for JSON Schema? See the Draft 2020-12 adapter guide in `docs/README_JSO
 
 Make sure every document you hand to go-formgen satisfies the following:
 
-1. `openapi`: the document must declare version `3.0.x` or `3.1.x`.
-2. `info`: include, at minimum, `title` and `version`.
-3. `paths`: define at least one path item with an HTTP operation (`get`, `post`, `put`, `patch`, `delete`, etc.).
-4. `operationId`: supply a stable identifier; go-formgen looks up operations by this string. If you omit it, the fallback id is `<method>:<path>` (for example `post:/config`).
-5. `requestBody`: expose the form payload under a recognised content type. go-formgen considers `application/json`, `application/x-www-form-urlencoded`, and `multipart/form-data`, picking the first one it finds.
-6. `responses`: include at least one response object (a minimal `"204": { "description": "..." }` satisfies both the OpenAPI spec and go-formgen).
-7. Schemas referenced from the request body must either live inline or under `components.schemas`. All `$ref` targets must resolve; dangling references are surfaced as metadata and skip form generation.
+1.  `openapi`: the document must declare version `3.0.x` or `3.1.x`.
+2.  `info`: include, at minimum, `title` and `version`.
+3.  `paths`: define at least one path item with an HTTP operation (`get`, `post`, `put`, `patch`, `delete`, etc.).
+4.  `operationId`: supply a stable identifier; go-formgen looks up operations by this string. If you omit it, the fallback id is `<method>:<path>` (for example `post:/config`).
+5.  `requestBody`: expose the form payload under a recognised content type. go-formgen considers `application/json`, `application/x-www-form-urlencoded`, and `multipart/form-data`, picking the first one it finds.
+6.  `responses`: include at least one response object (a minimal `"204": { "description": "..." }` satisfies both the OpenAPI spec and go-formgen).
+7.  Schemas referenced from the request body must either live inline or under `components.schemas`. All `$ref` targets must resolve; dangling references are surfaced as metadata and skip form generation.
 
 If any of these pieces are missing, the parser will stop with errors such as:
 
@@ -63,7 +63,7 @@ See `examples/http/schema.json` for end-to-end samples of these extensions.
 
 Below is a minimal OpenAPI document that wraps the configuration schema provided by the config service. Adjust titles, descriptions, and defaults as needed.
 
-```json
+``` json
 {
   "openapi": "3.0.3",
   "info": {
@@ -174,7 +174,7 @@ Following this guide keeps third-party schemas compatible with go-formgen and pr
 
 UI schema documents (`ui/*.json|yaml`) can declare reusable ordering sequences so multiple sections share the same layout hints. Add an optional top-level `fieldOrderPresets` object alongside the existing `operations` block:
 
-```json
+``` json
 {
   "fieldOrderPresets": {
     "defaultDetails": ["name", "description", "*", "created_at", "updated_at"],

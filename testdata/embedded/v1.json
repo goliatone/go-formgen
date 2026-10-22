@@ -1,0 +1,536 @@
+{
+  "version": "formgen.embedded/v1",
+  "form": {
+    "fields": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "required": true
+      },
+      {
+        "name": "level",
+        "type": "integer",
+        "required": false,
+        "validations": [
+          {
+            "kind": "min",
+            "params": {
+              "value": "1"
+            }
+          },
+          {
+            "kind": "max",
+            "params": {
+              "value": "10"
+            }
+          }
+        ]
+      },
+      {
+        "name": "colors",
+        "type": "array",
+        "required": true,
+        "items": {
+          "name": "color",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "blue",
+            "green"
+          ]
+        },
+        "validations": [
+          {
+            "kind": "minItems",
+            "params": {
+              "value": "1"
+            }
+          },
+          {
+            "kind": "maxItems",
+            "params": {
+              "value": "2"
+            }
+          },
+          {
+            "kind": "uniqueItems"
+          }
+        ]
+      }
+    ],
+    "conditions": {
+      "version": "formgen.conditions/v1",
+      "rules": [
+        {
+          "path": "level",
+          "applicableWhen": {
+            "op": "eq",
+            "path": "enabled",
+            "value": true
+          },
+          "requiredWhen": {
+            "op": "present",
+            "path": "enabled"
+          },
+          "onInapplicable": "clear"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "C01",
+      "raw": {},
+      "issues": [
+        "required:enabled",
+        "required:colors"
+      ]
+    },
+    {
+      "id": "C02",
+      "raw": {
+        "enabled": false,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "id": "C03",
+      "raw": {
+        "enabled": true,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": [
+        "required:level"
+      ]
+    },
+    {
+      "id": "C04",
+      "raw": {
+        "enabled": true,
+        "level": 4,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "id": "C05",
+      "raw": {
+        "enabled": true,
+        "level": 11,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": [
+        "max:level"
+      ]
+    },
+    {
+      "id": "C06",
+      "raw": {
+        "enabled": true,
+        "level": 4,
+        "colors": [
+          "red"
+        ]
+      },
+      "issues": [
+        "enum:colors[0]"
+      ]
+    },
+    {
+      "id": "C06-empty",
+      "raw": {
+        "enabled": false,
+        "colors": []
+      },
+      "issues": [
+        "minItems:colors"
+      ]
+    },
+    {
+      "id": "C06-duplicates",
+      "raw": {
+        "enabled": false,
+        "colors": [
+          "blue",
+          "blue"
+        ]
+      },
+      "issues": [
+        "uniqueItems:colors"
+      ]
+    },
+    {
+      "id": "C07",
+      "raw": {
+        "enabled": false,
+        "level": 4,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": [
+        "inactiveInput:level"
+      ]
+    },
+    {
+      "id": "C05-min-bound",
+      "raw": {
+        "enabled": true,
+        "level": 1,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "id": "C05-max-bound",
+      "raw": {
+        "enabled": true,
+        "level": 10,
+        "colors": [
+          "blue"
+        ]
+      },
+      "issues": []
+    },
+    {
+      "id": "C06-count",
+      "raw": {
+        "enabled": false,
+        "colors": [
+          "blue",
+          "green",
+          "blue"
+        ]
+      },
+      "issues": [
+        "maxItems:colors",
+        "uniqueItems:colors"
+      ]
+    }
+  ],
+  "invalidConditions": [
+    {
+      "id": "C14-unknown-reference",
+      "definition": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "level",
+            "applicableWhen": {
+              "op": "present",
+              "path": "missing"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "C14-cycle",
+      "definition": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "level",
+            "applicableWhen": {
+              "op": "present",
+              "path": "level"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "C14-operator",
+      "definition": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "level",
+            "applicableWhen": {
+              "op": "eval",
+              "path": "enabled"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "indexed": {
+    "form": {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "answers",
+          "type": "array",
+          "required": false,
+          "items": {
+            "name": "item",
+            "type": "boolean",
+            "required": true
+          },
+          "validations": [
+            {
+              "kind": "minItems",
+              "params": {
+                "value": "1"
+              }
+            },
+            {
+              "kind": "maxItems",
+              "params": {
+                "value": "1"
+              }
+            },
+            {
+              "kind": "uniqueItems"
+            }
+          ]
+        },
+        {
+          "name": "rows",
+          "type": "array",
+          "required": false,
+          "items": {
+            "name": "row",
+            "type": "object",
+            "required": false,
+            "nested": [
+              {
+                "name": "answer",
+                "type": "string",
+                "required": true
+              }
+            ]
+          }
+        }
+      ],
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answers[0]",
+            "applicableWhen": {
+              "op": "eq",
+              "path": "enabled",
+              "value": true
+            }
+          },
+          {
+            "path": "answers[1]",
+            "applicableWhen": {
+              "op": "eq",
+              "path": "enabled",
+              "value": true
+            }
+          },
+          {
+            "path": "rows[2].answer",
+            "applicableWhen": {
+              "op": "eq",
+              "path": "enabled",
+              "value": true
+            }
+          }
+        ]
+      }
+    },
+    "cases": [
+      {
+        "id": "IDX-empty-rows",
+        "raw": {
+          "enabled": true,
+          "answers": [
+            true
+          ],
+          "rows": []
+        },
+        "policy": "reject",
+        "issues": [],
+        "values": {
+          "enabled": true,
+          "answers": [
+            true
+          ],
+          "rows": []
+        }
+      },
+      {
+        "id": "IDX-missing-rows",
+        "raw": {
+          "enabled": true,
+          "answers": [
+            false
+          ]
+        },
+        "policy": "reject",
+        "issues": [],
+        "values": {
+          "enabled": true,
+          "answers": [
+            false
+          ]
+        }
+      },
+      {
+        "id": "IDX-required-existing-row",
+        "raw": {
+          "enabled": true,
+          "answers": [
+            true
+          ],
+          "rows": [
+            {
+              "answer": "ok"
+            },
+            {
+              "answer": "ok"
+            },
+            {}
+          ]
+        },
+        "policy": "reject",
+        "issues": [
+          "required:rows[2].answer"
+        ],
+        "values": {
+          "enabled": true,
+          "answers": [
+            true
+          ],
+          "rows": [
+            {
+              "answer": "ok"
+            },
+            {
+              "answer": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      {
+        "id": "IDX-inactive-single",
+        "raw": {
+          "enabled": false,
+          "answers": [
+            true
+          ]
+        },
+        "policy": "normalize",
+        "issues": [
+          "minItems:answers"
+        ],
+        "values": {
+          "enabled": false,
+          "answers": [
+            null
+          ]
+        }
+      },
+      {
+        "id": "IDX-inactive-holes",
+        "raw": {
+          "enabled": false,
+          "answers": [
+            true,
+            false,
+            true
+          ]
+        },
+        "policy": "normalize",
+        "issues": [],
+        "values": {
+          "enabled": false,
+          "answers": [
+            null,
+            null,
+            true
+          ]
+        }
+      },
+      {
+        "id": "IDX-explicit-holes",
+        "raw": {
+          "enabled": false,
+          "answers": [
+            null,
+            null,
+            false
+          ]
+        },
+        "policy": "reject",
+        "issues": [],
+        "values": {
+          "enabled": false,
+          "answers": [
+            null,
+            null,
+            false
+          ]
+        }
+      },
+      {
+        "id": "IDX-active-count",
+        "raw": {
+          "enabled": true,
+          "answers": [
+            true,
+            false
+          ]
+        },
+        "policy": "reject",
+        "issues": [
+          "maxItems:answers"
+        ],
+        "values": {
+          "enabled": true,
+          "answers": [
+            true,
+            false
+          ]
+        }
+      },
+      {
+        "id": "IDX-active-duplicates",
+        "raw": {
+          "enabled": false,
+          "answers": [
+            null,
+            null,
+            true,
+            true
+          ]
+        },
+        "policy": "reject",
+        "issues": [
+          "maxItems:answers",
+          "uniqueItems:answers"
+        ],
+        "values": {
+          "enabled": false,
+          "answers": [
+            null,
+            null,
+            true,
+            true
+          ]
+        }
+      }
+    ]
+  }
+}

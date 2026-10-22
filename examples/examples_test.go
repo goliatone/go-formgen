@@ -30,6 +30,7 @@ var examplePackages = []struct {
 }{
 	{name: "basic", pkg: "./examples/basic"},
 	{name: "cli", pkg: "./examples/cli"},
+	{name: "embedded", pkg: "./examples/embedded"},
 	{name: "http", dir: "examples/http", pkg: "."},
 	{name: "multi-renderer", pkg: "./examples/multi-renderer"},
 }
@@ -74,6 +75,19 @@ func TestExamplesRun(t *testing.T) {
 		output := runExampleCommand(t, repoRoot, goBin(), "run", "./examples/cli")
 		if !bytes.Contains(output, []byte("<form")) {
 			t.Fatalf("cli example output did not contain a form")
+		}
+	})
+
+	t.Run("embedded", func(t *testing.T) {
+		output := runExampleCommand(t, repoRoot, goBin(), "run", "./examples/embedded", "--render")
+		// The form-level summary container is inserted by the runtime when issues
+		// arrive (client/src/errors.ts), so the served page promises the form, the
+		// descriptor data block, the choice components, and the stylesheet link the
+		// strict CSP relies on instead of inline styles.
+		for _, marker := range []string{"<form", "formgen-descriptor", `role="radiogroup"`, `href="/example.css"`} {
+			if !bytes.Contains(output, []byte(marker)) {
+				t.Fatalf("embedded example output did not contain %q", marker)
+			}
 		}
 	})
 

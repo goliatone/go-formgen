@@ -8,9 +8,9 @@
     
 
     
-    <div class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+    <div data-formgen-layout="grid" data-formgen-columns="12" data-formgen-gutter="md" class="formgen-grid">
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/author" data-relationship-foreign-key="author_id" data-relationship-cardinality="one">
     <label data-formgen-chrome="label" id="fg-author_id-label" for="fg-author_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Author<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -31,7 +31,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-created_at-label" for="fg-created_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Created At
@@ -46,14 +46,14 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="array" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/chapter" data-relationship-foreign-key="book_id" data-relationship-cardinality="many">
     <div id="fg-id" class="space-y-3" data-relationship-type="hasMany" data-relationship-target="#/components/schemas/chapter" data-relationship-foreign-key="book_id" data-relationship-cardinality="many" role="group" aria-labelledby="fg-id-label"><div id="fg-id-label" class="text-sm font-medium text-gray-900 dark:text-white">Chapters</div><p class="text-sm text-gray-500 dark:text-gray-400">Array field id requires item definition.</p></div>
 </div>
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-isbn-label" for="fg-isbn" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Isbn<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -69,7 +69,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-last_reprint_at-label" for="fg-last_reprint_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Last Reprint At
@@ -84,7 +84,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="select" data-relationship-type="belongsTo" data-relationship-target="#/components/schemas/publishing-house" data-relationship-foreign-key="publisher_id" data-relationship-cardinality="one">
     <label data-formgen-chrome="label" id="fg-publisher_id-label" for="fg-publisher_id" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Publisher<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -105,7 +105,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-release_date-label" for="fg-release_date" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Release Date
@@ -120,7 +120,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-status-label" for="fg-status" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Status<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -136,7 +136,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="select" data-relationship-type="manyToMany" data-relationship-target="#/components/schemas/tag" data-relationship-cardinality="many">
     <label data-formgen-chrome="label" id="fg-tags-label" for="fg-tags" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Tags
@@ -157,7 +157,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-title-label" for="fg-title" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Title<span class="text-red-500 ms-1" aria-hidden="true">*</span>
@@ -173,7 +173,7 @@
 
         </div>
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="input">
     <label data-formgen-chrome="label" id="fg-updated_at-label" for="fg-updated_at" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Updated At

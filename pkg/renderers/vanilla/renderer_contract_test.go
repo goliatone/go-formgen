@@ -1332,3 +1332,72 @@ func testThemeConfig() *render.ThemeConfig {
 		},
 	}
 }
+
+func TestRenderer_GridLayoutUsesDataAttributes(t *testing.T) {
+	form := model.FormModel{
+		OperationID: "gridLayout",
+		Endpoint:    "/grid",
+		Method:      "POST",
+		UIHints:     map[string]string{"layout.gridColumns": "6", "layout.gutter": "lg"},
+		Fields: []model.Field{
+			{
+				Name:  "title",
+				Type:  model.FieldTypeString,
+				Label: "Title",
+				UIHints: map[string]string{
+					"layout.span":     "4",
+					"layout.start":    "2",
+					"layout.row":      "1",
+					"layout.span.md":  "3",
+					"layout.start.xl": "1",
+				},
+			},
+			{Name: "summary", Type: model.FieldTypeString, Label: "Summary"},
+		},
+	}
+	renderer, err := vanilla.New()
+	if err != nil {
+		t.Fatalf("new renderer: %v", err)
+	}
+
+	cases := map[string]struct {
+		options render.RenderOptions
+		grid    string
+	}{
+		"default": {
+			options: render.RenderOptions{},
+			grid:    `<div data-formgen-layout="grid" data-formgen-columns="6" data-formgen-gutter="lg" class="formgen-grid">`,
+		},
+		"chrome override": {
+			options: render.RenderOptions{ChromeClasses: &render.ChromeClasses{Grid: "host-grid"}},
+			grid:    `<div data-formgen-layout="grid" data-formgen-columns="6" data-formgen-gutter="lg" class="host-grid">`,
+		},
+		"unstyled": {
+			options: render.RenderOptions{StyleMode: render.StyleModeUnstyled},
+			grid:    `<div data-formgen-layout="grid" data-formgen-columns="6" data-formgen-gutter="lg">`,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			out, err := renderer.Render(testsupport.Context(), form, tc.options)
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := string(out)
+			for _, want := range []string{
+				tc.grid,
+				`<div data-formgen-span="4" data-formgen-start="2" data-formgen-row="1" data-formgen-span-md="3" data-formgen-start-xl="1">`,
+				`<div data-formgen-span="6">`,
+			} {
+				if !strings.Contains(html, want) {
+					t.Fatalf("grid layout output missing %q:\n%s", want, html)
+				}
+			}
+			for _, forbidden := range []string{` style="`, `fg-grid-responsive`, `data-formgen-responsive-grid`} {
+				if strings.Contains(html, forbidden) {
+					t.Fatalf("grid layout output must not contain %q:\n%s", forbidden, html)
+				}
+			}
+		})
+	}
+}

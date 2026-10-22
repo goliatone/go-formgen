@@ -1,3 +1,11 @@
+// Optional model contracts; exporting types does not attach embedded behavior.
+export type {
+  CanonicalPath, JSONValue, Expression, ConditionRule, ConditionSet,
+  EmbeddedField, EmbeddedModel, EmbeddedDescriptor, EmbeddedIssue,
+  NormalizedValues, HydrationOptions, ChangeMetadata, ValidationScope,
+  ConditionProjection,
+} from "./embedded-contract";
+
 import "./version";
 import { ResolverRegistry } from "./registry";
 import type {
@@ -17,10 +25,50 @@ import { createDebouncedInvoker, createThrottledInvoker } from "./timers";
 import { registerChipRenderer, bootstrapChips } from "./renderers/chips";
 import { registerTypeaheadRenderer, bootstrapTypeahead } from "./renderers/typeahead";
 import { destroyComponents, initComponents } from "./components/registry";
-import { destroyArrayRepeaters, initArrayRepeaters } from "./array-repeaters";
+import { ARRAY_CHANGE_EVENT, destroyArrayRepeaters, initArrayRepeaters } from "./array-repeaters";
 import { destroyRendererWidgets } from "./renderers/relationship-cleanup";
-import { clearFieldError, renderFieldError } from "./errors";
+import {
+  clearFieldError,
+  currentFormErrors,
+  findFormErrorContainer,
+  renderFieldError,
+  renderFormErrors,
+  syncInvalidGroups,
+} from "./errors";
 import { emitRelationshipUpdate } from "./relationship-events";
+import type {
+  ChangeMetadata,
+  ConditionProjection,
+  DefinitionDiagnostic,
+  EmbeddedIssue,
+  HydrationOptions,
+  JSONValue,
+  NormalizedValues,
+  PresenceState,
+  TypedSnapshot,
+  ValidationScope,
+} from "./embedded-contract";
+import {
+  compileConditions,
+  getValueAt,
+  removeValueAt,
+  setValueAt,
+  validateConditional,
+  type CompileResult,
+  type InactiveInputPolicy,
+} from "./embedded-conditions";
+import {
+  cloneJSON,
+  decodeEnumValue,
+  normalizeValues,
+  parseCanonicalPath,
+  pathWithin,
+  rendererPath,
+  resolveEmbeddedModel,
+  validateValues,
+  type EmbeddedModelInput,
+  type NormalizeOptions,
+} from "./embedded-values";
 import {
   normalizeRelationshipCurrentOptions,
   relationshipCurrentValuesNeedingResolution,
@@ -130,13 +178,62 @@ export {
 } from "./resolver";
 export { RUNTIME_VERSION } from "./version";
 export {
+  normalizeValues,
+  validateValues,
+  parseCanonicalPath,
+  formatCanonicalPath,
+  rendererPath,
+  pathWithin,
+  encodeEnumValue,
+  decodeEnumValue,
+  resolveEmbeddedModel,
+  cloneJSON,
+  type EmbeddedModelInput,
+  type NormalizeOptions,
+  type ValidateOptions,
+  type PathSegment,
+} from "./embedded-values";
+export {
   registerComponent,
   initComponents,
   destroyComponents,
+  preflightComponents,
+  registeredComponentNames,
+  type RuntimeComponentPreflight,
   __resetComponentRegistryForTests as resetComponentRegistryForTests,
 } from "./components/registry";
-export { initArrayRepeaters, destroyArrayRepeaters, addArrayItem } from "./array-repeaters";
-export { registerErrorRenderer } from "./errors";
+export {
+  initArrayRepeaters,
+  destroyArrayRepeaters,
+  addArrayItem,
+  ARRAY_CHANGE_EVENT,
+  type ArrayChangeDetail,
+} from "./array-repeaters";
+export {
+  compileConditions,
+  validateConditional,
+  evaluateExpression,
+  getValueAt,
+  indexesExist,
+  removeValueAt,
+  CONDITIONS_VERSION,
+  type CompileResult,
+  type CompiledRule,
+  type ConditionProgram,
+  type ConditionalValidation,
+  type InactiveInputPolicy,
+  type ValidateConditionalOptions,
+} from "./embedded-conditions";
+export {
+  registerErrorRenderer,
+  registerFormErrorRenderer,
+  renderFormErrors,
+  syncInvalidGroups,
+  FORM_ERRORS_ATTR,
+  GROUP_INVALID_ATTR,
+  type FormErrorRenderContext,
+  type FormErrorRenderer,
+} from "./errors";
 export {
   registerThemeClasses,
   getThemeClasses,
@@ -276,7 +373,8 @@ function runtimeRootLifecycle(root: HTMLElement, registry: ResolverRegistry): Ru
 
 function applySelectValues(
   select: HTMLSelectElement,
-  options: Array<{ value: string; label: string }>
+  options: Array<{ value: string; label: string }>,
+  preserveLabels = false
 ): boolean {
   const optionByValue = new Map<string, { value: string; label: string }>();
   for (const option of options) {
@@ -299,7 +397,7 @@ function applySelectValues(
     }
     if (shouldSelect) {
       const seed = optionByValue.get(option.value);
-      if (seed && option.textContent !== seed.label) {
+      if (!preserveLabels && seed && option.textContent !== seed.label) {
         option.textContent = seed.label;
         changed = true;
       }
@@ -364,21 +462,172 @@ export interface HydrationPayload {
 export interface FormControllerOptions {
   includeHidden?: boolean;
   registry?: ResolverRegistry;
+  /**
+   * Complete embedded model (or descriptor envelope) enabling the model-aware
+   * `normalize()` and `validate()` operations. A rendered subset is not enough.
+   */
+  model?: EmbeddedModelInput;
+  /** Normalization policy for model-aware operations. */
+  normalization?: NormalizeOptions;
+  /** Reactive applicability behavior when the model declares conditions. */
+  conditions?: ConditionBehaviorOptions;
 }
+
+export interface ConditionBehaviorOptions {
+  /**
+   * Hide inapplicable controls (their component wrapper, or a matching group
+   * container) with the `hidden` attribute. Applicability markers are always set.
+   */
+  hideInapplicable?: boolean;
+  /** How `validate()` treats supplied inactive inputs; defaults to `reject`. */
+  policy?: InactiveInputPolicy;
+}
+
+/** Origin attached to every controller change notification. */
+export type ChangeOrigin = ChangeMetadata["origin"];
+
+/**
+ * Change subscribers receive the raw controller values, the triggering event,
+ * and metadata with the mutation origin and canonical changed paths. Callbacks
+ * written against the legacy two-argument shape keep working.
+ */
+export type FormChangeCallback = (
+  values: Record<string, unknown>,
+  event: Event,
+  meta: ChangeMetadata
+) => void;
 
 export interface FormController {
   root: Document | HTMLElement;
   getValues(options?: FormControllerOptions): Record<string, unknown>;
-  setValues(values: Record<string, unknown>): void;
-  reset(): void;
+  /**
+   * Hydrate controls from a values object.
+   *
+   * Without options the legacy contract applies: patch semantics and one
+   * subscriber callback per dispatched native input/change event, including
+   * duplicates. Passing an options object opts into the embedded/v1 contract:
+   * the mutation settles once with `origin: "hydrate"`, emits no callback when
+   * no control changed, and `notify: false` suppresses this controller's
+   * subscribers only. Widget, mirror, and dependency synchronization still runs
+   * and native listeners on changed controls still fire. `mode: "replace"`
+   * clears omitted managed values, treats `null` as an explicit clear, replaces
+   * arrays, and throws before mutating when a payload row has no rendered row.
+   */
+  setValues(values: Record<string, unknown>, options?: HydrationOptions): void;
+  /**
+   * Restore rendered defaults and clear field errors. Without options the legacy
+   * per-event notification contract applies. With options the reset settles once
+   * with `origin: "reset"`, `notify: false` suppresses subscribers, and `mode` is
+   * ignored because defaults always cover every managed control.
+   */
+  reset(options?: HydrationOptions): void;
   setErrors(errors: Record<string, string | string[]>): void;
   clearErrors(names?: string[]): void;
-  onChange(callback: (values: Record<string, unknown>, event: Event) => void): () => void;
+  onChange(callback: FormChangeCallback): () => void;
   focus(name: string): boolean;
   destroy(): void;
+  /**
+   * Model-aware typed snapshot of the current raw values plus parse issues.
+   * Requires `model`; `getValues()` stays raw. Pure and synchronous.
+   */
+  normalize(options?: FormControllerOptions): NormalizedValues;
+  /**
+   * Model-aware validation of selected canonical paths (`scope.paths`) or the
+   * full form. Normalization issues are limited to the selected subtrees.
+   * Requires `model`; never fetches options, submits, or navigates.
+   */
+  validate(scope?: ValidationScope): EmbeddedIssue[];
+  /**
+   * Present issues (browser or server) without touching values or submitting.
+   * Issues whose precise path maps to a rendered control display inline on that
+   * exact control; form-level and unmapped issues go to the summary. Existing
+   * issue display is replaced unless `append` is set.
+   */
+  setIssues(issues: EmbeddedIssue[], options?: SetIssuesOptions): IssuePresentation;
+  /** Clear every displayed issue (inline and summary) while preserving values. */
+  clearIssues(): void;
+  /**
+   * Focus the first enabled, visible control for an issue path; fall back to
+   * the summary container when no such control exists.
+   */
+  focusIssue(target: EmbeddedIssue | string): IssueFocusResult;
+  /**
+   * Effective projection of the current typed values under the model's
+   * conditions: effective values, retained inactive values, applicability, and
+   * requiredness. Without conditions the projection is the normalized values.
+   */
+  effective(): ConditionProjection;
+  /**
+   * Re-evaluate conditions against the current controls and settle applicability
+   * chrome, requiredness, clear-policy values, and obsolete issues. Hosts call
+   * this after DOM changes the runtime cannot observe. No subscriber callback.
+   */
+  settle(): ConditionProjection;
+  /** Definition diagnostics from compiling the model's conditions (empty when valid). */
+  conditionDiagnostics(): DefinitionDiagnostic[];
+  /**
+   * Opt-in typed snapshot with explicit presence. The controller tracks, per
+   * leaf path, whether a value is present (including false, zero, "" and []),
+   * explicitly null, or absent, using hydration payloads and user actions
+   * rather than guessing from control strings. Disabled controls keep their
+   * last known values (locked), retained inactive values stay separate, and
+   * normalization, unsafe-integer, detached-row and unknown-path problems are
+   * reported as issues. The result is an independent copy. Requires `model`.
+   */
+  snapshot(): TypedSnapshot;
+  /**
+   * Restore a typed snapshot: present values hydrate, explicit nulls clear,
+   * absent paths are cleared (replace mode by default), retained values return
+   * to their controls, and presence states are restored. Unknown or unsafe
+   * snapshot paths are reported and skipped. Requires `model`.
+   */
+  restore(snapshot: TypedSnapshot, options?: HydrationOptions): EmbeddedIssue[];
 }
 
-const controllerListeners = new WeakMap<FormController, Array<() => void>>();
+interface PresenceEntry {
+  state: PresenceState;
+  value?: JSONValue;
+}
+
+export interface SetIssuesOptions {
+  /** Keep previously displayed issues instead of replacing them. */
+  append?: boolean;
+  /** Render form-level and unmapped issues into the summary (default true). */
+  summary?: boolean;
+}
+
+export interface IssuePresentation {
+  /** Issues displayed inline on a rendered control. */
+  field: EmbeddedIssue[];
+  /** Form-level issues and issues without a rendered control. */
+  summary: EmbeddedIssue[];
+}
+
+export interface IssueFocusResult {
+  focused: boolean;
+  target: "control" | "summary" | null;
+  path: string;
+}
+
+interface MutationBoundary {
+  origin: ChangeOrigin;
+  settled: boolean;
+}
+
+interface HydrationRun {
+  mode: "patch" | "replace";
+  /** Settled runs dispatch native events only for changed controls and record their paths. */
+  settled: boolean;
+  changed: Set<string>;
+}
+
+interface ChangeSubscription {
+  callback: FormChangeCallback;
+  active: boolean;
+}
+
+/** Event type carried by settled notifications. The event is created, not dispatched. */
+export const CONTROLLER_CHANGE_EVENT = "formgen:controller:change" as const;
 
 export function attachFormController(
   root: Document | HTMLElement | string = document,
@@ -386,7 +635,361 @@ export function attachFormController(
 ): FormController {
   const resolvedRoot = resolveControllerRoot(root);
   const controllerRegistry = options.registry ?? activeRegistry;
+  const embeddedModel = options.model === undefined ? null : resolveEmbeddedModel(options.model);
+  const compiled: CompileResult =
+    embeddedModel && embeddedModel.conditions
+      ? compileConditions(embeddedModel)
+      : { program: null, diagnostics: [] };
+  const reactive = compiled.program !== null && compiled.program.rules.length > 0;
+  const requireModel = (operation: string) => {
+    if (!embeddedModel) {
+      throw new Error(
+        `formgen: controller.${operation}() requires the complete embedded model; attach with { model }`
+      );
+    }
+    return embeddedModel;
+  };
+  const subscriptions: ChangeSubscription[] = [];
+  const boundaries: MutationBoundary[] = [];
   let destroyed = false;
+  let listening = false;
+  let lastProjection: ConditionProjection | null = null;
+  /** Explicit presence per canonical leaf path; only maintained with a model. */
+  const presence = new Map<string, PresenceEntry>();
+
+  /** Controls grouped by canonical path, built once per operation (O(n), not O(n²)). */
+  const indexLeafControls = (): Map<string, HTMLElement[]> => {
+    const index = new Map<string, HTMLElement[]>();
+    controllerFields(resolvedRoot).forEach((control) => {
+      const path = canonicalPathForElement(control);
+      if (!path) {
+        return;
+      }
+      const list = index.get(path);
+      if (list) {
+        list.push(control);
+      } else {
+        index.set(path, [control]);
+      }
+    });
+    return index;
+  };
+
+  const isLeafControlPath = (path: string, index?: Map<string, HTMLElement[]>): HTMLElement[] =>
+    (index ?? indexLeafControls()).get(path) ?? [];
+
+  const typedValuesNow = (includeDisabled = false): Record<string, JSONValue> =>
+    embeddedModel
+      ? normalizeValues(
+          embeddedModel,
+          collectControllerValues(resolvedRoot, { includeHidden: options.includeHidden ?? true, includeDisabled }),
+          options.normalization
+        ).values
+      : {};
+
+  /**
+   * Refresh presence for leaf paths from the live controls. Locked (disabled)
+   * controls keep their stored state. Without a typed value, an edited checkbox
+   * group is an explicit empty array; everything else is absent.
+   */
+  const refreshPresence = (paths: string[], cause: "attach" | "edit" | "reset" | "clear"): void => {
+    if (!embeddedModel || destroyed) {
+      return;
+    }
+    const typed = typedValuesNow();
+    let typedWithLocked: Record<string, JSONValue> | null = null;
+    const index = indexLeafControls();
+    for (const path of paths) {
+      const controls = isLeafControlPath(path, index);
+      if (controls.length === 0) {
+        continue;
+      }
+      const locked = controls.every((control) => isDisabledControl(control));
+      if (locked && cause !== "attach" && cause !== "reset") {
+        continue;
+      }
+      // Rendered defaults are not answers: an unchecked box or empty text at
+      // attach/reset is absent even though raw collection yields false or "".
+      if ((cause === "attach" || cause === "reset") && !controls.some((control) => controlHasValue(control))) {
+        presence.set(path, { state: "absent" });
+        continue;
+      }
+      if (locked) {
+        // Controls rendered disabled (readonly choices, locked rows) seed their
+        // rendered value so snapshots and locks do not lose it.
+        typedWithLocked ??= typedValuesNow(true);
+        const rendered = getValueAt(typedWithLocked, path);
+        presence.set(path, rendered.exists && rendered.value !== null ? { state: "present", value: cloneJSON(rendered.value) } : { state: "null" });
+        continue;
+      }
+      const found = getValueAt(typed, path);
+      if (found.exists && cause !== "clear") {
+        presence.set(path, found.value === null ? { state: "null" } : { state: "present", value: cloneJSON(found.value) });
+        continue;
+      }
+      const checkboxGroup = controls.some(
+        (control) => control instanceof HTMLInputElement && control.type.toLowerCase() === "checkbox" && control.name.endsWith("[]")
+      );
+      if (cause === "edit" && checkboxGroup) {
+        presence.set(path, { state: "present", value: [] });
+        continue;
+      }
+      presence.set(path, { state: "absent" });
+    }
+  };
+
+  const allLeafPaths = (): string[] => Array.from(indexLeafControls().keys());
+
+  /** Presence after a hydration payload: nulls are explicit, cleared paths become absent. */
+  const recordHydrationPresence = (values: Record<string, unknown>, run: HydrationRun): void => {
+    if (!embeddedModel || destroyed) {
+      return;
+    }
+    const flattened = new Map<string, unknown>();
+    flattenPayload(values, flattened, "");
+    const typed = typedValuesNow();
+    const index = indexLeafControls();
+    const explicit = new Set<string>();
+    flattened.forEach((value, key) => {
+      const path = toCanonicalPath(key);
+      if (!path || isLeafControlPath(path, index).length === 0) {
+        return;
+      }
+      explicit.add(path);
+      if (value === null || value === undefined) {
+        presence.set(path, { state: "null" });
+        return;
+      }
+      const found = getValueAt(typed, path);
+      presence.set(path, { state: "present", value: cloneJSON(found.exists ? found.value : value) });
+    });
+    run.changed.forEach((path) => {
+      if (!explicit.has(path) && isLeafControlPath(path, index).length > 0) {
+        presence.set(path, { state: "absent" });
+      }
+    });
+    if (run.mode === "replace") {
+      // Replace clears every omitted managed control, including ones that were
+      // already empty, so their presence is absent regardless of run.changed.
+      index.forEach((controls, path) => {
+        if (!explicit.has(path) && !controls.every((control) => isDisabledControl(control))) {
+          presence.set(path, { state: "absent" });
+        }
+      });
+    }
+  };
+
+  /** New leaf paths (added repeater rows) start absent or from their rendered state. */
+  const seedNewPresence = (): void => {
+    if (!embeddedModel || destroyed) {
+      return;
+    }
+    const fresh = allLeafPaths().filter((path) => !presence.has(path));
+    if (fresh.length > 0) {
+      refreshPresence(fresh, "attach");
+    }
+  };
+
+  const notify = (event: Event, meta: ChangeMetadata): void => {
+    if (destroyed || subscriptions.length === 0) {
+      return;
+    }
+    for (const subscription of subscriptions.slice()) {
+      if (destroyed) {
+        return;
+      }
+      if (!subscription.active) {
+        continue;
+      }
+      subscription.callback(controller.getValues(), event, meta);
+    }
+  };
+
+  const withApplicability = (meta: ChangeMetadata): ChangeMetadata => {
+    if (!reactive || !lastProjection) {
+      return meta;
+    }
+    return { ...meta, applicable: { ...lastProjection.applicable } };
+  };
+
+  /**
+   * Evaluate the model's conditions against the current controls and settle
+   * applicability chrome, requiredness, clear-policy values, and obsolete
+   * issues. Cleared paths are recorded on the hydration run. Runs inside a
+   * mutation boundary so the native events it dispatches never re-enter.
+   */
+  const settleConditions = (run: HydrationRun): ConditionProjection | null => {
+    const program = compiled.program;
+    if (!program || !reactive || destroyed || !embeddedModel) {
+      return null;
+    }
+    const normalized = normalizeValues(embeddedModel, controller.getValues(), options.normalization);
+    const projection = program.evaluate(normalized.values);
+    const hide = options.conditions?.hideInapplicable !== false;
+    const clearValues: Record<string, unknown> = {};
+    const clearErrorsPayload: Record<string, string[]> = {};
+    const index = indexLeafControls();
+    const within = (path: string): HTMLElement[] => {
+      const out: HTMLElement[] = [];
+      index.forEach((controls, controlPath) => {
+        if (pathWithin(controlPath, path)) {
+          out.push(...controls);
+        }
+      });
+      return out;
+    };
+    for (const entry of program.rules) {
+      const path = entry.rule.path;
+      const active = projection.applicable[path] === true;
+      const required = projection.required[path] === true;
+      const controls = within(path);
+      applyApplicabilityChrome(resolvedRoot, path, controls, active, hide);
+      for (const control of controls) {
+        const controlPath = canonicalPathForElement(control);
+        if (controlPath === path) {
+          setControlRequired(control, active && required);
+        }
+        if (!active) {
+          if (entry.rule.onInapplicable !== "retain" && controlHasValue(control)) {
+            clearValues[controlPath] = null;
+          }
+          clearErrorsPayload[toDotKey(stripArraySuffix(fieldName(control)))] = [];
+        }
+      }
+    }
+    if (Object.keys(clearValues).length > 0) {
+      // Clearing is a patch over the inapplicable controls only; reusing a
+      // replace-mode run would treat every other managed control as omitted.
+      const clearRun: HydrationRun = { mode: "patch", settled: run.settled, changed: run.changed };
+      hydrateFormValuesWithRegistry(resolvedRoot, { values: clearValues }, controllerRegistry, clearRun);
+    }
+    if (Object.keys(clearErrorsPayload).length > 0) {
+      hydrateFormValuesWithRegistry(resolvedRoot, { errors: clearErrorsPayload }, controllerRegistry);
+      syncInvalidGroups(resolvedRoot);
+    }
+    relocateHiddenFocus(resolvedRoot);
+    lastProjection = projection;
+    return projection;
+  };
+
+  const settleInBoundary = (origin: ChangeOrigin): string[] => {
+    const run: HydrationRun = { mode: "patch", settled: true, changed: new Set<string>() };
+    const boundary: MutationBoundary = { origin, settled: true };
+    boundaries.push(boundary);
+    try {
+      settleConditions(run);
+    } finally {
+      const position = boundaries.lastIndexOf(boundary);
+      if (position >= 0) {
+        boundaries.splice(position, 1);
+      }
+    }
+    return Array.from(run.changed);
+  };
+
+  const handleNativeEvent = (event: Event): void => {
+    if (destroyed) {
+      return;
+    }
+    const boundary = boundaries[boundaries.length - 1];
+    if (boundary) {
+      if (boundary.settled) {
+        return;
+      }
+      notify(event, withApplicability({ origin: boundary.origin, paths: eventCanonicalPaths(event) }));
+      return;
+    }
+    const origin: ChangeOrigin = event.isTrusted ? "ui" : "program";
+    const paths = eventCanonicalPaths(event);
+    const cleared: string[] = [];
+    if (reactive) {
+      for (const path of settleInBoundary(origin)) {
+        cleared.push(path);
+        if (!paths.includes(path)) {
+          paths.push(path);
+        }
+      }
+    }
+    refreshPresence(eventCanonicalPaths(event), "edit");
+    refreshPresence(cleared, "clear");
+    notify(event, withApplicability({ origin, paths }));
+  };
+
+  const handleArrayChange = (event: Event): void => {
+    if (destroyed) {
+      return;
+    }
+    if (!reactive) {
+      seedNewPresence();
+      return;
+    }
+    const detail = (event as CustomEvent<{ name?: string }>).detail;
+    const paths: string[] = [];
+    const arrayPath = toCanonicalPath(toDotKey(stripArraySuffix(detail?.name ?? "")));
+    if (arrayPath) {
+      paths.push(arrayPath);
+    }
+    for (const cleared of settleInBoundary("program")) {
+      if (!paths.includes(cleared)) {
+        paths.push(cleared);
+      }
+    }
+    seedNewPresence();
+    const meta = withApplicability({ origin: "program", paths });
+    notify(createControllerChangeEvent(meta), meta);
+  };
+
+  const startListening = (): void => {
+    if (listening) {
+      return;
+    }
+    listening = true;
+    resolvedRoot.addEventListener("input", handleNativeEvent, true);
+    resolvedRoot.addEventListener("change", handleNativeEvent, true);
+    resolvedRoot.addEventListener(ARRAY_CHANGE_EVENT, handleArrayChange, true);
+  };
+
+  const stopListening = (): void => {
+    if (!listening) {
+      return;
+    }
+    listening = false;
+    resolvedRoot.removeEventListener("input", handleNativeEvent, true);
+    resolvedRoot.removeEventListener("change", handleNativeEvent, true);
+    resolvedRoot.removeEventListener(ARRAY_CHANGE_EVENT, handleArrayChange, true);
+  };
+
+  const runMutation = (
+    origin: ChangeOrigin,
+    hydration: HydrationOptions | undefined,
+    work: (run: HydrationRun) => void
+  ): HydrationRun => {
+    const settled = hydration !== undefined;
+    const run: HydrationRun = {
+      mode: hydration?.mode === "replace" ? "replace" : "patch",
+      settled,
+      changed: new Set<string>(),
+    };
+    const boundary: MutationBoundary = { origin, settled };
+    boundaries.push(boundary);
+    try {
+      work(run);
+      if (reactive) {
+        settleConditions(run);
+      }
+    } finally {
+      const position = boundaries.lastIndexOf(boundary);
+      if (position >= 0) {
+        boundaries.splice(position, 1);
+      }
+    }
+    if (!settled || hydration?.notify === false || destroyed || run.changed.size === 0) {
+      return run;
+    }
+    const meta = withApplicability({ origin, paths: Array.from(run.changed) });
+    notify(createControllerChangeEvent(meta), meta);
+    return run;
+  };
 
   const controller: FormController = {
     root: resolvedRoot,
@@ -398,25 +1001,56 @@ export function attachFormController(
         includeHidden: readOptions.includeHidden ?? options.includeHidden ?? true,
       });
     },
-    setValues(values) {
-      if (!destroyed) {
-        hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry);
-      }
-    },
-    reset() {
+    setValues(values, hydration) {
       if (destroyed) {
         return;
       }
-      resetControllerFields(resolvedRoot);
-      const values = collectControllerValues(resolvedRoot, {
-        includeHidden: options.includeHidden ?? true,
+      runMutation("hydrate", hydration, (run) => {
+        hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry, run);
+        recordHydrationPresence(values ?? {}, run);
       });
-      hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry);
-      hydrateFormValuesWithRegistry(resolvedRoot, { errors: buildClearErrorPayload(resolvedRoot) }, controllerRegistry);
+    },
+    reset(hydration) {
+      if (destroyed) {
+        return;
+      }
+      if (hydration === undefined) {
+        runMutation("reset", undefined, (run) => {
+          resetControllerFields(resolvedRoot);
+          const values = collectControllerValues(resolvedRoot, {
+            includeHidden: options.includeHidden ?? true,
+          });
+          hydrateFormValuesWithRegistry(resolvedRoot, { values }, controllerRegistry, run);
+          hydrateFormValuesWithRegistry(
+            resolvedRoot,
+            { errors: buildClearErrorPayload(resolvedRoot) },
+            controllerRegistry,
+            run
+          );
+          refreshPresence(allLeafPaths(), "reset");
+        });
+        return;
+      }
+      runMutation("reset", { notify: hydration.notify }, (run) => {
+        hydrateFormValuesWithRegistry(
+          resolvedRoot,
+          { values: collectDefaultHydrationValues(resolvedRoot) },
+          controllerRegistry,
+          run
+        );
+        hydrateFormValuesWithRegistry(
+          resolvedRoot,
+          { errors: buildClearErrorPayload(resolvedRoot) },
+          controllerRegistry,
+          run
+        );
+        refreshPresence(allLeafPaths(), "reset");
+      });
     },
     setErrors(errors) {
       if (!destroyed) {
         hydrateFormValuesWithRegistry(resolvedRoot, { errors }, controllerRegistry);
+        syncInvalidGroups(resolvedRoot);
       }
     },
     clearErrors(names) {
@@ -425,22 +1059,105 @@ export function attachFormController(
       }
       const payload = buildClearErrorPayload(resolvedRoot, names);
       hydrateFormValuesWithRegistry(resolvedRoot, { errors: payload }, controllerRegistry);
+      syncInvalidGroups(resolvedRoot);
+    },
+    setIssues(issues, presentOptions = {}) {
+      const presentation: IssuePresentation = { field: [], summary: [] };
+      if (destroyed) {
+        return presentation;
+      }
+      const fieldMessages: Record<string, string[]> = {};
+      for (const issue of Array.isArray(issues) ? issues : []) {
+        if (!issue || typeof issue !== "object") {
+          continue;
+        }
+        const path = typeof issue.path === "string" ? issue.path.trim() : "";
+        if (path && findControllerField(resolvedRoot, path)) {
+          const key = toDotKey(stripArraySuffix(path));
+          (fieldMessages[key] ??= []).push(issueMessage(issue));
+          presentation.field.push(issue);
+          continue;
+        }
+        presentation.summary.push(issue);
+      }
+      if (!presentOptions.append) {
+        hydrateFormValuesWithRegistry(
+          resolvedRoot,
+          { errors: buildClearErrorPayload(resolvedRoot) },
+          controllerRegistry
+        );
+      }
+      if (Object.keys(fieldMessages).length > 0) {
+        hydrateFormValuesWithRegistry(resolvedRoot, { errors: fieldMessages }, controllerRegistry);
+      }
+      if (presentOptions.summary !== false) {
+        const messages = presentation.summary.map(issueMessage);
+        renderFormErrors(
+          resolvedRoot,
+          presentOptions.append ? currentFormErrors(resolvedRoot).concat(messages) : messages
+        );
+      }
+      syncInvalidGroups(resolvedRoot);
+      return presentation;
+    },
+    clearIssues() {
+      if (destroyed) {
+        return;
+      }
+      hydrateFormValuesWithRegistry(
+        resolvedRoot,
+        { errors: buildClearErrorPayload(resolvedRoot) },
+        controllerRegistry
+      );
+      renderFormErrors(resolvedRoot, []);
+      syncInvalidGroups(resolvedRoot);
+    },
+    focusIssue(target) {
+      const path = typeof target === "string" ? target.trim() : (target?.path ?? "").trim();
+      const result: IssueFocusResult = { focused: false, target: null, path };
+      if (destroyed) {
+        return result;
+      }
+      if (path) {
+        const control = findFocusableControllerField(resolvedRoot, path);
+        if (control) {
+          control.focus();
+          result.focused = true;
+          result.target = "control";
+          return result;
+        }
+      }
+      const summary = findFormErrorContainer(resolvedRoot);
+      if (summary && !summary.hidden) {
+        if (!summary.hasAttribute("tabindex")) {
+          summary.tabIndex = -1;
+        }
+        summary.focus();
+        result.focused = true;
+        result.target = "summary";
+      }
+      return result;
     },
     onChange(callback) {
-      if (destroyed) {
+      if (destroyed || typeof callback !== "function") {
         return () => undefined;
       }
-      const handler = (event: Event) => {
-        callback(controller.getValues(), event);
+      const subscription: ChangeSubscription = { callback, active: true };
+      subscriptions.push(subscription);
+      startListening();
+      return () => {
+        if (!subscription.active) {
+          return;
+        }
+        subscription.active = false;
+        const position = subscriptions.indexOf(subscription);
+        if (position >= 0) {
+          subscriptions.splice(position, 1);
+        }
+        if (subscriptions.length === 0 && !reactive && !embeddedModel) {
+          stopListening();
+        }
       };
-      resolvedRoot.addEventListener("input", handler, true);
-      resolvedRoot.addEventListener("change", handler, true);
-      const unsubscribe = () => {
-        resolvedRoot.removeEventListener("input", handler, true);
-        resolvedRoot.removeEventListener("change", handler, true);
-      };
-      controllerListeners.get(controller)?.push(unsubscribe);
-      return unsubscribe;
     },
     focus(name) {
       if (destroyed) {
@@ -458,20 +1175,203 @@ export function attachFormController(
         return;
       }
       destroyed = true;
-      const listeners = controllerListeners.get(controller) ?? [];
-      listeners.forEach((unsubscribe) => unsubscribe());
-      controllerListeners.delete(controller);
+      stopListening();
+      subscriptions.forEach((subscription) => {
+        subscription.active = false;
+      });
+      subscriptions.length = 0;
+      boundaries.length = 0;
+      lastProjection = null;
+      presence.clear();
       controllerRegistry?.destroy(resolvedRoot);
+    },
+    normalize(readOptions = {}) {
+      const model = requireModel("normalize");
+      if (destroyed) {
+        return { values: {}, issues: [] };
+      }
+      return normalizeValues(model, controller.getValues(readOptions), options.normalization);
+    },
+    validate(scope) {
+      const model = requireModel("validate");
+      if (destroyed) {
+        return [];
+      }
+      const normalized = normalizeValues(model, controller.getValues(), options.normalization);
+      const selected = scope?.paths;
+      const parseIssues =
+        selected === undefined
+          ? normalized.issues
+          : normalized.issues.filter(
+              (issue) => issue.path !== undefined && selected.some((path) => pathWithin(issue.path!, path))
+            );
+      if (!model.conditions) {
+        return parseIssues.concat(validateValues(model, normalized.values, scope));
+      }
+      // The runtime owns inapplicable controls: it clears them (clear policy) or
+      // keeps them aside (retain), and raw collection still reports rendered
+      // defaults such as an unchecked box or an empty nested object. None of
+      // that is a supplied answer, so every inactive path is stripped before the
+      // server-equivalent composition; hosts send effective().values upstream.
+      let supplied = normalized.values;
+      if (compiled.program) {
+        const projection = compiled.program.evaluate(normalized.values);
+        const strip = Object.keys(projection.applicable).filter((path) => !projection.applicable[path]);
+        if (strip.length > 0) {
+          supplied = cloneJSON(normalized.values) as Record<string, JSONValue>;
+          strip.forEach((path) => removeValueAt(supplied, path));
+        }
+      }
+      const result = validateConditional(model, supplied, {
+        scope,
+        policy: options.conditions?.policy ?? "reject",
+        compiled,
+      });
+      return parseIssues.concat(result.issues);
+    },
+    effective() {
+      const model = requireModel("effective");
+      const normalized = destroyed ? { values: {}, issues: [] } : normalizeValues(model, controller.getValues(), options.normalization);
+      if (!compiled.program) {
+        return { values: normalized.values, retained: {}, applicable: {}, required: {} };
+      }
+      return compiled.program.evaluate(normalized.values);
+    },
+    settle() {
+      const model = requireModel("settle");
+      if (destroyed) {
+        return controller.effective();
+      }
+      seedNewPresence();
+      if (!reactive) {
+        return controller.effective();
+      }
+      settleInBoundary("program");
+      return lastProjection ?? { values: normalizeValues(model, controller.getValues(), options.normalization).values, retained: {}, applicable: {}, required: {} };
+    },
+    conditionDiagnostics() {
+      return compiled.diagnostics.map((diagnostic) => ({ ...diagnostic }));
+    },
+    snapshot() {
+      const model = requireModel("snapshot");
+      const empty: TypedSnapshot = { version: "formgen.snapshot/v1", values: {}, presence: {}, retained: {}, issues: [], locked: [] };
+      if (destroyed) {
+        return empty;
+      }
+      const normalized = normalizeValues(model, controller.getValues(), options.normalization);
+      const issues: EmbeddedIssue[] = normalized.issues.map((issue) => ({ ...issue }));
+      // Overlay the presence store before evaluating conditions: raw collection
+      // omits disabled (locked) controls and cannot express absent, explicit
+      // null, or an explicit empty array.
+      const base = cloneJSON(normalized.values) as Record<string, JSONValue>;
+      const presenceOut: Record<string, PresenceState> = {};
+      const locked: string[] = [];
+      const index = indexLeafControls();
+      for (const [path, entry] of Array.from(presence.entries())) {
+        const controls = isLeafControlPath(path, index).filter((control) => !control.closest("[data-formgen-array-item][hidden]"));
+        if (controls.length === 0) {
+          presence.delete(path);
+          issues.push(snapshotIssue("detached", path, "control is no longer rendered; stored value dropped"));
+          removeValueAt(base, path);
+          continue;
+        }
+        presenceOut[path] = entry.state;
+        const live = getValueAt(base, path);
+        if (controls.every((control) => isDisabledControl(control))) {
+          locked.push(path);
+          if (entry.state === "present" && entry.value !== undefined) {
+            setValueAt(base, path, cloneJSON(entry.value));
+          } else if (entry.state === "null") {
+            setValueAt(base, path, null);
+          } else {
+            removeValueAt(base, path);
+          }
+          continue;
+        }
+        if (entry.state === "absent") {
+          removeValueAt(base, path);
+        } else if (entry.state === "null" && (!live.exists || live.value === "")) {
+          setValueAt(base, path, null);
+        } else if (entry.state === "present" && !live.exists && Array.isArray(entry.value) && entry.value.length === 0) {
+          setValueAt(base, path, []);
+        }
+      }
+      const projection = compiled.program ? compiled.program.evaluate(base) : null;
+      return {
+        version: "formgen.snapshot/v1",
+        values: projection ? projection.values : base,
+        presence: presenceOut,
+        retained: cloneJSON(projection?.retained ?? {}) as Record<string, JSONValue>,
+        issues,
+        locked,
+      };
+    },
+    restore(snapshot, restoreOptions = {}) {
+      requireModel("restore");
+      const issues: EmbeddedIssue[] = [];
+      if (destroyed || !snapshot || typeof snapshot !== "object") {
+        return issues;
+      }
+      const presenceIn =
+        snapshot.presence && typeof snapshot.presence === "object" ? (snapshot.presence as Record<string, PresenceState>) : {};
+      const payload: Record<string, unknown> = {};
+      const states = new Map<string, PresenceEntry>();
+      const index = indexLeafControls();
+      for (const key of Object.keys(presenceIn)) {
+        const state = presenceIn[key];
+        if (!parseCanonicalPath(key)) {
+          issues.push(snapshotIssue("invalidPath", key, "snapshot path is not a canonical field path"));
+          continue;
+        }
+        if (isLeafControlPath(key, index).length === 0) {
+          issues.push(snapshotIssue("unknownField", key, "snapshot path has no rendered control"));
+          continue;
+        }
+        if (state === "present") {
+          // Inactive retained paths keep their value in `retained`, not `values`.
+          const found = getValueAt(snapshot.values ?? {}, key);
+          const retained = getValueAt(snapshot.retained ?? {}, key);
+          const value = found.exists ? cloneJSON(found.value) : retained.exists ? cloneJSON(retained.value) : null;
+          payload[key] = value;
+          states.set(key, value === null ? { state: "null" } : { state: "present", value });
+        } else if (state === "null") {
+          payload[key] = null;
+          states.set(key, { state: "null" });
+        } else {
+          states.set(key, { state: "absent" });
+        }
+      }
+      for (const key of Object.keys(snapshot.retained ?? {})) {
+        if (parseCanonicalPath(key) && !(key in payload) && isLeafControlPath(key, index).length > 0) {
+          payload[key] = cloneJSON((snapshot.retained as Record<string, JSONValue>)[key]);
+        }
+      }
+      runMutation("hydrate", { mode: restoreOptions.mode ?? "replace", notify: restoreOptions.notify }, (run) => {
+        hydrateFormValuesWithRegistry(resolvedRoot, { values: payload }, controllerRegistry, run);
+        recordHydrationPresence(payload, run);
+        states.forEach((entry, key) => presence.set(key, entry));
+      });
+      return issues;
     },
   };
 
-  controllerListeners.set(controller, []);
+  if (reactive) {
+    startListening();
+    settleInBoundary("program");
+  }
+  if (embeddedModel) {
+    startListening();
+    refreshPresence(allLeafPaths(), "attach");
+  }
+
   return controller;
 }
 
 export const Formgen = {
   attach: attachFormController,
   hydrate: hydrateFormValues,
+  normalize: normalizeValues,
+  validate: validateValues,
 };
 
 if (typeof globalThis !== "undefined") {
@@ -488,7 +1388,8 @@ export function hydrateFormValues(
 function hydrateFormValuesWithRegistry(
   root: Document | HTMLElement,
   payload: HydrationPayload,
-  registry: ResolverRegistry | null
+  registry: ResolverRegistry | null,
+  run: HydrationRun = legacyHydrationRun()
 ): void {
   const scope = root ?? document;
   const fields = locateHydratableFields(scope);
@@ -498,11 +1399,19 @@ function hydrateFormValuesWithRegistry(
 
   const valueIndex = buildPayloadIndex(payload.values);
   const errorIndex = buildPayloadIndex(payload.errors);
+  const replace = run.mode === "replace" && payload.values !== undefined;
+  if (replace) {
+    assertReplaceStructure(scope, fields, payload.values ?? {});
+  }
 
   fields.forEach((element) => {
-    applyHydratedValue(element, valueIndex, registry);
+    applyHydratedValue(element, valueIndex, registry, run, replace && isReplaceManaged(element));
     applyHydratedErrors(element, errorIndex, registry);
   });
+}
+
+function legacyHydrationRun(): HydrationRun {
+  return { mode: "patch", settled: false, changed: new Set<string>() };
 }
 
 function resolveControllerRoot(root: Document | HTMLElement | string): Document | HTMLElement {
@@ -516,9 +1425,14 @@ function resolveControllerRoot(root: Document | HTMLElement | string): Document 
   return root ?? document;
 }
 
+interface CollectOptions extends FormControllerOptions {
+  /** Include disabled controls (presence seeding only; raw collection stays legacy). */
+  includeDisabled?: boolean;
+}
+
 function collectControllerValues(
   root: Document | HTMLElement,
-  options: FormControllerOptions
+  options: CollectOptions
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   controllerFields(root).forEach((field) => {
@@ -575,9 +1489,9 @@ function resetControllerFields(root: Document | HTMLElement): void {
 
 function shouldCollectField(
   field: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
-  options: FormControllerOptions
+  options: CollectOptions
 ): boolean {
-  if (field.disabled) {
+  if (field.disabled && !options.includeDisabled) {
     return false;
   }
   if (field instanceof HTMLInputElement) {
@@ -690,27 +1604,233 @@ function findControllerField(
   root: Document | HTMLElement,
   name: string
 ): HTMLElement | null {
+  return controllerFieldsForPath(root, name)[0] ?? null;
+}
+
+function controllerFieldsForPath(root: Document | HTMLElement, name: string): HTMLElement[] {
   const variants = new Set<string>();
   const trimmed = name.trim();
   if (!trimmed) {
-    return null;
+    return [];
   }
   const dotted = toDotKey(stripArraySuffix(trimmed));
   if (safeControllerPathSegments(dotted).length === 0) {
-    return null;
+    return [];
   }
   [trimmed, dotted, toBracketKey(dotted), `${toBracketKey(dotted)}[]`].forEach((item) => {
     if (item) {
       variants.add(item);
     }
   });
-  for (const field of controllerFields(root)) {
-    const keys = collectFieldKeys(field);
-    if (keys.some((key) => variants.has(key))) {
-      return field;
+  return controllerFields(root).filter((field) => collectFieldKeys(field).some((key) => variants.has(key)));
+}
+
+function findFocusableControllerField(root: Document | HTMLElement, name: string): HTMLElement | null {
+  return controllerFieldsForPath(root, name).find((field) => isFocusableControl(field, root)) ?? null;
+}
+
+function isFocusableControl(field: HTMLElement, root: Document | HTMLElement): boolean {
+  if (
+    (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) &&
+    field.disabled
+  ) {
+    return false;
+  }
+  if (field instanceof HTMLInputElement && field.type.toLowerCase() === "hidden") {
+    return false;
+  }
+  if (typeof field.focus !== "function" || field.closest("[hidden]")) {
+    return false;
+  }
+  let node: HTMLElement | null = field;
+  while (node && node !== root) {
+    if (node.style && (node.style.display === "none" || node.style.visibility === "hidden")) {
+      return false;
+    }
+    if (typeof getComputedStyle === "function") {
+      try {
+        const computed = getComputedStyle(node);
+        if (computed.display === "none" || computed.visibility === "hidden") {
+          return false;
+        }
+      } catch (_err) {
+        // Environments without layout support fall back to attribute checks.
+      }
+    }
+    node = node.parentElement;
+  }
+  return true;
+}
+
+function controlsWithinPath(root: Document | HTMLElement, path: string): HTMLElement[] {
+  return controllerFields(root).filter((field) => {
+    const controlPath = canonicalPathForElement(field);
+    return controlPath !== "" && pathWithin(controlPath, path);
+  });
+}
+
+function controlHasValue(control: HTMLElement): boolean {
+  if (control instanceof HTMLInputElement) {
+    const type = control.type.toLowerCase();
+    if (type === "checkbox" || type === "radio") {
+      return control.checked;
+    }
+    return control.value !== "";
+  }
+  if (control instanceof HTMLSelectElement) {
+    return Array.from(control.selectedOptions).some((option) => option.value !== "");
+  }
+  if (control instanceof HTMLTextAreaElement) {
+    return control.value !== "";
+  }
+  return false;
+}
+
+function setControlRequired(control: HTMLElement, required: boolean): void {
+  if (
+    control instanceof HTMLInputElement ||
+    control instanceof HTMLSelectElement ||
+    control instanceof HTMLTextAreaElement
+  ) {
+    // A native or ARIA `required` on a checkbox group member would demand every
+    // box; checkbox groups expose requiredness through their legend hint instead.
+    const checkboxGroup =
+      control instanceof HTMLInputElement && control.type.toLowerCase() === "checkbox" && control.name.endsWith("[]");
+    // Radio members keep native `required` (any required member makes the group
+    // required) but never `aria-required`: ARIA supports it on the radiogroup
+    // fieldset, which is set below, not on `radio`.
+    const radioMember = control instanceof HTMLInputElement && control.type.toLowerCase() === "radio";
+    if (!checkboxGroup) {
+      if (control.required !== required) {
+        control.required = required;
+      }
+      if (!radioMember) {
+        if (required) {
+          control.setAttribute("aria-required", "true");
+        } else {
+          control.removeAttribute("aria-required");
+        }
+      }
+    }
+    const group = control.closest<HTMLElement>("[data-formgen-choice]");
+    if (group) {
+      if (required) {
+        group.setAttribute("data-formgen-required", "true");
+      } else {
+        group.removeAttribute("data-formgen-required");
+      }
+      // aria-required is only valid on radiogroup, not on a plain fieldset group.
+      if (group.getAttribute("role") === "radiogroup") {
+        if (required) {
+          group.setAttribute("aria-required", "true");
+        } else {
+          group.removeAttribute("aria-required");
+        }
+      }
+      const hint = group.querySelector<HTMLElement>("[data-formgen-required-hint]");
+      if (hint) {
+        hint.hidden = !required;
+      }
     }
   }
-  return null;
+}
+
+/**
+ * Applicability chrome targets the control's component wrapper (or parent) and,
+ * for container rules, the matching group element (`fg-<path>`). Markers are
+ * always set; `hidden` follows the hideInapplicable option.
+ */
+function applyApplicabilityChrome(
+  root: Document | HTMLElement,
+  path: string,
+  controls: HTMLElement[],
+  active: boolean,
+  hide: boolean
+): void {
+  const targets = new Set<HTMLElement>();
+  for (const control of controls) {
+    control.setAttribute("data-formgen-applicable", String(active));
+    const wrapper = control.closest<HTMLElement>("[data-component]") ?? control.parentElement;
+    if (wrapper && wrapper !== root && !(root instanceof HTMLElement && wrapper.contains(root))) {
+      targets.add(wrapper);
+    }
+  }
+  const groupID = controlIDForPath(path);
+  if (groupID) {
+    const group = root.querySelector<HTMLElement>(`#${safeSelectorValue(groupID)}`);
+    if (
+      group &&
+      group !== root &&
+      !(group instanceof HTMLInputElement) &&
+      !(group instanceof HTMLSelectElement) &&
+      !(group instanceof HTMLTextAreaElement)
+    ) {
+      targets.add(group);
+    }
+  }
+  targets.forEach((target) => {
+    target.setAttribute("data-formgen-applicable", String(active));
+    if (!hide) {
+      return;
+    }
+    if (active) {
+      if (target.getAttribute("data-formgen-hidden-by") === "applicability") {
+        target.removeAttribute("hidden");
+        target.removeAttribute("data-formgen-hidden-by");
+      }
+    } else if (!target.hasAttribute("hidden")) {
+      target.setAttribute("hidden", "");
+      target.setAttribute("data-formgen-hidden-by", "applicability");
+    }
+  });
+}
+
+function controlIDForPath(path: string): string {
+  const sanitized = path
+    .split("[]")
+    .join(".item")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized ? `fg-${sanitized}` : "";
+}
+
+/** Move focus off a control that applicability just hid; prefer the summary, else blur. */
+function relocateHiddenFocus(root: Document | HTMLElement): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !active.closest('[data-formgen-hidden-by="applicability"], [hidden]')) {
+    return;
+  }
+  if (!root.contains(active)) {
+    return;
+  }
+  active.blur();
+  const summary = findFormErrorContainer(root);
+  if (summary && !summary.hidden) {
+    if (!summary.hasAttribute("tabindex")) {
+      summary.tabIndex = -1;
+    }
+    summary.focus();
+  }
+}
+
+function isDisabledControl(control: HTMLElement): boolean {
+  return (
+    (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) &&
+    control.disabled
+  );
+}
+
+function snapshotIssue(code: string, path: string, message: string): EmbeddedIssue {
+  return { code, path, rendererPath: rendererPath(path), message };
+}
+
+function issueMessage(issue: EmbeddedIssue): string {
+  const message = typeof issue.message === "string" ? issue.message.trim() : "";
+  return message || String(issue.code ?? "invalid");
 }
 
 function locateHydratableFields(root: Document | HTMLElement): HTMLElement[] {
@@ -773,11 +1893,18 @@ function flattenPayload(
     if (safeControllerPathSegments(nextKey).length === 0) {
       return;
     }
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value)
-    ) {
+    if (Array.isArray(value)) {
+      target.set(nextKey, value);
+      // Arrays of objects also address rendered repeated rows by index while the
+      // array itself stays addressable for multi-value controls.
+      value.forEach((item, position) => {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          flattenPayload(item as Record<string, unknown>, target, `${nextKey}.${position}`);
+        }
+      });
+      return;
+    }
+    if (value && typeof value === "object") {
       flattenPayload(value as Record<string, unknown>, target, nextKey);
       return;
     }
@@ -901,22 +2028,25 @@ function resolvePayloadEntry(
 function applyHydratedValue(
   element: HTMLElement,
   index: Map<string, unknown>,
-  registry: ResolverRegistry | null
+  registry: ResolverRegistry | null,
+  run: HydrationRun,
+  clearIfOmitted: boolean
 ): void {
-  const entry = resolvePayloadEntry(index, element);
+  let entry = resolvePayloadEntry(index, element);
   if (!entry.found) {
-    return;
+    if (!clearIfOmitted) {
+      return;
+    }
+    entry = { found: true, value: null };
   }
   const normalized = normalizeHydratedSelection(entry.value, element);
+  let changed = false;
   if (element instanceof HTMLSelectElement) {
-    const values = Array.isArray(normalized)
-      ? normalized
-      : normalized != null
-        ? [normalized]
-        : [];
-    const changed = applySelectValues(
+    const values = resolveSelectTokens(element, entry.value, normalized);
+    changed = applySelectValues(
       element,
-      values.map((value) => ({ value, label: value }))
+      values.map((value) => ({ value, label: value })),
+      true
     );
     const submitMode =
       element.getAttribute("data-relationship-submit-mode") === "json" ||
@@ -935,16 +2065,14 @@ function applyHydratedValue(
       element.dispatchEvent(new Event("change", { bubbles: true }));
     }
   } else if (element instanceof HTMLInputElement) {
-    applyHydratedInputValue(element, entry.value, normalized);
+    changed = applyHydratedInputValue(element, entry.value, normalized, run.settled);
   } else if (element instanceof HTMLTextAreaElement) {
-    if (Array.isArray(normalized)) {
-      element.value = normalized[0] ?? "";
-    } else if (normalized == null) {
-      element.value = "";
-    } else {
-      element.value = normalized;
+    const before = element.value;
+    element.value = hydratedTextValue(normalized);
+    changed = element.value !== before;
+    if (changed || !run.settled) {
+      element.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    element.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   updateRelationshipCurrentAttribute(element, normalized);
@@ -953,33 +2081,64 @@ function applyHydratedValue(
   if (resolver) {
     resolver.setCurrentValue(normalized);
   }
+
+  if (changed) {
+    const path = canonicalPathForElement(element);
+    if (path) {
+      run.changed.add(path);
+    }
+  }
+}
+
+function hydratedTextValue(normalized: string | string[] | null): string {
+  if (Array.isArray(normalized)) {
+    return normalized[0] ?? "";
+  }
+  return normalized == null ? "" : normalized;
 }
 
 function applyHydratedInputValue(
   element: HTMLInputElement,
   rawValue: unknown,
-  normalized: string | string[] | null
-): void {
+  normalized: string | string[] | null,
+  settled: boolean
+): boolean {
   const type = element.type.toLowerCase();
   if (type === "checkbox") {
+    const before = element.checked;
     element.checked = checkboxHydratedChecked(element, rawValue, normalized);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-    return;
+    const changed = element.checked !== before;
+    if (changed || !settled) {
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return changed;
   }
   if (type === "radio") {
+    const before = element.checked;
     element.checked = radioHydratedChecked(element, rawValue, normalized);
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-    return;
+    const changed = element.checked !== before;
+    if (changed || !settled) {
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return changed;
   }
-  if (Array.isArray(normalized)) {
-    element.value = normalized[0] ?? "";
-  } else if (normalized == null) {
+  if (type === "file") {
+    // File inputs only accept programmatic clearing.
+    if (hydratedTextValue(normalized) !== "" || element.value === "") {
+      return false;
+    }
     element.value = "";
-  } else {
-    element.value = normalized;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
   }
-  element.dispatchEvent(new Event("input", { bubbles: true }));
+  const before = element.value;
+  element.value = hydratedTextValue(normalized);
+  const changed = element.value !== before;
+  if (changed || !settled) {
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  return changed;
 }
 
 function checkboxHydratedChecked(
@@ -988,10 +2147,14 @@ function checkboxHydratedChecked(
   normalized: string | string[] | null
 ): boolean {
   if (Array.isArray(rawValue)) {
-    return rawValue.map(coerceHydratedValue).includes(element.value);
+    return rawValue.some((item) => matchesControlValue(element.value, item));
   }
   if (Array.isArray(normalized)) {
     return normalized.includes(element.value);
+  }
+  if (isTypedEnumControlValue(element.value) && (typeof rawValue === "boolean" || typeof rawValue === "number")) {
+    // Typed choice members compare against their decoded option value.
+    return matchesControlValue(element.value, rawValue);
   }
   if (typeof rawValue === "boolean") {
     return rawValue;
@@ -1017,12 +2180,76 @@ function radioHydratedChecked(
   normalized: string | string[] | null
 ): boolean {
   if (Array.isArray(rawValue)) {
-    return rawValue.map(coerceHydratedValue).includes(element.value);
+    return rawValue.some((item) => matchesControlValue(element.value, item));
   }
   if (Array.isArray(normalized)) {
     return normalized.includes(element.value);
   }
-  return normalized != null && normalized === element.value;
+  return matchesControlValue(element.value, rawValue);
+}
+
+const TYPED_ENUM_PREFIX = "__fg_enum_v1:";
+
+function isTypedEnumControlValue(value: string): boolean {
+  return value.startsWith(TYPED_ENUM_PREFIX);
+}
+
+/**
+ * A control value matches a hydrated item when the strings are identical, when
+ * an option-like object resolves to it, or when the control carries a typed
+ * enum codec value whose decoded value equals a typed (boolean/number) item.
+ * String items never match typed codec values, so string codes such as
+ * "false" stay distinct from boolean false.
+ */
+function matchesControlValue(controlValue: string, raw: unknown): boolean {
+  if (raw === null || raw === undefined) {
+    return false;
+  }
+  if (typeof raw === "string") {
+    return controlValue === raw;
+  }
+  if (typeof raw === "object") {
+    const token = coerceHydratedValue(raw);
+    return token !== null && controlValue === token;
+  }
+  if (controlValue === String(raw)) {
+    return true;
+  }
+  if (!isTypedEnumControlValue(controlValue)) {
+    return false;
+  }
+  const decoded = decodeEnumValue(controlValue);
+  return decoded.encoded && decoded.value === raw;
+}
+
+/**
+ * Map hydrated items to existing option values so typed items select encoded
+ * options instead of creating stray options; unmatched items keep the legacy
+ * token behavior.
+ */
+function resolveSelectTokens(
+  select: HTMLSelectElement,
+  rawValue: unknown,
+  normalized: string | string[] | null
+): string[] {
+  const items = Array.isArray(rawValue) ? rawValue : rawValue === null || rawValue === undefined ? [] : [rawValue];
+  if (items.length === 0) {
+    return [];
+  }
+  const options = Array.from(select.options);
+  const out: string[] = [];
+  items.forEach((item, position) => {
+    const match = options.find((option) => option.value !== "" && matchesControlValue(option.value, item));
+    if (match) {
+      out.push(match.value);
+      return;
+    }
+    const fallback = Array.isArray(normalized) ? normalized[position] : position === 0 ? normalized : null;
+    if (typeof fallback === "string" && fallback !== "") {
+      out.push(fallback);
+    }
+  });
+  return select.multiple ? out : out.slice(0, 1);
 }
 
 function applyHydratedErrors(
@@ -1147,6 +2374,217 @@ function normalizeErrorMessages(value: unknown): string[] {
     return direct ? [direct] : [];
   }
   return [];
+}
+
+function toCanonicalPath(dotted: string): string {
+  const segments = safeControllerPathSegments(dotted);
+  if (segments.length === 0) {
+    return "";
+  }
+  return segments.reduce((path, segment, position) => {
+    if (position === 0) {
+      return segment;
+    }
+    return /^\d+$/.test(segment) ? `${path}[${segment}]` : `${path}.${segment}`;
+  }, "");
+}
+
+function canonicalPathForElement(element: HTMLElement): string {
+  return toCanonicalPath(toDotKey(stripArraySuffix(fieldName(element))));
+}
+
+function eventCanonicalPaths(event: Event): string[] {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return [];
+  }
+  const path = canonicalPathForElement(target);
+  return path ? [path] : [];
+}
+
+function createControllerChangeEvent(meta: ChangeMetadata): Event {
+  try {
+    return new CustomEvent<ChangeMetadata>(CONTROLLER_CHANGE_EVENT, { detail: meta });
+  } catch (_err) {
+    return new Event(CONTROLLER_CHANGE_EVENT);
+  }
+}
+
+const ARRAY_INTENT_SEGMENTS = new Set(["_present", "_row_state", "_row_key", "_delete"]);
+
+function isArrayIntentName(name: string): boolean {
+  const segments = safeControllerPathSegments(name);
+  const last = segments[segments.length - 1];
+  return last !== undefined && ARRAY_INTENT_SEGMENTS.has(last);
+}
+
+/**
+ * Managed controls are the hydratable controls replace mode clears when the
+ * payload omits them: enabled, addressable, non-structural controls. Explicit
+ * payload values still apply to disabled controls, matching patch hydration.
+ */
+function isReplaceManaged(element: HTMLElement): boolean {
+  if (
+    !(element instanceof HTMLInputElement) &&
+    !(element instanceof HTMLSelectElement) &&
+    !(element instanceof HTMLTextAreaElement)
+  ) {
+    return false;
+  }
+  if (element.disabled) {
+    return false;
+  }
+  if (element instanceof HTMLInputElement) {
+    const type = element.type.toLowerCase();
+    if (["button", "submit", "reset", "image"].includes(type)) {
+      return false;
+    }
+  }
+  const name = fieldName(element);
+  if (!name || isArrayIntentName(name)) {
+    return false;
+  }
+  return safeControllerPathSegments(name).length > 0;
+}
+
+/**
+ * Rendered defaults for every hydratable control keyed by dotted path. Radio
+ * groups without a default selection and multi-value controls without default
+ * selections map to explicit clears so reset hydration can settle them.
+ */
+function collectDefaultHydrationValues(root: Document | HTMLElement): Record<string, unknown> {
+  const defaults = new Map<string, unknown>();
+  locateHydratableFields(root).forEach((element) => {
+    const name = fieldName(element);
+    if (!name || safeControllerPathSegments(name).length === 0) {
+      return;
+    }
+    const key = toDotKey(stripArraySuffix(name));
+    if (element instanceof HTMLInputElement) {
+      const type = element.type.toLowerCase();
+      if (type === "checkbox") {
+        if (element.name.endsWith("[]")) {
+          const current = defaults.get(key);
+          const list = Array.isArray(current) ? (current as string[]) : [];
+          if (element.defaultChecked) {
+            list.push(element.value);
+          }
+          defaults.set(key, list);
+        } else {
+          defaults.set(key, element.defaultChecked);
+        }
+        return;
+      }
+      if (type === "radio") {
+        if (element.defaultChecked) {
+          defaults.set(key, element.value);
+        } else if (!defaults.has(key)) {
+          defaults.set(key, null);
+        }
+        return;
+      }
+      defaults.set(key, type === "file" ? null : element.defaultValue);
+      return;
+    }
+    if (element instanceof HTMLTextAreaElement) {
+      defaults.set(key, element.defaultValue);
+      return;
+    }
+    if (element instanceof HTMLSelectElement) {
+      const selected = Array.from(element.options)
+        .filter((option) => option.defaultSelected)
+        .map((option) => option.value);
+      if (element.multiple) {
+        defaults.set(key, selected);
+        return;
+      }
+      defaults.set(key, selected[0] ?? element.options[0]?.value ?? null);
+    }
+  });
+  const payload: Record<string, unknown> = {};
+  defaults.forEach((value, key) => {
+    payload[key] = value;
+  });
+  return payload;
+}
+
+/**
+ * Replace hydration only addresses rendered rows. A payload row whose index has
+ * no rendered controls fails before any control is mutated when the form
+ * declares that array; unrelated unknown keys stay ignored like patch mode.
+ */
+function assertReplaceStructure(
+  scope: Document | HTMLElement,
+  fields: HTMLElement[],
+  values: Record<string, unknown>
+): void {
+  const flattened = new Map<string, unknown>();
+  flattenPayload(values, flattened, "");
+  const controlKeys = new Set<string>();
+  fields.forEach((element) => {
+    const name = fieldName(element);
+    if (name && safeControllerPathSegments(name).length > 0) {
+      controlKeys.add(toDotKey(stripArraySuffix(name)));
+    }
+  });
+  const inspected = new Set<string>();
+  flattened.forEach((_value, key) => {
+    const segments = safeControllerPathSegments(key);
+    segments.forEach((segment, position) => {
+      if (position === 0 || !/^\d+$/.test(segment)) {
+        return;
+      }
+      const rowPrefix = segments.slice(0, position + 1).join(".");
+      if (inspected.has(rowPrefix)) {
+        return;
+      }
+      inspected.add(rowPrefix);
+      if (hasControlUnder(controlKeys, rowPrefix)) {
+        return;
+      }
+      const arrayPath = segments.slice(0, position).join(".");
+      if (formDeclaresArray(scope, controlKeys, arrayPath)) {
+        throw new Error(
+          `formgen: replace hydration cannot create row ${toCanonicalPath(rowPrefix)}; only rendered rows are supported`
+        );
+      }
+    });
+  });
+}
+
+function hasControlUnder(keys: Set<string>, prefix: string): boolean {
+  for (const key of keys) {
+    if (key === prefix || key.startsWith(`${prefix}.`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function formDeclaresArray(
+  scope: Document | HTMLElement,
+  controlKeys: Set<string>,
+  arrayPath: string
+): boolean {
+  for (const key of controlKeys) {
+    if (!key.startsWith(`${arrayPath}.`)) {
+      continue;
+    }
+    const next = key.slice(arrayPath.length + 1).split(".")[0] ?? "";
+    if (/^\d+$/.test(next)) {
+      return true;
+    }
+  }
+  const spellings = new Set([arrayPath, toBracketKey(arrayPath), toCanonicalPath(arrayPath)]);
+  for (const spelling of spellings) {
+    if (!spelling) {
+      continue;
+    }
+    if (scope.querySelector(`[data-formgen-array-name="${safeSelectorValue(spelling)}"]`)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function setupDependentRefresh(

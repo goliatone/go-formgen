@@ -6,7 +6,6 @@
 --brand: #123456;
 }</style>
 <script id="formgen-theme" type="application/json">{"name":"acme","variant":"dark","tokens":{"brand":"#123456"},"cssVars":{"--brand":"#123456"}}</script>
-
 <form class="formgen-form" method="post" action="/wysiwyg" data-formgen-auto-init="true" data-formgen-theme="acme" data-formgen-theme-variant="dark">
     
     
@@ -14,9 +13,9 @@
     
 
     
-    <div data-formgen-layout="grid" class="formgen-grid" style="--formgen-grid-gap: 1.5rem; grid-template-columns: repeat(12, minmax(0, 1fr))">
+    <div data-formgen-layout="grid" data-formgen-columns="12" data-formgen-gutter="md" class="formgen-grid">
         
-        <div style="grid-column: span 12 / span 12">
+        <div data-formgen-span="12">
             <div class="flex flex-col gap-2" data-component="wysiwyg">
     <label data-formgen-chrome="label" id="fg-body-label" for="fg-body" class="block text-sm text-gray-700 font-medium mb-2 dark:text-neutral-300">
         Body

@@ -7,6 +7,7 @@ import postcssImport from "postcss-import";
 import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 import cssnano from "cssnano";
+import { GRID_LAYOUT_FILE, readCommittedGridLayoutCSS, renderGridLayoutCSS } from "./grid-layout.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -21,7 +22,16 @@ const args = new Set(process.argv.slice(2));
 const watch = args.has("--watch");
 const skipMinify = args.has("--no-minify");
 
+async function assertGridLayoutCurrent() {
+  const committed = await readCommittedGridLayoutCSS();
+  if (committed !== renderGridLayoutCSS()) {
+    const relative = GRID_LAYOUT_FILE.replace(`${projectRoot}/`, "");
+    throw new Error(`${relative} is stale or missing; run \`npm run build:grid\` and commit the result`);
+  }
+}
+
 async function buildTheme() {
+  await assertGridLayoutCurrent();
   const css = await readFile(inputFile, "utf8");
 
   const plugins = [

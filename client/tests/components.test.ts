@@ -126,3 +126,39 @@ describe("component registry", () => {
     expect(document.querySelector("[data-media-picker-selection]")).not.toBeNull();
   });
 });
+
+describe("runtime component preflight", () => {
+  it("distinguishes enhanced factories from server-only wrappers and reports malformed config", async () => {
+    const { preflightComponents, registeredComponentNames, registerComponent, resetComponentRegistryForTests } = await import("../src/index");
+    resetComponentRegistryForTests();
+    document.body.innerHTML = `
+      <div id="root">
+        <div data-component="input"><input name="title"></div>
+        <div data-component="choice"><fieldset data-formgen-choice="single"></fieldset></div>
+        <div data-component="datetime-range"><input type="date"><input type="date"></div>
+        <div data-component="host-widget" data-component-config='{"mode":"compact"}'></div>
+        <div data-component="host-widget" data-component-config='{"mode":'></div>
+        <div data-component="host-widget" data-component-config='[1,2]'></div>
+      </div>
+    `;
+    const root = document.getElementById("root")!;
+    const before = preflightComponents(root);
+    expect(before.map((entry) => `${entry.name}:${entry.enhanced}`)).toEqual([
+      "input:false",
+      "choice:false",
+      "datetime-range:true",
+      "host-widget:false",
+      "host-widget:false",
+      "host-widget:false",
+    ]);
+    expect(before[3].configError).toBeUndefined();
+    expect(before[4].configError).toMatch(/not valid JSON/);
+    expect(before[5].configError).toMatch(/JSON object/);
+
+    registerComponent("host-widget", () => undefined);
+    expect(registeredComponentNames()).toContain("host-widget");
+    expect(preflightComponents(root).filter((entry) => entry.name === "host-widget").every((entry) => entry.enhanced)).toBe(true);
+    expect(root.querySelectorAll("[data-component]")).toHaveLength(6);
+    resetComponentRegistryForTests();
+  });
+});

@@ -16,6 +16,10 @@ import {
   type ResolverRegistry,
   registerErrorRenderer,
   attachFormController,
+  registerComponent,
+  registerFormErrorRenderer,
+  initArrayRepeaters,
+  encodeEnumValue,
   RESOLVER_SUPERSEDED_ABORT_REASON,
   RELATIONSHIP_EDIT_ACTION_EVENT,
   emitRelationshipEditAction,
@@ -23,6 +27,8 @@ import {
 import { useRelationshipOptions } from "../src/frameworks/preact";
 import { setGlobalConfig, getGlobalConfig } from "../src/config";
 import { datasetToEndpoint, datasetToFieldConfig } from "../src/relationship-config";
+import embeddedFixture from "../../testdata/embedded/v1.json";
+import type { EmbeddedModel } from "../src/embedded-contract";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -3963,5 +3969,1565 @@ describe("runtime resolver", () => {
       expect(createdOption).not.toBeUndefined();
       expect(createdOption?.textContent).toBe("Created Tag");
     });
+  });
+});
+
+describe("embedded hydration options", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  // Synthetic enabled/level/colors/note fixture from the preserved integration brief.
+  const SAMPLE_MARKUP = `
+    <fieldset><legend>Enable feature</legend>
+      <label><input type="radio" name="enabled" value="true">Yes</label>
+      <label><input type="radio" name="enabled" value="false">No</label>
+    </fieldset>
+    <input name="level" type="number" min="1" max="10">
+    <label><input name="colors[]" type="checkbox" value="blue">Blue</label>
+    <label><input name="colors[]" type="checkbox" value="green">Green</label>
+    <input name="note" maxlength="80">
+  `;
+
+  function renderSample(id = "sample"): HTMLElement {
+    document.body.innerHTML = `<form id="${id}">${SAMPLE_MARKUP}</form>`;
+    return document.getElementById(id)!;
+  }
+
+  function control<T extends HTMLElement>(root: ParentNode, selector: string): T {
+    return root.querySelector<T>(selector)!;
+  }
+
+  it("reproduces the pinned legacy six-callback re-entry fixture without options", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    let calls = 0;
+    let depth = 0;
+    let maxDepth = 0;
+    const off = controller.onChange((values) => {
+      calls += 1;
+      depth += 1;
+      maxDepth = Math.max(maxDepth, depth);
+      if (calls < 3) {
+        controller.setValues(values);
+      }
+      depth -= 1;
+    });
+    controller.setValues({ enabled: false });
+    off();
+    // Legacy baseline pinned by the external reproducer on v0.33.2: not a cross-version guarantee.
+    expect({ calls, maxDepth }).toEqual({ calls: 6, maxDepth: 3 });
+
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] });
+    expect(controller.getValues()).toEqual({ enabled: "true", level: "4", colors: ["blue"], note: "" });
+    controller.destroy();
+  });
+
+  it("keeps the legacy callback shape and reports origins for native and legacy events", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    const seen: Array<{ origin: string; paths: string[]; type: string }> = [];
+    controller.onChange((_values, event, meta) => {
+      seen.push({ origin: meta.origin, paths: meta.paths, type: event.type });
+    });
+    const note = control<HTMLInputElement>(root, 'input[name="note"]');
+    note.value = "typed";
+    // jsdom cannot dispatch trusted events; trusted user input reports origin "ui".
+    note.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(seen).toEqual([{ origin: "program", paths: ["note"], type: "input" }]);
+
+    seen.length = 0;
+    controller.setValues({ note: "legacy" });
+    expect(seen).toEqual([{ origin: "hydrate", paths: ["note"], type: "input" }]);
+
+    seen.length = 0;
+    controller.reset();
+    expect(seen.length).toBeGreaterThan(1);
+    expect(new Set(seen.map((entry) => entry.origin))).toEqual(new Set(["reset"]));
+    controller.destroy();
+  });
+
+  it("suppresses subscribers with notify:false while still updating controls", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    const changes = vi.fn();
+    controller.onChange(changes);
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"], note: "silent" }, { notify: false });
+    expect(changes).not.toHaveBeenCalled();
+    expect(controller.getValues()).toEqual({ enabled: "true", level: "4", colors: ["blue"], note: "silent" });
+    controller.destroy();
+  });
+
+  it("settles opted-in hydration into one notification and skips no-op updates", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    const changes = vi.fn();
+    controller.onChange(changes);
+
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, {});
+    expect(changes).toHaveBeenCalledTimes(1);
+    const [values, event, meta] = changes.mock.calls[0];
+    expect(values).toEqual({ enabled: "true", level: "4", colors: ["blue"], note: "" });
+    expect(event.type).toBe("formgen:controller:change");
+    expect(meta).toEqual({ origin: "hydrate", paths: ["enabled", "level", "colors"] });
+
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, { notify: true });
+    expect(changes).toHaveBeenCalledTimes(1);
+
+    controller.setValues({ level: 5 }, { notify: true });
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(changes.mock.calls[1][2]).toEqual({ origin: "hydrate", paths: ["level"] });
+    controller.destroy();
+  });
+
+  it("lets a subscriber normalize values without a host re-entry guard (C13)", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    let calls = 0;
+    controller.onChange((values, _event, meta) => {
+      calls += 1;
+      if (meta.origin !== "hydrate") {
+        controller.setValues({ note: String(values.note ?? "").trim().toUpperCase() }, { notify: false });
+      }
+    });
+    const note = control<HTMLInputElement>(root, 'input[name="note"]');
+    note.value = "  shout  ";
+    note.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(calls).toBe(1);
+    expect(note.value).toBe("SHOUT");
+
+    controller.setValues({ note: " again " }, { notify: true });
+    expect(calls).toBe(2);
+    expect(note.value).toBe(" again ");
+    controller.destroy();
+  });
+
+  it("restores a host snapshot with replace semantics without recursion (C08)", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, { notify: false });
+    const snapshot = controller.getValues();
+    expect(snapshot).toEqual({ enabled: "true", level: "4", colors: ["blue"], note: "" });
+
+    const changes = vi.fn();
+    controller.onChange(changes);
+    controller.setValues({ enabled: false, level: null, colors: [], note: "edited" }, { notify: false });
+    expect(controller.getValues()).toEqual({ enabled: "false", level: "", note: "edited" });
+
+    controller.setValues(snapshot, { mode: "replace", notify: false });
+    expect(controller.getValues()).toEqual(snapshot);
+    expect(changes).not.toHaveBeenCalled();
+
+    controller.setValues({ enabled: false, note: "cancelled" }, { notify: false });
+    controller.setValues(snapshot, { mode: "replace" });
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2]).toEqual({ origin: "hydrate", paths: ["enabled", "note"] });
+    expect(controller.getValues()).toEqual(snapshot);
+    controller.destroy();
+  });
+
+  it("clears omitted managed values in replace mode and treats null as an explicit clear", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    controller.setValues({ enabled: true, level: 4, colors: ["blue", "green"], note: "keep?" }, { notify: false });
+
+    controller.setValues({ enabled: true }, { mode: "replace", notify: false });
+    expect(controller.getValues()).toEqual({ enabled: "true", level: "", note: "" });
+    expect(control<HTMLInputElement>(root, 'input[value="blue"]').checked).toBe(false);
+
+    controller.setValues({ level: 7, note: "x" }, { notify: false });
+    controller.setValues({ level: null, note: null }, { notify: false });
+    expect(controller.getValues()).toEqual({ enabled: "true", level: "", note: "" });
+    controller.destroy();
+  });
+
+  it("leaves disabled controls alone when replace omits them but applies explicit values", () => {
+    const root = renderSample();
+    const level = control<HTMLInputElement>(root, 'input[name="level"]');
+    level.value = "9";
+    level.disabled = true;
+    const controller = attachFormController(root);
+    controller.setValues({ note: "only" }, { mode: "replace", notify: false });
+    expect(level.value).toBe("9");
+    controller.setValues({ level: 2 }, { mode: "replace", notify: false });
+    expect(level.value).toBe("2");
+    controller.destroy();
+  });
+
+  it("hydrates rendered rows from arrays of objects and fails before mutating on missing rows", () => {
+    document.body.innerHTML = `
+      <div id="root" data-formgen-render-mode="fields">
+        <input name="title" value="t" />
+        <div data-formgen-array-items="true" data-formgen-array-name="rows" data-formgen-array-next-index="2" data-formgen-array-prototype-path="rows[2]" data-formgen-array-prototype-id-prefix="fg-rows-2">
+          <div data-formgen-array-item="true" data-formgen-array-existing="true">
+            <input type="hidden" name="rows[0]._present" value="true" />
+            <input name="rows[0].name" value="first" />
+          </div>
+          <div data-formgen-array-item="true" data-formgen-array-existing="true">
+            <input type="hidden" name="rows[1]._present" value="true" />
+            <input name="rows[1].name" value="second" />
+          </div>
+          <template data-formgen-array-prototype="true"><div data-formgen-array-item="true"><input id="fg-rows-2-name" name="rows[2].name" /></div></template>
+        </div>
+        <button type="button" data-formgen-array-action="add">Add row</button>
+      </div>
+    `;
+    const root = document.getElementById("root")!;
+    const controller = attachFormController(root);
+    const changes = vi.fn();
+    controller.onChange(changes);
+
+    controller.setValues({ rows: [{ name: "alpha" }, { name: "beta" }] }, { mode: "replace" });
+    expect(controller.getValues()).toEqual({
+      title: "",
+      rows: { 0: { _present: "true", name: "alpha" }, 1: { _present: "true", name: "beta" } },
+    });
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2]).toEqual({ origin: "hydrate", paths: ["title", "rows[0].name", "rows[1].name"] });
+
+    expect(() =>
+      controller.setValues({ title: "late", rows: [{ name: "x" }, { name: "y" }, { name: "z" }] }, { mode: "replace" })
+    ).toThrow(/rows\[2\]/);
+    expect(controller.getValues()).toEqual({
+      title: "",
+      rows: { 0: { _present: "true", name: "alpha" }, 1: { _present: "true", name: "beta" } },
+    });
+    expect(changes).toHaveBeenCalledTimes(1);
+
+    controller.setValues({ rows: [{ name: "p" }, { name: "q" }, { name: "ignored" }] }, { notify: false });
+    expect(controller.getValues().rows).toEqual({ 0: { _present: "true", name: "p" }, 1: { _present: "true", name: "q" } });
+    controller.destroy();
+  });
+
+  it("keeps widget, mirror, dependency, and component synchronization under notify:false", async () => {
+    document.body.innerHTML = `
+      <div id="root" data-formgen-render-mode="fields">
+        <input name="kind" value="initial" />
+        <select name="dependent" data-endpoint-url="/api/dependent" data-endpoint-refresh-on="kind"></select>
+        <select name="tags" multiple data-endpoint-renderer="chips">
+          <option value="alpha">Alpha</option>
+          <option value="beta">Beta</option>
+        </select>
+        <div data-component="probe"><input name="probe" value="" /></div>
+      </div>
+    `;
+    fetchSpy.mockResolvedValue(mockResponse([{ value: "one", label: "One" }]));
+    const probeInputs = vi.fn();
+    registerComponent("probe", ({ element }) => {
+      const input = element.querySelector("input")!;
+      input.addEventListener("input", probeInputs);
+      return () => input.removeEventListener("input", probeInputs);
+    });
+    const root = document.getElementById("root")!;
+    // Disable option caching so the dependent refresh is observable as a fetch.
+    const registry = await initFormgenRoot(root, { cache: { strategy: "none" } });
+    const controller = attachFormController(root, { registry });
+    const changes = vi.fn();
+    controller.onChange(changes);
+    const fetchBaseline = fetchSpy.mock.calls.length;
+
+    controller.setValues({ kind: "next", tags: ["beta"], probe: "touched" }, { notify: false });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await flush();
+
+    expect(changes).not.toHaveBeenCalled();
+    const chips = Array.from(root.querySelectorAll("[data-fg-chip-value]")).map((chip) =>
+      chip.getAttribute("data-fg-chip-value")
+    );
+    expect(chips).toEqual(["beta"]);
+    const mirrors = Array.from(root.querySelectorAll<HTMLInputElement>("[data-relationship-hidden] input")).map(
+      (input) => input.value
+    );
+    expect(mirrors).toEqual(["beta"]);
+    expect(fetchSpy.mock.calls.length).toBe(fetchBaseline + 1);
+    expect(probeInputs).toHaveBeenCalledTimes(1);
+    controller.destroy();
+  });
+
+  it("keeps roots isolated and detaches subscribers on destroy (C12)", () => {
+    document.body.innerHTML = `<form id="a">${SAMPLE_MARKUP}</form><form id="b">${SAMPLE_MARKUP}</form>`;
+    const rootA = document.getElementById("a")!;
+    const rootB = document.getElementById("b")!;
+    const controllerA = attachFormController(rootA);
+    const controllerB = attachFormController(rootB);
+    const changesA = vi.fn();
+    const changesB = vi.fn();
+    controllerA.onChange(changesA);
+    controllerB.onChange(changesB);
+
+    controllerA.setValues({ note: "a" }, {});
+    expect(changesA).toHaveBeenCalledTimes(1);
+    expect(changesB).not.toHaveBeenCalled();
+    expect(controllerB.getValues().note).toBe("");
+
+    controllerA.destroy();
+    const noteA = control<HTMLInputElement>(rootA, 'input[name="note"]');
+    noteA.value = "late";
+    noteA.dispatchEvent(new Event("input", { bubbles: true }));
+    controllerA.setValues({ note: "ignored" }, {});
+    expect(changesA).toHaveBeenCalledTimes(1);
+    expect(noteA.value).toBe("late");
+    expect(controllerA.getValues()).toEqual({});
+
+    controllerB.setValues({ note: "b" }, {});
+    expect(changesB).toHaveBeenCalledTimes(1);
+    expect(changesB.mock.calls[0][2]).toEqual({ origin: "hydrate", paths: ["note"] });
+
+    rootA.innerHTML = SAMPLE_MARKUP;
+    const fresh = attachFormController(rootA);
+    const freshChanges = vi.fn();
+    fresh.onChange(freshChanges);
+    expect(fresh.getValues()).toEqual({ level: "", note: "" });
+    fresh.setValues({ note: "fresh" }, {});
+    expect(freshChanges).toHaveBeenCalledTimes(1);
+    expect(changesA).toHaveBeenCalledTimes(1);
+    fresh.destroy();
+    controllerB.destroy();
+  });
+
+  it("resets with options once with reset origin and resynchronizes enhanced widgets", async () => {
+    document.body.innerHTML = `
+      <div id="root" data-formgen-render-mode="fields">
+        ${SAMPLE_MARKUP}
+        <select name="tags" multiple data-endpoint-renderer="chips">
+          <option value="alpha" selected>Alpha</option>
+          <option value="beta">Beta</option>
+        </select>
+      </div>
+    `;
+    const root = document.getElementById("root")!;
+    const registry = await initFormgenRoot(root);
+    const controller = attachFormController(root, { registry });
+    controller.setValues({ enabled: true, level: 3, colors: ["green"], note: "n", tags: ["beta"] }, { notify: false });
+    expect(root.querySelector("[data-fg-chip-value]")?.getAttribute("data-fg-chip-value")).toBe("beta");
+    controller.setErrors({ note: ["bad"] });
+
+    const changes = vi.fn();
+    controller.onChange(changes);
+    controller.reset({});
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2].origin).toBe("reset");
+    expect(changes.mock.calls[0][2].paths).toEqual(["enabled", "level", "colors", "note", "tags"]);
+    expect(controller.getValues()).toEqual({ level: "", note: "", tags: ["alpha"] });
+    expect(root.querySelector("[data-fg-chip-value]")?.getAttribute("data-fg-chip-value")).toBe("alpha");
+    expect(control<HTMLInputElement>(root, 'input[name="note"]').getAttribute("data-validation-state")).toBeNull();
+
+    controller.setValues({ note: "again" }, { notify: false });
+    controller.reset({ notify: false });
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(controller.getValues().note).toBe("");
+    controller.reset({});
+    expect(changes).toHaveBeenCalledTimes(1);
+    controller.destroy();
+  });
+
+  it("handles unsubscribe and destroy during notification safely", () => {
+    const root = renderSample();
+    const controller = attachFormController(root);
+    const second = vi.fn();
+    let offSecond: () => void = () => undefined;
+    const offFirst = controller.onChange(() => {
+      offFirst();
+      offSecond();
+    });
+    offSecond = controller.onChange(second);
+    controller.setValues({ note: "once" }, {});
+    expect(second).not.toHaveBeenCalled();
+
+    const third = vi.fn();
+    controller.onChange(() => controller.destroy());
+    controller.onChange(third);
+    controller.setValues({ note: "twice" }, {});
+    expect(third).not.toHaveBeenCalled();
+    expect(controller.getValues()).toEqual({});
+  });
+
+  it("preserves option labels while hydrating selects", () => {
+    document.body.innerHTML = `
+      <form id="f">
+        <select name="status">
+          <option value="">Pick</option>
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+        </select>
+      </form>
+    `;
+    const root = document.getElementById("f")!;
+    const controller = attachFormController(root);
+    controller.setValues({ status: "published" });
+    const option = root.querySelector<HTMLOptionElement>('option[value="published"]')!;
+    expect(option.selected).toBe(true);
+    expect(option.textContent).toBe("Published");
+    controller.destroy();
+  });
+});
+
+describe("embedded model composition", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  const sharedModel = embeddedFixture.form as unknown as EmbeddedModel;
+  const model: EmbeddedModel = {
+    fields: [
+      ...sharedModel.fields,
+      { name: "note", type: "string", required: false, validations: [{ kind: "maxLength", params: { value: "80" } }] },
+    ],
+  };
+
+  function renderForm(): HTMLFormElement {
+    document.body.innerHTML = `
+      <form id="sample" action="/submit" method="post">
+        <label><input type="radio" name="enabled" value="true">Yes</label>
+        <label><input type="radio" name="enabled" value="false">No</label>
+        <input name="level" type="text">
+        <label><input name="colors[]" type="checkbox" value="blue">Blue</label>
+        <label><input name="colors[]" type="checkbox" value="green">Green</label>
+        <input name="note" maxlength="80">
+      </form>
+    `;
+    return document.getElementById("sample") as HTMLFormElement;
+  }
+
+  it("validates selected canonical paths against the model without fetching or submitting", () => {
+    const form = renderForm();
+    const submits = vi.fn((event: Event) => event.preventDefault());
+    form.addEventListener("submit", submits);
+    const controller = attachFormController(form, { model });
+
+    controller.setValues({ colors: ["blue"] }, { notify: false });
+    expect(controller.validate({ paths: ["colors"] })).toEqual([]);
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:enabled"]);
+    expect(controller.getValues()).toEqual({ level: "", colors: ["blue"], note: "" });
+
+    controller.setValues({ enabled: true, level: 4 }, { notify: false });
+    expect(controller.normalize()).toEqual({
+      values: { enabled: true, level: 4, colors: ["blue"], note: "" },
+      issues: [],
+    });
+    expect(controller.validate()).toEqual([]);
+    expect(controller.getValues().level).toBe("4");
+
+    controller.setValues({ level: 11 }, { notify: false });
+    expect(controller.validate({ paths: ["level"] })).toEqual([
+      { code: "max", path: "level", rendererPath: "level", message: "level must be at most 10" },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(submits).not.toHaveBeenCalled();
+    controller.destroy();
+    expect(controller.validate()).toEqual([]);
+    expect(controller.normalize()).toEqual({ values: {}, issues: [] });
+  });
+
+  it("limits normalization issues to the selected scope", () => {
+    const form = renderForm();
+    const controller = attachFormController(form, { model });
+    controller.setValues({ enabled: true, level: "abc", colors: ["blue"] }, { notify: false });
+    expect(controller.validate({ paths: ["colors"] })).toEqual([]);
+    expect(controller.validate({ paths: ["level"] }).map((issue) => `${issue.code}:${issue.path}`)).toEqual(["type:level"]);
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["type:level"]);
+    controller.destroy();
+  });
+
+  it("requires a complete model for model-aware operations", () => {
+    const form = renderForm();
+    const controller = attachFormController(form);
+    expect(() => controller.validate()).toThrow(/model/);
+    expect(() => controller.normalize()).toThrow(/model/);
+    expect(() => attachFormController(form, { model: { form: {} } as unknown as EmbeddedModel })).toThrow(/fields/);
+    expect(controller.getValues()).toEqual({ level: "", note: "" });
+    controller.destroy();
+  });
+
+  it("accepts the descriptor envelope and exposes helpers on the global", () => {
+    const form = renderForm();
+    const controller = attachFormController(form, { model: { version: "formgen.descriptor/v1", form: model } });
+    controller.setValues({ enabled: false, level: 11, colors: ["green"] }, { notify: false });
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["max:level"]);
+    const global = (globalThis as any).Formgen;
+    expect(global.normalize(model, { enabled: "true", colors: ["blue"] }).values).toEqual({ enabled: true, colors: ["blue"] });
+    expect(global.validate(model, { enabled: true, colors: ["blue"] })).toEqual([]);
+    expect(global.validate(model, { enabled: false, colors: ["blue", "blue"] }).map((issue: { code: string }) => issue.code)).toEqual([
+      "uniqueItems",
+    ]);
+    controller.destroy();
+  });
+});
+
+describe("embedded issue presentation", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  function renderNested(): HTMLFormElement {
+    document.body.innerHTML = `
+      <form id="nested" action="/submit" method="post">
+        <fieldset data-group="contact">
+          <input name="contact[email]" value="a@example.com" />
+        </fieldset>
+        <div data-formgen-array-items="true" data-formgen-array-name="rows">
+          <div data-formgen-array-item="true" data-formgen-array-existing="true">
+            <input name="rows[0].name" value="first" />
+          </div>
+          <div data-formgen-array-item="true" data-formgen-array-existing="true">
+            <input name="rows[1].name" value="" />
+          </div>
+        </div>
+        <input name="note" value="keep me" />
+        <input type="hidden" name="token" data-field-name="token" value="t" />
+      </form>
+    `;
+    return document.getElementById("nested") as HTMLFormElement;
+  }
+
+  function state(root: ParentNode, selector: string): string | null {
+    return root.querySelector(selector)!.getAttribute("data-validation-state");
+  }
+
+  it("displays, focuses, and clears precise nested and repeated issues while preserving values (C11)", () => {
+    const form = renderNested();
+    const submits = vi.fn((event: Event) => event.preventDefault());
+    form.addEventListener("submit", submits);
+    const controller = attachFormController(form);
+    const changes = vi.fn();
+    controller.onChange(changes);
+
+    const presented = controller.setIssues([
+      { code: "required", path: "rows[1].name", rendererPath: "rows.name", message: "Name is required" },
+      { code: "pattern", path: "contact.email", rendererPath: "contact.email", message: "Enter a valid email" },
+    ]);
+    expect(presented.field).toHaveLength(2);
+    expect(presented.summary).toEqual([]);
+    expect(state(form, 'input[name="rows[1].name"]')).toBe("invalid");
+    expect(state(form, 'input[name="rows[0].name"]')).toBeNull();
+    expect(state(form, 'input[name="contact[email]"]')).toBe("invalid");
+    expect(form.querySelectorAll("[data-formgen-array-item][data-formgen-group-invalid]")).toHaveLength(1);
+    expect(form.querySelector("fieldset")?.getAttribute("data-formgen-group-invalid")).toBe("true");
+    expect(form.querySelector("[data-formgen-form-errors]")).toBeNull();
+
+    const focus = controller.focusIssue({ code: "required", path: "rows[1].name", message: "Name is required" });
+    expect(focus).toEqual({ focused: true, target: "control", path: "rows[1].name" });
+    expect(document.activeElement).toBe(form.querySelector('input[name="rows[1].name"]'));
+
+    expect(controller.getValues()).toEqual({
+      contact: { email: "a@example.com" },
+      rows: { 0: { name: "first" }, 1: { name: "" } },
+      note: "keep me",
+      token: "t",
+    });
+
+    controller.clearIssues();
+    expect(state(form, 'input[name="rows[1].name"]')).toBeNull();
+    expect(state(form, 'input[name="contact[email]"]')).toBeNull();
+    expect(form.querySelectorAll("[data-formgen-group-invalid]")).toHaveLength(0);
+    expect(controller.getValues().note).toBe("keep me");
+    expect(changes).not.toHaveBeenCalled();
+    expect(submits).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("routes form-level and unmapped issues to a replaceable summary and focuses it as a fallback", () => {
+    const form = renderNested();
+    const controller = attachFormController(form);
+
+    const presented = controller.setIssues([
+      { code: "condition", path: "", message: "Definition rejected" },
+      { code: "required", path: "ghost", message: "Ghost is required" },
+      { code: "required", path: "token", message: "Token is required" },
+    ]);
+    expect(presented.field.map((issue) => issue.path)).toEqual(["token"]);
+    expect(presented.summary.map((issue) => issue.path)).toEqual(["", "ghost"]);
+    const summary = form.querySelector<HTMLElement>("[data-formgen-form-errors]")!;
+    expect(summary.getAttribute("role")).toBe("alert");
+    expect(summary.hidden).toBe(false);
+    expect(Array.from(summary.querySelectorAll("li")).map((item) => item.textContent)).toEqual([
+      "Definition rejected",
+      "Ghost is required",
+    ]);
+    expect(form.firstElementChild).toBe(summary);
+
+    // The hidden token control has an inline issue but cannot take focus; the summary does.
+    const fallback = controller.focusIssue("token");
+    expect(fallback).toEqual({ focused: true, target: "summary", path: "token" });
+    expect(document.activeElement).toBe(summary);
+
+    controller.setIssues([{ code: "x", message: "Only this" }]);
+    expect(Array.from(summary.querySelectorAll("li")).map((item) => item.textContent)).toEqual(["Only this"]);
+    controller.setIssues([{ code: "y", message: "And this" }], { append: true });
+    expect(Array.from(summary.querySelectorAll("li")).map((item) => item.textContent)).toEqual(["Only this", "And this"]);
+    controller.clearIssues();
+    expect(summary.hidden).toBe(true);
+    expect(controller.focusIssue("ghost")).toEqual({ focused: false, target: null, path: "ghost" });
+
+    const custom = vi.fn();
+    registerFormErrorRenderer("custom", custom);
+    summary.setAttribute("data-formgen-form-errors-renderer", "custom");
+    controller.setIssues([{ code: "z", message: "Custom" }]);
+    expect(custom).toHaveBeenCalledTimes(1);
+    expect(custom.mock.calls[0][0].messages).toEqual(["Custom"]);
+    controller.destroy();
+  });
+
+  it("reuses a rendered summary container and keeps server issues across unrelated edits", () => {
+    document.body.innerHTML = `
+      <form id="rendered">
+        <div role="alert" data-formgen-form-errors="true" tabindex="-1" hidden><ul class="list-disc"></ul></div>
+        <input name="title" value="" />
+        <input name="summary" value="" />
+      </form>
+    `;
+    const form = document.getElementById("rendered") as HTMLFormElement;
+    const controller = attachFormController(form);
+    controller.setIssues([
+      { code: "required", path: "title", message: "Title is required" },
+      { code: "condition", path: "", message: "Fix the form" },
+    ]);
+    const summary = form.querySelector<HTMLElement>("[data-formgen-form-errors]")!;
+    expect(form.querySelectorAll("[data-formgen-form-errors]")).toHaveLength(1);
+    expect(summary.querySelector("ul")?.className).toBe("list-disc");
+    expect(summary.hidden).toBe(false);
+
+    const other = form.querySelector<HTMLInputElement>('input[name="summary"]')!;
+    other.value = "typed elsewhere";
+    other.dispatchEvent(new Event("input", { bubbles: true }));
+    controller.setValues({ summary: "hydrated elsewhere" }, { notify: false });
+    expect(state(form, 'input[name="title"]')).toBe("invalid");
+    expect(summary.hidden).toBe(false);
+
+    controller.setIssues([], { summary: true });
+    expect(state(form, 'input[name="title"]')).toBeNull();
+    expect(summary.hidden).toBe(true);
+    controller.destroy();
+  });
+
+  it("marks and clears group chrome through setErrors and clearErrors", () => {
+    const form = renderNested();
+    const controller = attachFormController(form);
+    controller.setErrors({ "rows.0.name": ["Bad"] });
+    const items = form.querySelectorAll("[data-formgen-array-item]");
+    expect(items[0].getAttribute("data-formgen-group-invalid")).toBe("true");
+    expect(items[1].getAttribute("data-formgen-group-invalid")).toBeNull();
+    controller.clearErrors(["rows.0.name"]);
+    expect(items[0].getAttribute("data-formgen-group-invalid")).toBeNull();
+    controller.destroy();
+  });
+});
+
+describe("embedded reactive conditions", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  const sharedModel = embeddedFixture.form as unknown as EmbeddedModel;
+  const model: EmbeddedModel = {
+    ...sharedModel,
+    fields: [...sharedModel.fields, { name: "note", type: "string", required: false }],
+  };
+
+  const MARKUP = `
+    <div data-component="input" id="enabled-wrap">
+      <label><input type="radio" name="enabled" value="true">Yes</label>
+      <label><input type="radio" name="enabled" value="false">No</label>
+    </div>
+    <div data-component="input" id="level-wrap"><input name="level" type="text"></div>
+    <div data-component="input">
+      <label><input name="colors[]" type="checkbox" value="blue">Blue</label>
+      <label><input name="colors[]" type="checkbox" value="green">Green</label>
+    </div>
+    <div data-component="input"><input name="note"></div>
+  `;
+
+  function renderReactive(id = "reactive"): HTMLFormElement {
+    document.body.innerHTML = `<form id="${id}">${MARKUP}</form>`;
+    return document.getElementById(id) as HTMLFormElement;
+  }
+
+  function pick(root: ParentNode, selector: string): HTMLInputElement {
+    return root.querySelector<HTMLInputElement>(selector)!;
+  }
+
+  function choose(root: ParentNode, value: "true" | "false"): void {
+    const radio = pick(root, `input[name="enabled"][value="${value}"]`);
+    radio.checked = true;
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  it("settles applicability on attach and user edits, clearing inapplicable values once (C07, C13)", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    const levelWrap = form.querySelector<HTMLElement>("#level-wrap")!;
+    const level = pick(form, 'input[name="level"]');
+    expect(levelWrap.hidden).toBe(true);
+    expect(levelWrap.getAttribute("data-formgen-applicable")).toBe("false");
+    expect(level.required).toBe(false);
+    expect(controller.effective().applicable).toEqual({ level: false });
+
+    const changes = vi.fn();
+    controller.onChange(changes);
+    choose(form, "true");
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2]).toMatchObject({ origin: "program", applicable: { level: true } });
+    expect(levelWrap.hidden).toBe(false);
+    expect(level.required).toBe(true);
+    expect(level.getAttribute("aria-required")).toBe("true");
+
+    level.value = "4";
+    level.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(controller.effective().values).toEqual({ enabled: true, level: 4, note: "" });
+
+    choose(form, "false");
+    expect(changes).toHaveBeenCalledTimes(3);
+    expect(level.value).toBe("");
+    expect(levelWrap.hidden).toBe(true);
+    expect(level.required).toBe(false);
+    expect(changes.mock.calls[2][2].paths).toEqual(["enabled", "level"]);
+    expect(changes.mock.calls[2][2].applicable).toEqual({ level: false });
+    expect(controller.getValues()).toEqual({ enabled: "false", level: "", note: "" });
+
+    choose(form, "true");
+    expect(level.value).toBe("");
+    expect(levelWrap.hidden).toBe(false);
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:level", "required:colors"]);
+    controller.destroy();
+  });
+
+  it("settles after silent hydration, replace restoration, and reset (C08)", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    const levelWrap = form.querySelector<HTMLElement>("#level-wrap")!;
+    const level = pick(form, 'input[name="level"]');
+    const changes = vi.fn();
+    controller.onChange(changes);
+
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, { notify: false });
+    expect(changes).not.toHaveBeenCalled();
+    expect(levelWrap.hidden).toBe(false);
+    expect(level.value).toBe("4");
+    const snapshot = controller.getValues();
+
+    controller.setValues({ enabled: false }, { notify: true });
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2]).toEqual({ origin: "hydrate", paths: ["enabled", "level"], applicable: { level: false } });
+    expect(level.value).toBe("");
+    expect(levelWrap.hidden).toBe(true);
+
+    controller.setValues(snapshot, { mode: "replace", notify: false });
+    expect(level.value).toBe("4");
+    expect(levelWrap.hidden).toBe(false);
+    expect(controller.effective().values).toEqual({ enabled: true, level: 4, colors: ["blue"], note: "" });
+
+    controller.reset({});
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(changes.mock.calls[1][2].origin).toBe("reset");
+    expect(levelWrap.hidden).toBe(true);
+    expect(controller.getValues()).toEqual({ level: "", note: "" });
+    controller.destroy();
+  });
+
+  it("keeps retained inactive values in the control but out of the effective projection and validation", () => {
+    const retainModel: EmbeddedModel = {
+      ...model,
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "level", applicableWhen: { op: "eq", path: "enabled", value: true }, onInapplicable: "retain" }],
+      },
+    };
+    const form = renderReactive();
+    const controller = attachFormController(form, { model: retainModel });
+    const level = pick(form, 'input[name="level"]');
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, { notify: false });
+    choose(form, "false");
+    expect(level.value).toBe("4");
+    expect(form.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(true);
+    const effective = controller.effective();
+    expect(effective.values).toEqual({ enabled: false, colors: ["blue"], note: "" });
+    expect(effective.retained).toEqual({ level: 4 });
+    expect(controller.validate()).toEqual([]);
+    choose(form, "true");
+    expect(level.value).toBe("4");
+    expect(controller.effective().values.level).toBe(4);
+    controller.destroy();
+  });
+
+  it("clears obsolete issues on controls that become inapplicable", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    const level = pick(form, 'input[name="level"]');
+    controller.setValues({ enabled: true, level: 11, colors: ["blue"] }, { notify: false });
+    controller.setIssues(controller.validate());
+    expect(level.getAttribute("data-validation-state")).toBe("invalid");
+    choose(form, "false");
+    expect(level.getAttribute("data-validation-state")).toBeNull();
+    expect(controller.validate()).toEqual([]);
+    controller.destroy();
+  });
+
+  it("validates applicable scope and the whole form with conditional requiredness (C03, C09)", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    choose(form, "true");
+    expect(controller.validate({ paths: ["colors"] }).map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:colors"]);
+    expect(controller.validate({ paths: ["level"] }).map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:level"]);
+    pick(form, 'input[value="blue"]').checked = true;
+    pick(form, 'input[value="blue"]').dispatchEvent(new Event("change", { bubbles: true }));
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:level"]);
+    controller.destroy();
+  });
+
+  it("surfaces definition diagnostics as condition issues and keeps legacy behavior (C14)", () => {
+    const broken: EmbeddedModel = {
+      ...model,
+      conditions: embeddedFixture.invalidConditions[0].definition as unknown as EmbeddedModel["conditions"],
+    };
+    const form = renderReactive();
+    const controller = attachFormController(form, { model: broken });
+    expect(controller.conditionDiagnostics().map((diagnostic) => diagnostic.code)).toEqual(["conditionReference"]);
+    expect(form.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(false);
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual([
+      "condition:level",
+      "required:enabled",
+      "required:colors",
+    ]);
+    expect(controller.effective().applicable).toEqual({});
+    controller.destroy();
+  });
+
+  it("recomputes after supported row changes", () => {
+    const rowsModel: EmbeddedModel = {
+      fields: [
+        { name: "enabled", type: "boolean", required: false },
+        {
+          name: "rows",
+          type: "array",
+          required: false,
+          items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: true }] },
+        },
+      ],
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "rows[1].answer", applicableWhen: { op: "eq", path: "enabled", value: true } }],
+      },
+    };
+    document.body.innerHTML = `
+      <form id="rows">
+        <div data-component="input"><input type="checkbox" name="enabled" value="true" checked></div>
+        <div>
+          <div data-formgen-array-items="true" data-formgen-array-name="rows" data-formgen-array-next-index="1" data-formgen-array-prototype-path="rows[1]" data-formgen-array-prototype-id-prefix="fg-rows-1">
+            <div data-formgen-array-item="true"><div data-component="input"><input id="fg-rows-0-answer" name="rows[0].answer" value="first"></div></div>
+            <template data-formgen-array-prototype="true"><div data-formgen-array-item="true"><div data-component="input"><input id="fg-rows-1-answer" name="rows[1].answer"></div></div></template>
+          </div>
+          <button type="button" data-formgen-array-action="add">Add row</button>
+        </div>
+      </form>
+    `;
+    const form = document.getElementById("rows") as HTMLFormElement;
+    initArrayRepeaters(form);
+    const controller = attachFormController(form, { model: rowsModel });
+    const changes = vi.fn();
+    controller.onChange(changes);
+    expect(controller.effective().applicable).toEqual({ "rows[1].answer": false });
+
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!.click();
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2]).toMatchObject({ origin: "program", paths: ["rows"], applicable: { "rows[1].answer": true } });
+    const added = form.querySelector<HTMLInputElement>('input[name="rows[1].answer"]')!;
+    expect(added.required).toBe(true);
+    expect(added.closest<HTMLElement>("[data-component]")!.hidden).toBe(false);
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:rows[1].answer"]);
+    controller.destroy();
+  });
+
+  it("stops settling after destroy and keeps roots isolated (C12)", () => {
+    document.body.innerHTML = `<form id="a">${MARKUP}</form><form id="b">${MARKUP}</form>`;
+    const rootA = document.getElementById("a") as HTMLFormElement;
+    const rootB = document.getElementById("b") as HTMLFormElement;
+    const controllerA = attachFormController(rootA, { model });
+    const controllerB = attachFormController(rootB, { model });
+    const wrap = (root: ParentNode) => root.querySelector('input[name="level"]')!.closest<HTMLElement>("[data-component]")!;
+    choose(rootA, "true");
+    expect(wrap(rootA).hidden).toBe(false);
+    expect(wrap(rootB).hidden).toBe(true);
+
+    controllerA.destroy();
+    choose(rootA, "false");
+    expect(wrap(rootA).hidden).toBe(false);
+    choose(rootB, "true");
+    expect(wrap(rootB).hidden).toBe(false);
+    expect(controllerB.effective().applicable).toEqual({ level: true });
+    controllerB.destroy();
+  });
+
+  it("exposes manual settle for host-driven DOM changes", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    const radio = pick(form, 'input[name="enabled"][value="true"]');
+    radio.checked = true; // no event dispatched
+    expect(form.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(true);
+    const projection = controller.settle();
+    expect(projection.applicable).toEqual({ level: true });
+    expect(form.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(false);
+    controller.destroy();
+  });
+
+  it("keeps the rest of a replace payload when settling clears an inapplicable control", () => {
+    const form = renderReactive();
+    const controller = attachFormController(form, { model });
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"], note: "draft" }, { notify: false });
+    const changes = vi.fn();
+    controller.onChange(changes);
+
+    // enabled=false makes level inapplicable; the clear must patch level only,
+    // not re-run the replace against the controls the payload just set.
+    controller.setValues({ enabled: false, level: 7, note: "kept" }, { mode: "replace", notify: true });
+    expect(controller.getValues()).toEqual({ enabled: "false", level: "", note: "kept" });
+    expect(controller.effective().values).toEqual({ enabled: false, note: "kept" });
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(changes.mock.calls[0][2].origin).toBe("hydrate");
+    expect(changes.mock.calls[0][2].paths).toEqual(expect.arrayContaining(["enabled", "level", "note", "colors"]));
+
+    // restore() replaces by default and must behave the same way.
+    controller.setValues({ enabled: true, level: 3, note: "before" }, { mode: "replace", notify: false });
+    const snapshot = controller.snapshot();
+    snapshot.values.enabled = false;
+    controller.restore(snapshot, { notify: false });
+    expect(controller.getValues()).toEqual({ enabled: "false", level: "", note: "before" });
+    controller.destroy();
+  });
+
+  it("does not report rendered defaults of inapplicable controls as inactive input", () => {
+    const defaultsModel: EmbeddedModel = {
+      fields: [
+        { name: "enabled", type: "boolean", required: true },
+        { name: "notify", type: "boolean", required: false },
+        {
+          name: "contact",
+          type: "object",
+          required: false,
+          nested: [{ name: "email", type: "string", required: false }],
+        },
+      ],
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [
+          { path: "notify", applicableWhen: { op: "eq", path: "enabled", value: true } },
+          { path: "contact", applicableWhen: { op: "eq", path: "enabled", value: true } },
+        ],
+      },
+    };
+    document.body.innerHTML = `
+      <form id="defaults">
+        <div data-component="input">
+          <label><input type="radio" name="enabled" value="true">Yes</label>
+          <label><input type="radio" name="enabled" value="false">No</label>
+        </div>
+        <div data-component="input"><input type="checkbox" name="notify" value="true"></div>
+        <div data-component="input"><input name="contact.email" type="email"></div>
+      </form>
+    `;
+    const form = document.getElementById("defaults") as HTMLFormElement;
+    const controller = attachFormController(form, { model: defaultsModel });
+    choose(form, "false");
+    // Raw collection yields notify=false and contact={email:""}; neither was supplied.
+    expect(controller.normalize().values).toEqual({ enabled: false, notify: false, contact: { email: "" } });
+    expect(controller.validate()).toEqual([]);
+    expect(controller.validate({ paths: ["notify", "contact"] })).toEqual([]);
+    expect(controller.effective().values).toEqual({ enabled: false });
+
+    choose(form, "true");
+    const notify = pick(form, 'input[name="notify"]');
+    notify.checked = true;
+    notify.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(controller.validate()).toEqual([]);
+    expect(controller.effective().values).toEqual({ enabled: true, notify: true, contact: { email: "" } });
+    controller.destroy();
+  });
+
+  it("relocates focus only from controls applicability actually hid", () => {
+    const visible = renderReactive("visible");
+    const keepVisible = attachFormController(visible, { model, conditions: { hideInapplicable: false } });
+    choose(visible, "true");
+    const level = pick(visible, 'input[name="level"]');
+    level.focus();
+    expect(document.activeElement).toBe(level);
+    choose(visible, "false");
+    expect(visible.querySelector<HTMLElement>("#level-wrap")!.getAttribute("data-formgen-applicable")).toBe("false");
+    expect(visible.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(false);
+    expect(document.activeElement).toBe(level);
+    keepVisible.destroy();
+
+    const hiding = renderReactive("hiding");
+    const controller = attachFormController(hiding, { model });
+    choose(hiding, "true");
+    const hiddenLevel = pick(hiding, 'input[name="level"]');
+    hiddenLevel.focus();
+    choose(hiding, "false");
+    expect(hiding.querySelector<HTMLElement>("#level-wrap")!.hidden).toBe(true);
+    expect(document.activeElement).not.toBe(hiddenLevel);
+    controller.destroy();
+  });
+});
+
+describe("embedded choice components", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  const model: EmbeddedModel = {
+    fields: [
+      { name: "enabled", type: "boolean", required: true },
+      {
+        name: "level",
+        type: "integer",
+        required: false,
+        validations: [
+          { kind: "min", params: { value: "0" } },
+          { kind: "max", params: { value: "10" } },
+        ],
+      },
+      {
+        name: "colors",
+        type: "array",
+        required: true,
+        items: { name: "color", type: "string", required: false, enum: ["blue", "green"] },
+        validations: [{ kind: "minItems", params: { value: "1" } }, { kind: "uniqueItems" }],
+      },
+    ],
+  };
+
+  // Mirrors the markup emitted by the Go choice/scale/choice-multiple components.
+  function choiceGroup(id: string, name: string, kind: string, type: string, options: Array<[string, string]>): string {
+    return `
+      <div data-component="${kind === "multiple" ? "choice-multiple" : kind === "scale" ? "scale" : "choice"}">
+        <fieldset id="${id}" class="formgen-choice" data-formgen-choice="${kind}" data-field-path="${name.replace("[]", "")}"${kind === "multiple" ? "" : ' role="radiogroup"'} aria-labelledby="${id}-legend">
+          <legend id="${id}-legend">${name}${kind === "multiple" ? '<span class="sr-only" data-formgen-required-hint="true" hidden>(required)</span>' : ""}</legend>
+          <div class="formgen-choice-options" role="presentation">
+            ${options
+              .map(
+                ([value, label], index) => `
+            <label class="formgen-choice-option" for="${id}-${index}" data-formgen-choice-option="true">
+              <input type="${type}" id="${id}-${index}" name="${name}" value="${value}" class="formgen-choice-input" data-formgen-choice-index="${index}">
+              <span class="formgen-choice-text">${label}</span>
+            </label>`
+              )
+              .join("")}
+          </div>
+          <p data-relationship-error="true" role="status" aria-live="polite" aria-atomic="true" id="${id}-error" class="formgen-error" aria-hidden="true"></p>
+        </fieldset>
+      </div>`;
+  }
+
+  function renderChoices(prefix = "fg"): HTMLFormElement {
+    const scale = Array.from({ length: 11 }, (_unused, value) => [encodeEnumValue(value), String(value)] as [string, string]);
+    document.body.innerHTML = `
+      <form id="${prefix}-form">
+        ${choiceGroup(`${prefix}-enabled`, "enabled", "single", "radio", [
+          [encodeEnumValue(true), "Yes"],
+          [encodeEnumValue(false), "No"],
+        ])}
+        ${choiceGroup(`${prefix}-level`, "level", "scale", "radio", scale)}
+        ${choiceGroup(`${prefix}-colors`, "colors[]", "multiple", "checkbox", [
+          ["blue", "Blue"],
+          ["green", "Green"],
+        ])}
+      </form>
+    `;
+    return document.getElementById(`${prefix}-form`) as HTMLFormElement;
+  }
+
+  it("decodes typed selections, keeps false and zero, and starts unanswered (C02, C04, C10)", () => {
+    const form = renderChoices();
+    const controller = attachFormController(form, { model });
+    expect(controller.getValues()).toEqual({});
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:enabled", "required:colors"]);
+
+    const no = form.querySelector<HTMLLabelElement>('label[for="fg-enabled-1"]')!;
+    no.click(); // label activation checks the radio
+    expect(form.querySelector<HTMLInputElement>("#fg-enabled-1")!.checked).toBe(true);
+    const zero = form.querySelector<HTMLInputElement>("#fg-level-0")!;
+    zero.checked = true;
+    zero.dispatchEvent(new Event("change", { bubbles: true }));
+    const blue = form.querySelector<HTMLInputElement>("#fg-colors-0")!;
+    blue.checked = true;
+    blue.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(controller.getValues()).toEqual({ enabled: encodeEnumValue(false), level: encodeEnumValue(0), colors: ["blue"] });
+    expect(controller.normalize()).toEqual({ values: { enabled: false, level: 0, colors: ["blue"] }, issues: [] });
+    expect(controller.validate()).toEqual([]);
+    controller.destroy();
+  });
+
+  it("presents group issues on the fieldset and focuses the first option", () => {
+    const form = renderChoices();
+    const controller = attachFormController(form, { model });
+    const presented = controller.setIssues([
+      { code: "required", path: "enabled", message: "Enable feature is required" },
+      { code: "minItems", path: "colors", message: "Pick at least one color" },
+    ]);
+    expect(presented.field).toHaveLength(2);
+    const enabledGroup = form.querySelector<HTMLElement>("#fg-enabled")!;
+    expect(enabledGroup.getAttribute("data-validation-state")).toBe("invalid");
+    expect(enabledGroup.getAttribute("aria-invalid")).toBe("true");
+    expect(enabledGroup.querySelector("[data-relationship-error]")?.textContent).toBe("Enable feature is required");
+    expect(enabledGroup.querySelectorAll("[data-relationship-error]")).toHaveLength(1);
+    expect(form.querySelector<HTMLElement>("#fg-colors")!.getAttribute("data-validation-state")).toBe("invalid");
+
+    expect(controller.focusIssue("enabled")).toEqual({ focused: true, target: "control", path: "enabled" });
+    expect(document.activeElement).toBe(form.querySelector("#fg-enabled-0"));
+
+    controller.clearIssues();
+    expect(enabledGroup.getAttribute("data-validation-state")).toBeNull();
+    expect(enabledGroup.querySelector("[data-relationship-error]")?.getAttribute("aria-hidden")).toBe("true");
+    controller.destroy();
+  });
+
+  it("hydrates and replaces typed group values and keeps two instances independent (C08, C12)", () => {
+    document.body.innerHTML = "";
+    const formA = renderChoices("a");
+    const bHTML = formA.outerHTML.replace(/a-/g, "b-");
+    document.body.insertAdjacentHTML("beforeend", bHTML);
+    const formB = document.getElementById("b-form") as HTMLFormElement;
+    const controllerA = attachFormController(formA, { model });
+    const controllerB = attachFormController(formB, { model });
+
+    controllerA.setValues({ enabled: true, level: 4, colors: ["blue", "green"] }, { notify: false });
+    expect(controllerA.normalize().values).toEqual({ enabled: true, level: 4, colors: ["blue", "green"] });
+    expect(controllerB.getValues()).toEqual({});
+    expect(formA.querySelector<HTMLInputElement>("#a-level-4")!.checked).toBe(true);
+
+    const snapshot = controllerA.getValues();
+    controllerA.setValues({ enabled: false, colors: [] }, { notify: false });
+    expect(controllerA.normalize().values).toEqual({ enabled: false, level: 4 });
+    controllerA.setValues(snapshot, { mode: "replace", notify: false });
+    expect(controllerA.normalize().values).toEqual({ enabled: true, level: 4, colors: ["blue", "green"] });
+    expect(controllerB.getValues()).toEqual({});
+    controllerA.destroy();
+    controllerB.destroy();
+  });
+
+  it("marks required groups through conditions without forcing every checkbox", () => {
+    const conditional: EmbeddedModel = {
+      ...model,
+      // colors is only conditionally required here; static `required` would keep the marker.
+      fields: model.fields.map((field) => (field.name === "colors" ? { ...field, required: false } : field)),
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "colors", requiredWhen: { op: "eq", path: "enabled", value: true } }],
+      },
+    };
+    const form = renderChoices();
+    const controller = attachFormController(form, { model: conditional });
+    controller.setValues({ enabled: true }, { notify: false });
+    const group = form.querySelector<HTMLElement>("#fg-colors")!;
+    const hint = group.querySelector<HTMLElement>("[data-formgen-required-hint]")!;
+    const members = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="colors[]"]'));
+    // A checkbox fieldset is a plain group: aria-required would be invalid on it
+    // and would demand every box on a member, so requiredness is text plus a marker.
+    expect(group.getAttribute("data-formgen-required")).toBe("true");
+    expect(group.hasAttribute("aria-required")).toBe(false);
+    expect(hint.hidden).toBe(false);
+    expect(members.every((input) => !input.required && !input.hasAttribute("aria-required"))).toBe(true);
+
+    controller.setValues({ enabled: false }, { notify: false });
+    expect(group.hasAttribute("data-formgen-required")).toBe(false);
+    expect(hint.hidden).toBe(true);
+    controller.destroy();
+  });
+
+  it("exposes conditional requiredness on radiogroups through aria-required", () => {
+    const conditional: EmbeddedModel = {
+      ...model,
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "level", requiredWhen: { op: "eq", path: "enabled", value: true } }],
+      },
+    };
+    const form = renderChoices();
+    const controller = attachFormController(form, { model: conditional });
+    controller.setValues({ enabled: true }, { notify: false });
+    const group = form.querySelector<HTMLElement>("#fg-level")!;
+    const members = Array.from(group.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
+    expect(members.length).toBeGreaterThan(0);
+    expect(group.getAttribute("aria-required")).toBe("true");
+    expect(group.getAttribute("data-formgen-required")).toBe("true");
+    // Native `required` on any member makes the radio group required; ARIA
+    // supports `aria-required` on the radiogroup fieldset, not on `radio`.
+    expect(members.every((input) => input.required && !input.hasAttribute("aria-required"))).toBe(true);
+    controller.setValues({ enabled: false }, { notify: false });
+    expect(group.hasAttribute("aria-required")).toBe(false);
+    expect(group.hasAttribute("data-formgen-required")).toBe(false);
+    expect(members.every((input) => !input.required && !input.hasAttribute("aria-required"))).toBe(true);
+    controller.destroy();
+  });
+});
+
+describe("embedded typed snapshots", () => {
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    (globalThis as any).fetch = fetchSpy;
+    setGlobalConfig();
+    resetComponentRegistryForTests();
+    resetGlobalRegistry();
+  });
+
+  afterEach(() => {
+    resetDom();
+    resetGlobalRegistry();
+  });
+
+  const model: EmbeddedModel = {
+    fields: [
+      { name: "enabled", type: "boolean", required: true },
+      { name: "level", type: "integer", required: false, validations: [{ kind: "min", params: { value: "1" } }, { kind: "max", params: { value: "10" } }] },
+      { name: "note", type: "string", required: false },
+      { name: "colors", type: "array", required: false, items: { name: "color", type: "string", required: false, enum: ["blue", "green"] } },
+    ],
+  };
+
+  const MARKUP = `
+    <div data-component="input"><input type="checkbox" name="enabled" value="true"></div>
+    <div data-component="input"><input name="level" type="text"></div>
+    <div data-component="input"><input name="note" type="text"></div>
+    <div data-component="input">
+      <label><input name="colors[]" type="checkbox" value="blue">Blue</label>
+      <label><input name="colors[]" type="checkbox" value="green">Green</label>
+    </div>
+  `;
+
+  function renderSnapshotForm(id = "snap"): HTMLFormElement {
+    document.body.innerHTML = `<form id="${id}">${MARKUP}</form>`;
+    return document.getElementById(id) as HTMLFormElement;
+  }
+
+  function edit(control: HTMLInputElement, action: () => void): void {
+    action();
+    control.dispatchEvent(new Event(control.type === "checkbox" ? "change" : "input", { bubbles: true }));
+  }
+
+  it("publishes finalized snapshots for hydration, reset, and restore", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    const seen: ReturnType<typeof controller.snapshot>[] = [];
+    controller.onChange(() => seen.push(controller.snapshot()));
+    controller.setValues({ note: "saved", enabled: true }, {});
+    expect(seen.at(-1)).toEqual(controller.snapshot());
+    const saved = controller.snapshot();
+    controller.reset({});
+    expect(seen.at(-1)).toEqual(controller.snapshot());
+    expect(seen.at(-1)!.presence.note).toBe("absent");
+    controller.restore(saved);
+    expect(seen.at(-1)).toEqual(saved);
+    expect(controller.snapshot()).toEqual(saved);
+    controller.destroy();
+  });
+
+  it("does not overwrite presence from a reentrant settled subscriber", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    let entered = false;
+    controller.onChange(() => {
+      if (!entered) {
+        entered = true;
+        controller.setValues({ note: null }, { notify: false });
+      }
+    });
+    controller.setValues({ note: "outer" }, {});
+    expect(controller.snapshot().presence.note).toBe("null");
+    expect(controller.snapshot().values.note).toBeNull();
+    controller.destroy();
+  });
+
+  it("distinguishes absent from false, null from empty string, and explicit empty arrays (C01, C02, C10)", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    const untouched = controller.snapshot();
+    expect(untouched.presence).toEqual({ enabled: "absent", level: "absent", note: "absent", colors: "absent" });
+    expect(untouched.values).toEqual({});
+    expect(controller.normalize().values).toEqual({ enabled: false, level: null, note: "" });
+
+    const enabled = form.querySelector<HTMLInputElement>('input[name="enabled"]')!;
+    edit(enabled, () => (enabled.checked = true));
+    edit(enabled, () => (enabled.checked = false));
+    const level = form.querySelector<HTMLInputElement>('input[name="level"]')!;
+    edit(level, () => (level.value = "5"));
+    edit(level, () => (level.value = ""));
+    const note = form.querySelector<HTMLInputElement>('input[name="note"]')!;
+    edit(note, () => (note.value = "draft"));
+    edit(note, () => (note.value = ""));
+    const blue = form.querySelector<HTMLInputElement>('input[value="blue"]')!;
+    edit(blue, () => (blue.checked = true));
+    edit(blue, () => (blue.checked = false));
+
+    const answered = controller.snapshot();
+    expect(answered.presence).toEqual({ enabled: "present", level: "null", note: "present", colors: "present" });
+    expect(answered.values).toEqual({ enabled: false, level: null, note: "", colors: [] });
+    expect(answered.issues).toEqual([]);
+    expect(answered.locked).toEqual([]);
+    expect(controller.getValues()).toEqual({ enabled: false, level: "", note: "" });
+    controller.destroy();
+  });
+
+  it("keeps locked values after controls are disabled and returns independent copies (C15)", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"], note: "keep" }, { notify: false });
+    form.querySelectorAll<HTMLInputElement>("input").forEach((input) => (input.disabled = true));
+    expect(controller.getValues()).toEqual({});
+
+    const locked = controller.snapshot();
+    expect(locked.values).toEqual({ enabled: true, level: 4, note: "keep", colors: ["blue"] });
+    expect(locked.locked.sort()).toEqual(["colors", "enabled", "level", "note"]);
+    expect(locked.presence.enabled).toBe("present");
+
+    (locked.values.colors as string[]).push("green");
+    locked.values.note = "tampered";
+    const again = controller.snapshot();
+    expect(again.values).toEqual({ enabled: true, level: 4, note: "keep", colors: ["blue"] });
+    controller.destroy();
+  });
+
+  it("reports unsafe integers and unknown controls without rounding or guessing", () => {
+    document.body.innerHTML = `<form id="big">${MARKUP}<input name="extra" value="host"></form>`;
+    const form = document.getElementById("big") as HTMLFormElement;
+    const controller = attachFormController(form, { model });
+    const level = form.querySelector<HTMLInputElement>('input[name="level"]')!;
+    edit(level, () => (level.value = "9007199254740993"));
+    const snapshot = controller.snapshot();
+    expect(snapshot.values.level).toBeNull();
+    expect(snapshot.presence.level).toBe("null");
+    expect(snapshot.issues.map((issue) => `${issue.code}:${issue.path}`).sort()).toEqual(["type:level", "unknownField:extra"]);
+    expect(JSON.stringify(snapshot.values)).not.toContain("9007199254740992");
+    controller.destroy();
+  });
+
+  it("restores snapshots into the same root with presence intact and keeps roots independent (C08, C12)", () => {
+    document.body.innerHTML = `<form id="a">${MARKUP}</form><form id="b">${MARKUP}</form>`;
+    const rootA = document.getElementById("a") as HTMLFormElement;
+    const rootB = document.getElementById("b") as HTMLFormElement;
+    const controllerA = attachFormController(rootA, { model });
+    const controllerB = attachFormController(rootB, { model });
+    controllerA.setValues({ enabled: true, level: 4, colors: ["blue"], note: null }, { notify: false });
+    const snapshot = controllerA.snapshot();
+    expect(snapshot.presence).toEqual({ enabled: "present", level: "present", note: "null", colors: "present" });
+    expect(snapshot.values).toEqual({ enabled: true, level: 4, note: null, colors: ["blue"] });
+
+    controllerA.setValues({ enabled: false, level: 9, colors: [], note: "edited" }, { notify: false });
+    const changes = vi.fn();
+    controllerA.onChange(changes);
+    const issues = controllerA.restore(snapshot, { notify: false });
+    expect(issues).toEqual([]);
+    expect(changes).not.toHaveBeenCalled();
+    expect(controllerA.snapshot().values).toEqual(snapshot.values);
+    expect(controllerA.snapshot().presence).toEqual(snapshot.presence);
+    expect(controllerB.snapshot().values).toEqual({});
+
+    const tampered = JSON.parse(
+      '{"version":"formgen.snapshot/v1","values":{"__proto__":{"polluted":true},"ghost":"x","enabled":false},"presence":{"__proto__.polluted":"present","ghost":"present","enabled":"present","rows[01].name":"present"},"retained":{},"issues":[],"locked":[]}'
+    );
+    const reported = controllerA.restore(tampered, { notify: false }).map((issue) => `${issue.code}:${issue.path}`);
+    expect(reported).toEqual(["invalidPath:__proto__.polluted", "unknownField:ghost", "invalidPath:rows[01].name"]);
+    expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined();
+    expect(controllerA.snapshot().values.enabled).toBe(false);
+    controllerA.destroy();
+    controllerB.destroy();
+  });
+
+  it("drops detached rows and keeps retained inactive values separate", () => {
+    const rowsModel: EmbeddedModel = {
+      fields: [
+        { name: "enabled", type: "boolean", required: false },
+        { name: "level", type: "integer", required: false },
+        { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "name", type: "string", required: false }] } },
+      ],
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "level", applicableWhen: { op: "eq", path: "enabled", value: true }, onInapplicable: "retain" }],
+      },
+    };
+    document.body.innerHTML = `
+      <form id="rows">
+        <div data-component="input"><input type="checkbox" name="enabled" value="true"></div>
+        <div data-component="input"><input name="level" type="text"></div>
+        <div>
+          <div data-formgen-array-items="true" data-formgen-array-name="rows" data-formgen-array-next-index="2" data-formgen-array-prototype-path="rows[2]" data-formgen-array-prototype-id-prefix="fg-rows-2">
+            <div data-formgen-array-item="true"><input name="rows[0].name"></div>
+            <div data-formgen-array-item="true"><input name="rows[1].name"><button type="button" data-formgen-array-action="remove">x</button></div>
+            <template data-formgen-array-prototype="true"><div data-formgen-array-item="true"><input id="fg-rows-2-name" name="rows[2].name"></div></template>
+          </div>
+          <button type="button" data-formgen-array-action="add">Add</button>
+        </div>
+      </form>
+    `;
+    const form = document.getElementById("rows") as HTMLFormElement;
+    initArrayRepeaters(form);
+    const controller = attachFormController(form, { model: rowsModel });
+    controller.setValues({ enabled: true, level: 4, rows: [{ name: "first" }, { name: "second" }] }, { notify: false });
+    expect(controller.snapshot().values).toEqual({ enabled: true, level: 4, rows: [{ name: "first" }, { name: "second" }] });
+
+    controller.setValues({ enabled: false }, { notify: false });
+    const retained = controller.snapshot();
+    expect(retained.values).toEqual({ enabled: false, rows: [{ name: "first" }, { name: "second" }] });
+    expect(retained.retained).toEqual({ level: 4 });
+    expect(form.querySelector<HTMLInputElement>('input[name="level"]')!.value).toBe("4");
+
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="remove"]')!.click();
+    const detached = controller.snapshot();
+    expect(detached.issues.map((issue) => `${issue.code}:${issue.path}`)).toEqual(["detached:rows[1].name"]);
+    expect(detached.values).toEqual({ enabled: false, rows: [{ name: "first" }] });
+    expect(controller.snapshot().issues).toEqual([]);
+
+    controller.restore(retained, { notify: false });
+    expect(form.querySelector<HTMLInputElement>('input[name="level"]')!.value).toBe("4");
+    expect(controller.effective().values).toEqual({ enabled: false, rows: [{ name: "first" }] });
+    controller.destroy();
+  });
+
+  it("keeps locked conditional values when every control is disabled (C15 with conditions)", () => {
+    const conditional: EmbeddedModel = {
+      ...model,
+      conditions: {
+        version: "formgen.conditions/v1",
+        rules: [{ path: "level", applicableWhen: { op: "eq", path: "enabled", value: true } }],
+      },
+    };
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model: conditional });
+    controller.setValues({ enabled: true, level: 4, colors: ["blue"] }, { notify: false });
+    form.querySelectorAll<HTMLInputElement>("input").forEach((input) => (input.disabled = true));
+    expect(controller.getValues()).toEqual({});
+    const locked = controller.snapshot();
+    expect(locked.values).toEqual({ enabled: true, level: 4, colors: ["blue"] });
+    expect(locked.locked.sort()).toEqual(["colors", "enabled", "level", "note"]);
+    expect(locked.retained).toEqual({});
+    controller.destroy();
+  });
+
+  it("seeds presence for controls rendered disabled and for added rows", () => {
+    const rowsModel: EmbeddedModel = {
+      fields: [
+        { name: "note", type: "string", required: false },
+        { name: "archived", type: "boolean", required: false },
+        {
+          name: "rows",
+          type: "array",
+          required: false,
+          items: {
+            name: "row",
+            type: "object",
+            required: false,
+            nested: [
+              { name: "name", type: "string", required: false },
+              { name: "flag", type: "boolean", required: false },
+            ],
+          },
+        },
+      ],
+    };
+    document.body.innerHTML = `
+      <form id="seed">
+        <div data-component="input"><input name="note" value="locked note" disabled></div>
+        <div data-component="input"><input type="checkbox" name="archived" value="true" disabled></div>
+        <div>
+          <div data-formgen-array-items="true" data-formgen-array-name="rows" data-formgen-array-next-index="1" data-formgen-array-prototype-path="rows[1]" data-formgen-array-prototype-id-prefix="fg-rows-1">
+            <div data-formgen-array-item="true"><input name="rows[0].name" value="first"><input type="checkbox" name="rows[0].flag" value="true"></div>
+            <template data-formgen-array-prototype="true"><div data-formgen-array-item="true"><input id="fg-rows-1-name" name="rows[1].name"><input type="checkbox" id="fg-rows-1-flag" name="rows[1].flag" value="true"></div></template>
+          </div>
+          <button type="button" data-formgen-array-action="add">Add</button>
+        </div>
+      </form>
+    `;
+    const form = document.getElementById("seed") as HTMLFormElement;
+    initArrayRepeaters(form);
+    const controller = attachFormController(form, { model: rowsModel });
+
+    // Disabled at attach: the rendered value is locked, the unchecked box is absent.
+    const initial = controller.snapshot();
+    expect(initial.locked.sort()).toEqual(["archived", "note"]);
+    expect(initial.presence.note).toBe("present");
+    expect(initial.presence.archived).toBe("absent");
+    expect(initial.values).toEqual({ note: "locked note", rows: [{ name: "first" }] });
+
+    // A new row starts unanswered instead of contributing rendered defaults.
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!.click();
+    expect(form.querySelector('input[name="rows[1].name"]')).not.toBeNull();
+    const added = controller.snapshot();
+    expect(added.presence["rows[1].name"]).toBe("absent");
+    expect(added.presence["rows[1].flag"]).toBe("absent");
+    expect(JSON.stringify(added.values)).not.toContain('"flag"');
+    // The row exists but none of its leaves were answered.
+    expect(added.values).toEqual({ note: "locked note", rows: [{ name: "first" }, {}] });
+    controller.destroy();
+  });
+
+  it("marks omitted paths absent on replace even when the control was already empty", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    const note = form.querySelector<HTMLInputElement>('input[name="note"]')!;
+    controller.setValues({ note: "x", level: 5 }, { notify: false });
+    expect(controller.snapshot().presence.note).toBe("present");
+
+    note.value = ""; // host-side DOM change without an event
+    controller.setValues({ enabled: true }, { mode: "replace", notify: false });
+    const replaced = controller.snapshot();
+    expect(replaced.presence).toEqual({ enabled: "present", level: "absent", note: "absent", colors: "absent" });
+    expect(replaced.values).toEqual({ enabled: true });
+    controller.destroy();
+  });
+
+  it("requires a model and clears presence on destroy", () => {
+    const form = renderSnapshotForm();
+    const plain = attachFormController(form);
+    expect(() => plain.snapshot()).toThrow(/model/);
+    plain.destroy();
+    const controller = attachFormController(form, { model });
+    controller.destroy();
+    expect(controller.snapshot()).toEqual({ version: "formgen.snapshot/v1", values: {}, presence: {}, retained: {}, issues: [], locked: [] });
   });
 });
