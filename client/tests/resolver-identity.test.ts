@@ -21,14 +21,14 @@ for(const [name,runtime] of [['source',source],['shipped',shipped]] as const)des
   // Native selection and callback preserve the literal token-shaped identity.
   Array.from(select.options).forEach(o=>o.selected=o.textContent==='First');select.dispatchEvent(new Event('change',{bubbles:true}));
   expect(c.normalize().values.code).toEqual(first);expect(c.validate()).toEqual([]);
-  expect(new FormData(root).getAll('code')).toEqual([runtime.encodeEnumValue(a)]);
+  expect(new FormData(root).getAll(multiple?'code[]':'code')).toEqual([runtime.encodeEnumValue(a)]);
   const saved=c.snapshot();
   c.setValues({code:second});expect(c.normalize().values.code).toEqual(second);expect(c.validate()).toEqual([]);
   expect(observed.at(-1)).toEqual(second);expect(select.selectedOptions[0].value).toBe(runtime.encodeEnumValue(b));
   expect(updates.at(-1)).toEqual([b]);
   await registry.get(select)!.resolve();expect(c.snapshot().values.code).toEqual(second);
   expect(c.restore(saved,{notify:false})).toEqual([]);expect(c.snapshot().values.code).toEqual(first);
-  expect(select.selectedOptions[0].value).toBe(runtime.encodeEnumValue(a));expect(new FormData(root).getAll('code')).toEqual([runtime.encodeEnumValue(a)]);
+  expect(select.selectedOptions[0].value).toBe(runtime.encodeEnumValue(a));expect(new FormData(root).getAll(multiple?'code[]':'code')).toEqual([runtime.encodeEnumValue(a)]);
   // Reset consumes native tokens, whereas hydration consumes literal IDs.
   Array.from(select.options).forEach(option=>option.defaultSelected=option.textContent==='Second');
   c.reset({notify:false});expect(c.normalize().values.code).toEqual(second);

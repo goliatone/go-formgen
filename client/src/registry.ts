@@ -11,6 +11,7 @@ import {
   getGlobalConfig,
   resolveGlobalConfig,
 } from "./config";
+import { ResolverAbortError } from "./errors";
 import { MemoryCache } from "./state";
 import {
   Resolver,
@@ -239,7 +240,8 @@ export class ResolverRegistry {
     if (!resolver) {
       return undefined;
     }
-    return resolver.create(query);
+    try { return await resolver.create(query); }
+    catch (error) { if (error instanceof ResolverAbortError) return undefined; throw error; }
   }
 
   registerRenderer(name: string, renderer: Renderer): void {

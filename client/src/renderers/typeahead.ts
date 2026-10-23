@@ -624,6 +624,7 @@ async function createAndSelect(store: TypeaheadStore, query: string): Promise<vo
   }
 
   const option = await create(trimmed);
+  if (stores.get(store.select) !== store) return;
   if (!option) {
     return;
   }
@@ -1199,6 +1200,7 @@ async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
         config,
       };
       const result = await config.onCreateAction(context, detail);
+      if (stores.get(store.select) !== store) return;
 
       // Apply returned option (typeahead only accepts single option)
       if (result) {
@@ -1255,6 +1257,7 @@ async function triggerEditAction(store: TypeaheadStore): Promise<void> {
         config,
       };
       const result = await config.onEditAction(context, detail);
+      if (stores.get(store.select) !== store) return;
       if (result) {
         applyUpdatedOption(store, result);
       }

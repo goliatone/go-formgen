@@ -1088,6 +1088,7 @@ async function createAndSelect(store: ChipStore, query: string): Promise<void> {
 
   try {
     const option = await create(trimmed);
+    if (stores.get(store.select) !== store) return;
     if (!option) {
       return;
     }
@@ -1544,6 +1545,7 @@ async function triggerCreateAction(store: ChipStore): Promise<void> {
         config,
       };
       const result = await config.onCreateAction(context, detail);
+      if (stores.get(store.select) !== store) return;
 
       // Apply returned options (chips can accept Option | Option[])
       if (result) {

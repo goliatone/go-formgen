@@ -204,7 +204,7 @@ export function ensureRelationshipSelectionBridge(
   }
   select.dataset.formgenRelationshipSelectionBridge = "true";
 
-  select.addEventListener("change", (event) => {
+  const handler = (event: Event) => {
     const selectedValues = readSelectedValues(select);
     const key = serializeSelection(selectedValues);
     if (lastSelectionByElement.get(select) === key) {
@@ -215,9 +215,20 @@ export function ensureRelationshipSelectionBridge(
       origin: (event as Event).isTrusted ? "ui" : "program",
       selectedValues,
     });
-  });
+  };
+  selectionBridges.set(select, handler);
+  select.addEventListener("change", handler);
 }
 
+export function removeRelationshipSelectionBridge(select: HTMLSelectElement): void {
+  const handler = selectionBridges.get(select);
+  if (handler) select.removeEventListener("change", handler);
+  selectionBridges.delete(select);
+  lastSelectionByElement.delete(select);
+  delete select.dataset.formgenRelationshipSelectionBridge;
+}
+
+const selectionBridges = new WeakMap<HTMLSelectElement, EventListener>();
 const lastSelectionByElement = new WeakMap<HTMLElement, string>();
 
 function readSelectedValues(select: HTMLSelectElement): string[] {

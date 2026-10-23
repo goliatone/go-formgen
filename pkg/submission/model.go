@@ -1,6 +1,7 @@
 package submission
 
 import (
+	"maps"
 	"strings"
 
 	"github.com/goliatone/go-formgen/pkg/model"
@@ -70,10 +71,25 @@ func nextArrayItemField(current model.Field, found bool) (model.Field, bool) {
 	if !found || current.Type != model.FieldTypeArray {
 		return model.Field{}, false
 	}
+	item := model.Field{Name: current.Name, Type: inferEnumType(current.Enum), Enum: current.Enum}
 	if current.Items != nil {
-		return *current.Items, true
+		item = *current.Items
 	}
-	return model.Field{Name: current.Name, Type: inferEnumType(current.Enum), Enum: current.Enum}, true
+	// A select representing the whole array owns item transport even when
+	// Items has no enum. Copy metadata; parsing must not mutate the model.
+	mode := nativeEnumMode(current)
+	if mode != EnumNative {
+		item.Metadata = maps.Clone(item.Metadata)
+		if item.Metadata == nil {
+			item.Metadata = map[string]string{}
+		}
+		if mode == EnumControl {
+			item.Metadata["submission.enumValues"] = "control"
+		} else {
+			item.Metadata["submission.enumValues"] = "literal"
+		}
+	}
+	return item, true
 }
 
 func inferEnumType(values []any) model.FieldType {
@@ -155,4 +171,50 @@ func widgetHint(field model.Field) string {
 		}
 	}
 	return ""
+}
+
+// nativeEnumMode describes the declared control, not the submitted token's
+// spelling. Custom renderers must declare transport when it differs from the
+// model's standard choice/text semantics. No renderer dependency is needed.
+func nativeEnumMode(field model.Field) EnumValueMode {
+	switch strings.TrimSpace(field.Metadata["submission.enumValues"]) {
+	case "control":
+		return EnumControl
+	case "literal":
+		return EnumLiteral
+	}
+	component := strings.TrimSpace(field.UIHints["component"])
+	if component == "" {
+		component = strings.TrimSpace(field.Metadata["component.name"])
+	}
+	if component != "" {
+		switch component {
+		case "select", "choice", "choice-multiple", "scale", "boolean":
+			return EnumControl
+		case "array", "object":
+			return EnumNative
+		default:
+			return EnumLiteral
+		}
+	}
+	switch widgetHint(field) {
+	case "select", "chips", "typeahead", "toggle":
+		return EnumControl
+	case "textarea", "json-editor", "code-editor", "wysiwyg", "rich-text", "rich_text":
+		return EnumLiteral
+	}
+	if hasNativeChoiceValues(field) {
+		return EnumControl
+	}
+	if field.Type == model.FieldTypeObject || field.Type == model.FieldTypeArray {
+		return EnumNative
+	}
+	return EnumLiteral
+}
+
+func hasNativeChoiceValues(field model.Field) bool {
+	return len(field.Enum) > 0 || len(field.Options) > 0 || field.Relationship != nil ||
+		field.Metadata["relationship.endpoint.url"] != "" || field.UIHints["input"] == "select" ||
+		field.UIHints["collectionRenderer"] == "select" || field.UIHints["collectionRenderer"] == "chips" ||
+		field.Type == model.FieldTypeBoolean
 }

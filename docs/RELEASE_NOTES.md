@@ -8,7 +8,7 @@ Version boundary verified on 2026-10-23:
 | --- | --- |
 | v0.33.2 / runtime 0.0.19 | Original integration evaluation baseline. |
 | Local module tag v0.34.0 / runtime 0.0.19 | Embedded primitives and the 2026-10-22 integrated repairs. |
-| v0.34.1 candidate / runtime 0.34.1 | Post-v0.34.0 correctness repairs, coordinated release identity/verification, portable definition preflight and guarded host integration recipes, including the seven 2026-10-23 review repairs. Not tagged or published. |
+| v0.34.1 candidate / runtime 0.34.1 | Post-v0.34.0 correctness repairs, coordinated release identity/verification, portable definition preflight and guarded host integration recipes, including the subsequent lifecycle, submission and numeric review repairs. Candidate awaits fresh exact-commit verification; not tagged or published. |
 
 The five post-tag repairs are absent from v0.34.0; that tag remains immutable.
 The candidate uses one shared version from `.version`, package.json and lock roots.
@@ -18,6 +18,11 @@ full build fingerprint and output checksums. Runtime exports/logs include versio
 and fingerprint; historical 0.0.19 alone cannot identify an artifact.
 
 ### v0.34.1 candidate evidence
+
+The latest repairs require fresh exact-commit verification. Earlier exact-SHA
+CI evidence belongs to its recorded commit and does not verify these changes.
+Run exact-candidate verification against the final reviewed commit and retain
+fresh matching hosted evidence before publication or host pinning.
 
 The exact source commit and fixture commit/hashes are emitted by
 `./taskfile release:verify` into `.tmp/release/evidence.json`, alongside the verified
@@ -49,6 +54,24 @@ Local verification is explicitly labeled `provider: local`.
   inspect native select values through the enum codec rather than assuming raw IDs.
 - Diagnose keyword-named schema fields and exact decimal bound overflows; reject
   sparse or non-plain host row mappings before snapshot capture/restoration.
+
+### Native submission and numeric migration
+
+- `ParseValues` now defaults to field-aware `EnumNative`: standard choices and
+  relationship controls decode one token layer; ordinary text, textarea and hidden
+  data stay literal. Explicit component hints override inferred enum controls.
+  Custom/sparse models declare `metadata["submission.enumValues"]` as `"control"`
+  or `"literal"`. Explicit `WithEnumValues(EnumControl)` preserves old whole-payload
+  decoding; generic ParseMap/ParseJSON auto defaults remain unchanged.
+- Non-finite numbers report `type` during parsing/direct validation. JSON integers
+  use exact decimal/exponent checks within int64 bounds; no floating-point rounding
+  can turn a fraction or overflow into an accepted integer.
+- Each relationship select owns its submission mirror and teardown. A single native
+  channel submits each selected value once. Modern formdata-capable engines read
+  live disabled/option state at serialization; see client README for fallback timing.
+- Resolver cancellation extends beyond fetch to delayed hooks and cache results;
+  superseded/disposed operations cannot render or publish success after reentry.
+  Portable preflight follows schema/OpenAPI structure and leaves examples opaque.
 
 ## Vanilla Grid Layout Without Inline Styles (v0.34.0)
 

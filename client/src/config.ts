@@ -236,6 +236,8 @@ export interface FetchResult {
 }
 
 export interface RendererContext {
+  /** Async renderers must check this before committing delayed DOM work. */
+  signal?: AbortSignal;
   element: HTMLElement;
   field: FieldConfig;
   options: Option[];

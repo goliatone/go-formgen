@@ -43,12 +43,15 @@ type EnumValueMode int
 
 const (
 	// EnumAuto preserves legacy generic-map behavior: declared strings are
-	// literals, otherwise valid tokens decode. ParseValues resolves auto to control.
+	// literals, otherwise valid tokens decode. ParseValues resolves auto to native.
 	EnumAuto EnumValueMode = iota
 	// EnumControl decodes one transport layer, even when the token is declared.
 	EnumControl
 	// EnumLiteral preserves strings from an already typed payload.
 	EnumLiteral
+	// EnumNative uses field transport provenance: choices decode once, text
+	// stays literal, and structural containers delegate to their children.
+	EnumNative
 )
 
 // Options customize parsing and validation behavior.
@@ -109,7 +112,9 @@ func WithEmptyStrings(policy EmptyStringPolicy) Option {
 
 // WithEnumValues selects the source of enum values. Use EnumLiteral for typed
 // JSON and EnumControl for encoded control payloads. ParseMap/ParseJSON retain
-// EnumAuto by default; native ParseValues defaults to EnumControl.
+// EnumAuto by default; ParseValues defaults to field-aware EnumNative.
+// In native mode, custom controls can declare metadata submission.enumValues
+// as "control" or "literal". Explicit global modes override field inference.
 func WithEnumValues(mode EnumValueMode) Option {
 	return func(opts *Options) { opts.EnumValues = mode }
 }

@@ -179,6 +179,66 @@
       "name": "exact bound 1e-309",
       "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"1e-309\"}}]}]}",
       "accepted": false
+    },
+    {
+      "name": "schema example annotations are opaque",
+      "source": "{\"type\":\"object\",\"example\":{\"type\":\"integer\",\"pattern\":\".*\",\"default\":9007199254740993},\"examples\":[{\"pattern\":\".*\",\"maximum\":1e309}],\"properties\":{\"answer\":{\"type\":\"string\"}}}",
+      "accepted": true,
+      "sourceOnly": true
+    },
+    {
+      "name": "OpenAPI media examples are opaque",
+      "source": "{\"openapi\":\"3.1.0\",\"paths\":{\"/answers\":{\"post\":{\"requestBody\":{\"content\":{\"application/json\":{\"schema\":{\"type\":\"string\"},\"example\":{\"pattern\":\".*\",\"default\":9007199254740993},\"examples\":{\"bad\":{\"value\":{\"pattern\":\".*\",\"minimum\":1e309}}}}}}}}}}",
+      "accepted": true,
+      "sourceOnly": true
+    },
+    {
+      "name": "OpenAPI component examples are opaque",
+      "source": "{\"openapi\":\"3.1.0\",\"components\":{\"examples\":{\"schema\":{\"value\":{\"type\":\"integer\",\"pattern\":\".*\",\"default\":9007199254740993}}},\"schemas\":{\"Actual\":{\"type\":\"string\"}}}}",
+      "accepted": true,
+      "sourceOnly": true
+    },
+    {
+      "name": "schema property named examples is checked",
+      "source": "{\"properties\":{\"examples\":{\"pattern\":\".*\"}}}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "OpenAPI schema named examples is checked",
+      "source": "{\"openapi\":\"3.1.0\",\"components\":{\"schemas\":{\"examples\":{\"default\":9007199254740993}}}}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "literal default still checks numeric precision",
+      "source": "{\"type\":\"object\",\"default\":{\"pattern\":\".*\",\"default\":9007199254740993}}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "model option metadata is opaque",
+      "source": "{\"fields\":[{\"name\":\"answer\",\"type\":\"string\",\"options\":[{\"value\":\"a\",\"metadata\":{\"pattern\":\".*\",\"default\":9007199254740993}}]}]}",
+      "accepted": true,
+      "sourceOnly": true
+    },
+    {
+      "name": "schema conditional constraints are checked",
+      "source": "{\"if\":{\"properties\":{\"answer\":{\"pattern\":\".*\"}}},\"then\":{\"maximum\":9007199254740993}}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "OpenAPI parameter schemas are checked",
+      "source": "{\"openapi\":\"3.1.0\",\"components\":{\"parameters\":{\"examples\":{\"in\":\"query\",\"name\":\"answer\",\"schema\":{\"pattern\":\".*\"},\"example\":{\"pattern\":\".*\"}}}}}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "OpenAPI callbacks are checked",
+      "source": "{\"openapi\":\"3.1.0\",\"components\":{\"callbacks\":{\"changed\":{\"{$request.body#/url}\":{\"post\":{\"responses\":{\"200\":{\"content\":{\"application/json\":{\"schema\":{\"pattern\":\".*\"}}}}}}}}}}}",
+      "accepted": false,
+      "sourceOnly": true
     }
   ]
 }

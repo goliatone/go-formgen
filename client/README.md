@@ -71,6 +71,9 @@ machine-readable definition locations and exits nonzero on invalid/unsupported
 input. `model.DiagnosePortableDefinitionJSON` uses lossless JSON numbers; run it
 before OpenAPI/JSON Schema adapters. `model.DiagnosePortableModel` checks Go model
 values before transport but cannot recover precision already lost upstream.
+Source preflight follows schema/OpenAPI definition positions: example payloads,
+annotations and host metadata stay opaque. Numeric defaults, enum/option values,
+bounds and condition values remain checked, including literal object members.
 After browser parsing, `preflightEmbeddedDefinition(model)` checks portable
 patterns and representable numeric definitions; it cannot reconstruct original
 numeric spelling. Reject diagnostics before rendering/attaching a browser form.
@@ -285,9 +288,15 @@ Behavior notes:
   decode choice/select tokens once, preserve ordinary text literally, and restore
   snapshots in literal mode.
   This keeps distinct strings separate even when one equals another's token.
-  Go `ParseValues` uses control mode; `ParseMap`/`ParseJSON` keep auto defaults
-  and accept `submission.WithEnumValues(submission.EnumLiteral)` for typed JSON
-  or `EnumControl` for encoded maps. Model-backed hydration matches normalized
+  Go `ParseValues` defaults to `EnumNative`: the model identifies choice transport,
+  while ordinary text/textarea/hidden values remain literal. Explicit component
+  overrides take precedence over enums; array choices pass their transport mode
+  to indexed items. Custom renderers or sparse host models must declare field
+  `metadata["submission.enumValues"]` as `"control"` or `"literal"` when their
+  controls differ from the standard model semantics. `ParseMap`/`ParseJSON` keep
+  auto defaults; `WithEnumValues(EnumLiteral)` accepts typed JSON and explicit
+  `EnumControl` retains legacy whole-payload decoding. Do not use a global mode
+  to compensate for mixed text and choice controls. Model-backed hydration matches normalized
   items, so a scalar multi-choice code selects only its matching option.
   Resolver `Option.value`, `current`, hydration, request parameters and widget
   action/update events carry literal string IDs. Built-in select, typeahead and
@@ -299,6 +308,11 @@ Behavior notes:
   `ParseValues` decodes this transport once, including forms mixing resolver IDs
   with typed choices. Hosts decoding JSON mirrors themselves must retain that
   control-source distinction (`EnumControl`), while normalized JSON is literal.
+- Server numbers must be finite. NaN and infinities report `type` issues during
+  parsing and direct validation. JSON integer decimal/exponent spellings are
+  checked exactly against int64 bounds before conversion; fractional or overflowing
+  values are rejected without rounding. Browser integers retain their narrower
+  safe-integer limit.
 - Validation mirrors Go: `required` for missing or null values (`false`/`0`
   pass), `type`, `enum`, `min`/`max` (with `exclusive`), `minLength`/`maxLength`
   counted in Unicode code points, `pattern` (portable subset only; Go uses RE2),
@@ -450,7 +464,20 @@ registry and does not mutate page-wide resolver state. Always pass its returned
 registry to `attachFormController`; controller hydration and teardown then stay
 within that root. Teardown removes refresh/search listeners, cancels pending
 debounce/throttle work, disposes enhanced widgets/components/repeaters, and
-clears binding markers so the same DOM root can be initialized again.
+clears binding markers so the same DOM root can be initialized again. Pending
+resolver work is invalidated at each async boundary; newer refreshes and explicit
+hydration take precedence. Async custom renderers must check `context.signal`
+before committing delayed DOM changes. Hosts must likewise cancel side effects
+inside their own async hooks.
+
+Array and JSON relationship mirrors are owned by each select. They supply one
+native submission channel, preserve transport tokens and exclude disabled
+controls/options (including disabled fieldsets and optgroups); readonly values
+remain successful. Modern engines recompute entries during `formdata`, including
+same-turn programmatic changes. In engines without that event, use controller
+hydration or dispatch `change` after direct selection/disabled changes before
+constructing `FormData`. Teardown removes mirror resources and restores the
+native select name.
 `initRelationships` remains the page-wide initializer.
 
 `Option` supports `value`, `label`, `description`, `disabled`, and `meta`.

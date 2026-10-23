@@ -73,8 +73,8 @@ func TestEnumHelpersRoundTripTypedValues(t *testing.T) {
 
 func TestResolverStringIDsUseNativeEnumTransport(t *testing.T) {
 	form := model.FormModel{Fields: []model.Field{
-		{Name: "code", Type: model.FieldTypeString},
-		{Name: "codes", Type: model.FieldTypeArray, Items: &model.Field{Type: model.FieldTypeString}},
+		{Name: "code", Type: model.FieldTypeString, Metadata: map[string]string{"submission.enumValues": "control"}},
+		{Name: "codes", Type: model.FieldTypeArray, Items: &model.Field{Type: model.FieldTypeString}, UIHints: map[string]string{"component": "select"}},
 		{Name: "enabled", Type: model.FieldTypeBoolean},
 	}}
 	first := submission.EncodeEnumValue(false)
