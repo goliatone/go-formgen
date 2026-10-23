@@ -64,7 +64,12 @@ export async function verify(root, ref = 'HEAD', execute = run) {
     const client = resolve(source, 'client');
     execute(client, 'npm', ['ci']);
     execute(client, 'npm', ['run', 'build']);
-    if (await readFile(resolve(source, manifestPath), 'utf8') !== expected) throw Error('Candidate build is not reproducible');
+    const rebuilt = await readFile(resolve(source, manifestPath), 'utf8');
+    if (rebuilt !== expected) {
+      const before=JSON.parse(expected),after=JSON.parse(rebuilt);
+      const changed=[...new Set([...Object.keys(before.artifacts),...Object.keys(after.artifacts)])].filter(path=>before.artifacts[path]!==after.artifacts[path]);
+      throw Error(`Candidate build is not reproducible; input fingerprint ${before.fingerprint} -> ${after.fingerprint}; differing artifacts: ${changed.slice(0,8).join(', ')}`);
+    }
     const manifest = await identityCheck(source);
     // Compare all committed embedded copies to regenerated ones, not just the manifest.
     for (const [path, hash] of Object.entries(manifest.artifacts)) {

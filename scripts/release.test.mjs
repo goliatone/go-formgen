@@ -109,6 +109,9 @@ test('manifest detects stale inputs, outputs, missing files and embedded copy dr
   await writeFile(resolve(root,'client/dist/esm/index.js'),'export{}');await writeFile(resolve(root,'client/dist/types/index.d.ts'),'export{}');
   for(const [source,targets]of Object.entries(copies))for(const path of [source,...targets]){await mkdir(dirname(resolve(root,path)),{recursive:true});await writeFile(resolve(root,path),'output');}
   await writeManifest(root);await checkManifest(root);
+  await mkdir(resolve(root,'examples/nested/.gomodcache/dependency'),{recursive:true});
+  await writeFile(resolve(root,'examples/nested/.gomodcache/dependency/noise.go'),'cached Go module');
+  await checkManifest(root);
   await writeFile(resolve(root,'client/src/change.ts'),'changed');await assert.rejects(checkManifest(root),/manifest differs/);await writeManifest(root);
   await writeFile(resolve(root,'client/dist/esm/index.js'),'stale');await assert.rejects(checkManifest(root),/manifest differs/);await writeManifest(root);
   await writeFile(resolve(root,'pkg/runtime/assets/formgen-relationships.min.js'),'drift');await assert.rejects(checkManifest(root),/Stale embedded/);

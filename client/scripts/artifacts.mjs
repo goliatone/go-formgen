@@ -10,7 +10,7 @@ export const json = async path => JSON.parse(await readFile(path, 'utf8'));
 export async function files(root, dir) {
   const out = [];
   for (const entry of await readdir(resolve(root, dir), { withFileTypes: true })) {
-    if (['node_modules', 'dist', '.git', '.cache'].includes(entry.name)) continue;
+    if (entry.name.startsWith('.') || ['node_modules', 'dist'].includes(entry.name)) continue;
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory()) out.push(...await files(root, path));
     else if (entry.isFile()) out.push(path);
