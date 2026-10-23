@@ -3,6 +3,17 @@ import type {
   RelationshipCurrent,
   RelationshipCurrentItem,
 } from "./config";
+import { decodeEnumValue, encodeEnumControlValue } from "./embedded-values";
+
+/** Relationship APIs use literal string IDs; only native options carry transport. */
+export function relationshipOptionValue(option: HTMLOptionElement): string {
+  const decoded = decodeEnumValue(option.value);
+  return decoded.encoded && typeof decoded.value === "string" ? decoded.value : option.value;
+}
+
+export function setRelationshipOptionValue(option: HTMLOptionElement, value: string): void {
+  option.value = encodeEnumControlValue(value);
+}
 
 export function relationshipCurrentItemValue(item: RelationshipCurrentItem): string {
   return typeof item === "string" ? item.trim() : String(item.value ?? "").trim();

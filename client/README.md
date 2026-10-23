@@ -289,6 +289,16 @@ Behavior notes:
   and accept `submission.WithEnumValues(submission.EnumLiteral)` for typed JSON
   or `EnumControl` for encoded maps. Model-backed hydration matches normalized
   items, so a scalar multi-choice code selects only its matching option.
+  Resolver `Option.value`, `current`, hydration, request parameters and widget
+  action/update events carry literal string IDs. Built-in select, typeahead and
+  chips renderers use `encodeEnumControlValue(id)` at the native option boundary;
+  ordinary IDs remain unchanged, while reserved-prefix strings are escaped once.
+  Custom select renderers must use the same exported helper when assigning
+  `option.value`. Read `normalize()` or snapshots for logical IDs; `getValues()`,
+  native form fields and submission mirrors carry control transport. Go
+  `ParseValues` decodes this transport once, including forms mixing resolver IDs
+  with typed choices. Hosts decoding JSON mirrors themselves must retain that
+  control-source distinction (`EnumControl`), while normalized JSON is literal.
 - Validation mirrors Go: `required` for missing or null values (`false`/`0`
   pass), `type`, `enum`, `min`/`max` (with `exclusive`), `minLength`/`maxLength`
   counted in Unicode code points, `pattern` (portable subset only; Go uses RE2),

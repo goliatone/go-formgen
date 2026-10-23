@@ -8,7 +8,7 @@ Version boundary verified on 2026-10-23:
 | --- | --- |
 | v0.33.2 / runtime 0.0.19 | Original integration evaluation baseline. |
 | Local module tag v0.34.0 / runtime 0.0.19 | Embedded primitives and the 2026-10-22 integrated repairs. |
-| v0.34.1 candidate / runtime 0.34.1 | Five post-v0.34.0 correctness repairs, coordinated release identity/verification, portable definition preflight and guarded host integration recipes. Not tagged or published. |
+| v0.34.1 candidate / runtime 0.34.1 | Post-v0.34.0 correctness repairs, coordinated release identity/verification, portable definition preflight and guarded host integration recipes, including the seven 2026-10-23 review repairs. Not tagged or published. |
 
 The five post-tag repairs are absent from v0.34.0; that tag remains immutable.
 The candidate uses one shared version from `.version`, package.json and lock roots.
@@ -40,6 +40,15 @@ Local verification is explicitly labeled `provider: local`.
   unchanged; definition revisions/mapping mismatches need explicit host migration.
 - Add synthetic authoring fixtures and lifecycle/accessibility recipes. Shared
   tests and CI do not establish WKWebView, iPad, VoiceOver or clinical acceptance.
+- Pin verification, tag creation and push to immutable commit/tag objects. Recheck
+  the candidate after tests and packaging; verify packed and retained bytes before
+  exposing passing evidence. Hidden build inputs affect identity; fixture mutation
+  invalidates verification.
+- Preserve token-shaped resolver IDs through native transport, widgets, hydration,
+  reset, snapshots, callbacks and native Go parsing. Keep request/API IDs literal;
+  inspect native select values through the enum codec rather than assuming raw IDs.
+- Diagnose keyword-named schema fields and exact decimal bound overflows; reject
+  sparse or non-plain host row mappings before snapshot capture/restoration.
 
 ## Vanilla Grid Layout Without Inline Styles (v0.34.0)
 

@@ -49,123 +49,155 @@ func DiagnosePortableDefinitionJSON(data []byte) ([]DefinitionDiagnostic, error)
 	if err := dec.Decode(new(any)); err != io.EOF {
 		return nil, fmt.Errorf("portable definition: expected one JSON document")
 	}
-	var out []DefinitionDiagnostic
-	add := func(code, path, message string) {
-		out = append(out, DefinitionDiagnostic{Code: code, Path: path, Message: message})
+	var check portableDefinitionCheck
+	check.walk(root, "#")
+	return check.diagnostics, nil
+}
+
+type portableDefinitionCheck struct {
+	diagnostics []DefinitionDiagnostic
+}
+
+func (c *portableDefinitionCheck) add(code, path, message string) {
+	c.diagnostics = append(c.diagnostics, DefinitionDiagnostic{Code: code, Path: path, Message: message})
+}
+
+func (c *portableDefinitionCheck) checkNumber(text, path string) {
+	if !regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`).MatchString(text) || len(text) > 128 {
+		c.add("unsafeDefinitionNumber", path, "Numeric definition exceeds portable precision")
+		return
 	}
-	limit := big.NewRat(9007199254740991, 1)
-	checkNumber := func(text, path string) {
-		if !regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`).MatchString(text) || len(text) > 128 {
-			add("unsafeDefinitionNumber", path, "Numeric definition exceeds portable precision")
+	if !portableExponent(text) {
+		c.add("unsafeDefinitionNumber", path, "Numeric exponent exceeds portable range")
+		return
+	}
+	number, ok := new(big.Rat).SetString(text)
+	if !ok || new(big.Rat).Abs(number).Cmp(big.NewRat(9007199254740991, 1)) > 0 {
+		c.add("unsafeDefinitionNumber", path, "Browser definition number exceeds the portable range")
+	}
+}
+
+func portableExponent(text string) bool {
+	at := strings.IndexAny(text, "eE")
+	if at < 0 {
+		return true
+	}
+	exponent, err := strconv.Atoi(text[at+1:])
+	return err == nil && exponent <= 308 && exponent >= -308
+}
+
+func portablePointer(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
+}
+
+func (c *portableDefinitionCheck) numbers(value any, path string) {
+	switch v := value.(type) {
+	case json.Number:
+		c.checkNumber(string(v), path)
+	case []any:
+		for i, item := range v {
+			c.numbers(item, fmt.Sprintf("%s/%d", path, i))
+		}
+	case map[string]any:
+		for _, key := range sortedPortableKeys(v) {
+			c.numbers(v[key], path+"/"+portablePointer(key))
+		}
+	}
+}
+
+func (c *portableDefinitionCheck) walk(value any, path string) {
+	switch v := value.(type) {
+	case json.Number:
+		c.checkNumber(string(v), path)
+	case []any:
+		for i, item := range v {
+			c.walk(item, fmt.Sprintf("%s/%d", path, i))
+		}
+	case map[string]any:
+		c.checkDefinition(v, path)
+		// Sort keys so diagnostics are reproducible, independent of Go map iteration.
+		for _, key := range sortedPortableKeys(v) {
+			c.walkProperty(key, v[key], path+"/"+portablePointer(key))
+		}
+	}
+}
+
+func (c *portableDefinitionCheck) checkDefinition(v map[string]any, path string) {
+	// Supported inputs are raw JSON Schema/OpenAPI or serialized FormModel.
+	if pattern, ok := v["pattern"].(string); ok && !IsPortablePattern(pattern) {
+		c.add("unsupportedPattern", path+"/pattern", "Pattern is outside the portable ASCII grammar")
+	}
+	if kind, _ := v["kind"].(string); kind == "min" || kind == "max" {
+		params, _ := v["params"].(map[string]any)
+		if bound, ok := params["value"].(string); ok {
+			c.checkNumber(bound, path+"/params/value")
+		}
+	}
+	items, _ := v["items"].(map[string]any)
+	if v["type"] == "integer" || v["type"] == "array" && items["type"] == "integer" {
+		c.checkIntegerDefinition(v, path)
+	}
+}
+
+func (c *portableDefinitionCheck) checkIntegerDefinition(v map[string]any, path string) {
+	c.checkInteger(v["default"], path+"/default")
+	c.checkInteger(v["enum"], path+"/enum")
+	options, _ := v["options"].([]any)
+	for i, option := range options {
+		if object, ok := option.(map[string]any); ok {
+			c.checkInteger(object["value"], fmt.Sprintf("%s/options/%d/value", path, i))
+		}
+	}
+}
+
+func (c *portableDefinitionCheck) checkInteger(candidate any, path string) {
+	switch v := candidate.(type) {
+	case []any:
+		for i, item := range v {
+			c.checkInteger(item, fmt.Sprintf("%s/%d", path, i))
+		}
+	case json.Number:
+		// The numeric walk reports overlong numbers and out-of-range exponents.
+		if len(v) > 128 || !portableExponent(string(v)) {
 			return
 		}
-		if at := strings.IndexAny(text, "eE"); at >= 0 {
-			exponent, err := strconv.Atoi(text[at+1:])
-			if err != nil || exponent > 308 || exponent < -308 {
-				add("unsafeDefinitionNumber", path, "Numeric exponent exceeds portable range")
-				return
-			}
+		r, valid := new(big.Rat).SetString(string(v))
+		if !valid || !r.IsInt() {
+			c.add("invalidDefinitionInteger", path, "Integer definitions require integral values")
 		}
-		number, ok := new(big.Rat).SetString(text)
-		if !ok || new(big.Rat).Abs(number).Cmp(limit) > 0 {
-			add("unsafeDefinitionNumber", path, "Browser definition number exceeds the portable range")
+	default:
+		if candidate != nil {
+			c.add("invalidDefinitionInteger", path, "Integer definitions require integral numeric values")
 		}
 	}
-	pointer := func(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1") }
-	var numbers func(any, string)
-	numbers = func(value any, path string) {
-		switch v := value.(type) {
-		case json.Number:
-			checkNumber(string(v), path)
-		case []any:
-			for i, item := range v {
-				numbers(item, fmt.Sprintf("%s/%d", path, i))
-			}
-		case map[string]any:
-			for _, key := range sortedPortableKeys(v) {
-				numbers(v[key], path+"/"+pointer(key))
-			}
+}
+
+func (c *portableDefinitionCheck) walkProperty(key string, value any, path string) {
+	if key == "x-formgen" {
+		if extension, ok := value.(map[string]any); ok {
+			c.numbers(extension["conditions"], path+"/conditions")
 		}
+		return
 	}
-	var walk func(any, string)
-	walk = func(value any, path string) {
-		switch v := value.(type) {
-		case json.Number:
-			checkNumber(string(v), path)
-		case []any:
-			for i, item := range v {
-				walk(item, fmt.Sprintf("%s/%d", path, i))
+	if strings.HasPrefix(key, "x-") || key == "metadata" || key == "uiHints" {
+		return
+	}
+	switch key {
+	// These objects are dictionaries of names, not definition nodes.
+	// A question/component may itself be named metadata, default or x-*.
+	case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "schemas", "paths", "webhooks", "responses", "requestBodies", "parameters", "headers", "content", "callbacks":
+		if named, ok := value.(map[string]any); ok {
+			for _, name := range sortedPortableKeys(named) {
+				c.walk(named[name], path+"/"+portablePointer(name))
 			}
-		case map[string]any:
-			// Supported inputs are raw JSON Schema/OpenAPI or serialized FormModel.
-			if pattern, ok := v["pattern"].(string); ok && !IsPortablePattern(pattern) {
-				add("unsupportedPattern", path+"/pattern", "Pattern is outside the portable ASCII grammar")
-			}
-			if kind, _ := v["kind"].(string); kind == "min" || kind == "max" {
-				if params, ok := v["params"].(map[string]any); ok {
-					if bound, ok := params["value"].(string); ok {
-						checkNumber(bound, path+"/params/value")
-					}
-				}
-			}
-			items, _ := v["items"].(map[string]any)
-			if v["type"] == "integer" || v["type"] == "array" && items["type"] == "integer" {
-				var checkInteger func(any, string)
-				checkInteger = func(candidate any, location string) {
-					if items, ok := candidate.([]any); ok {
-						for i, item := range items {
-							checkInteger(item, fmt.Sprintf("%s/%d", location, i))
-						}
-					} else if n, ok := candidate.(json.Number); ok {
-						if len(n) > 128 {
-							return
-						}
-						if at := strings.IndexAny(string(n), "eE"); at >= 0 {
-							e, err := strconv.Atoi(string(n)[at+1:])
-							if err != nil || e > 308 || e < -308 {
-								return
-							}
-						}
-						r, valid := new(big.Rat).SetString(string(n))
-						if !valid || !r.IsInt() {
-							add("invalidDefinitionInteger", location, "Integer definitions require integral values")
-						}
-					} else if candidate != nil {
-						add("invalidDefinitionInteger", location, "Integer definitions require integral numeric values")
-					}
-				}
-				checkInteger(v["default"], path+"/default")
-				checkInteger(v["enum"], path+"/enum")
-				if options, ok := v["options"].([]any); ok {
-					for i, option := range options {
-						if object, ok := option.(map[string]any); ok {
-							checkInteger(object["value"], fmt.Sprintf("%s/options/%d/value", path, i))
-						}
-					}
-				}
-			}
-			// Sort keys so diagnostics are reproducible, independent of Go map iteration.
-			for _, key := range sortedPortableKeys(v) {
-				if key == "x-formgen" {
-					if extension, ok := v[key].(map[string]any); ok {
-						numbers(extension["conditions"], path+"/x-formgen/conditions")
-					}
-					continue
-				}
-				if strings.HasPrefix(key, "x-") || key == "metadata" || key == "uiHints" {
-					continue
-				}
-				switch key {
-				case "default", "enum", "const", "options", "conditions":
-					numbers(v[key], path+"/"+pointer(key))
-				default:
-					walk(v[key], path+"/"+pointer(key))
-				}
-			}
+		} else {
+			c.walk(value, path)
 		}
+	case "default", "enum", "const", "options", "conditions":
+		c.numbers(value, path)
+	default:
+		c.walk(value, path)
 	}
-	walk(root, "#")
-	return out, nil
 }
 
 // DiagnosePortableModel checks losslessly represented Go values before JSON transport.

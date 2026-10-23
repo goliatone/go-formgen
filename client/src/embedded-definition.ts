@@ -17,6 +17,24 @@ export function isPortablePattern(pattern: string): boolean {
   try { new RegExp(pattern); return true; } catch { return false; }
 }
 
+/** Compare a bounded JSON decimal lexeme without first rounding it to binary64. */
+function isPortableBound(text: string): boolean {
+  if (typeof text !== 'string' || text.length > 128 || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(text)) return false;
+  const [coefficient, exponentText = '0'] = text.replace(/^-/, '').split(/[eE]/);
+  const exponent = Number(exponentText);
+  if (Math.abs(exponent) > 308) return false;
+  const [whole, fraction = ''] = coefficient.split('.');
+  const digits = (whole + fraction).replace(/^0+/, '');
+  if (!digits) return true;
+  const decimalPlaces = fraction.length - exponent;
+  const integerLength = digits.length - decimalPlaces;
+  const limit = '9007199254740991';
+  if (integerLength !== limit.length) return integerLength < limit.length;
+  const integer = digits.slice(0, integerLength).padEnd(integerLength, '0');
+  if (integer !== limit) return integer < limit;
+  return !/[1-9]/.test(digits.slice(integerLength));
+}
+
 /** Opt-in preflight; run lossless Go JSON preflight before parsing definitions in JS. */
 export function preflightEmbeddedDefinition(input: EmbeddedModelInput): DefinitionDiagnostic[] {
   const out: DefinitionDiagnostic[] = [];
@@ -39,7 +57,7 @@ export function preflightEmbeddedDefinition(input: EmbeddedModelInput): Definiti
     field.validations?.forEach((rule,i) => {
       const loc = `${path}/validations/${i}/params`;
       if (rule.kind === 'pattern' && !isPortablePattern(rule.params?.pattern ?? '')) add('unsupportedPattern', `${loc}/pattern`, 'Pattern is outside the portable ASCII grammar');
-      if (['min','max'].includes(rule.kind) && ((rule.params?.value?.length ?? 0)>128 || Math.abs(Number((rule.params?.value??'').split(/[eE]/)[1]??'0'))>308 || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(rule.params?.value ?? '') || !Number.isFinite(Number(rule.params?.value)) || Math.abs(Number(rule.params?.value)) > Number.MAX_SAFE_INTEGER)) add('unsafeDefinitionNumber', `${loc}/value`, 'Browser bound exceeds the portable range');
+      if (['min','max'].includes(rule.kind) && !isPortableBound(rule.params?.value ?? '')) add('unsafeDefinitionNumber', `${loc}/value`, 'Browser bound exceeds the portable range');
     });
     field.nested?.forEach((child,i) => walk(child, `${path}/nested/${i}`));
     if (field.items) walk(field.items, `${path}/items`);

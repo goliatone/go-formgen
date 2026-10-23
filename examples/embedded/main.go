@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/pkg/jsonschema"
@@ -85,7 +86,14 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "listening on http://%s\n", listener.Addr())
-	if err := http.Serve(listener, server.routes()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	httpServer := &http.Server{
+		Handler:           server.routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "embedded example:", err)
 		os.Exit(1)
 	}

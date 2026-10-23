@@ -71,6 +71,26 @@ func TestEnumHelpersRoundTripTypedValues(t *testing.T) {
 	}
 }
 
+func TestResolverStringIDsUseNativeEnumTransport(t *testing.T) {
+	form := model.FormModel{Fields: []model.Field{
+		{Name: "code", Type: model.FieldTypeString},
+		{Name: "codes", Type: model.FieldTypeArray, Items: &model.Field{Type: model.FieldTypeString}},
+		{Name: "enabled", Type: model.FieldTypeBoolean},
+	}}
+	first := submission.EncodeEnumValue(false)
+	for _, id := range []string{"ordinary-id", first, submission.EncodeEnumValue(first)} {
+		token := submission.EncodeEnumControlValue(id)
+		parsed := submission.ParseValues(form, url.Values{
+			"code": {token}, "codes[]": {token},
+			"enabled": {submission.EncodeEnumValue(false)},
+		})
+		want := submission.Values{"code": id, "codes": []any{id}, "enabled": false}
+		if diff := cmp.Diff(want, parsed.Values); diff != "" || len(parsed.Issues) != 0 {
+			t.Fatalf("native ID round trip: %s issues=%+v", diff, parsed.Issues)
+		}
+	}
+}
+
 func TestEnumControlValuePreservesPlainStringsAndEncodesCollisions(t *testing.T) {
 	if got := submission.EncodeEnumControlValue("draft"); got != "draft" {
 		t.Fatalf("plain string control value = %q", got)

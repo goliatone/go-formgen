@@ -1,4 +1,5 @@
 import type { EndpointConfig, FieldConfig } from "./config";
+import { relationshipOptionValue } from "./relationship-current";
 
 /**
  * Relationship widgets and the resolver communicate via CustomEvents so internal
@@ -221,7 +222,7 @@ const lastSelectionByElement = new WeakMap<HTMLElement, string>();
 
 function readSelectedValues(select: HTMLSelectElement): string[] {
   return Array.from(select.selectedOptions)
-    .map((option) => option.value)
+    .map(relationshipOptionValue)
     .filter((value) => value !== "");
 }
 

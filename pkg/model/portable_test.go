@@ -2,9 +2,11 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/goliatone/go-formgen/pkg/schema"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -84,5 +86,34 @@ func TestPortableBuilderOptInPreservesHeadlessPatterns(t *testing.T) {
 		if d, err := DiagnosePortableDefinitionJSON([]byte(raw)); err != nil || len(d) == 0 {
 			t.Fatalf("large exponent not rejected: %v %v", d, err)
 		}
+	}
+}
+
+func TestPortableDefinitionNamedSchemaMaps(t *testing.T) {
+	for _, name := range []string{"metadata", "uiHints", "x-special", "default", "enum", "const", "options", "conditions", "a/b~c"} {
+		for _, wrapper := range []string{
+			`{"type":"object","properties":{%s:%s}}`,
+			`{"$defs":{%s:%s}}`,
+			`{"openapi":"3.1.0","components":{"schemas":{%s:%s}}}`,
+			`{"openapi":"3.1.0","paths":{"/test":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{%s:%s}}}}}}}}}}`,
+		} {
+			key, _ := json.Marshal(name)
+			source := fmt.Sprintf(wrapper, key, `{"type":"integer","default":9007199254740993,"pattern":"^A\\sB$"}`)
+			diagnostics, err := DiagnosePortableDefinitionJSON([]byte(source))
+			if err != nil || len(diagnostics) != 2 {
+				t.Fatalf("%s: %+v %v", source, diagnostics, err)
+			}
+			escaped := strings.ReplaceAll(strings.ReplaceAll(name, "~", "~0"), "/", "~1")
+			for _, d := range diagnostics {
+				if !strings.Contains(d.Path, "/"+escaped+"/") {
+					t.Fatalf("incorrect path: %+v", d)
+				}
+			}
+		}
+	}
+	// Opaque host namespaces and literal answer objects are not schema nodes.
+	source := `{"type":"object","metadata":{"pattern":".*","default":9007199254740993},"x-host":{"pattern":".*"},"default":{"type":"integer","pattern":".*","default":4},"enum":[{"pattern":".*"}],"properties":{"answer":{"type":"string","pattern":"^[A-Z]+$"}}}`
+	if d, err := DiagnosePortableDefinitionJSON([]byte(source)); err != nil || len(d) != 0 {
+		t.Fatalf("opaque content diagnosed: %+v %v", d, err)
 	}
 }

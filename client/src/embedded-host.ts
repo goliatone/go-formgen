@@ -9,11 +9,17 @@ interface SnapshotController {
   restore(snapshot: TypedSnapshot, options?: HydrationOptions): EmbeddedIssue[];
 }
 function rowSignature(rows: unknown): string | null {
-  if (!rows || typeof rows !== 'object' || Array.isArray(rows)) return null;
+  if (!rows || typeof rows !== 'object' ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(rows))) return null;
   const pairs: [string, string[]][] = [];
   for (const [path, ids] of Object.entries(rows)) {
-    if (!parseCanonicalPath(path) || !Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !id.trim()) || new Set(ids).size !== ids.length) return null;
-    pairs.push([path, ids]);
+    if (!parseCanonicalPath(path) || !Array.isArray(ids)) return null;
+    // Array iteration helpers skip holes; every persisted coordinate must be owned.
+    for (let i = 0; i < ids.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(ids, i) || typeof ids[i] !== 'string' || !ids[i].trim()) return null;
+    }
+    if (new Set(ids).size !== ids.length) return null;
+    pairs.push([path, Array.from(ids)]);
   }
   return JSON.stringify(pairs.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 }
@@ -22,7 +28,7 @@ function validContext(context: SnapshotContext): boolean {
 }
 export function captureSnapshotEnvelope(controller: SnapshotController, context: SnapshotContext): SnapshotEnvelope {
   if (!validContext(context)) throw new Error('A definition revision and valid row mapping are required');
-  return JSON.parse(JSON.stringify({ version: 'formgen.host-snapshot/v1', definitionRevision: context.definitionRevision, rows: context.rows, snapshot: controller.snapshot() })) as SnapshotEnvelope;
+  return JSON.parse(JSON.stringify({ version: 'formgen.host-snapshot/v1', definitionRevision: context.definitionRevision, rows: Object.fromEntries(JSON.parse(rowSignature(context.rows)!)), snapshot: controller.snapshot() })) as SnapshotEnvelope;
 }
 /** Reject context mismatches before calling restore. Legacy snapshots require explicit host migration. */
 export function restoreSnapshotEnvelope(controller: SnapshotController, envelope: unknown, context: SnapshotContext, options?: HydrationOptions): EmbeddedIssue[] {

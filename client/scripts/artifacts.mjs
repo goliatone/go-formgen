@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, readdir } from 'node:fs/promises';
-import { resolve, relative } from 'node:path';
+import { readFile, writeFile, readdir, readlink } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 export const validVersion = version => /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$/.test(version ?? '');
 export const manifestPath = 'client/runtime-manifest.json';
@@ -10,8 +10,14 @@ export const json = async path => JSON.parse(await readFile(path, 'utf8'));
 export async function files(root, dir) {
   const out = [];
   for (const entry of await readdir(resolve(root, dir), { withFileTypes: true })) {
-    if (entry.name.startsWith('.') || ['node_modules', 'dist'].includes(entry.name)) continue;
+    // Exclude generated/cache directories by name, never all hidden source files.
+    if (entry.isDirectory() && ['.git', '.cache', '.gocache', '.gomodcache', '.tmp', '.vite', '.turbo', 'node_modules', 'dist', 'coverage'].includes(entry.name)) continue;
     const path = `${dir}/${entry.name}`;
+    if (entry.isSymbolicLink()) {
+      // The development stylesheet aliases a generated output, not a build input.
+      if (path === 'client/dev/formgen-vanilla.css' && await readlink(resolve(root, path)) === '../../pkg/renderers/vanilla/assets/formgen-vanilla.css') continue;
+      throw Error(`Symbolic input paths require explicit materialization: ${path}`);
+    }
     if (entry.isDirectory()) out.push(...await files(root, path));
     else if (entry.isFile()) out.push(path);
   }
@@ -30,7 +36,9 @@ export async function buildInfo(root) {
   const node = (await readFile(resolve(root, '.node-version'), 'utf8')).trim();
   if (process.versions.node !== node) throw Error(`Production builds require Node ${node}; got ${process.versions.node}`);
   // Tailwind scans tests, examples and Go templates too: include its real inputs.
-  const inputs = ['.version', '.node-version', ...(await files(root, 'client')).filter(p => p !== manifestPath && /\.(?:[cm]?jsx?|tsx?|json|css|html|svg)$/.test(p)),
+  // Conservatively include every client source/config asset, including hidden
+  // modules and loader inputs with arbitrary extensions. Exclusions are explicit.
+  const inputs = ['.version', '.node-version', ...(await files(root, 'client')).filter(p => p !== manifestPath && !p.endsWith('/.DS_Store')),
     ...(await files(root, 'pkg')).filter(p => /\.(go|tmpl|html|json|ya?ml)$/.test(p)),
     ...(await files(root, 'examples')).filter(p => /\.(go|tmpl|html)$/.test(p)),
     ...(await files(root, 'scripts')).filter(p => /\.(mjs|go)$/.test(p))].sort();

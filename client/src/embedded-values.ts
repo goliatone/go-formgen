@@ -226,6 +226,11 @@ export function encodeEnumValue(value: JSONValue): string {
   return ENUM_PREFIX + base64UrlEncode(JSON.stringify({ t: type, v: value }));
 }
 
+/** Native option transport, matching Go EncodeEnumControlValue. */
+export function encodeEnumControlValue(value: JSONValue): string {
+  return typeof value === "string" && !value.startsWith(ENUM_PREFIX) ? value : encodeEnumValue(value);
+}
+
 /**
  * Decode a typed option value emitted by Go `EncodeEnumValue`. Plain strings
  * and undecodable payloads are returned unchanged with `encoded: false`.

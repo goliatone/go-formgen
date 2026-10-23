@@ -119,6 +119,66 @@
       "name": "fractional integer array",
       "source": "{\"fields\": [{\"name\": \"codes\", \"type\": \"array\", \"required\": false, \"items\": {\"name\": \"code\", \"type\": \"integer\", \"required\": false}, \"enum\": [1.5]}]}",
       "accepted": false
+    },
+    {
+      "name": "exact bound 9007199254740991.1",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"9007199254740991.1\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "exact bound -9007199254740991.1",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"-9007199254740991.1\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "exact bound 9007199254740991.0",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"9007199254740991.0\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound -9007199254740991.000",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"-9007199254740991.000\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound 9007199254740990.999",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"9007199254740990.999\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound 9.0071992547409911e15",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"9.0071992547409911e15\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "exact bound 90071992547409910e-1",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"90071992547409910e-1\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound 90071992547409911e-1",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"90071992547409911e-1\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "exact bound 0e308",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"0e308\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound 1e-308",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"1e-308\"}}]}]}",
+      "accepted": true
+    },
+    {
+      "name": "exact bound 1e309",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"1e309\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "exact bound 1e-309",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"number\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"1e-309\"}}]}]}",
+      "accepted": false
     }
   ]
 }

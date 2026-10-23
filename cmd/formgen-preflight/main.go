@@ -4,8 +4,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/goliatone/go-formgen/pkg/model"
 	"os"
+
+	"github.com/goliatone/go-formgen/internal/safefile"
+	"github.com/goliatone/go-formgen/pkg/model"
 )
 
 func main() {
@@ -15,7 +17,7 @@ func main() {
 	}
 	failed := false
 	for _, path := range os.Args[1:] {
-		data, err := os.ReadFile(path)
+		data, err := safefile.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			failed = true

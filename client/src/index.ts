@@ -67,6 +67,7 @@ import {
   jsonValueEqual,
   lookupField,
   decodeEnumValue,
+  encodeEnumControlValue,
   normalizeValues,
   normalizeFieldValue,
   parseCanonicalPath,
@@ -80,6 +81,7 @@ import {
 import {
   normalizeRelationshipCurrentOptions,
   relationshipCurrentValuesNeedingResolution,
+  relationshipOptionValue,
 } from "./relationship-current";
 
 /**
@@ -193,6 +195,7 @@ export {
   rendererPath,
   pathWithin,
   encodeEnumValue,
+  encodeEnumControlValue,
   decodeEnumValue,
   resolveEmbeddedModel,
   cloneJSON,
@@ -276,7 +279,7 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
   }
   if (element instanceof HTMLSelectElement) {
     const options = normalizeRelationshipCurrentOptions(field.current, element.multiple);
-    const changed = applySelectValues(element, options);
+    const changed = applySelectValues(element, options.map(option => ({ ...option, value: encodeEnumControlValue(option.value) })));
     if (changed) {
       syncRelationshipMirrors(element, field.submitAs);
       element.dataset.relationshipCurrentApplied = "true";
@@ -1824,6 +1827,10 @@ function carriesEnumControlValue(element: HTMLElement): boolean {
   return element instanceof HTMLSelectElement || isChoiceMember(element);
 }
 
+function isRelationshipSelect(element: HTMLElement): element is HTMLSelectElement {
+  return element instanceof HTMLSelectElement && element.matches('[data-endpoint-url], [data-endpoint-renderer], [data-formgen-relationship]');
+}
+
 function decodeControlSelection(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(decodeControlSelection);
   return typeof value === "string" ? decodeEnumValue(value).value : value;
@@ -2405,7 +2412,7 @@ function applyHydratedValue(
       : entry.value;
     const expected = normalizeFieldValue(field, run.enumValues === "literal" ? entry.value : field.type === "array" ? arrayInput : normalized, path, {
       ...run.normalization,
-      enumValues: carriesEnumControlValue(element) ? run.enumValues ?? run.normalization?.enumValues ?? "auto" : "literal",
+      enumValues: carriesEnumControlValue(element) ? run.enumValues ?? run.normalization?.enumValues ?? (isRelationshipSelect(element) ? "literal" : "auto") : "literal",
     });
     (run.expected ??= new Map()).set(path, {
       state: expected.value === null ? "null" : "present",
@@ -2418,7 +2425,7 @@ function applyHydratedValue(
   }
   let changed = false;
   if (element instanceof HTMLSelectElement) {
-    const values = resolveSelectTokens(element, nativeValue, normalized, !!field);
+    const values = resolveSelectTokens(element, nativeValue, normalized, !!field || isRelationshipSelect(element) && run.enumValues !== "control");
     changed = applySelectValues(
       element,
       values.map((value) => ({ value, label: value })),
@@ -2435,12 +2442,13 @@ function applyHydratedValue(
         kind: "selection",
         origin: "hydrate",
         selectedValues: Array.from(element.selectedOptions)
-          .map((option) => option.value)
+          .map(option => isRelationshipSelect(element) ? relationshipOptionValue(option) : option.value)
           .filter((value) => value !== ""),
       });
       element.dispatchEvent(new Event("change", { bubbles: true }));
     }
-    normalized = element.multiple ? values : values[0] ?? null;
+    const current = isRelationshipSelect(element) ? Array.from(element.selectedOptions).map(relationshipOptionValue).filter(value => value !== "") : values;
+    normalized = element.multiple ? current : current[0] ?? null;
   } else if (element instanceof HTMLInputElement) {
     changed = applyHydratedInputValue(element, nativeValue, normalized, run.settled, !!field);
   } else if (element instanceof HTMLTextAreaElement) {
@@ -2636,7 +2644,7 @@ function resolveSelectTokens(
     }
     const fallback = Array.isArray(normalized) ? normalized[position] : position === 0 ? normalized : null;
     if (typeof fallback === "string" && fallback !== "") {
-      out.push(fallback);
+      out.push(isRelationshipSelect(select) ? encodeEnumControlValue(fallback) : fallback);
     }
   });
   return select.multiple ? out : out.slice(0, 1);

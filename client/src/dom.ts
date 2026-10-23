@@ -3,6 +3,7 @@ import {
   ensureRelationshipSelectionBridge,
   type RelationshipUpdateDetail,
 } from "./relationship-events";
+import { relationshipOptionValue } from "./relationship-current";
 
 const FIELD_SELECTOR = '[data-endpoint-url], [data-endpoint-renderer="chips"]';
 const HIDDEN_CONTAINER_ATTR = "data-relationship-hidden";
@@ -174,10 +175,10 @@ export function readElementValue(element: HTMLElement | null): string | string[]
 
   if (element instanceof HTMLSelectElement) {
     if (element.multiple) {
-      return Array.from(element.selectedOptions).map((option) => option.value);
+      return Array.from(element.selectedOptions).map(relationshipOptionValue);
     }
     const option = element.selectedOptions[0];
-    return option ? option.value : null;
+    return option ? relationshipOptionValue(option) : null;
   }
 
   if (element instanceof HTMLTextAreaElement) {

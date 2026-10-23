@@ -5,6 +5,8 @@
 - Repair rendered-row membership, enum transport identity, scalar choice hydration, scoped exclusions and atomic snapshot restoration.
 - Coordinate Go/runtime versions and build identity; verify exact candidate artifacts and CI evidence before publication.
 - Add portable definition preflight, compatibility policy, guarded snapshot persistence and synthetic repeated-field authoring recipes.
+- Pin publication to verified commit/tag objects; validate final packed and retained bytes, preserve hidden build inputs, and reject fixture mutation during verification.
+- Preserve resolver IDs through native transport, widgets and snapshots; check keyword-named schema fields, exact decimal bounds and dense snapshot row mappings.
 - Candidate only; v0.34.0 remains unchanged. Native/application acceptance remains downstream.
 
 # [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)

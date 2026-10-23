@@ -1,8 +1,11 @@
 import { afterEach, describe, it, expect } from 'vitest';
-import { attachFormController, captureSnapshotEnvelope, restoreSnapshotEnvelope, fixedRowFieldPath } from '../src/index';
+import * as source from '../src/index';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+const shipped=new Function(`${readFileSync(resolve('../pkg/runtime/assets/formgen-relationships.min.js'),'utf8')};return FormgenRelationships;`)() as typeof source;
 import { compileConditions } from '../src/embedded-conditions';
 import type { EmbeddedModel } from '../src/embedded-contract';
-describe('host definition and row revision guards', () => {
+for(const [name,{attachFormController,captureSnapshotEnvelope,restoreSnapshotEnvelope,fixedRowFieldPath}] of [['source',source],['shipped',shipped]] as const)describe(`host definition and row revision guards ${name}`, () => {
  afterEach(()=>document.body.innerHTML='');
  const context={definitionRevision:'questionnaire-7',rows:{rows:['row-a','row-b']}};
  function controller(){document.body.innerHTML='<form><input name="answer" value="saved" disabled></form>';return attachFormController(document.querySelector('form')!,{model:{fields:[{name:'answer',type:'string',required:false}]}});}
@@ -19,6 +22,28 @@ describe('host definition and row revision guards', () => {
    expect(restoreSnapshotEnvelope(c,bad,context)[0].code).toBe('snapshotContextMismatch');expect(c.snapshot()).toEqual(before);
   }
   expect(calls).toBe(0);c.destroy();
+ });
+ it('rejects sparse, inherited and non-plain mappings before capture or restore',()=>{
+  const c=controller();const saved=captureSnapshotEnvelope(c,context);const before=c.snapshot();let calls=0;c.onChange(()=>calls++);
+  const sparse=new Array(2);sparse[1]='row-a';
+  const inherited=new Array(2);Object.setPrototypeOf(inherited,Object.assign(Object.create(Array.prototype),{0:'row-b'}));inherited[1]='row-a';
+  for(const rows of [{rows:sparse},{rows:inherited},new Map(),new Date(),Object.create({rows:['row-a']})]) {
+   const bad={definitionRevision:context.definitionRevision,rows} as typeof context;
+   expect(()=>captureSnapshotEnvelope(c,bad)).toThrow(/valid row mapping/);
+   expect(restoreSnapshotEnvelope(c,saved,bad)[0].code).toBe('snapshotContextMismatch');
+   expect(restoreSnapshotEnvelope(c,{...saved,rows},context)[0].code).toBe('snapshotContextMismatch');
+   expect(c.snapshot()).toEqual(before);
+  }
+  expect(calls).toBe(0);c.destroy();
+ });
+ it('capture and JSON persistence preserve valid empty and null-prototype mappings',()=>{
+  const c=controller();
+  for(const rows of [{}, {rows:[]},Object.assign(Object.create(null),{rows:['row-a']})]) {
+   const current={definitionRevision:'v1',rows};
+   const saved=JSON.parse(JSON.stringify(captureSnapshotEnvelope(c,current)));
+   expect(restoreSnapshotEnvelope(c,saved,current,{notify:false})).toEqual([]);
+  }
+  c.destroy();
  });
  it('rebuilds fixed conditions by stable row identity after reorder/delete',()=>{
   const rows={rows:['row-a','row-b']};

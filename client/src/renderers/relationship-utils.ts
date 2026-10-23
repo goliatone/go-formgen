@@ -1,4 +1,5 @@
 import type { Option } from "../config";
+import { relationshipOptionValue, setRelationshipOptionValue } from "../relationship-current";
 
 export interface SyncOptionsConfig {
   select: HTMLSelectElement;
@@ -47,20 +48,20 @@ export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
   const existingLabels = new Map(
     Array.from(select.options)
       .filter((option) => option.value !== "")
-      .map((option) => [option.value, option.textContent || option.value])
+      .map((option) => [relationshipOptionValue(option), option.textContent || relationshipOptionValue(option)])
   );
 
   const currentSelection = new Set(
     Array.from(select.options)
       .filter((option) => option.selected && option.value !== "")
-      .map((option) => option.value)
+      .map(relationshipOptionValue)
   );
   // Preserve rendered defaults so controller reset can restore them after the
   // widget rebuilds its option nodes.
   const defaultSelection = new Set(
     Array.from(select.options)
       .filter((option) => option.defaultSelected && option.value !== "")
-      .map((option) => option.value)
+      .map(relationshipOptionValue)
   );
 
   select.innerHTML = "";
@@ -82,7 +83,7 @@ export function syncSelectOptions(config: SyncOptionsConfig): Set<string> {
 
   for (const option of optionByValue.values()) {
     const node = document.createElement("option");
-    node.value = option.value;
+    setRelationshipOptionValue(node, option.value);
     node.textContent = option.label;
     node.defaultSelected = defaultSelection.has(option.value);
     node.selected = currentSelection.has(option.value);
@@ -133,7 +134,7 @@ export function getSelectedValues(select: HTMLSelectElement): Set<string> {
   return new Set(
     Array.from(select.options)
       .filter((option) => option.selected && option.value !== "")
-      .map((option) => option.value)
+      .map(relationshipOptionValue)
   );
 }
 
