@@ -409,3 +409,32 @@ it("recognizes declared reserved-prefix array strings before scalar wrapping", (
   const model: EmbeddedModel = { fields: [{ name: "codes", type: "array", required: false, items: { name: "item", type: "string", required: false, enum: [literal] } }] };
   expect(normalizeValues(model, { codes: literal })).toEqual({ values: { codes: [literal] }, issues: [] });
 });
+
+it("uses enum input source to distinguish literals from one encoded layer", () => {
+  const a = "__fg_enum_v1:literal";
+  const b = encodeEnumValue(a);
+  const model: EmbeddedModel = { fields: [
+    { name: "code", type: "string", required: false, enum: [a, b] },
+    { name: "codes", type: "array", required: false, items: { name: "item", type: "string", required: false, enum: [a, b] } },
+    { name: "parent", type: "array", required: false, enum: [a, b], items: { name: "item", type: "string", required: false } },
+  ] };
+  for (const literal of [a, b]) {
+    const token = encodeEnumValue(literal);
+    const want = { values: { code: literal, codes: [literal], parent: [literal] }, issues: [] };
+    expect(normalizeValues(model, { code: token, codes: token, parent: token }, { enumValues: "control" })).toEqual(want);
+    for (const mode of ["auto", "literal"] as const) {
+      expect(normalizeValues(model, { code: literal, codes: [literal], parent: literal }, { enumValues: mode })).toEqual(want);
+    }
+  }
+});
+
+it("skips scoped array enums for inactive items and their ancestors", () => {
+  const model: EmbeddedModel = { fields: [{ name: "codes", type: "array", required: false, enum: ["yes"], items: { name: "code", type: "string", required: true } }] };
+  const values = { codes: ["no", "yes"] };
+  for (const inactive of [["codes[0]"], ["codes"]]) {
+    for (const scope of [undefined, { paths: ["codes[0]"] }, { paths: ["codes[0]", "codes[0]"] }, { paths: ["codes"] }]) {
+      expect(validateValues(model, values, scope, { inactive })).toEqual([]);
+    }
+  }
+  expect(validateValues(model, values, { paths: ["codes[0]"] }).map(i => i.code)).toEqual(["enum"]);
+});

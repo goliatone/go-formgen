@@ -1,3 +1,4 @@
+import { relationshipOptionValue, setRelationshipOptionValue } from "../relationship-current";
 import type { Option, RendererContext, FieldConfig, EndpointConfig, CreateActionDetail } from "../config";
 import { readDataset } from "../dom";
 import { datasetToEndpoint, datasetToFieldConfig } from "../relationship-config";
@@ -1007,7 +1008,7 @@ function findLiteralMatch(
     if (!option.value) {
       continue;
     }
-    const value = option.value;
+    const value = relationshipOptionValue(option);
     const label = option.textContent ?? value;
     if (value.toLowerCase() === lower || label.toLowerCase() === lower) {
       return { value, label };
@@ -1087,16 +1088,17 @@ async function createAndSelect(store: ChipStore, query: string): Promise<void> {
 
   try {
     const option = await create(trimmed);
+    if (stores.get(store.select) !== store) return;
     if (!option) {
       return;
     }
 
     const existing = Array.from(store.select.options).find(
-      (node) => node.value === option.value
+      (node) => relationshipOptionValue(node) === option.value
     );
     if (!existing) {
       const node = document.createElement("option");
-      node.value = option.value;
+      setRelationshipOptionValue(node, option.value);
       node.textContent = option.label ?? option.value;
       store.select.appendChild(node);
     }
@@ -1144,7 +1146,7 @@ function renderChips(store: ChipStore, selectedValues: Set<string>): void {
     chipsContent.appendChild(placeholderNode);
   } else {
     for (const option of selectedOptions) {
-      const value = option.value;
+      const value = relationshipOptionValue(option);
       const label = option.textContent ?? value;
 
       const chip = document.createElement("span");
@@ -1386,7 +1388,7 @@ function updateSelected(store: ChipStore, values: Set<string>): void {
   }
   const { select } = store;
   for (const option of Array.from(select.options)) {
-    option.selected = values.has(option.value);
+    option.selected = values.has(relationshipOptionValue(option));
   }
   const selectedValues = getSelectedValues(select);
   emitRelationshipUpdate(select, {
@@ -1543,6 +1545,7 @@ async function triggerCreateAction(store: ChipStore): Promise<void> {
         config,
       };
       const result = await config.onCreateAction(context, detail);
+      if (stores.get(store.select) !== store) return;
 
       // Apply returned options (chips can accept Option | Option[])
       if (result) {
@@ -1580,11 +1583,11 @@ function applyCreatedOptions(
   // Add options to the native select if not present
   for (const option of options) {
     const existing = Array.from(store.select.options).find(
-      (node) => node.value === option.value
+      (node) => relationshipOptionValue(node) === option.value
     );
     if (!existing) {
       const node = document.createElement("option");
-      node.value = option.value;
+      setRelationshipOptionValue(node, option.value);
       node.textContent = option.label ?? option.value;
       store.select.appendChild(node);
     }

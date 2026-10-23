@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.34.1 candidate (2026-10-23)
+
+- Repair rendered-row membership, enum transport identity, scalar choice hydration, scoped exclusions and atomic snapshot restoration.
+- Coordinate Go/runtime versions and build identity; verify exact candidate artifacts and CI evidence before publication.
+- Add portable definition preflight, compatibility policy, guarded snapshot persistence and synthetic repeated-field authoring recipes.
+- Pin publication to verified commit/tag objects; validate final packed and retained bytes, preserve hidden build inputs, and reject fixture mutation during verification.
+- Preserve resolver IDs through native transport, widgets and snapshots; check keyword-named schema fields, exact decimal bounds and dense snapshot row mappings.
+- Invalidate stale resolver work across refresh, hydration and teardown; isolate submission mirrors, prevent duplicate values and honor native disabled states.
+- Keep schema/OpenAPI example payloads opaque during portable preflight.
+- Reject non-finite server numbers, preserve exact JSON integer values and use field-aware native transport to protect literal text in mixed forms.
+- Add shared browser FormData/Go parsing fixtures and lifecycle regressions.
+- Candidate only; v0.34.0 remains unchanged. Native/application acceptance remains downstream.
+
 # [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)
 
 ## <!-- 1 -->🐛 Bug Fixes

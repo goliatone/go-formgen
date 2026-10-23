@@ -13,11 +13,10 @@ import (
 
 // CoerceValue normalizes one submitted value according to the supplied field.
 func CoerceValue(field model.Field, value any, opts Options, path string) (any, []Issue) {
-	if str, ok := value.(string); ok && !declaredStringValue(field, str) {
-		if decoded, encoded := DecodeEnumValue(str); encoded {
-			value = decoded
-		}
+	if opts.EnumValues == EnumNative {
+		opts.EnumValues = nativeEnumMode(field)
 	}
+	value = decodeEnumInput(field, value, opts.EnumValues)
 
 	if str, ok := value.(string); ok && str == "" {
 		if opts.EmptyStrings == EmptyPreserve {
@@ -45,6 +44,22 @@ func CoerceValue(field model.Field, value any, opts Options, path string) (any, 
 	default:
 		return value, nil
 	}
+}
+
+func decodeEnumInput(field model.Field, value any, mode EnumValueMode) any {
+	// Array containers delegate decoding to their items. Decoding the container
+	// first would decode a scalar-wrapped string twice.
+	if field.Type == model.FieldTypeArray || mode == EnumLiteral || mode == EnumNative {
+		return value
+	}
+	text, ok := value.(string)
+	if !ok || (mode != EnumControl && declaredStringValue(field, text)) {
+		return value
+	}
+	if decoded, encoded := DecodeEnumValue(text); encoded {
+		return decoded
+	}
+	return value
 }
 
 // A declared literal string can itself start with the codec prefix. Typed JSON
@@ -146,12 +161,12 @@ func integralFloat(value any) (int64, bool) {
 	switch v := value.(type) {
 	case float32:
 		f := float64(v)
-		if math.Trunc(f) != f || f > math.MaxInt64 || f < math.MinInt64 {
+		if math.Trunc(f) != f || f >= 0x1p63 || f < -0x1p63 {
 			return 0, false
 		}
 		return int64(f), true
 	case float64:
-		if math.Trunc(v) != v || v > math.MaxInt64 || v < math.MinInt64 {
+		if math.Trunc(v) != v || v >= 0x1p63 || v < -0x1p63 {
 			return 0, false
 		}
 		return int64(v), true
@@ -165,14 +180,25 @@ func integralJSONNumber(value any) (int64, bool) {
 	if !ok {
 		return 0, false
 	}
-	if i, err := v.Int64(); err == nil {
-		return i, true
-	}
-	f, err := v.Float64()
-	if err != nil || math.Trunc(f) != f || f > math.MaxInt64 || f < math.MinInt64 {
+	// Validate even host-created json.Number values. Canonicalization adjusts
+	// the exponent without allocating the represented decimal magnitude.
+	if len(v) == 0 || (v[0] != '-' && (v[0] < '0' || v[0] > '9')) || !json.Valid([]byte(v)) {
 		return 0, false
 	}
-	return int64(f), true
+	canonical := string(canonicalNumber(v))
+	if canonical == "0" {
+		return 0, true
+	}
+	digits, exponent, ok := strings.Cut(canonical, "e")
+	if !ok {
+		return 0, false
+	}
+	scale, err := strconv.Atoi(exponent)
+	if err != nil || scale < 0 || scale > 19 || len(strings.TrimPrefix(digits, "-")) > 19-scale {
+		return 0, false
+	}
+	i, err := strconv.ParseInt(digits+strings.Repeat("0", scale), 10, 64)
+	return i, err == nil
 }
 
 func integralString(value any) (int64, bool) {
@@ -184,44 +210,34 @@ func integralString(value any) (int64, bool) {
 	return i, err == nil
 }
 
+// finiteNumber is shared by coercion and direct validation: non-finite values
+// are not JSON numbers and must never bypass numeric constraints.
+func finiteNumber(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
+
 func coerceNumber(value any, path string) (any, []Issue) {
-	switch v := value.(type) {
-	case nil:
+	if value == nil {
 		return nil, nil
-	case int:
-		return float64(v), nil
-	case int8:
-		return float64(v), nil
-	case int16:
-		return float64(v), nil
-	case int32:
-		return float64(v), nil
-	case int64:
-		return float64(v), nil
-	case uint, uint8, uint16, uint32:
-		f, _ := strconv.ParseFloat(fmt.Sprint(v), 64)
-		return f, nil
-	case uint64:
-		return float64(v), nil
+	}
+	var number float64
+	var err error
+	switch v := value.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		number, err = strconv.ParseFloat(fmt.Sprint(v), 64)
 	case float32:
-		return float64(v), nil
+		number = float64(v)
 	case float64:
-		return v, nil
+		number = v
 	case json.Number:
-		f, err := v.Float64()
-		if err != nil {
-			return nil, []Issue{issue(CodeType, path, "expected number", value)}
-		}
-		return f, nil
+		number, err = v.Float64()
 	case string:
-		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		if err != nil {
-			return nil, []Issue{issue(CodeType, path, "expected number", value)}
-		}
-		return f, nil
+		number, err = strconv.ParseFloat(strings.TrimSpace(v), 64)
 	default:
 		return nil, []Issue{issue(CodeType, path, "expected number", value)}
 	}
+	if err != nil || !finiteNumber(number) {
+		return nil, []Issue{issue(CodeType, path, "expected finite number", value)}
+	}
+	return number, nil
 }
 
 func coerceBoolean(value any, path string) (any, []Issue) {
@@ -249,15 +265,16 @@ func coerceArray(field model.Field, value any, opts Options, path string) (any, 
 	if !ok {
 		return nil, nil
 	}
-	itemField := model.Field{Name: field.Name, Type: inferEnumType(field.Enum), Enum: field.Enum}
-	if field.Items != nil {
-		itemField = *field.Items
-	}
+	itemField, _ := nextArrayItemField(field, true)
 	out := make([]any, 0, len(values))
 	var issues []Issue
 	for i, item := range values {
 		itemPath := fmt.Sprintf("%s[%d]", path, i)
-		coerced, itemIssues := CoerceValue(itemField, item, opts, itemPath)
+		itemOpts := opts
+		if text, ok := item.(string); ok && opts.EnumValues == EnumAuto && declaredStringValue(field, text) {
+			itemOpts.EnumValues = EnumLiteral
+		}
+		coerced, itemIssues := CoerceValue(itemField, item, itemOpts, itemPath)
 		issues = append(issues, itemIssues...)
 		out = append(out, coerced)
 	}

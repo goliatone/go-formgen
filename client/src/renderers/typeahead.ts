@@ -1,3 +1,4 @@
+import { relationshipOptionValue, setRelationshipOptionValue } from "../relationship-current";
 import type {
   Option,
   RendererContext,
@@ -415,7 +416,7 @@ function updateInputFromSelection(
   store.highlightedIndex = -1;
 
   const option = value
-    ? Array.from(select.options).find((item) => item.value === value)
+    ? Array.from(select.options).find((item) => relationshipOptionValue(item) === value)
     : undefined;
   input.value = option?.textContent ?? "";
   syncSelectedDataset(store, value, input.value);
@@ -623,16 +624,17 @@ async function createAndSelect(store: TypeaheadStore, query: string): Promise<vo
   }
 
   const option = await create(trimmed);
+  if (stores.get(store.select) !== store) return;
   if (!option) {
     return;
   }
 
   const existing = Array.from(store.select.options).find(
-    (node) => node.value === option.value
+    (node) => relationshipOptionValue(node) === option.value
   );
   if (!existing) {
     const node = document.createElement("option");
-    node.value = option.value;
+    setRelationshipOptionValue(node, option.value);
     node.textContent = option.label ?? option.value;
     store.select.appendChild(node);
   }
@@ -744,7 +746,7 @@ function selectOption(store: TypeaheadStore, option: Option): void {
   }
   const { select, input } = store;
   for (const node of Array.from(select.options)) {
-    node.selected = node.value === option.value;
+    node.selected = relationshipOptionValue(node) === option.value;
   }
   input.value = option.label ?? option.value;
   syncSelectedDataset(store, option.value, input.value);
@@ -920,9 +922,7 @@ function renderOptions(store: TypeaheadStore): void {
     return;
   }
 
-  const selectedValue = Array.from(select.options).find(
-    (option) => option.selected
-  )?.value;
+  const selectedValue = Array.from(getSelectedValues(select))[0];
 
   available.forEach((option, index) => {
     const button = document.createElement("button");
@@ -1200,6 +1200,7 @@ async function triggerCreateAction(store: TypeaheadStore): Promise<void> {
         config,
       };
       const result = await config.onCreateAction(context, detail);
+      if (stores.get(store.select) !== store) return;
 
       // Apply returned option (typeahead only accepts single option)
       if (result) {
@@ -1256,6 +1257,7 @@ async function triggerEditAction(store: TypeaheadStore): Promise<void> {
         config,
       };
       const result = await config.onEditAction(context, detail);
+      if (stores.get(store.select) !== store) return;
       if (result) {
         applyUpdatedOption(store, result);
       }
@@ -1282,7 +1284,7 @@ function getSelectedOption(store: TypeaheadStore): Option | null {
   if (!selected) {
     return null;
   }
-  const value = selected.value;
+  const value = relationshipOptionValue(selected);
   const storeOption = store.options.find((option) => option.value === value);
   return {
     ...(storeOption ?? {}),
@@ -1303,7 +1305,7 @@ function applyUpdatedOption(store: TypeaheadStore, option: Option): void {
   const value = option.value || selected.value;
   const label = option.label || value;
   const nativeOption = Array.from(store.select.options).find(
-    (node) => node.value === value
+    (node) => relationshipOptionValue(node) === value
   );
 
   if (nativeOption) {
@@ -1311,14 +1313,14 @@ function applyUpdatedOption(store: TypeaheadStore, option: Option): void {
     nativeOption.selected = true;
   } else {
     const node = document.createElement("option");
-    node.value = value;
+    setRelationshipOptionValue(node, value);
     node.textContent = label;
     node.selected = true;
     store.select.appendChild(node);
   }
 
   for (const node of Array.from(store.select.options)) {
-    if (node.value !== value) {
+    if (relationshipOptionValue(node) !== value) {
       node.selected = false;
     }
   }
@@ -1357,11 +1359,11 @@ function applyCreatedOption(store: TypeaheadStore, option: Option): void {
   }
   // Add option to the native select if not present
   const existing = Array.from(store.select.options).find(
-    (node) => node.value === option.value
+    (node) => relationshipOptionValue(node) === option.value
   );
   if (!existing) {
     const node = document.createElement("option");
-    node.value = option.value;
+    setRelationshipOptionValue(node, option.value);
     node.textContent = option.label ?? option.value;
     store.select.appendChild(node);
   }

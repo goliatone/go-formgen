@@ -2,6 +2,8 @@ module github.com/goliatone/go-formgen/examples/http
 
 go 1.25.0
 
+toolchain go1.27.3
+
 require (
 	github.com/goliatone/go-formgen v0.0.0
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207

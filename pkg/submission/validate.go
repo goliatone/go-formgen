@@ -430,6 +430,9 @@ func ValidatePaths(form model.FormModel, values Values, paths []string, options 
 		if covered {
 			continue
 		}
+		if inactivePath(path, opts) {
+			continue
+		}
 		resolved, _ := fieldpath.Resolve(form, path)
 		value, exists := fieldpath.Get(map[string]any(values), path)
 		// Full array validation applies both the container's per-element enum
@@ -478,8 +481,7 @@ func integerValue(value any) (int64, bool) {
 	case int64:
 		return v, true
 	case json.Number:
-		i, err := v.Int64()
-		return i, err == nil
+		return integralJSONNumber(v)
 	default:
 		return 0, false
 	}
@@ -492,10 +494,10 @@ func numberValue(value any) (float64, bool) {
 	case int64:
 		return float64(v), true
 	case float64:
-		return v, true
+		return v, finiteNumber(v)
 	case json.Number:
 		f, err := v.Float64()
-		return f, err == nil
+		return f, err == nil && finiteNumber(f)
 	default:
 		return 0, false
 	}

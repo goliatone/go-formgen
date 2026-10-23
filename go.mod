@@ -2,6 +2,8 @@ module github.com/goliatone/go-formgen
 
 go 1.25
 
+toolchain go1.27.3
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/flosch/pongo2/v6 v6.0.0

@@ -722,6 +722,8 @@ output, _ := gen.Generate(ctx, orchestrator.Request{
 
 The Go quality tasks cover the root module and `examples/http` by default. Override the module list with `GO_QUALITY_MODULES`, for example `GO_QUALITY_MODULES="." ./taskfile go:test`.
 
+Both modules select Go 1.27.3 or newer through their `toolchain` directive so security checks use a patched standard library. With the default `GOTOOLCHAIN=auto`, Go downloads the selected toolchain when needed; `GOTOOLCHAIN=local` requires a patched Go installation.
+
 ## Troubleshooting
 
 - Stay offline? Omit HTTP loader options and load from files/embedded assets.

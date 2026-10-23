@@ -11,6 +11,7 @@ import {
   getGlobalConfig,
   resolveGlobalConfig,
 } from "./config";
+import { ResolverAbortError } from "./errors";
 import { MemoryCache } from "./state";
 import {
   Resolver,
@@ -20,7 +21,7 @@ import {
   type Renderer,
   type CustomResolver,
 } from "./resolver";
-import { relationshipCurrentValues } from "./relationship-current";
+import { relationshipCurrentValues, relationshipOptionValue, setRelationshipOptionValue } from "./relationship-current";
 
 const DEFAULT_RENDERER_KEY = "default";
 
@@ -48,12 +49,12 @@ function defaultRenderer(context: RendererContext): void {
   const { element, options, field } = context;
 
   if (element instanceof HTMLSelectElement) {
-    const previousSelection = new Set(Array.from(element.selectedOptions).map((opt) => opt.value));
+    const previousSelection = new Set(Array.from(element.selectedOptions).map(relationshipOptionValue));
     const finalSelection = computeTargetSelection(field, previousSelection);
     element.innerHTML = "";
     options.forEach((option) => {
       const node = document.createElement("option");
-      node.value = option.value;
+      setRelationshipOptionValue(node, option.value);
       node.textContent = option.label;
       node.disabled = option.disabled === true;
       if (option.description) {
@@ -154,6 +155,7 @@ export class ResolverRegistry {
     element: HTMLElement,
     { field, endpoint }: RegistrationOptions
   ): Resolver {
+    if (element instanceof HTMLSelectElement) element.dataset.formgenRelationship = "true";
     const resolver = new Resolver({
       element,
       field,
@@ -238,7 +240,8 @@ export class ResolverRegistry {
     if (!resolver) {
       return undefined;
     }
-    return resolver.create(query);
+    try { return await resolver.create(query); }
+    catch (error) { if (error instanceof ResolverAbortError) return undefined; throw error; }
   }
 
   registerRenderer(name: string, renderer: Renderer): void {

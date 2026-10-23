@@ -532,5 +532,308 @@
         }
       }
     ]
-  }
+  },
+  "nativeSubmissionCases": [
+    {
+      "id": "mixed-literal-text-and-typed-choice",
+      "form": {
+        "fields": [
+          {
+            "name": "text",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "hidden",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "declared",
+            "type": "string",
+            "required": false,
+            "enum": [
+              "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+            ],
+            "uiHints": {
+              "component": "input"
+            }
+          },
+          {
+            "name": "choice",
+            "type": "boolean",
+            "required": false
+          }
+        ]
+      },
+      "markup": "<form><input name=\"text\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\"><textarea name=\"notes\">__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ</textarea><input type=\"hidden\" name=\"hidden\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\"><input name=\"declared\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\"><input type=\"radio\" name=\"choice\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\" checked></form>",
+      "nativeEntries": [
+        [
+          "text",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "notes",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "hidden",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "declared",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "choice",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ]
+      ],
+      "values": {
+        "text": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ",
+        "notes": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ",
+        "hidden": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ",
+        "declared": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ",
+        "choice": false
+      }
+    },
+    {
+      "id": "nested-indexed-mixed-transport",
+      "form": {
+        "fields": [
+          {
+            "name": "profile",
+            "type": "object",
+            "required": false,
+            "nested": [
+              {
+                "name": "note",
+                "type": "string",
+                "required": false
+              }
+            ]
+          },
+          {
+            "name": "rows",
+            "type": "array",
+            "required": false,
+            "items": {
+              "name": "row",
+              "type": "object",
+              "required": false,
+              "nested": [
+                {
+                  "name": "answer",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "choice",
+                  "type": "boolean",
+                  "required": false
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "markup": "<form><input name=\"profile[note]\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\"><input name=\"rows[0][answer]\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\"><input type=\"radio\" name=\"rows[0][choice]\" value=\"__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ\" checked></form>",
+      "nativeEntries": [
+        [
+          "profile[note]",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "rows[0][answer]",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ],
+        [
+          "rows[0][choice]",
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ]
+      ],
+      "values": {
+        "profile": {
+          "note": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        },
+        "rows": [
+          {
+            "answer": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ",
+            "choice": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent-array-choice-provenance",
+      "form": {
+        "fields": [
+          {
+            "name": "codes",
+            "type": "array",
+            "required": false,
+            "enum": [
+              "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+            ],
+            "items": {
+              "name": "code",
+              "type": "string",
+              "required": false
+            }
+          }
+        ]
+      },
+      "markup": "<form><select name=\"codes[]\" multiple><option value=\"__fg_enum_v1:eyJ0Ijoic3RyaW5nIiwidiI6Il9fZmdfZW51bV92MTpleUowSWpvaVltOXZiQ0lzSW5ZaU9tWmhiSE5sZlEifQ\" selected>Code</option></select></form>",
+      "nativeEntries": [
+        [
+          "codes[]",
+          "__fg_enum_v1:eyJ0Ijoic3RyaW5nIiwidiI6Il9fZmdfZW51bV92MTpleUowSWpvaVltOXZiQ0lzSW5ZaU9tWmhiSE5sZlEifQ"
+        ]
+      ],
+      "values": {
+        "codes": [
+          "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+        ]
+      }
+    },
+    {
+      "id": "custom-select-explicit-provenance",
+      "form": {
+        "fields": [
+          {
+            "name": "custom",
+            "type": "string",
+            "required": false,
+            "metadata": {
+              "submission.enumValues": "control"
+            }
+          }
+        ]
+      },
+      "markup": "<form><select name=\"custom\"><option value=\"__fg_enum_v1:eyJ0Ijoic3RyaW5nIiwidiI6Il9fZmdfZW51bV92MTpleUowSWpvaVltOXZiQ0lzSW5ZaU9tWmhiSE5sZlEifQ\" selected>Custom code</option></select></form>",
+      "nativeEntries": [
+        [
+          "custom",
+          "__fg_enum_v1:eyJ0Ijoic3RyaW5nIiwidiI6Il9fZmdfZW51bV92MTpleUowSWpvaVltOXZiQ0lzSW5ZaU9tWmhiSE5sZlEifQ"
+        ]
+      ],
+      "values": {
+        "custom": "__fg_enum_v1:eyJ0IjoiYm9vbCIsInYiOmZhbHNlfQ"
+      }
+    },
+    {
+      "id": "one-array-submission-channel",
+      "form": {
+        "fields": [
+          {
+            "name": "codes",
+            "type": "array",
+            "required": false,
+            "items": {
+              "name": "code",
+              "type": "string",
+              "required": false
+            },
+            "metadata": {
+              "relationship.endpoint.url": "/options"
+            },
+            "validations": [
+              {
+                "kind": "maxItems",
+                "params": {
+                  "value": "1"
+                }
+              },
+              {
+                "kind": "uniqueItems"
+              }
+            ]
+          }
+        ]
+      },
+      "initialize": true,
+      "markup": "<form><select name=\"codes[]\" multiple data-endpoint-url=\"/options\" data-endpoint-refresh=\"manual\"><option value=\"a\" selected>A</option></select></form>",
+      "nativeEntries": [
+        [
+          "codes[]",
+          "a"
+        ]
+      ],
+      "values": {
+        "codes": [
+          "a"
+        ]
+      }
+    },
+    {
+      "id": "sibling-array-mirrors",
+      "form": {
+        "fields": [
+          {
+            "name": "codes",
+            "type": "array",
+            "required": false,
+            "items": {
+              "name": "code",
+              "type": "string",
+              "required": false
+            },
+            "metadata": {
+              "relationship.endpoint.url": "/options"
+            },
+            "validations": [
+              {
+                "kind": "maxItems",
+                "params": {
+                  "value": "1"
+                }
+              },
+              {
+                "kind": "uniqueItems"
+              }
+            ]
+          },
+          {
+            "name": "other",
+            "type": "array",
+            "required": false,
+            "items": {
+              "name": "code",
+              "type": "string",
+              "required": false
+            },
+            "metadata": {
+              "relationship.endpoint.url": "/other"
+            }
+          }
+        ]
+      },
+      "initialize": true,
+      "markup": "<form><select name=\"codes[]\" multiple data-endpoint-url=\"/options\" data-endpoint-refresh=\"manual\"><option value=\"a\" selected>A</option></select><select name=\"other[]\" multiple data-endpoint-url=\"/other\" data-endpoint-refresh=\"manual\"><option value=\"b\" selected>B</option></select></form>",
+      "nativeEntries": [
+        [
+          "codes[]",
+          "a"
+        ],
+        [
+          "other[]",
+          "b"
+        ]
+      ],
+      "values": {
+        "codes": [
+          "a"
+        ],
+        "other": [
+          "b"
+        ]
+      }
+    }
+  ]
+
 }

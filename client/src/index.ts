@@ -1,3 +1,6 @@
+export { captureSnapshotEnvelope, restoreSnapshotEnvelope, fixedRowFieldPath } from "./embedded-host";
+export type { SnapshotContext, SnapshotEnvelope } from "./embedded-host";
+export { isPortablePattern, preflightEmbeddedDefinition } from "./embedded-definition";
 // Optional model contracts; exporting types does not attach embedded behavior.
 export type {
   CanonicalPath, JSONValue, Expression, ConditionRule, ConditionSet,
@@ -60,9 +63,11 @@ import {
 } from "./embedded-conditions";
 import {
   cloneJSON,
+  formatCanonicalPath,
   jsonValueEqual,
   lookupField,
   decodeEnumValue,
+  encodeEnumControlValue,
   normalizeValues,
   normalizeFieldValue,
   parseCanonicalPath,
@@ -76,6 +81,7 @@ import {
 import {
   normalizeRelationshipCurrentOptions,
   relationshipCurrentValuesNeedingResolution,
+  relationshipOptionValue,
 } from "./relationship-current";
 
 /**
@@ -180,7 +186,7 @@ export {
   type Renderer,
   type CustomResolver,
 } from "./resolver";
-export { RUNTIME_VERSION } from "./version";
+export { RUNTIME_VERSION, RUNTIME_BUILD, RUNTIME_INFO } from "./version";
 export {
   normalizeValues,
   validateValues,
@@ -189,6 +195,7 @@ export {
   rendererPath,
   pathWithin,
   encodeEnumValue,
+  encodeEnumControlValue,
   decodeEnumValue,
   resolveEmbeddedModel,
   cloneJSON,
@@ -272,7 +279,7 @@ function applyInitialSelection(element: HTMLElement, field: FieldConfig): void {
   }
   if (element instanceof HTMLSelectElement) {
     const options = normalizeRelationshipCurrentOptions(field.current, element.multiple);
-    const changed = applySelectValues(element, options);
+    const changed = applySelectValues(element, options.map(option => ({ ...option, value: encodeEnumControlValue(option.value) })));
     if (changed) {
       syncRelationshipMirrors(element, field.submitAs);
       element.dataset.relationshipCurrentApplied = "true";
@@ -583,7 +590,9 @@ export interface FormController {
    * Restore a typed snapshot: present values hydrate, explicit nulls clear,
    * absent paths are cleared (replace mode by default), retained values return
    * to their controls, and presence states are restored. Unknown or unsafe
-   * snapshot paths are reported and skipped. Requires `model`.
+   * snapshot paths are reported and skipped. Malformed envelopes, presence
+   * states or present entries without values return invalidSnapshot without
+   * mutating any control. Requires `model`.
    */
   restore(snapshot: TypedSnapshot, options?: HydrationOptions): EmbeddedIssue[];
 }
@@ -631,7 +640,7 @@ interface HydrationRun {
   supplied?: Map<string, unknown>;
   model?: EmbeddedModel;
   normalization?: NormalizeOptions;
-  literalValues?: boolean;
+  enumValues?: NormalizeOptions["enumValues"];
   expected?: Map<string, PresenceEntry>;
 }
 
@@ -745,13 +754,13 @@ export function attachFormController(
       readValue: (control) => {
         if (isArrayIntentName(fieldName(control))) return undefined;
         if (Array.from(inactiveRows).some((row) => pathWithin(canonicalPathForElement(control), row))) return undefined;
-        if (!logicalChoices || !isDisabledControl(control)) return readControllerValue(control);
+        if (!logicalChoices || !isDisabledControl(control)) return readTypedControlValue(control);
         if (!isChoiceMember(control)) return undefined;
         const saved = choices.get(control);
         if (!saved?.checked || (control.type === "radio" && selectedRadios.has(canonicalPathForElement(control)))) return undefined;
-        return control.type === "checkbox" ? [saved.value] : saved.value;
+        return decodeControlSelection(control.type === "checkbox" ? [saved.value] : saved.value);
       },
-    }), options.normalization);
+    }), { ...options.normalization, enumValues: "literal" });
   };
 
   const entryForValue = (path: string, normalized: NormalizedValues): PresenceEntry => {
@@ -883,6 +892,7 @@ export function attachFormController(
     const presenceOut: Record<string, PresenceState> = {};
     const locked: string[] = [];
     const index = indexLeafControls();
+    seedRenderedRowValues(base, resolvedRoot, embeddedModel!, index.keys(), inactiveRows);
     for (const [path, entry] of Array.from(presence.entries())) {
       const controls = isLeafControlPath(path, index).filter(() => !Array.from(inactiveRows).some((row) => pathWithin(path, row)));
       if (controls.length === 0) {
@@ -1223,6 +1233,7 @@ export function attachFormController(
       }
       if (hydration === undefined) {
         runMutation("reset", undefined, (run) => {
+          run.enumValues = "control";
           resetControllerFields(resolvedRoot);
           const values = collectControllerValues(resolvedRoot, {
             includeHidden: options.includeHidden ?? true,
@@ -1239,6 +1250,7 @@ export function attachFormController(
         return;
       }
       runMutation("reset", { notify: hydration.notify }, (run) => {
+        run.enumValues = "control";
         hydrateFormValuesWithRegistry(
           resolvedRoot,
           { values: collectDefaultHydrationValues(resolvedRoot) },
@@ -1400,7 +1412,10 @@ export function attachFormController(
       if (destroyed) {
         return { values: {}, issues: [] };
       }
-      return normalizeValues(model, controller.getValues(readOptions), options.normalization);
+      return normalizeValues(model, collectControllerValues(resolvedRoot, {
+        includeHidden: readOptions.includeHidden ?? options.includeHidden ?? true,
+        readValue: readTypedControlValue,
+      }), { ...options.normalization, enumValues: "literal" });
     },
     validate(scope) {
       const model = requireModel("validate");
@@ -1484,11 +1499,29 @@ export function attachFormController(
     restore(snapshot, restoreOptions = {}) {
       requireModel("restore");
       const issues: EmbeddedIssue[] = [];
-      if (destroyed || !snapshot || typeof snapshot !== "object") {
+      if (destroyed) {
         return issues;
       }
-      const presenceIn =
-        snapshot.presence && typeof snapshot.presence === "object" ? (snapshot.presence as Record<string, PresenceState>) : {};
+      // Reject malformed snapshot instructions atomically. In replace mode,
+      // simply skipping an invalid presence entry would still clear its field
+      // as an omitted value, turning corrupt state into an intentional clear.
+      if (!snapshot || snapshot.version !== "formgen.snapshot/v1") {
+        return [snapshotIssue("invalidSnapshot", "", "snapshot version must be formgen.snapshot/v1")];
+      }
+      for (const key of ["presence", "values", "retained"] as const) {
+        const value = snapshot[key];
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          issues.push(snapshotIssue("invalidSnapshot", "", `snapshot ${key} must be an object`));
+        }
+      }
+      if (issues.length > 0) return issues;
+      const presenceIn = snapshot.presence;
+      for (const [path, state] of Object.entries(presenceIn)) {
+        if (state !== "present" && state !== "null" && state !== "absent") {
+          issues.push(snapshotIssue("invalidSnapshot", path, "snapshot presence must be present, null or absent"));
+        }
+      }
+      if (issues.length > 0) return issues;
       const payload: Record<string, unknown> = {};
       const states = new Map<string, PresenceEntry>();
       const index = indexLeafControls();
@@ -1527,6 +1560,10 @@ export function attachFormController(
           // Inactive retained paths keep their value in `retained`, not `values`.
           const found = getValueAt(snapshot.values ?? {}, key);
           const stored = retainedAt(key);
+          if (!found.exists && !stored.exists) {
+            issues.push(snapshotIssue("invalidSnapshot", key, "present snapshot path has no value or retained value"));
+            continue;
+          }
           const value = found.exists ? cloneJSON(found.value) : stored.exists ? cloneJSON(stored.value) : null;
           payload[key] = value;
           states.set(key, value === null ? { state: "null" } : { state: "present", value });
@@ -1544,6 +1581,7 @@ export function attachFormController(
         const stored = retainedAt(key);
         if (stored.exists && !Object.prototype.hasOwnProperty.call(payload, key)) payload[key] = cloneJSON(stored.value);
       }
+      if (issues.some((issue) => issue.code === "invalidSnapshot")) return issues;
       // Snapshots carry normalization failures alongside their typed nulls.
       // A null cannot reconstruct the rejected source; retain its diagnostic
       // until an observed edit/reset/hydration replaces that logical entry.
@@ -1561,7 +1599,7 @@ export function attachFormController(
         savedIssues.set(owner, list);
       }
       runMutation("hydrate", { mode: restoreOptions.mode ?? "replace", notify: restoreOptions.notify }, (run) => {
-        run.literalValues = true;
+        run.enumValues = "literal";
         hydrateFormValuesWithRegistry(resolvedRoot, { values: payload }, controllerRegistry, run);
         recordHydrationPresence(run);
         states.forEach((entry, key) => {
@@ -1783,6 +1821,26 @@ function readControllerValue(
   return field.value;
 }
 
+/** Only native option controls carry the enum transport codec. Text/JSON
+ * controls contain literal strings, even when their text resembles a token. */
+function carriesEnumControlValue(element: HTMLElement): boolean {
+  return element instanceof HTMLSelectElement || isChoiceMember(element);
+}
+
+function isRelationshipSelect(element: HTMLElement): element is HTMLSelectElement {
+  return element instanceof HTMLSelectElement && element.matches('[data-endpoint-url], [data-endpoint-renderer], [data-formgen-relationship]');
+}
+
+function decodeControlSelection(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(decodeControlSelection);
+  return typeof value === "string" ? decodeEnumValue(value).value : value;
+}
+
+function readTypedControlValue(control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): unknown {
+  const value = readControllerValue(control);
+  return carriesEnumControlValue(control) ? decodeControlSelection(value) : value;
+}
+
 function assignControllerValue(target: Record<string, unknown>, path: string, value: unknown): void {
   const parts = safeControllerPathSegments(path);
   if (parts.length === 0) {
@@ -1893,6 +1951,42 @@ function controlsWithinPath(root: Document | HTMLElement, path: string): HTMLEle
     const controlPath = canonicalPathForElement(field);
     return controlPath !== "" && pathWithin(controlPath, path);
   });
+}
+
+/** Row membership is structural, not evidence of an answered leaf. Native
+ * radios omit unanswered values and intent controls are transport-only, so
+ * rebuild only the coordinates actually rendered, before overlaying presence.
+ * Empty object rows remain {}, primitive rows remain unanswered null slots.
+ */
+function seedRenderedRowValues(
+  values: Record<string, JSONValue>,
+  root: Document | HTMLElement,
+  model: EmbeddedModel,
+  leafPaths: Iterable<string>,
+  inactiveRows: ReadonlySet<string>
+): void {
+  const paths = new Set(leafPaths);
+  root.querySelectorAll<HTMLElement>("[data-formgen-array-item]").forEach((row) => {
+    const path = arrayItemPath(row);
+    if (path) paths.add(toCanonicalPath(toDotKey(path)));
+  });
+  const seeded = new Set<string>();
+  for (const path of paths) {
+    const segments = parseCanonicalPath(path);
+    if (!segments?.some((segment) => segment.isIndex) || !lookupField(model, path)) continue;
+    segments.forEach((segment, position) => {
+      if (!segment.isIndex) return;
+      const rowPath = formatCanonicalPath(segments.slice(0, position + 1));
+      if (seeded.has(rowPath) || Array.from(inactiveRows).some((inactive) => pathWithin(rowPath, inactive))) return;
+      seeded.add(rowPath);
+      const field = lookupField(model, rowPath);
+      if (!field) return;
+      const found = getValueAt(values, rowPath);
+      if (!found.exists || found.value === null) {
+        setValueAt(values, rowPath, field.type === "object" ? {} : field.type === "array" ? [] : null);
+      }
+    });
+  }
 }
 
 function controlHasValue(control: HTMLElement): boolean {
@@ -2305,9 +2399,10 @@ function applyHydratedValue(
   }
   const field = run.model && lookupField(run.model, canonicalPathForElement(element));
   const rawObject = field?.type === "object" && (field.nested ?? []).length === 0;
-  const normalized = rawObject && entry.value !== null && typeof entry.value === "object" && !Array.isArray(entry.value)
+  let normalized = rawObject && entry.value !== null && typeof entry.value === "object" && !Array.isArray(entry.value)
     ? JSON.stringify(entry.value)
     : normalizeHydratedSelection(entry.value, element);
+  let nativeValue = entry.value;
   if (field && entry.found && run.supplied?.has(canonicalPathForElement(element))) {
     const path = canonicalPathForElement(element);
     // Option-like objects are a legacy hydration convenience for scalar choices;
@@ -2315,19 +2410,22 @@ function applyHydratedValue(
     const arrayInput = field.type === "array" && field.items?.type !== "object"
       ? (Array.isArray(entry.value) ? entry.value.map((item) => item && typeof item === "object" && !Array.isArray(item) ? coerceHydratedValue(item) : item) : entry.value)
       : entry.value;
-    const expected = normalizeFieldValue(field, run.literalValues ? entry.value : field.type === "array" ? arrayInput : normalized, path, {
+    const expected = normalizeFieldValue(field, run.enumValues === "literal" ? entry.value : field.type === "array" ? arrayInput : normalized, path, {
       ...run.normalization,
-      ...(run.literalValues ? { enumValues: "literal" } : {}),
+      enumValues: carriesEnumControlValue(element) ? run.enumValues ?? run.normalization?.enumValues ?? (isRelationshipSelect(element) ? "literal" : "auto") : "literal",
     });
     (run.expected ??= new Map()).set(path, {
       state: expected.value === null ? "null" : "present",
       ...(expected.value === null ? {} : { value: expected.value }),
       ...(expected.issues.length > 0 ? { issues: expected.issues } : {}),
     });
+    // Model-aware choices match the normalized logical value, never an
+    // ambiguous mixture of literal strings and native transport tokens.
+    nativeValue = expected.value;
   }
   let changed = false;
   if (element instanceof HTMLSelectElement) {
-    const values = resolveSelectTokens(element, entry.value, normalized);
+    const values = resolveSelectTokens(element, nativeValue, normalized, !!field || isRelationshipSelect(element) && run.enumValues !== "control");
     changed = applySelectValues(
       element,
       values.map((value) => ({ value, label: value })),
@@ -2344,13 +2442,15 @@ function applyHydratedValue(
         kind: "selection",
         origin: "hydrate",
         selectedValues: Array.from(element.selectedOptions)
-          .map((option) => option.value)
+          .map(option => isRelationshipSelect(element) ? relationshipOptionValue(option) : option.value)
           .filter((value) => value !== ""),
       });
       element.dispatchEvent(new Event("change", { bubbles: true }));
     }
+    const current = isRelationshipSelect(element) ? Array.from(element.selectedOptions).map(relationshipOptionValue).filter(value => value !== "") : values;
+    normalized = element.multiple ? current : current[0] ?? null;
   } else if (element instanceof HTMLInputElement) {
-    changed = applyHydratedInputValue(element, entry.value, normalized, run.settled);
+    changed = applyHydratedInputValue(element, nativeValue, normalized, run.settled, !!field);
   } else if (element instanceof HTMLTextAreaElement) {
     const before = element.value;
     element.value = hydratedTextValue(normalized);
@@ -2386,12 +2486,13 @@ function applyHydratedInputValue(
   element: HTMLInputElement,
   rawValue: unknown,
   normalized: string | string[] | null,
-  settled: boolean
+  settled: boolean,
+  literalValues = false
 ): boolean {
   const type = element.type.toLowerCase();
   if (type === "checkbox") {
     const before = element.checked;
-    element.checked = checkboxHydratedChecked(element, rawValue, normalized);
+    element.checked = checkboxHydratedChecked(element, rawValue, normalized, literalValues);
     const changed = element.checked !== before;
     if (changed || !settled) {
       element.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2401,7 +2502,7 @@ function applyHydratedInputValue(
   }
   if (type === "radio") {
     const before = element.checked;
-    element.checked = radioHydratedChecked(element, rawValue, normalized);
+    element.checked = radioHydratedChecked(element, rawValue, normalized, literalValues);
     const changed = element.checked !== before;
     if (changed || !settled) {
       element.dispatchEvent(new Event("change", { bubbles: true }));
@@ -2429,10 +2530,11 @@ function applyHydratedInputValue(
 function checkboxHydratedChecked(
   element: HTMLInputElement,
   rawValue: unknown,
-  normalized: string | string[] | null
+  normalized: string | string[] | null,
+  literalValues = false
 ): boolean {
   if (Array.isArray(rawValue)) {
-    return rawValue.some((item) => matchesControlValue(element.value, item));
+    return rawValue.some((item) => matchesControlValue(element.value, item, literalValues));
   }
   if (Array.isArray(normalized)) {
     return normalized.includes(element.value);
@@ -2462,15 +2564,16 @@ function checkboxHydratedChecked(
 function radioHydratedChecked(
   element: HTMLInputElement,
   rawValue: unknown,
-  normalized: string | string[] | null
+  normalized: string | string[] | null,
+  literalValues = false
 ): boolean {
   if (Array.isArray(rawValue)) {
-    return rawValue.some((item) => matchesControlValue(element.value, item));
+    return rawValue.some((item) => matchesControlValue(element.value, item, literalValues));
   }
   if (Array.isArray(normalized)) {
     return normalized.includes(element.value);
   }
-  return matchesControlValue(element.value, rawValue);
+  return matchesControlValue(element.value, rawValue, literalValues);
 }
 
 const TYPED_ENUM_PREFIX = "__fg_enum_v1:";
@@ -2483,14 +2586,19 @@ function isTypedEnumControlValue(value: string): boolean {
  * A control value matches a hydrated item when the strings are identical, when
  * an option-like object resolves to it, or when the control carries a typed
  * enum codec value whose decoded value equals a typed (boolean/number) item.
- * String items never match typed codec values, so string codes such as
- * "false" stay distinct from boolean false.
+ * Model-aware calls supply literals: decode the control once before comparing
+ * strings. Legacy calls also accept raw transport tokens. String "false" stays
+ * distinct from an encoded boolean false in both cases.
  */
-function matchesControlValue(controlValue: string, raw: unknown): boolean {
+function matchesControlValue(controlValue: string, raw: unknown, literalValues = false): boolean {
   if (raw === null || raw === undefined) {
     return false;
   }
   if (typeof raw === "string") {
+    if (literalValues) {
+      const decoded = decodeEnumValue(controlValue);
+      return decoded.encoded ? decoded.value === raw : controlValue === raw;
+    }
     if (controlValue === raw) return true;
     // Reserved-prefix literal strings are themselves encoded by Go. Decode
     // exactly once, preserving the distinction between string and boolean false.
@@ -2519,7 +2627,8 @@ function matchesControlValue(controlValue: string, raw: unknown): boolean {
 function resolveSelectTokens(
   select: HTMLSelectElement,
   rawValue: unknown,
-  normalized: string | string[] | null
+  normalized: string | string[] | null,
+  literalValues = false
 ): string[] {
   const items = Array.isArray(rawValue) ? rawValue : rawValue === null || rawValue === undefined ? [] : [rawValue];
   if (items.length === 0) {
@@ -2528,14 +2637,14 @@ function resolveSelectTokens(
   const options = Array.from(select.options);
   const out: string[] = [];
   items.forEach((item, position) => {
-    const match = options.find((option) => option.value !== "" && matchesControlValue(option.value, item));
+    const match = options.find((option) => option.value !== "" && matchesControlValue(option.value, item, literalValues));
     if (match) {
       out.push(match.value);
       return;
     }
     const fallback = Array.isArray(normalized) ? normalized[position] : position === 0 ? normalized : null;
     if (typeof fallback === "string" && fallback !== "") {
-      out.push(fallback);
+      out.push(isRelationshipSelect(select) ? encodeEnumControlValue(fallback) : fallback);
     }
   });
   return select.multiple ? out : out.slice(0, 1);

@@ -1,8 +1,10 @@
+export { RUNTIME_VERSION, RUNTIME_BUILD, RUNTIME_INFO } from "../version";
 import { useEffect, useState } from "preact/hooks";
 import type { Option, ValidationResult } from "../config";
 import type { ResolverRegistry } from "../registry";
 import type { ResolverEventDetail } from "../resolver";
 import { initRelationships } from "../index";
+import { relationshipOptionValue } from "../relationship-current";
 
 interface HookState {
   options: Option[];
@@ -48,8 +50,8 @@ export function useRelationshipOptions(element: HTMLElement | null) {
         const options: Option[] = Array.from(element.options)
           .filter((opt) => opt.value !== "")
           .map((opt) => ({
-            value: opt.value,
-            label: opt.textContent || opt.value,
+            value: relationshipOptionValue(opt),
+            label: opt.textContent || relationshipOptionValue(opt),
           }));
         setState({ options, loading: false, error: null, validation: null });
       } else if (dataState === "error") {

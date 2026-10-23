@@ -66,7 +66,7 @@ export function datasetToFieldConfig(
   dataset: Record<string, string>
 ): FieldConfig {
   const field: FieldConfig = {
-    name: element.getAttribute("name") ?? element.getAttribute("id") ?? undefined,
+    name: element.getAttribute("name") ?? element.getAttribute("data-relationship-original-name") ?? element.getAttribute("id") ?? undefined,
   };
 
   if (dataset.relationshipType) {

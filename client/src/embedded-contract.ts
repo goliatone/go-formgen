@@ -22,6 +22,7 @@ export interface EmbeddedField {
   required: boolean;
   /** Optional display label used in issue messages; falls back to the field name. */
   label?: string;
+  default?: JSONValue;
   enum?: JSONValue[];
   options?: { value: JSONValue; label?: string; disabled?: boolean }[];
   validations?: { kind: string; params?: Record<string, string> }[];

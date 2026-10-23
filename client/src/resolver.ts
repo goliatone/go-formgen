@@ -20,9 +20,10 @@ import {
   syncHiddenInputs,
   syncJsonInput,
   readElementValue,
+  destroyRelationshipMirrors,
 } from "./dom";
 import { validateFieldValue, mergeValidationResults } from "./validation";
-import { ensureRelationshipSelectionBridge } from "./relationship-events";
+import { ensureRelationshipSelectionBridge, removeRelationshipSelectionBridge } from "./relationship-events";
 import { relationshipCurrentValuesNeedingResolution } from "./relationship-current";
 
 const DYNAMIC_TOKEN_PATTERN = /\{\{\s*([^}]+)\s*\}\}/g;
@@ -158,6 +159,8 @@ export class Resolver {
   private readonly customResolvers: CustomResolver[];
   readonly state: ResolverState = {};
   private abortController: AbortController | null = null;
+  private disposed = false;
+  private validationRevision = 0;
   private lastRequest: ResolverRequest | null = null;
   private lastContext: ResolverContext | null = null;
   private preserveServerValidation = false;
@@ -190,116 +193,135 @@ export class Resolver {
   }
 
   async resolve(): Promise<ResolverResult> {
-    this.cancelInFlight();
-    const startedAt = now();
-    const request = await this.buildRequest();
-    let fromCache = false;
-    let options: Option[] | undefined;
-
-    this.dispatchEvent(this.element, "loading", {
-      element: this.element,
-      field: this.field,
-      endpoint: this.endpoint,
-      request,
-      response: null,
-      fromCache: false,
-    });
-
-    if (request.cacheKey && this.cacheAdapter) {
-      const cached = await this.cacheAdapter.get(request.cacheKey);
-      if (Array.isArray(cached) && cached.length > 0) {
-        options = cached;
-        fromCache = true;
-      }
-    }
-
-    if (!options) {
-      const context = this.createContext(request, false);
-      for (const custom of this.customResolvers) {
-        try {
-          if (custom.matches(context)) {
-            const customOptions = await custom.resolve(context);
-            if (Array.isArray(customOptions)) {
-              options = customOptions;
-              break;
-            }
-          }
-        } catch (err) {
-          this.handleError(err, request, null, startedAt, 0);
-          throw err;
-        }
-      }
-    }
-
-    let fetchResult: FetchResult | null = null;
-
+    if (this.disposed) return { options: [], fromCache: false };
+    const operation = this.beginOperation();
     try {
-      if (!options) {
-        fetchResult = await this.fetchOptions(request, startedAt);
-        options = fetchResult.options;
-        fromCache = fetchResult.fromCache;
-      }
-    } catch (error) {
-      if (error instanceof ResolverAbortError || isAbortError(error)) {
-        return { options: [], fromCache: false };
-      }
-      // Error already handled by handleError() which dispatched the error event
-      // and set data-state="error". Don't rethrow to prevent unhandled rejections.
-      return { options: [], fromCache: false };
-    }
+      const startedAt = now();
+      const request = await this.buildRequest(operation.signal);
+      this.assertActive(operation.signal);
+      let fromCache = false;
+      let options: Option[] | undefined;
 
-    const context = this.createContext(request, fromCache);
-
-    if (this.config.transformOptions) {
-      options = await this.config.transformOptions(context, options);
-    }
-
-    await this.renderOptions(options, fromCache);
-
-    if (this.field.current != null) {
-      this.field.current = null;
-    }
-
-    const detail: ResolverEventDetail = {
-      element: this.element,
-      field: this.field,
-      endpoint: this.endpoint,
-      request,
-      response: fetchResult?.response ?? null,
-      options,
-      fromCache,
-      durationMs: now() - startedAt,
-    };
-
-    this.dispatchEvent(this.element, "success", detail);
-
-    if (request.cacheKey && this.cacheAdapter && !fromCache) {
-      await this.cacheAdapter.set(request.cacheKey, options, {
-        ttlMs: this.cacheConfig.ttlMs,
+      this.dispatchEvent(this.element, "loading", {
+        element: this.element,
         field: this.field,
         endpoint: this.endpoint,
+        request,
+        response: null,
+        fromCache: false,
       });
-    }
+      this.assertActive(operation.signal);
 
-    if (fetchResult) {
-      await this.config.afterFetch?.(context, fetchResult);
-    }
+      if (request.cacheKey && this.cacheAdapter) {
+        const cached = await this.cacheAdapter.get(request.cacheKey);
+        this.assertActive(operation.signal);
+        if (Array.isArray(cached) && cached.length > 0) {
+          options = cached;
+          fromCache = true;
+        }
+      }
 
-    if (this.element instanceof HTMLSelectElement) {
-      if (this.element.getAttribute("data-relationship-submit-mode") === "json") {
-        syncJsonInput(this.element);
-      } else if (this.element.multiple) {
+      if (!options) {
+        const context = this.createContext(request, false);
+        for (const custom of this.customResolvers) {
+          try {
+            if (custom.matches(context)) {
+              const customOptions = await custom.resolve(context);
+              this.assertActive(operation.signal);
+              if (Array.isArray(customOptions)) {
+                options = customOptions;
+                break;
+              }
+            }
+          } catch (err) {
+            this.assertActive(operation.signal);
+            this.handleError(err, request, null, startedAt, 0);
+            throw err;
+          }
+        }
+      }
+
+      let fetchResult: FetchResult | null = null;
+
+      try {
+        if (!options) {
+          fetchResult = await this.fetchOptions(request, startedAt);
+          this.assertActive(operation.signal);
+          options = fetchResult.options;
+          fromCache = fetchResult.fromCache;
+        }
+      } catch (error) {
+        if (error instanceof ResolverAbortError || isAbortError(error)) {
+          return { options: [], fromCache: false };
+        }
+        // Error already handled by handleError() which dispatched the error event
+        // and set data-state="error". Don't rethrow to prevent unhandled rejections.
+        return { options: [], fromCache: false };
+      }
+
+      const context = this.createContext(request, fromCache);
+
+      if (this.config.transformOptions) {
+        options = await this.config.transformOptions(context, options);
+        this.assertActive(operation.signal);
+      }
+
+      this.assertActive(operation.signal);
+      await this.renderOptions(options, fromCache, operation.signal);
+      this.assertActive(operation.signal);
+
+      if (this.field.current != null) {
+        this.field.current = null;
+      }
+
+      const detail: ResolverEventDetail = {
+        element: this.element,
+        field: this.field,
+        endpoint: this.endpoint,
+        request,
+        response: fetchResult?.response ?? null,
+        options,
+        fromCache,
+        durationMs: now() - startedAt,
+      };
+
+      this.dispatchEvent(this.element, "success", detail);
+      this.assertActive(operation.signal);
+
+      if (request.cacheKey && this.cacheAdapter && !fromCache) {
+        await this.cacheAdapter.set(request.cacheKey, options, {
+          ttlMs: this.cacheConfig.ttlMs,
+          field: this.field,
+          endpoint: this.endpoint,
+        });
+        this.assertActive(operation.signal);
+      }
+
+      if (fetchResult) {
+        await this.config.afterFetch?.(context, fetchResult);
+        this.assertActive(operation.signal);
+      }
+
+      if (this.element instanceof HTMLSelectElement) {
+        if (this.element.getAttribute("data-relationship-submit-mode") === "json") {
+          syncJsonInput(this.element);
+        } else if (this.element.multiple) {
+          syncHiddenInputs(this.element);
+        }
+      } else if (isMultiSelect(this.element)) {
         syncHiddenInputs(this.element);
       }
-    } else if (isMultiSelect(this.element)) {
-      syncHiddenInputs(this.element);
+
+      await this.runValidation("auto", operation.signal);
+      this.assertActive(operation.signal);
+
+      return { options, fromCache };
+    } catch (error) {
+      if (!this.isActive(operation.signal) || isAbortError(error)) return { options: [], fromCache: false };
+      throw error;
+    } finally {
+      if (this.abortController === operation) this.abortController = null;
     }
-
-    this.abortController = null;
-
-    await this.runValidation("auto");
-
-    return { options, fromCache };
   }
 
   async validate(): Promise<ValidationResult> {
@@ -319,25 +341,37 @@ export class Resolver {
       throw new ResolverError("createOption is not configured.");
     }
 
-    const request = await this.buildCreateRequest(trimmed);
-    const context = this.createContext(request, false);
-    const created = await this.config.createOption(context, trimmed);
+    const operation = this.beginOperation();
+    try {
+      const request = await this.buildCreateRequest(trimmed, operation.signal);
+      this.assertActive(operation.signal);
+      const context = this.createContext(request, false);
+      const created = await this.config.createOption(context, trimmed);
+      this.assertActive(operation.signal);
 
-    if (!created || typeof created !== "object") {
-      throw new ResolverError("createOption returned an invalid option.");
-    }
-    if (typeof (created as Option).value !== "string" || typeof (created as Option).label !== "string") {
-      throw new ResolverError("createOption must return an Option with string value/label.");
-    }
+      if (!created || typeof created !== "object") {
+        throw new ResolverError("createOption returned an invalid option.");
+      }
+      if (typeof (created as Option).value !== "string" || typeof (created as Option).label !== "string") {
+        throw new ResolverError("createOption must return an Option with string value/label.");
+      }
 
-    return created as Option;
+      return created as Option;
+    } finally {
+      if (this.abortController === operation) this.abortController = null;
+    }
   }
 
   setCurrentValue(value: FieldConfig["current"]): void {
+    if (this.disposed) return;
+    this.cancelInFlight();
+    this.validationRevision++;
     this.field.current = value ?? null;
   }
 
   setServerValidation(result?: ValidationResult): void {
+    if (this.disposed) return;
+    this.validationRevision++;
     if (!result) {
       this.state.validation = undefined;
       this.preserveServerValidation = false;
@@ -374,7 +408,14 @@ export class Resolver {
   }
 
   destroy(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.validationRevision++;
     this.cancelInFlight();
+    if (this.element instanceof HTMLSelectElement) {
+      destroyRelationshipMirrors(this.element);
+      removeRelationshipSelectionBridge(this.element);
+    }
     this.element.removeEventListener("input", this.interactionHandler);
     this.element.removeEventListener("change", this.interactionHandler);
   }
@@ -393,9 +434,29 @@ export class Resolver {
     }
   }
 
+  private beginOperation(): AbortController {
+    if (this.disposed) throw new ResolverAbortError();
+    this.cancelInFlight();
+    this.validationRevision++;
+    const operation = new AbortController();
+    this.abortController = operation;
+    return operation;
+  }
+
+  private isActive(signal: AbortSignal): boolean {
+    return !this.disposed && !signal.aborted && this.abortController?.signal === signal;
+  }
+
+  private assertActive(signal: AbortSignal): void {
+    if (!this.isActive(signal)) throw new ResolverAbortError();
+  }
+
   private async runValidation(
-    origin: "auto" | "manual" = "manual"
+    origin: "auto" | "manual" = "manual", signal?: AbortSignal
   ): Promise<ValidationResult> {
+    const revision = ++this.validationRevision;
+    const current = () => !this.disposed && revision === this.validationRevision && (!signal || this.isActive(signal));
+    if (!current()) return { valid: true, messages: [], errors: [] };
     if (origin === "manual") {
       this.preserveServerValidation = false;
     } else if (origin === "auto" && this.preserveServerValidation) {
@@ -413,6 +474,7 @@ export class Resolver {
     if (this.config.validateSelection) {
       try {
         const custom = await this.config.validateSelection(this.getActiveContext(), value);
+        if (!current()) return result;
         if (custom) {
           result = mergeValidationResults(result, custom);
         }
@@ -421,6 +483,7 @@ export class Resolver {
       }
     }
 
+    if (!current()) return result;
     this.state.validation = result;
 
     if (result.valid) {
@@ -432,6 +495,7 @@ export class Resolver {
       if (result.errors.length > 0) {
         const context = this.getActiveContext();
         for (const error of result.errors) {
+          if (!current()) return result;
           try {
             this.config.onValidationError?.(context, error);
           } catch (hookError) {
@@ -441,6 +505,7 @@ export class Resolver {
       }
     }
 
+    if (!current()) return result;
     const detail: ResolverEventDetail = {
       element: this.element,
       field: this.field,
@@ -490,11 +555,14 @@ export class Resolver {
       }
 
       await this.config.beforeFetch?.(context);
+      this.assertActive(request.init.signal!);
       try {
         const response = await fetcher(request.url, request.init);
+        this.assertActive(request.init.signal!);
 
         if (!response.ok) {
           const body = await safeJson(response);
+          this.assertActive(request.init.signal!);
           const error = new ResolverError(
             `Resolver request failed with status ${response.status}`,
             response.status,
@@ -513,6 +581,7 @@ export class Resolver {
         }
 
         const payload = await safeJson(response);
+        this.assertActive(request.init.signal!);
         const options = this.extractOptions(payload);
 
         this.config.logger?.info?.("resolver:success", {
@@ -530,7 +599,7 @@ export class Resolver {
           fromCache: false,
         };
       } catch (err) {
-        if (isAbortError(err)) {
+        if (!this.isActive(request.init.signal!) || isAbortError(err)) {
           throw new ResolverAbortError();
         }
 
@@ -561,7 +630,7 @@ export class Resolver {
     throw new ResolverError("Resolver exhausted retries", undefined, lastError);
   }
 
-  private async buildRequest(): Promise<ResolverRequest> {
+  private async buildRequest(signal: AbortSignal): Promise<ResolverRequest> {
     const method = (this.endpoint.method || "GET").toUpperCase();
     const params = new URLSearchParams(this.endpoint.params ?? {});
     this.applyDynamicParams(params);
@@ -603,7 +672,6 @@ export class Resolver {
 
     Object.assign(headers, resolveAuthHeaders(this.endpoint.auth, this.element));
 
-    this.abortController = new AbortController();
 
     const request: ResolverRequest = {
       url,
@@ -611,7 +679,7 @@ export class Resolver {
       init: {
         method,
         headers,
-        signal: this.abortController.signal,
+        signal,
       },
     };
 
@@ -619,6 +687,7 @@ export class Resolver {
 
     if (this.config.buildHeaders) {
       const custom = await this.config.buildHeaders(context);
+      this.assertActive(signal);
       if (custom && typeof custom === "object") {
         Object.assign(request.init.headers as Record<string, string>, custom);
       }
@@ -627,7 +696,7 @@ export class Resolver {
     return request;
   }
 
-  private async buildCreateRequest(query: string): Promise<ResolverRequest> {
+  private async buildCreateRequest(query: string, signal: AbortSignal): Promise<ResolverRequest> {
     const params = new URLSearchParams(this.endpoint.params ?? {});
     this.applyDynamicParams(params);
 
@@ -642,14 +711,13 @@ export class Resolver {
 
     Object.assign(headers, resolveAuthHeaders(this.endpoint.auth, this.element));
 
-    const controller = new AbortController();
 
     const request: ResolverRequest = {
       url,
       init: {
         method: "POST",
         headers,
-        signal: controller.signal,
+        signal,
       },
     };
 
@@ -657,6 +725,7 @@ export class Resolver {
 
     if (this.config.buildHeaders) {
       const custom = await this.config.buildHeaders(context);
+      this.assertActive(signal);
       if (custom && typeof custom === "object") {
         Object.assign(request.init.headers as Record<string, string>, custom);
       }
@@ -881,13 +950,14 @@ export class Resolver {
     return renderer;
   }
 
-  private async renderOptions(options: Option[], fromCache: boolean): Promise<void> {
+  private async renderOptions(options: Option[], fromCache: boolean, signal: AbortSignal): Promise<void> {
     const renderer = this.resolveRenderer();
     const context: RendererContext = {
       element: this.element,
       field: this.field,
       options,
       fromCache,
+      signal,
       config: this.config,
     };
     await renderer(context);
@@ -982,6 +1052,7 @@ export class Resolver {
     startedAt: number,
     attempt: number
   ): void {
+    if (request.init.signal && !this.isActive(request.init.signal)) return;
     const resolverError =
       error instanceof ResolverError ? error : new ResolverError(String(error || ""));
 
@@ -1008,7 +1079,9 @@ export class Resolver {
       message: resolverError.message,
     });
 
+    if (request.init.signal && !this.isActive(request.init.signal)) return;
     this.config.onError?.(this.createContext(request, false), resolverError);
+    if (request.init.signal && !this.isActive(request.init.signal)) return;
     this.dispatchEvent(this.element, "error", detail);
   }
 }

@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/goliatone/go-formgen"
 	"github.com/goliatone/go-formgen/pkg/jsonschema"
@@ -85,7 +86,14 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "listening on http://%s\n", listener.Addr())
-	if err := http.Serve(listener, server.routes()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	httpServer := &http.Server{
+		Handler:           server.routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(os.Stderr, "embedded example:", err)
 		os.Exit(1)
 	}
@@ -122,6 +130,13 @@ func newExampleServer(ctx context.Context) (*exampleServer, error) {
 // compileForm normalizes the embedded JSON Schema through the canonical adapter
 // and builds the complete form model, including the root condition set.
 func compileForm(ctx context.Context) (model.FormModel, error) {
+	diagnostics, err := model.DiagnosePortableDefinitionJSON(schemaJSON)
+	if err != nil {
+		return model.FormModel{}, err
+	}
+	if len(diagnostics) > 0 {
+		return model.FormModel{}, fmt.Errorf("portable definition: %s at %s", diagnostics[0].Code, diagnostics[0].Path)
+	}
 	document := jsonschema.MustNewDocument(jsonschema.SourceFromFS(schemaSourceName), schemaJSON)
 	adapter := jsonschema.NewAdapter(memoryLoader{document: document})
 	ir, err := adapter.Normalize(ctx, document, schema.NormalizeOptions{})
@@ -360,7 +375,7 @@ func (s *exampleServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "request body too large or unreadable", http.StatusBadRequest)
 		return
 	}
-	parsed, err := submission.ParseJSON(s.form, body)
+	parsed, err := submission.ParseJSON(s.form, body, submission.WithEnumValues(submission.EnumLiteral))
 	if err != nil {
 		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
 		return

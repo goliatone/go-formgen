@@ -5860,6 +5860,188 @@ it("settles conditions from locked defaults before clearing dependent answers", 
   document.body.innerHTML = "";
 });
 
+describe("choice hydration uses logical values (IR-2026-10-23-01)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  it("preserves literal token-like text without treating it as option transport", () => {
+    const literal = encodeEnumValue(false);
+    document.body.innerHTML = `<form><input name="text" value="${literal}"><textarea name="note">${literal}</textarea></form>`;
+    const c = attachFormController(document.querySelector("form")!, { model: { fields: ["text", "note"].map(name => ({ name, type: "string", required: false })) } });
+    const saved = c.snapshot();
+    expect(saved.values).toEqual({ text: literal, note: literal });
+    expect(c.normalize().values).toEqual(saved.values);
+    c.setValues({ text: "edit", note: "edit" }, { notify: false });
+    c.reset({ notify: false });
+    expect(c.snapshot()).toEqual(saved);
+    c.setValues({ text: literal, note: literal }, { notify: false });
+    expect(c.snapshot()).toEqual(saved);
+    expect(c.restore(saved, { notify: false })).toEqual([]);
+    expect(c.snapshot()).toEqual(saved);
+    c.destroy();
+  });
+  for (const tag of ["radio", "checkbox", "select"] as const) {
+    it(`disambiguates colliding literal and control strings through ${tag}`, () => {
+      const a = "__fg_enum_v1:literal";
+      const b = encodeEnumValue(a);
+      const array = tag === "checkbox";
+      document.body.innerHTML = `<form>${tag === "select"
+        ? `<select name="code"><option value="${encodeEnumValue(a)}" selected>A</option><option value="${encodeEnumValue(b)}">B</option></select>`
+        : [a, b].map((value, i) => `<input name="code${array ? "[]" : ""}" type="${tag}" value="${encodeEnumValue(value)}" ${i === 0 ? "checked" : ""}>`).join("")}</form>`;
+      const field = { name: "code", type: "string" as const, required: false, enum: [a, b] };
+      const c = attachFormController(document.querySelector("form")!, { model: { fields: [array
+        ? { name: "code", type: "array", required: false, items: field } : field] } });
+      const initial = c.snapshot();
+      expect(initial.values.code).toEqual(array ? [a] : a);
+      expect(c.normalize().values.code).toEqual(array ? [a] : a);
+      for (const value of [b, a]) {
+        c.setValues({ code: array ? [value] : value }, { notify: false });
+        expect(c.snapshot().values.code).toEqual(array ? [value] : value);
+        expect(c.snapshot().issues).toEqual([]);
+        const selected = tag === "select" ? Array.from(document.querySelector("select")!.selectedOptions).map(o => o.value)
+          : Array.from(document.querySelectorAll<HTMLInputElement>("input:checked")).map(i => i.value);
+        expect(selected).toEqual([encodeEnumValue(value)]);
+        const saved = c.snapshot();
+        c.reset({ notify: false });
+        expect(c.snapshot()).toEqual(initial);
+        expect(c.restore(saved, { notify: false })).toEqual([]);
+        expect(c.snapshot()).toEqual(saved);
+      }
+      c.destroy();
+    });
+  }
+  for (const scalar of ["true", "false", "yes", "no", "1", "0"]) {
+    it(`hydrates scalar multi-choice code ${scalar} as one selection`, () => {
+      document.body.innerHTML = `<form><input name="codes[]" type="checkbox" value="${scalar}"><input name="codes[]" type="checkbox" value="other"></form>`;
+      const c = attachFormController(document.querySelector("form")!, { model: { fields: [{ name: "codes", type: "array", required: false,
+        items: { name: "code", type: "string", required: false, enum: [scalar, "other"] } }] } });
+      c.setValues({ codes: scalar }, { notify: false });
+      expect(Array.from(document.querySelectorAll("input")).map(i => i.checked)).toEqual([true, false]);
+      expect(c.snapshot().values.codes).toEqual([scalar]);
+      expect(c.snapshot().issues).toEqual([]);
+      c.destroy();
+    });
+  }
+});
+
+describe("rendered rows are independent of answer presence (IR-2026-10-23-01)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  for (const conditional of [false, true]) {
+    it(`validates, clears and restores an unanswered radio row (conditional=${conditional})`, () => {
+      document.body.innerHTML = '<form><input name="gate" type="checkbox" checked><div data-formgen-array-items data-formgen-array-name="rows"><div data-formgen-array-item data-formgen-array-path="rows[0]"><fieldset data-formgen-choice role="radiogroup"><input name="rows[0].answer" type="radio" value="yes" required><input name="rows[0].answer" type="radio" value="no" required></fieldset><input name="rows[0]._row_key" type="hidden" value="row0"></div></div></form>';
+      const model: EmbeddedModel = { fields: [
+        { name: "gate", type: "boolean", required: false },
+        { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false,
+          nested: [{ name: "answer", type: "string", required: !conditional, enum: ["yes", "no"] }] } },
+      ], conditions: conditional ? { version: "formgen.conditions/v1", rules: [{ path: "rows[0].answer",
+        applicableWhen: { op: "eq", path: "gate", value: true }, requiredWhen: { op: "eq", path: "gate", value: true } }] } : undefined };
+      const form = document.querySelector("form")!;
+      const c = attachFormController(form, { model });
+      const missing = () => {
+        expect(c.effective().values.rows).toEqual([{}]);
+        expect(c.snapshot().values.rows).toEqual([{}]);
+        expect(c.snapshot().presence["rows[0].answer"]).toBe("absent");
+        expect(c.validate().map(i => `${i.code}:${i.path}`)).toEqual(["required:rows[0].answer"]);
+        expect(form.querySelector("fieldset")!.hidden).toBe(false);
+      };
+      missing();
+      const saved = c.snapshot();
+      c.setValues({ rows: [{ answer: "yes" }] }, { notify: false });
+      expect(c.validate()).toEqual([]);
+      c.restore(saved, { notify: false });
+      missing();
+      c.reset({ notify: false });
+      missing();
+      c.setValues({ gate: true, rows: [{}] }, { mode: "replace", notify: false });
+      missing();
+      if (conditional) {
+        c.setValues({ gate: false }, { notify: false });
+        expect(c.validate()).toEqual([]);
+        expect(form.querySelector("fieldset")!.hidden).toBe(true);
+        c.setValues({ gate: true }, { notify: false });
+        missing();
+      }
+      c.destroy();
+    });
+  }
+  it("seeds added unanswered rows and excludes physical and soft deletions", () => {
+    const row = (n: number, existing = false) => `<div data-formgen-array-item data-formgen-array-path="rows[${n}]" data-formgen-array-existing="${existing}"><input name="rows[${n}].answer" type="radio" value="yes" required><input name="rows[${n}].answer" type="radio" value="no" required><input name="rows[${n}]._delete" type="hidden" value="false"><button type="button" data-formgen-array-action="remove">Remove</button></div>`;
+    document.body.innerHTML = `<form><div><div data-formgen-array-items data-formgen-array-name="rows" data-formgen-array-next-index="1" data-formgen-array-prototype-path="rows[1]">${row(0, true)}<template data-formgen-array-prototype>${row(1)}</template></div><button type="button" data-formgen-array-action="add">Add</button></div></form>`;
+    const form = document.querySelector("form")!;
+    initArrayRepeaters(form);
+    const model: EmbeddedModel = { fields: [{ name: "rows", type: "array", required: false,
+      validations: [{ kind: "minItems", params: { value: "1" } }],
+      items: { name: "row", type: "object", required: true, nested: [{ name: "answer", type: "string", required: true }] } }] };
+    const c = attachFormController(form, { model });
+    const seen: ReturnType<typeof c.snapshot>[] = [];
+    c.onChange(() => seen.push(c.snapshot()));
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!.click();
+    expect(seen.at(-1)!.values.rows).toEqual([{}, {}]);
+    expect(c.validate().map(i => i.path)).toEqual(["rows[0].answer", "rows[1].answer"]);
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="remove"]')!.click();
+    expect(c.snapshot().values.rows).toEqual([null, {}]);
+    expect(c.validate().map(i => i.path)).toEqual(["rows[1].answer"]);
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-path="rows[1]"] [data-formgen-array-action="remove"]')!.click();
+    expect(c.snapshot().values.rows).toEqual([]);
+    expect(c.validate().map(i => i.code)).toEqual(["minItems"]);
+    c.destroy();
+  });
+  it("keeps nested and primitive row coordinates without manufacturing answers", () => {
+    document.body.innerHTML = '<form><input name="rows[0].children[0].answer" type="radio" value="yes"><input name="codes[0]" type="radio" value="yes"><input name="rows[1].children[0].answer" value="saved"></form>';
+    const model: EmbeddedModel = { fields: [
+      { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [
+        { name: "children", type: "array", required: false, items: { name: "child", type: "object", required: false, nested: [{ name: "answer", type: "string", required: true }] } },
+      ] } },
+      { name: "codes", type: "array", required: false, items: { name: "code", type: "string", required: true } },
+    ] };
+    const c = attachFormController(document.querySelector("form")!, { model });
+    expect(c.snapshot().values).toEqual({ rows: [{ children: [{}] }, { children: [{ answer: "saved" }] }], codes: [null] });
+    expect(c.validate().map(i => i.path)).toEqual(["rows[0].children[0].answer", "codes[0]"]);
+    expect(c.restore(c.snapshot(), { notify: false })).toEqual([]);
+    expect(c.validate().map(i => i.path)).toEqual(["rows[0].children[0].answer", "codes[0]"]);
+    c.destroy();
+  });
+});
+
+describe("snapshot instructions are validated before mutation (IR-2026-10-23-01)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  for (const mode of ["patch", "replace"] as const) {
+    it(`rejects unknown presence states atomically in ${mode} mode`, () => {
+      document.body.innerHTML = '<form><input name="answer" value="saved"><input name="other" value="kept"><input name="locked" value="locked" disabled></form>';
+      const c = attachFormController(document.querySelector("form")!, { model: { fields: ["answer", "other", "locked"].map(name => ({ name, type: "string", required: false })) } });
+      const saved = c.snapshot();
+      let calls = 0;
+      c.onChange(() => calls++);
+      for (const state of ["unexpected", null, undefined, 0, {}, []]) {
+        const malformed = structuredClone(saved);
+        (malformed.presence as Record<string, unknown>).answer = state;
+        malformed.values.other = "must not apply";
+        const issues = c.restore(malformed, { mode });
+        expect(issues.map(i => `${i.code}:${i.path}`)).toEqual(["invalidSnapshot:answer"]);
+        expect(c.snapshot()).toEqual(saved);
+        expect(document.querySelector<HTMLInputElement>('[name="answer"]')!.value).toBe("saved");
+        expect(calls).toBe(0);
+      }
+      c.destroy();
+    });
+  }
+  it("diagnoses unsupported envelopes and present entries without values", () => {
+    document.body.innerHTML = '<form><input name="answer" value="saved"></form>';
+    const c = attachFormController(document.querySelector("form")!, { model: { fields: [{ name: "answer", type: "string", required: false }] } });
+    const saved = c.snapshot();
+    for (const change of [
+      { version: "formgen.snapshot/v2" }, { presence: [] }, { presence: null }, { values: [] }, { retained: null }, { values: {} },
+    ]) {
+      const malformed = { ...saved, ...change } as unknown as ReturnType<typeof c.snapshot>;
+      expect(c.restore(malformed).every(i => i.code === "invalidSnapshot")).toBe(true);
+      expect(c.restore(malformed)).toHaveLength(1);
+      expect(c.snapshot()).toEqual(saved);
+    }
+    c.setValues({ answer: "edit" }, { notify: false });
+    expect(c.restore(saved, { notify: false })).toEqual([]);
+    expect(c.snapshot()).toEqual(saved);
+    c.destroy();
+  });
+});
+
 it("restores presence through normalized hydration, including absent partially locked groups", () => {
   document.body.innerHTML = '<form><fieldset disabled><input name="level" value="3"></fieldset><input name="colors[]" type="checkbox" value="red"><input name="colors[]" type="checkbox" value="blue"></form>';
   const model: EmbeddedModel = { fields: [{ name: "level", type: "integer", required: false }, { name: "colors", type: "array", required: false, items: { name: "color", type: "string", required: false } }] };

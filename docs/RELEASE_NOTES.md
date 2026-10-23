@@ -1,6 +1,79 @@
-# Release Notes & Migration Guide (Phase 10)
+# Release Notes & Migration Guide
 
-## Vanilla Grid Layout Without Inline Styles (next release)
+## Embedded delivery status
+
+Version boundary verified on 2026-10-23:
+
+| Delivery | Scope |
+| --- | --- |
+| v0.33.2 / runtime 0.0.19 | Original integration evaluation baseline. |
+| Local module tag v0.34.0 / runtime 0.0.19 | Embedded primitives and the 2026-10-22 integrated repairs. |
+| v0.34.1 candidate / runtime 0.34.1 | Post-v0.34.0 correctness repairs, coordinated release identity/verification, portable definition preflight and guarded host integration recipes, including the subsequent lifecycle, submission and numeric review repairs. Candidate awaits fresh exact-commit verification; not tagged or published. |
+
+The five post-tag repairs are absent from v0.34.0; that tag remains immutable.
+The candidate uses one shared version from `.version`, package.json and lock roots.
+See the [authoritative compatibility policy](../client/README.md#embedded-compatibility-contract)
+and [artifact manifest](../client/runtime-manifest.json) for its supported contract,
+full build fingerprint and output checksums. Runtime exports/logs include version
+and fingerprint; historical 0.0.19 alone cannot identify an artifact.
+
+### v0.34.1 candidate evidence
+
+The latest repairs require fresh exact-commit verification. Earlier exact-SHA
+CI evidence belongs to its recorded commit and does not verify these changes.
+Run exact-candidate verification against the final reviewed commit and retain
+fresh matching hosted evidence before publication or host pinning.
+
+The exact source commit and fixture commit/hashes are emitted by
+`./taskfile release:verify` into `.tmp/release/evidence.json`, alongside the verified
+manifest. They are external to the candidate to avoid embedding its own commit
+hash in tracked output. The [CI workflow](../.github/workflows/release-verify.yml)
+uploads matching evidence with the actual run URL as `release-evidence`.
+No hosted CI run link or native acceptance is claimed until that run exists.
+Download that run's evidence and compare source SHA, manifest hash, version and
+fingerprint before pinning; publication refuses mismatched/failed CI evidence.
+Local verification is explicitly labeled `provider: local`.
+
+- Fix unanswered repeated-row membership, enum token/literal collisions, scalar
+  multi-choice hydration, scoped inactive enum validation and atomic malformed restore.
+- Replace independent client version bumps with coordinated prepare/check/verify/publish
+  stages, strict production metadata, reproducible manifests and failure propagation.
+- Add opt-in portable ASCII pattern/numeric definition preflight before browser
+  rounding; legacy headless patterns remain available. Definitions outside this
+  capability must be revised or kept server-only, never assumed browser-compatible.
+- Add host envelope guards and fixed-row reference helpers. Snapshot/v1 stays
+  unchanged; definition revisions/mapping mismatches need explicit host migration.
+- Add synthetic authoring fixtures and lifecycle/accessibility recipes. Shared
+  tests and CI do not establish WKWebView, iPad, VoiceOver or clinical acceptance.
+- Pin verification, tag creation and push to immutable commit/tag objects. Recheck
+  the candidate after tests and packaging; verify packed and retained bytes before
+  exposing passing evidence. Hidden build inputs affect identity; fixture mutation
+  invalidates verification.
+- Preserve token-shaped resolver IDs through native transport, widgets, hydration,
+  reset, snapshots, callbacks and native Go parsing. Keep request/API IDs literal;
+  inspect native select values through the enum codec rather than assuming raw IDs.
+- Diagnose keyword-named schema fields and exact decimal bound overflows; reject
+  sparse or non-plain host row mappings before snapshot capture/restoration.
+
+### Native submission and numeric migration
+
+- `ParseValues` now defaults to field-aware `EnumNative`: standard choices and
+  relationship controls decode one token layer; ordinary text, textarea and hidden
+  data stay literal. Explicit component hints override inferred enum controls.
+  Custom/sparse models declare `metadata["submission.enumValues"]` as `"control"`
+  or `"literal"`. Explicit `WithEnumValues(EnumControl)` preserves old whole-payload
+  decoding; generic ParseMap/ParseJSON auto defaults remain unchanged.
+- Non-finite numbers report `type` during parsing/direct validation. JSON integers
+  use exact decimal/exponent checks within int64 bounds; no floating-point rounding
+  can turn a fraction or overflow into an accepted integer.
+- Each relationship select owns its submission mirror and teardown. A single native
+  channel submits each selected value once. Modern formdata-capable engines read
+  live disabled/option state at serialization; see client README for fallback timing.
+- Resolver cancellation extends beyond fetch to delayed hooks and cache results;
+  superseded/disposed operations cannot render or publish success after reentry.
+  Portable preflight follows schema/OpenAPI structure and leaves examples opaque.
+
+## Vanilla Grid Layout Without Inline Styles (v0.34.0)
 
 The vanilla renderer no longer writes inline `style` attributes or an inline `<style>` block for UI schema grid layout. Layout intent is emitted as data attributes, and the bundled stylesheet (`formgen-vanilla.css` and `formgen-preact.min.css`, generated from `client/src/theme/grid-layout.css`) places the elements, so forms render identically under a `Content-Security-Policy` of `style-src 'self'`.
 
@@ -18,16 +91,16 @@ Migration:
 
 Behavior correction: breakpoint overrides now cascade upward like Tailwind's mobile-first breakpoints. Previously an `lg` span applied only between the `lg` and `xl` thresholds, and larger viewports fell back to the base span unless every larger breakpoint was set explicitly.
 
-## Embedded Form Primitives: Compatibility and Migration (next release)
+## Embedded Form Primitives: Compatibility and Migration
 
-The embedded-form primitives (hydration options, model-aware values and validation, issue presentation, reactive conditions, native choice components, preflight, and typed snapshots) are additive. Definitions, templates, and host code written for v0.33.2 keep working without changes.
+The embedded-form primitives (hydration options, model-aware values and validation, issue presentation, reactive conditions, native choice components, preflight, and typed snapshots) are additive. Existing opt-in and default API contracts are preserved; validation and value-handling corrections below change observable output.
 
 Preserved behavior:
 
 - `setValues(values)` and `reset()` without options keep patch semantics and the legacy per-event `onChange` notifications; `getValues()` keeps its raw transport contract.
 - Default controls are unchanged: booleans render checkboxes, enums render selects, arrays of objects render repeaters. The choice components are reached only through `component.name`.
 - Unregistered explicit components still fail at render time; `Preflight` is an additional, optional check.
-- Definitions without `x-formgen.conditions` compile and validate exactly as before; the JSON descriptor gains a `conditions` key only when rules exist.
+- Definitions without `x-formgen.conditions` retain unconditional validation; the JSON descriptor gains a `conditions` key only when rules exist. The validation corrections below also apply to unconditional forms.
 - Legacy `visibility` rules are untouched and remain separate from applicability.
 
 Additive contracts: `HydrationOptions`, `ChangeMetadata` (third callback argument with `origin`, `paths`, and `applicable`), `EmbeddedModel`/`EmbeddedField` (optional `label`), `EmbeddedIssue`, `ConditionSet`/`Expression` (`formgen.conditions/v1`), `ConditionProjection`, `DefinitionDiagnostic`, `TypedSnapshot`/`PresenceState` (`formgen.snapshot/v1`), the model rule `uniqueItems`, and the shared fixture `testdata/embedded/v1.json`.
@@ -38,7 +111,9 @@ Corrections that change observable output (document in host release notes):
 - Model-backed hydration captures conversion issues before native sanitization; unrepresentable values remain logical answers with diagnostics. Restore preserves captured normalization issues, including locked invalid nulls, until an observed replacement.
 - Repeater Add/Remove actions notify with or without conditions. Deleted rows are excluded structurally without shifting sibling indexes; the last removal leaves an explicit empty array for cardinality validation. Hosts pass validated deletion context to Go with `submission.WithInactivePaths`; browser pure projection accepts `inactivePaths`.
 - Raw JSON copying safely preserves all own data keys. Choice-card styling follows native checked/disabled state; custom themes should use those states instead of SSR initial hints.
-- `NormalizeOptions.enumValues: "literal"` normalizes typed JSON; the default `"control"` continues decoding native option tokens. Declared literal string enum/option codes take precedence over decoding.
+- Enum sources are explicit: `NormalizeOptions.enumValues: "control"` decodes exactly one native token layer, `"literal"` preserves typed JSON strings, and the default `"auto"` retains legacy generic normalization. Controllers decode native choice/select tokens once and preserve ordinary text literally; restore uses literal mode. Go `ParseValues` defaults to control, while `WithEnumValues(EnumLiteral|EnumControl)` selects the source for `ParseMap`/`ParseJSON` (auto by default). This prevents silent substitution when a literal string equals another option's token. Model-backed scalar multi-choice hydration selects only its normalized matching items.
+- Unanswered rendered rows preserve structural coordinates independently of answers, so required child validation and fixed-index applicability remain active through add, clear, reset and restore. Deleted rows stay excluded. Scoped array enum checks honor inactive item/ancestor exclusions before every constraint layer, matching full validation.
+- Restore rejects malformed snapshot versions/envelopes, unsupported presence states and missing present values with `invalidSnapshot` before mutation, including replace mode. Unknown/unsafe address paths retain their existing diagnostic behavior.
 
 - Settled model-backed hydration/reset/restore notifications include logical presence changes (absent/null/false), even when native controls stay empty; true no-ops and `notify:false` remain silent.
 - Explicit null containers clear rendered descendants, and replace validates missing empty/null/nested rows before mutation. Model-backed raw-object leaves hydrate/restore as JSON without losing answers.
@@ -55,9 +130,12 @@ Corrections that change observable output (document in host release notes):
 
 Scope boundaries: fixed indexed condition paths only (no wildcards or same-row templates); pattern parity is limited to the portable subset (Go RE2 versus JavaScript RegExp); browser integers must be safe JavaScript integers; `uniqueItems` is a model rule and the JSON Schema keyword is not adopted; readonly choice groups render disabled native controls; Preact and TUI get no new controller guarantee; evidence comes from jsdom and Go tests plus a Chromium smoke of the example, not from WKWebView, VoiceOver, or application acceptance.
 
-Release checklist for the maintainer (not performed here): bump the runtime package with `./taskfile client:version:bump patch`, rebuild with `./taskfile client:build`, bump the module with `./taskfile version:bump minor --write`, update `CHANGELOG.md` from the merged commits, and run `./taskfile dev:ci` before `./taskfile release minor`.
+The repaired candidate is shared version 0.34.1. Use the [coordinated workflow](../client/README.md#coordinated-release-workflow)
+to prepare artifacts, finalize changelog/notes, commit the candidate and verify
+that exact source. Publication is a separate operation gated by matching successful
+CI evidence. No tag or native acceptance is created by preparation.
 
-## Embedded Hydration Options (next release)
+## Embedded Hydration Options
 
 - `FormController.setValues(values, options)` and `reset(options)` accept the embedded/v1 `HydrationOptions` (`mode: "patch" | "replace"`, `notify`). Calls without options keep the legacy patch semantics and per-event notifications, including the pinned six-callback radio fixture.
 - With options the mutation settles once, emits no callback when no control changed, and `notify: false` suppresses only that controller's subscribers. Widget, mirror, dependency, and component synchronization still runs.
@@ -65,13 +143,13 @@ Release checklist for the maintainer (not performed here): bump the runtime pack
 - Replace mode clears omitted enabled controls, treats `null` as an explicit clear, replaces arrays, hydrates rendered rows from arrays of objects, and throws before mutating when a payload row has no rendered row.
 - Defect corrections: hydration no longer rewrites existing `<option>` labels with raw values, and file inputs only accept programmatic clearing instead of throwing. `reset()` and `setValues()` events now carry reset/hydrate origins.
 
-## Model-Aware Browser Values (next release)
+## Model-Aware Browser Values
 
 - New pure helpers `normalizeValues(model, raw)` and `validateValues(model, values, scope)` mirror the Go `submission` package for the shared subset: typed enum decoding, field-aware coercion, canonical scoped validation, precise paths with legacy `rendererPath`, and `invalidPath`/`unknownField` scope diagnostics.
 - `Formgen.attach(root, { model })` adds `controller.normalize()` and `controller.validate(scope)`; `getValues()` remains raw and no fetch, submission, or navigation is started. `Formgen.normalize`/`Formgen.validate` expose the helpers on the global.
-- Browser integers must be safe JavaScript integers; larger values report a `type` issue instead of rounding. Unicode lengths count code points. Pattern parity covers the portable subset only. Condition evaluation is not included.
+- Browser integers must be safe JavaScript integers; larger values report a `type` issue instead of rounding. Unicode lengths count code points. Pattern parity covers the portable subset only. Condition-aware composition is described under Reactive Browser Conditions below.
 
-## Typed Snapshots With Explicit Presence (next release)
+## Typed Snapshots With Explicit Presence
 
 - `controller.snapshot()` and `controller.restore(snapshot, options)` add an opt-in model-backed presence layer: `present`/`null`/`absent` per leaf path, effective values with retained inactive values apart, locked-control values, independent copies, and explicit issues for unsafe integers, unknown controls, detached rows, and unknown or unsafe snapshot paths.
 - Settled hydration/reset/restore callbacks observe finalized presence and condition state. Retained nested/indexed answers and retained containers restore without data loss; explicit boolean nulls stay null in snapshots and validation. Disabled fieldsets follow native legend exceptions for collection and locking.
@@ -79,30 +157,30 @@ Release checklist for the maintainer (not performed here): bump the runtime pack
 
 - `TypedSnapshot` and `PresenceState` join the embedded contract; raw `getValues()` and legacy hydration are unchanged.
 
-## Renderer Preflight and Metadata Precedence (next release)
+## Renderer Preflight and Metadata Precedence
 
 - `vanilla.Renderer.Preflight(form)` reports `componentUnknown`, `componentConfig`, and `componentRender` diagnostics with dotted field paths (`rows[].answer`) after component registration, without rendering a page or leaking values; `Render` keeps failing for unregistered explicit components.
 - Browser `preflightComponents(root)` and `registeredComponentNames()` separate runtime enhancement factories from server-only wrappers and surface malformed `data-component-config`.
 - The customization guide documents inline metadata, JSON Schema overlays, UI schema precedence, title/label rules, registration timing, and adapter limits.
 
-## Native Choice Components (next release)
+## Native Choice Components
 
 - Optional vanilla components `choice`, `choice-multiple`, and `scale` render native radio and checkbox groups with fieldset/legend chrome, group descriptions and error slots, typed enum option values, unanswered-by-default behavior, `aria-required`/`aria-readonly`/`aria-disabled` states, and `control.id`-based IDs. They are selected only through `component.name` and do not replace the default boolean, select, or repeater controls.
 - `scale` derives discrete numeric options from inclusive `min`/`max` rules (`step`, `lowLabel`, `highLabel` via `component.config`); zero is valid.
 - Theme CSS adds `formgen-choice*` hooks with a `--formgen-choice-target` minimum size; the runtime routes group issues to the fieldset and no longer sets native `required` on checkbox-group members.
 
-## Reactive Browser Conditions (next release)
+## Reactive Browser Conditions
 
 - `compileConditions`, `validateConditional`, and `evaluateExpression` mirror the Go `conditions` package for `formgen.conditions/v1`: identical diagnostics, topological gating, clear/retain projection with fixed-index null holes, `inactiveInput` policy, and conditional requiredness.
 - `Formgen.attach(root, { model, conditions })` settles applicability on attach, user edits, hydration, reset, replace, and repeater row changes (`formgen:array:change`): `hidden` plus `data-formgen-applicable` markers, `required`/`aria-required`, clear or retain of inapplicable values, obsolete issue clearing, and `meta.applicable` on notifications. New `controller.effective()`, `settle()`, and `conditionDiagnostics()`.
 - `validateValues` accepts conditional `required`/`inactive` options; browser `validate()` composes the server-equivalent pipeline over the applicable values only. Inapplicable controls belong to the runtime (cleared, retained, or rendered defaults such as an unchecked box), so `validate()` never reports `inactiveInput`; the server still does for payloads that bypass `effective().values`.
 - `examples/embedded` now relies on the shared evaluator; its provisional host applicability adapter is removed.
 
-## Precise Issue Presentation and Embedded Example (next release)
+## Precise Issue Presentation and Embedded Example
 
 - `controller.setIssues(issues, { append?, summary? })`, `clearIssues()`, and `focusIssue(issue | path)` present browser or server issues on the exact rendered control (indexed paths target one repeated item), route form-level and unmapped issues to a replaceable summary, and fall back to the summary when no visible, enabled control exists. Values are never changed.
 - New `registerFormErrorRenderer` hook, `[data-formgen-form-errors]` container (the vanilla form summary now renders `data-formgen-form-errors="true"` and `tabindex="-1"`), and `data-formgen-group-invalid` markers on repeater items and fieldsets with invalid descendants.
-- `examples/embedded` demonstrates compile → render → hydrate/edit/cancel → scoped validation → host-owned server issues → typed snapshot → destroy with a registered extension control and a documented host applicability adapter.
+- `examples/embedded` demonstrates compile → preflight → render → hydrate/edit/cancel → scoped validation → shared conditions → host-owned server issues → typed snapshot → destroy with a registered extension control. Applicability uses the shared condition contract; transport, edit transactions and locking remain host-owned.
 
 ## Form Container Width Token (next release)
 

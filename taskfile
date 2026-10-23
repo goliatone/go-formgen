@@ -653,31 +653,9 @@ function dev:ci {
 ##           Client Management
 ## ########################################
 
-function client:build {
-    pushd "./client" >/dev/null || exit 1
-    npm run build
-    popd >/dev/null || exit 1
-}
-
-function client:ci {
-    pushd "./client" >/dev/null || exit 1
-
-    if [ ! -f "node_modules/.bin/tsx" ]; then
-        npm ci
-    fi
-
-    npm run build:theme
-    npm test -- tests/theme-build.test.ts
-
-    popd >/dev/null || exit 1
-}
-
-function client:release {
-    local level=${1:-patch}
-
-    client:version:bump "$level"
-    client:build
-}
+function client:build { (cd ./client && npm run build); }
+function client:ci { (cd ./client && npm ci && npm run build && npm test -- --threads=false); }
+function client:release { release:prepare "$@"; }
 
 function client:generate:article-form {
     local go_bin=${GO_BIN:-/Users/goliatone/.g/go/bin/go}
@@ -685,46 +663,8 @@ function client:generate:article-form {
 }
 
 function client:version:bump {
-    local level=${1:-patch}
-    case "$level" in
-        major|minor|patch) ;;
-        *)
-            echo "Invalid version level: ${level}. Use major, minor, or patch." >&2
-            return 1
-        ;;
-    esac
-
-    pushd "./client" >/dev/null || exit 1
-    node - "$level" <<'NODE'
-const fs = require("fs");
-const path = require("path");
-
-const level = process.argv[2] || "patch";
-const pkgPath = path.resolve("package.json");
-const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-const source = typeof pkg.version === "string" ? pkg.version : "0.0.0";
-const segments = source.split(".").map((value) => Number.parseInt(value, 10));
-if (segments.length !== 3 || segments.some((n) => Number.isNaN(n) || n < 0)) {
-  throw new Error(`Invalid version "${source}"`);
-}
-
-if (level === "major") {
-  segments[0] += 1;
-  segments[1] = 0;
-  segments[2] = 0;
-} else if (level === "minor") {
-  segments[1] += 1;
-  segments[2] = 0;
-} else {
-  segments[2] += 1;
-}
-
-const next = segments.join(".");
-pkg.version = next;
-fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-console.log(`formgen-runtime version bumped to ${next}`);
-NODE
-    popd >/dev/null || exit 1
+    echo "Independent client bumps are retired. Use release:prepare VERSION." >&2
+    return 1
 }
 ##
 ## ########################################
@@ -758,132 +698,16 @@ function version:upsert {
 ## version:get
 ##
 ## Get version from meta file.
-function version:get {
-
-    test -f "${VERSION_FILE}" || touch "${VERSION_FILE}"
-
-    local tag
-    tag=$(cat "${VERSION_FILE}")
-
-    if [ -z "$tag" ]; then
-        tag="0.0.1"
-        version:set "$tag"
-    fi
-
-    echo -n "$tag"
-}
-
-##
-## -----
-##
-## version:set
-##
-## Set and save version to meta file.
-## First time will create file if not present.
-##
-## Arguments:
-## @arg 1 {string} [tag=0.0.1]
+function version:get { cat .version; }
 function version:set {
-
-    local tag
-    tag=${1}
-    if [ -z "$tag" ]; then
-        exit 1
-    fi
-
-    version:check
-
-    echo -e "$tag" > "${VERSION_FILE}"
+    echo "Use release:prepare VERSION to synchronize versions and artifacts." >&2
+    return 1
 }
-
-##
-## -----
-##
-## version:bump
-## Bump sem ver by specifying a level.
-## Valid levels are:
-## - patch (default)
-## - minor
-## - major
-##
-## If you want to update the .version file
-## pass the `--write` flag.
-## @see https://github.com/fsaintjacques/semver-tool/blob/master/src/semver
-##
-## @arg 1 {string} [level=patch]
-## Outputs:
-##   Semver string "$major.$minor.$patch"
-##
-## @flag --write Will write to .version file
-##
 function version:bump {
-
-    version:check
-
-    # Default values
-    level='patch'
-    write_to_file=0
-
-    # Parse options
-    while [[ "$#" -gt 0 ]]; do
-        case $1 in
-            --write)
-                write_to_file=1
-                shift
-            ;;
-            patch|minor|major)
-                level=$1
-                shift
-            ;;
-            *)
-                echo "Invalid option: $1"
-                return 2
-            ;;
-        esac
-    done
-
-    # Read contents of version and store in
-    IFS='.' read -ra identifiers < "$VERSION_FILE"
-
-    [[ "${#identifiers[@]}" -ne 3 ]] && echo "Invalid semver string" && return 1
-
-    patch=${identifiers[2]}
-    minor=${identifiers[1]}
-    major=${identifiers[0]}
-
-    case $level in
-        patch)
-            patch=$((patch+1))
-        ;;
-        minor)
-            minor=$((minor+1))
-            patch=0
-        ;;
-        major)
-            major=$((major+1))
-            minor=0
-            patch=0
-        ;;
-        *)
-            echo "Invalid level passed"
-            return 2
-    esac
-
-    new_version="$major.$minor.$patch"
-
-    if [[ $write_to_file -eq 1 ]]; then
-        echo "$new_version" > "${VERSION_FILE}"
-    else
-        echo "$new_version"
-    fi
+    echo "Use release:prepare VERSION; independent version mutation is retired." >&2
+    return 1
 }
-
-function version:check {
-    if [ ! -f "$VERSION_FILE" ]; then
-        echo "0.0.0" > "$VERSION_FILE"
-    fi
-}
-
+function version:check { test -s .version; }
 
 ##
 ## -----
@@ -896,88 +720,14 @@ function version:check {
 ## Arguments:
 ## @arg 1 {string} [level=patch]
 ##        Accepted major, minor, patch
-function release:preflight {
-    (
-        set -euo pipefail
-
-        local preflight_base
-        local preflight_root
-        local preflight_source
-
-        preflight_base=${TMPDIR:-/tmp}
-        preflight_base=${preflight_base%/}
-        preflight_base=$(cd "${preflight_base}" && pwd -P)
-        preflight_root=$(mktemp -d "${preflight_base}/go-formgen-release.XXXXXX")
-        preflight_source="${preflight_root}/source"
-
-        function release:preflight:cleanup {
-            case "${preflight_root}" in
-                "${preflight_base}"/go-formgen-release.*)
-                    if [ -d "${preflight_root}" ]; then
-                        chmod -R u+w "${preflight_root}"
-                        rm -r -- "${preflight_root}"
-                    fi
-                    ;;
-                *)
-                    echo "Refusing to remove unexpected preflight directory: ${preflight_root}" >&2
-                    return 1
-                    ;;
-            esac
-        }
-        trap release:preflight:cleanup EXIT HUP INT TERM
-
-        mkdir -p "${preflight_source}"
-        git archive --format=tar HEAD | tar -x -C "${preflight_source}"
-
-        cd "${preflight_source}"
-        GOWORK=off GOFLAGS=-mod=readonly go test ./...
-    )
-}
-
+function release:prepare { node scripts/release.mjs prepare "$@"; }
+function release:check { node scripts/release.mjs check "$@"; }
+function release:verify { node scripts/release.mjs verify "$@"; }
+function release:preflight { release:verify "$@"; }
+function release:publish { node scripts/release.mjs publish "$@"; }
 function release {
-    local tag
-    local level
-    local message
-
-    # Fetch all changes from origin
-    git fetch --all
-    # Make sure we have the latest version file
-    git checkout origin/main -- ".version"
-
-    # Pull tags to make sure we have
-    git pull --tags -f
-
-    # Test the exact tracked source that the tag will publish.
-    release:preflight
-
-    level=${1:-"patch"}
-
-    # Bump our version
-    tag=$(version:bump "${level}")
-
-    # Set message: default to New major|minor|patch release: vx.x.x
-    message=${2:-"New ${level} release: v${tag}"}
-
-    # Update version file
-    version:set "${tag}"
-
-    # Add updated version file to git
-    git add "${VERSION_FILE}"
-    git commit -m "Bump version: v${tag}"
-
-    # Create a new tag
-    git tag -a "v${tag}" -m "${message}"
-
-    # Push tags and trigger release 🚀 🥳
-    git push --tags
-    git push
-
-    # Generate changelog
-    git cliff --output CHANGELOG.md
-    git add CHANGELOG.md
-    git commit -m "docs: update changelog for v${tag}"
-
-    git push
+    echo "Use release:prepare VERSION, commit the candidate, release:verify, then release:publish CI_RUN_ID." >&2
+    return 1
 }
 
 ##########################################

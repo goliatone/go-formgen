@@ -80,6 +80,9 @@ func ParseJSON(form model.FormModel, body []byte, options ...Option) (Result, er
 // ParseValues parses form-urlencoded or multipart values into submitted Values.
 func ParseValues(form model.FormModel, values url.Values, options ...Option) Result {
 	cfg := applyOptions(options)
+	if cfg.EnumValues == EnumAuto {
+		cfg.EnumValues = EnumNative
+	}
 	idx := newFieldIndex(form)
 	result := Result{Values: Values{}}
 	keys := make([]string, 0, len(values))

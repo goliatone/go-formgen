@@ -36,10 +36,29 @@ const (
 	EmptyPreserve
 )
 
+// EnumValueMode identifies whether strings are native control tokens or typed
+// values. An encoded token can also be a legitimate literal in the same enum;
+// its source, rather than its spelling, determines how it must be interpreted.
+type EnumValueMode int
+
+const (
+	// EnumAuto preserves legacy generic-map behavior: declared strings are
+	// literals, otherwise valid tokens decode. ParseValues resolves auto to native.
+	EnumAuto EnumValueMode = iota
+	// EnumControl decodes one transport layer, even when the token is declared.
+	EnumControl
+	// EnumLiteral preserves strings from an already typed payload.
+	EnumLiteral
+	// EnumNative uses field transport provenance: choices decode once, text
+	// stays literal, and structural containers delegate to their children.
+	EnumNative
+)
+
 // Options customize parsing and validation behavior.
 type Options struct {
 	UnknownFields UnknownFieldPolicy
 	EmptyStrings  EmptyStringPolicy
+	EnumValues    EnumValueMode
 	MaxMemory     int64
 	MaxBodyBytes  int64
 	required      map[string]bool
@@ -89,6 +108,15 @@ func WithEmptyStrings(policy EmptyStringPolicy) Option {
 	return func(opts *Options) {
 		opts.EmptyStrings = policy
 	}
+}
+
+// WithEnumValues selects the source of enum values. Use EnumLiteral for typed
+// JSON and EnumControl for encoded control payloads. ParseMap/ParseJSON retain
+// EnumAuto by default; ParseValues defaults to field-aware EnumNative.
+// In native mode, custom controls can declare metadata submission.enumValues
+// as "control" or "literal". Explicit global modes override field inference.
+func WithEnumValues(mode EnumValueMode) Option {
+	return func(opts *Options) { opts.EnumValues = mode }
 }
 
 // WithInactivePaths excludes trusted structural subtrees from validation and

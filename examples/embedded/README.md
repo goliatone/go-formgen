@@ -1,11 +1,11 @@
-# Embedded form primitives example (Phase 1)
+# Embedded form primitives example
 
 A runnable, generic host for the embedded-form primitives. It compiles a
 synthetic JSON Schema definition, renders it with the vanilla renderer, and
-drives the browser controller through the complete Phase 1 flow:
+drives the browser controller through the integrated flow:
 
-compile/render → hydrate → edit/cancel → scoped validation → server issues →
-typed snapshot → destroy.
+compile/preflight/render → hydrate → edit/cancel → scoped validation → conditions
+→ server issues → typed snapshot → destroy.
 
 No private data, no persistence, no telemetry, no CDN. The library adds no
 HTTP protocol; the `/api/validate` route and `adapter.js` in this directory are
@@ -58,7 +58,7 @@ path; removing the Go registration reproduces that path. Browser-side,
 `FormgenRelationships.preflightComponents(root)` lists each wrapper and whether
 a factory enhances it.
 
-## Shared applicability (Phase 2)
+## Shared applicability
 
 The schema declares `level` applicable only while `enabled` is true, required
 whenever `enabled` is answered, and cleared when inapplicable
@@ -79,6 +79,13 @@ For hosts adding repeaters, Add/Remove notifications do not require conditions;
 deleted rows need validated deletion context when composing server validation
 with `submission.WithInactivePaths` (see the client README).
 
+The typed JSON endpoint uses `submission.WithEnumValues(submission.EnumLiteral)`;
+native form submissions use control decoding, and generic parsers retain their
+documented auto mode. Rendered unanswered rows keep structural membership for
+requiredness and fixed-index conditions. Invalid snapshot instructions return
+`invalidSnapshot` before any mutation. Scalar multi-choice codes hydrate as one
+selection rather than toggling every checkbox.
+
 ## Metadata spelling used here
 
 - Field labels: `"x-formgen": { "label": "Enable feature" }`.
@@ -96,7 +103,7 @@ with `submission.WithInactivePaths` (see the client README).
 - `uniqueItems` is a model validation rule (`validations[].kind`); the JSON
   Schema keyword is not adopted, so the schema here declares `minItems`/`maxItems`.
 
-## Phase 1 limitations
+## Supported scope and acceptance limits
 
 - `enabled` uses the `choice` component, so an unanswered question stays
   missing (C01) instead of collapsing to `false`; `level` stays inapplicable
@@ -167,6 +174,11 @@ After IR-2026-10-22-05 fixes, the same harness measured 300 fields/30 rules at
 and 5 ms snapshot. It still owns three root listeners, emits zero callbacks
 for silent hydration and one per tested user event.
 
+The 2026-10-23 repair record reports 300 fields/30 rules at 29 ms attach,
+33 ms silent hydration, 22 ms edit, 32 ms toggle, 6 ms validation and 5 ms
+snapshot, with the same listener and notification counts. These jsdom
+measurements remain observations, not latency budgets.
+
 ## Browser smoke (recorded)
 
 Engine: Chromium 152.0.7977.167 (the Claude desktop app's built-in browser,
@@ -226,11 +238,113 @@ findings plus native required reentry and disabled-fieldset legend semantics.
 The tagged example harness also passes. This regression smoke does not replace
 the full example interaction smoke above or establish native accessibility support.
 
-## Versions
+Latest recorded repair verification (2026-10-23): Chromium 151.0.7922.34 passed
+27 focused repair checks, 23 prior regression checks and 11 live strict-CSP
+example checks with real server validation and no page/CSP errors. Coverage
+included unanswered rows, enum identity through reset/restore, atomic snapshot
+rejection, native radio keyboard operation, required-issue focus, locking and
+teardown. The matching client suite passed 384 tests, with two optional profiles
+also passing separately. These recorded checks do not establish WKWebView or
+screen-reader acceptance.
 
-- Module: see `.version` at the repository root (0.33.2 at the time of writing).
-- Runtime bundle: `@goliatone/formgen-runtime` 0.0.19 (`client/package.json`),
-  served from `formgen.RuntimeAssetsFS()`.
+## Versions and delivery status
+
+- Evaluation baseline: module v0.33.2, runtime 0.0.19.
+- Feature baseline: local module tag v0.34.0. Follow-up row membership, enum
+  identity, scoped exclusion and snapshot-validation repairs are in current
+  source and rebuilt assets; v0.34.0 does not contain those repairs.
+- Repaired candidate: module/runtime 0.34.1, coordinated by [`.version`](../../.version).
+  Pin the candidate commit plus [manifest](../../client/runtime-manifest.json)
+  fingerprint/checksums. `release:verify` emits exact-commit and fixture evidence;
+  no tag, hosted CI or native acceptance is implied by local preparation.
 - Go: module minimum from `go.mod` (1.25).
 - Shared contract: `formgen.descriptor/v1`, `formgen.conditions/v1`,
   `testdata/embedded/v1.json`.
+
+See [release and migration notes](../../docs/RELEASE_NOTES.md#embedded-delivery-status)
+for the delivery boundary. Current regression evidence is recorded in
+`embedded-bundle.test.ts`; browser smokes above are dated historical evidence.
+Fresh upstream acceptance and Carina native/accessibility acceptance remain
+separate from module delivery.
+
+## Host authoring contract
+
+The reusable [authoring fixture](../../testdata/embedded/authoring.json) supplements
+[shared v1 values](../../testdata/embedded/v1.json) with a definition revision,
+stable question IDs, choice component hints and repeated rows. It is synthetic;
+PROMs instruments, clinical meanings/calculations, consent, navigation, persistence
+and workflow sequencing belong to the host. Real definitions receive a separate
+compatibility audit when available. The [client compatibility contract](../../client/README.md#embedded-compatibility-contract)
+is authoritative for supported semantics and stability.
+
+| Fixture behavior | Evidence |
+| --- | --- |
+| Explicit unanswered Yes/No, false succeeds | `authoring.test.ts` unanswered/false-zero and controller flow; no checked radio default |
+| Typed multiple choices and min/max | authoring `empty-selection`/`too-many`, shared v1 cases, native choice component tests |
+| Numeric scale includes zero | authoring `false-zero`, model enum 0–10 and `scale` hint |
+| Conditional required follow-up; clear vs retain | authoring `followup-required` and controller state transitions |
+| Absent/null/empty/false/zero/inactive | authoring presence assertions and shared v1 fixture policies; inactive state is applicability, not an invented answer code |
+| Section/full validation and precise repeated paths | authoring scope test and `precise-row`; identical Go submission cases |
+| Hydration/edit/cancel and locked/readonly | authoring controller flow and guarded envelope tests |
+| Stable questions and definition revisions | authoring `questionIDs`/`definitionRevision`, host envelope guard and fixed-row mapping tests |
+
+Run `go run ./cmd/formgen-preflight testdata/embedded/authoring.json
+examples/embedded/schema.json` (on one line) before adapters/browser JSON parsing.
+The example checks its original schema bytes before compiling. Use
+`model.NewBuilder(model.WithPortableDefinitions())` for additional model checks;
+this cannot recover numeric precision lost before the builder. The existing
+example schema uses portable ASCII email syntax solely as a synthetic validation
+example; it is not a general email-address validator.
+
+### Stable repeated-field references
+
+Keep immutable question IDs separate from display labels and stable row IDs
+separate from current array coordinates. The host owns both mappings:
+
+```ts
+const rowIDs = { rows: ["row-a", "row-b"] };
+const questions = { note: "q_note" }; // stable question ID -> model field path
+const path = fixedRowFieldPath(rowIDs, "rows", "row-b", questions.note);
+// rows[1].q_note: use in today's formgen.conditions/v1 definition
+```
+
+On add/delete/reorder, settle the host row mapping and rendered structure together,
+regenerate/compile fixed references, then attach a fresh controller as needed.
+Do not mutate a compiled definition in place or reuse an old index after compaction.
+A removed row ID causes reference generation to fail. Preserve trusted deletion
+context when sending indexed values to the server. A controller does not create
+unrendered rows through hydration or snapshot restore.
+
+Save `captureSnapshotEnvelope(controller, {definitionRevision, rows: rowIDs})`.
+Restore only with the same definition and mapping using `restoreSnapshotEnvelope`.
+Changed mappings/revisions require explicit host migration/revalidation before
+restore; merely changing the saved revision is unsafe. For retained inactive
+values, use the controller snapshot rather than reconstructing answers from DOM
+strings. Never use `getValues()` alone to build a disabled/locked payload.
+Future same-row syntax is separately versioned scope; no extension API is promised.
+
+### Native lifecycle and accessibility checklist
+
+Record candidate commit, runtime version/fingerprint, manifest/fixture hashes,
+OS/device/engine and run/report link. macOS WebKit engine checks and actual
+WKWebView/iPad embedding checks are distinct. Run synthetic shared/authoring cases:
+
+- Initialize, reinitialize and isolate two roots; hydrate silently without callback
+  recursion and preserve an explicitly unanswered initial choice.
+- Destroy/recreate roots; cancel host requests and ignore delayed responses after
+  teardown. Unsubscribe before replacement. A host generation token/AbortController
+  must guard async transport callbacks; the runtime cannot cancel arbitrary host work.
+- Validate one section, then the full applicable form; focus the precise invalid
+  repeated control with keyboard and VoiceOver, including errors in choice groups.
+- Toggle required follow-ups; verify clear/retain and reentry without stale values,
+  hidden focus traps or unintended navigation.
+- Edit/cancel with typed snapshots; preserve absent/null/empty/false/zero distinctly.
+  Verify locked/readonly capture, submission and matching-context restoration.
+- Add/delete/reorder rendered rows; regenerate references, preserve identity and
+  reject stale snapshot mappings. Validate precise row paths and deleted-row context.
+- Test native focus and radio/checkbox/scale operation on physical iPad; record
+  VoiceOver labels, descriptions, required/error states and conditional announcements.
+
+Turn reproducible mismatches into focused shared or platform regressions. Rerun
+relevant checks after artifact changes. Successful upstream tests do not establish
+host production or clinical acceptance.

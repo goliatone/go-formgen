@@ -8,6 +8,111 @@ This package provides browser-side relationship resolution for forms generated b
 
 By default the resolver appends `?format=options` to relationship endpoints and expects an array of `{value,label}` objects. Legacy envelopes (such as `{"data":[...]}`) remain supported via the `resultsPath` metadata or a `transformOptions` hook when you need to adapt older payloads.
 
+The repaired candidate uses one shared version from [`.version`](../.version).
+`RUNTIME_VERSION`, `RUNTIME_BUILD` and `RUNTIME_INFO` expose its version and full
+input fingerprint from the runtime, behaviors and Preact hook entry points. The
+console announces each distinct identity once and warns when different builds
+are loaded together. [runtime-manifest.json](runtime-manifest.json) records output
+SHA-256 hashes; pin the module commit and serve its matching assets. Historical
+runtime 0.0.19 identifies multiple different bundles and is insufficient for pinning.
+
+## Embedded compatibility contract
+
+This is the authoritative shared-contract and integration policy for the vanilla
+model-backed controller. Preact hooks and TUI have no new embedded-controller
+compatibility guarantee. Wire-format versions identify payload meaning; the shared
+package release identifies the implementation. Neither establishes native support.
+
+| Behavior | Contract and evidence |
+| --- | --- |
+| Values and validation | [Shared v1 fixtures](../testdata/embedded/v1.json) are consumed by Go and browser tests. Missing/null fail required; explicit false/zero are answers. Optional whitespace-only strings skip string constraints. Required empty arrays fail minItems when declared, otherwise required. Presence distinguishes absent, null, empty string and empty array. |
+| Length and patterns | Length counts Unicode code points, not UTF-8 bytes or grapheme clusters. Portable patterns are ASCII alphanumeric/space/underscore/punctuation literals, positive ASCII classes/ranges (letters, digits, space, underscore, dot and hyphen), optional leading `^`/trailing `$`, quantifiers `? * + {n} {n,m}` (counts 0–999) and escaped punctuation. No dot, shorthand classes (`\s`, `\d`), negation, grouping, alternatives, flags, backreferences or lookaround. Matching searches unless anchored. Unrestricted Go RE2/JavaScript parity is unsupported. [Portable fixtures](../testdata/embedded/portable-definitions.json) test acceptance and matching in both engines. |
+| Numbers | Browser definition numeric literals/bounds must be finite within ±9007199254740991; integer defaults/enums must be integral. Browser integer answers must be safe integers; Go integer support is broader. Use strings for larger IDs. Numeric source lexemes are bounded to 128 characters and exponents −308…308. Decimal numbers retain ordinary float semantics, not arbitrary decimal precision. |
+| Conditions and indexed paths | [Definition-shape fixtures](../testdata/embedded/definition-shapes.json) and shared v1 cases cover versioned fixed references, clear/retain and requiredness. Inactivity is separate from CSS visibility. Cleared indexed coordinates are structural null slots interpreted with applicability; deleted rows need trusted structural exclusion context. Never compact and reuse old references. |
+| Enum transport | Native control tokens are decoded once; typed JSON/snapshots are literals. Use explicit Go EnumControl/EnumLiteral at transport boundaries. Source and [actual embedded-bundle regressions](tests/embedded-bundle.test.ts) cover reserved-prefix collisions, unanswered rows and restore. |
+| Controller/DOM | Legacy calls preserve patch/event defaults; explicit options give patch/replace and silent hydration. Settled callbacks observe conditions and presence. Restore validates before mutation; destroy removes owned work. [Runtime tests](tests/runtime.test.ts) cover generated-control behavior and [host guards](tests/embedded-host.test.ts) cover definition/row compatibility. DOM behavior is not proven by value fixtures alone. |
+| Locked values | Raw collection omits disabled controls. Use the model-backed controller and `snapshot().values` for logical locked answers; readonly choice controls are disabled natively. CSS-hidden applicable values still validate. See C15 in the [evidence map](../examples/embedded/README.md#evidence-map-c01c16). |
+
+### Stability and snapshot persistence
+
+Within each `formgen.descriptor/v1`, `formgen.conditions/v1` and
+`formgen.snapshot/v1` format, preserve documented meaning; incompatible changes
+require an explicitly versioned migration. Controller defaults, notification and
+lifecycle semantics are compatibility commitments. Issue codes and canonical
+paths are machine-readable contracts; message text may change or be localized.
+New issue codes are additive: hosts must handle unfamiliar codes with a generic
+message rather than failing to render the issue. Correctness fixes and the
+migration implications of observable changes belong in release notes.
+
+The host owns the definition revision and persistence. A snapshot/v1 version
+alone does not make answers compatible with arbitrary questionnaire changes.
+Use a host envelope with an immutable definition revision and stable row mapping:
+
+```ts
+const context = { definitionRevision: "synthetic-authoring/1", rows: { rows: ["row-a", "row-b"] } };
+const saved = captureSnapshotEnvelope(controller, context);
+const issues = restoreSnapshotEnvelope(controller, saved, context, { notify: false });
+```
+
+These helpers deep-copy capture context and compare definition revision and row
+mapping before calling restore. Missing revisions, legacy bare snapshots,
+reordered/deleted rows and mismatches return `snapshotContextMismatch` without
+mutation or callbacks. Legacy persistence requires explicit host migration: load
+under its original definition or migrate/revalidate answers and row identities,
+then create a new envelope. Never relabel an old snapshot to bypass the guard.
+The existing snapshot/v1 payload is unchanged. Low-level `controller.restore`
+remains available for hosts implementing their own equivalent revision guard.
+
+### Definition preflight and authoring
+
+Before schema adapters or browser JSON parsing can round values, check original
+JSON bytes with `go run ./cmd/formgen-preflight definition.json`. It returns
+machine-readable definition locations and exits nonzero on invalid/unsupported
+input. `model.DiagnosePortableDefinitionJSON` uses lossless JSON numbers; run it
+before OpenAPI/JSON Schema adapters. `model.DiagnosePortableModel` checks Go model
+values before transport but cannot recover precision already lost upstream.
+Source preflight follows schema/OpenAPI definition positions: example payloads,
+annotations and host metadata stay opaque. Numeric defaults, enum/option values,
+bounds and condition values remain checked, including literal object members.
+After browser parsing, `preflightEmbeddedDefinition(model)` checks portable
+patterns and representable numeric definitions; it cannot reconstruct original
+numeric spelling. Reject diagnostics before rendering/attaching a browser form.
+This capability is opt-in; legacy headless schemas/pattern validation are unchanged.
+
+[The synthetic authoring fixture](../testdata/embedded/authoring.json), based on
+shared v1 semantics, supplies stable question IDs and a definition revision for
+single/multiple choices, zero-inclusive scales, conditions, explicit presence,
+scoped/full validation and repeated fields. It contains no clinical semantics.
+See the [host authoring and native checklist](../examples/embedded/README.md#host-authoring-contract).
+
+### Coordinated release workflow
+
+Use Node from [`.node-version`](../.node-version) and npm 11.20.0, with locked
+build dependencies. Run from the repository root:
+
+```sh
+./taskfile release:prepare 0.34.1  # choose an unused version; installs and rebuilds
+# finalize release notes/changelog, review and commit only intended candidate files
+./taskfile release:verify         # archives HEAD, clean installs/builds/tests, compares artifacts
+./taskfile release:publish CI_RUN_ID  # separate authorized publication; requires matching successful CI
+```
+
+Preparation synchronizes `.version`, package and both lock root versions without
+updating dependency selections. Independent version mutations and the old automatic
+release command are retired. `client:build` and `client:ci` propagate failures;
+`release:check` verifies current artifacts/exports/logs without claiming a clean commit.
+Watch builds explicitly report `dev` and do not generate production release evidence.
+Fingerprint inputs include source, Tailwind scan inputs, build config, scripts,
+lockfile, pinned Node and verified build-tool versions; output hashes are separate to avoid self-hashing.
+
+Verification requires committed tracked changes and emits `.tmp/release/evidence.json`
+and a manifest bound to the exact source SHA and fixture hashes. The CI workflow
+uploads these as `release-evidence`, with its actual run URL; local verification
+is labeled local. Publication downloads successful matching CI evidence, reruns
+exact-candidate checks, then tags and pushes only the intended tag. It performs
+no source/changelog mutation and does not publish npm packages implicitly. Preserve
+existing tags. Native/platform acceptance and host production approval remain separate.
+
 ## Relationship Event Contract
 
 The runtime uses DOM `CustomEvent`s to keep the relationship system decoupled and composable.
@@ -177,9 +282,37 @@ Behavior notes:
   `type` issues for non-integral or unsafe (beyond 2^53) integers instead of
   rounding. Unknown keys report `unknownField` by default (`unknownFields:
   "ignore" | "preserve"`); repeater transport keys such as `_present` are dropped.
-  For pure normalization of already typed JSON, pass `enumValues: "literal"`;
-  the default `"control"` decodes native enum tokens. Declared string codes that
-  begin with the reserved codec prefix remain literal values in browser and Go.
+  Enum input has an explicit source: `enumValues: "control"` decodes exactly one
+  native token layer; `"literal"` preserves typed JSON strings. Pure helpers
+  default to `"auto"`, retaining legacy declared-string precedence. Controllers
+  decode choice/select tokens once, preserve ordinary text literally, and restore
+  snapshots in literal mode.
+  This keeps distinct strings separate even when one equals another's token.
+  Go `ParseValues` defaults to `EnumNative`: the model identifies choice transport,
+  while ordinary text/textarea/hidden values remain literal. Explicit component
+  overrides take precedence over enums; array choices pass their transport mode
+  to indexed items. Custom renderers or sparse host models must declare field
+  `metadata["submission.enumValues"]` as `"control"` or `"literal"` when their
+  controls differ from the standard model semantics. `ParseMap`/`ParseJSON` keep
+  auto defaults; `WithEnumValues(EnumLiteral)` accepts typed JSON and explicit
+  `EnumControl` retains legacy whole-payload decoding. Do not use a global mode
+  to compensate for mixed text and choice controls. Model-backed hydration matches normalized
+  items, so a scalar multi-choice code selects only its matching option.
+  Resolver `Option.value`, `current`, hydration, request parameters and widget
+  action/update events carry literal string IDs. Built-in select, typeahead and
+  chips renderers use `encodeEnumControlValue(id)` at the native option boundary;
+  ordinary IDs remain unchanged, while reserved-prefix strings are escaped once.
+  Custom select renderers must use the same exported helper when assigning
+  `option.value`. Read `normalize()` or snapshots for logical IDs; `getValues()`,
+  native form fields and submission mirrors carry control transport. Go
+  `ParseValues` decodes this transport once, including forms mixing resolver IDs
+  with typed choices. Hosts decoding JSON mirrors themselves must retain that
+  control-source distinction (`EnumControl`), while normalized JSON is literal.
+- Server numbers must be finite. NaN and infinities report `type` issues during
+  parsing and direct validation. JSON integer decimal/exponent spellings are
+  checked exactly against int64 bounds before conversion; fractional or overflowing
+  values are rejected without rounding. Browser integers retain their narrower
+  safe-integer limit.
 - Validation mirrors Go: `required` for missing or null values (`false`/`0`
   pass), `type`, `enum`, `min`/`max` (with `exclusive`), `minLength`/`maxLength`
   counted in Unicode code points, `pattern` (portable subset only; Go uses RE2),
@@ -266,7 +399,9 @@ integers, unknown controls, and detached rows. `controller.restore(snapshot,
 options)` hydrates present values, clears explicit nulls and absent paths
 (replace mode by default), returns retained values to their controls, restores
 presence, and reports unknown or unsafe snapshot paths instead of applying
-them. Settled hydration, reset, and restore notifications run after presence and
+them. Malformed versions, envelope shapes, presence states, and present entries
+without values return `invalidSnapshot` before any controls change, in patch
+or replace mode. Settled hydration, reset, and restore notifications run after presence and
 conditions are finalized, so callbacks can save `snapshot()` immediately.
 Retained maps use flat canonical keys, including nested/indexed paths; retained
 containers also restore their rendered leaves without allocating arrays for
@@ -276,7 +411,10 @@ issues. Partially disabled radio/checkbox groups merge captured locked members
 with enabled edits; `locked` lists paths with any disabled member. Omitted replace
 preserves locked selections, while explicit hydration/reset can change them.
 Absent restore entries explicitly clear even locked members. Explicit null booleans stay null
-in snapshots, conditions, and model validation. Raw `getValues()`/`normalize()`
+in snapshots, conditions, and model validation. Rendered unanswered rows keep
+their structural coordinates (`{}` for object rows, unanswered `null` slots for
+primitive rows), so required children and fixed-index conditions remain active.
+Intent controls remain transport-only. Raw `getValues()`/`normalize()`
 keep their native transport defaults. Collection and locking honor disabled
 fieldsets, including nested fieldsets and each first-legend exception.
 Restoration preserves normalization issues alongside typed nulls, including
@@ -326,7 +464,20 @@ registry and does not mutate page-wide resolver state. Always pass its returned
 registry to `attachFormController`; controller hydration and teardown then stay
 within that root. Teardown removes refresh/search listeners, cancels pending
 debounce/throttle work, disposes enhanced widgets/components/repeaters, and
-clears binding markers so the same DOM root can be initialized again.
+clears binding markers so the same DOM root can be initialized again. Pending
+resolver work is invalidated at each async boundary; newer refreshes and explicit
+hydration take precedence. Async custom renderers must check `context.signal`
+before committing delayed DOM changes. Hosts must likewise cancel side effects
+inside their own async hooks.
+
+Array and JSON relationship mirrors are owned by each select. They supply one
+native submission channel, preserve transport tokens and exclude disabled
+controls/options (including disabled fieldsets and optgroups); readonly values
+remain successful. Modern engines recompute entries during `formdata`, including
+same-turn programmatic changes. In engines without that event, use controller
+hydration or dispatch `change` after direct selection/disabled changes before
+constructing `FormData`. Teardown removes mirror resources and restores the
+native select name.
 `initRelationships` remains the page-wide initializer.
 
 `Option` supports `value`, `label`, `description`, `disabled`, and `meta`.
