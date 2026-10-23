@@ -45,6 +45,25 @@ func TestValidatePathsPreciseAndIndependent(t *testing.T) {
 	}
 }
 
+func TestScopedArrayEnumsSkipInactiveItemsAndAncestors(t *testing.T) {
+	form := model.FormModel{Fields: []model.Field{{Name: "codes", Type: model.FieldTypeArray, Enum: []any{"yes"}, Items: &model.Field{Type: model.FieldTypeString, Required: true}}}}
+	values := Values{"codes": []any{"no", "yes"}}
+	for _, excluded := range []string{"codes[0]", "codes"} {
+		for _, paths := range [][]string{{"codes[0]"}, {"codes[0]", "codes[0]"}, {"codes"}} {
+			got := ValidatePaths(form, values, paths, WithInactivePaths(excluded))
+			if len(got) != 0 {
+				t.Fatalf("excluded=%s scope=%v: %+v", excluded, paths, got)
+			}
+		}
+		if got := Validate(form, values, WithInactivePaths(excluded)); len(got) != 0 {
+			t.Fatal(got)
+		}
+	}
+	if got := ValidatePaths(form, values, []string{"codes[0]"}); len(got) != 1 || got[0].Code != CodeEnum {
+		t.Fatalf("active item must still validate its array enum: %+v", got)
+	}
+}
+
 func TestMissingArraysUnicodeAndTypedValues(t *testing.T) {
 	form := model.FormModel{Fields: []model.Field{{Name: "choices", Type: model.FieldTypeArray, Required: true}, {Name: "enabled", Type: model.FieldTypeBoolean, Required: true}, {Name: "zero", Type: model.FieldTypeInteger, Required: true}, {Name: "text", Type: model.FieldTypeString, Validations: []model.ValidationRule{{Kind: model.ValidationRuleMaxLength, Params: map[string]string{"value": "2"}}}}}}
 	got := Validate(form, Values{"enabled": false, "zero": int64(0), "text": "é😀"})

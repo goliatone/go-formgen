@@ -13,11 +13,7 @@ import (
 
 // CoerceValue normalizes one submitted value according to the supplied field.
 func CoerceValue(field model.Field, value any, opts Options, path string) (any, []Issue) {
-	if str, ok := value.(string); ok && !declaredStringValue(field, str) {
-		if decoded, encoded := DecodeEnumValue(str); encoded {
-			value = decoded
-		}
-	}
+	value = decodeEnumInput(field, value, opts.EnumValues)
 
 	if str, ok := value.(string); ok && str == "" {
 		if opts.EmptyStrings == EmptyPreserve {
@@ -45,6 +41,22 @@ func CoerceValue(field model.Field, value any, opts Options, path string) (any, 
 	default:
 		return value, nil
 	}
+}
+
+func decodeEnumInput(field model.Field, value any, mode EnumValueMode) any {
+	// Array containers delegate decoding to their items. Decoding the container
+	// first would decode a scalar-wrapped string twice.
+	if field.Type == model.FieldTypeArray || mode == EnumLiteral {
+		return value
+	}
+	text, ok := value.(string)
+	if !ok || (mode != EnumControl && declaredStringValue(field, text)) {
+		return value
+	}
+	if decoded, encoded := DecodeEnumValue(text); encoded {
+		return decoded
+	}
+	return value
 }
 
 // A declared literal string can itself start with the codec prefix. Typed JSON
@@ -257,7 +269,11 @@ func coerceArray(field model.Field, value any, opts Options, path string) (any, 
 	var issues []Issue
 	for i, item := range values {
 		itemPath := fmt.Sprintf("%s[%d]", path, i)
-		coerced, itemIssues := CoerceValue(itemField, item, opts, itemPath)
+		itemOpts := opts
+		if text, ok := item.(string); ok && opts.EnumValues == EnumAuto && declaredStringValue(field, text) {
+			itemOpts.EnumValues = EnumLiteral
+		}
+		coerced, itemIssues := CoerceValue(itemField, item, itemOpts, itemPath)
 		issues = append(issues, itemIssues...)
 		out = append(out, coerced)
 	}

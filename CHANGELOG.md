@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.1 candidate (2026-10-23)
+
+- Repair rendered-row membership, enum transport identity, scalar choice hydration, scoped exclusions and atomic snapshot restoration.
+- Coordinate Go/runtime versions and build identity; verify exact candidate artifacts and CI evidence before publication.
+- Add portable definition preflight, compatibility policy, guarded snapshot persistence and synthetic repeated-field authoring recipes.
+- Candidate only; v0.34.0 remains unchanged. Native/application acceptance remains downstream.
+
 # [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)
 
 ## <!-- 1 -->🐛 Bug Fixes

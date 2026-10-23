@@ -20,8 +20,15 @@ type Builder interface {
 type BuilderOption func(*builderOptions)
 
 type builderOptions struct {
+	portable   bool
 	labeler    func(string) string
 	decorators []Decorator
+}
+
+// WithPortableDefinitions enables browser-portable model checks. Check original
+// JSON with DiagnosePortableDefinitionJSON before adapters to prevent lost precision.
+func WithPortableDefinitions() BuilderOption {
+	return func(opts *builderOptions) { opts.portable = true }
 }
 
 // WithLabeler overrides the default label generation function.
@@ -57,12 +64,14 @@ func NewBuilder(options ...BuilderOption) Builder {
 	}
 
 	return &builder{
+		portable:   cfg.portable,
 		delegate:   internalmodel.New(internalOpts),
 		decorators: append([]Decorator(nil), cfg.decorators...),
 	}
 }
 
 type builder struct {
+	portable   bool
 	delegate   *internalmodel.Builder
 	decorators []Decorator
 }
@@ -74,6 +83,11 @@ func (b *builder) Build(form schema.Form) (FormModel, error) {
 	output, err := b.delegate.Build(form)
 	if err != nil {
 		return FormModel{}, err
+	}
+	if b.portable {
+		if diagnostics := DiagnosePortableModel(output); len(diagnostics) > 0 {
+			return FormModel{}, fmt.Errorf("model: %s at %s: %s", diagnostics[0].Code, diagnostics[0].Path, diagnostics[0].Message)
+		}
 	}
 	if _, diagnostics := internalconditions.Compile(output); len(diagnostics) > 0 {
 		return FormModel{}, fmt.Errorf("model: %s at %s: %s", diagnostics[0].Code, diagnostics[0].Path, diagnostics[0].Message)

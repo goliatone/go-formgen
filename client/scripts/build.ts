@@ -1,3 +1,5 @@
+// @ts-ignore Node ESM build helper; runtime-only, not a published declaration.
+import { buildInfo, assertBuildTools } from "./artifacts.mjs";
 import { build, context, analyzeMetafile, BuildOptions } from "esbuild";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
@@ -132,19 +134,6 @@ async function ensureOutDirs() {
   ]);
 }
 
-async function loadRuntimeVersion(): Promise<string> {
-  try {
-    const raw = await readFile(resolve(projectRoot, "package.json"), "utf8");
-    const parsed = JSON.parse(raw) as { version?: string };
-    if (parsed.version && typeof parsed.version === "string") {
-      return parsed.version;
-    }
-  } catch (error) {
-    console.warn("Unable to read runtime version from package.json:", error);
-  }
-  return "dev";
-}
-
 async function syncRuntimeAssets() {
   for (const copy of runtimeAssetCopies) {
     for (const target of copy.targets) {
@@ -156,11 +145,13 @@ async function syncRuntimeAssets() {
 }
 
 async function run() {
+  if (!watch) await assertBuildTools(repoRoot);
   await ensureOutDirs();
 
-  const runtimeVersion = await loadRuntimeVersion();
+  const info = watch ? { version: "dev", fingerprint: "dev" } : await buildInfo(repoRoot);
   const define = {
-    __FORMGEN_RUNTIME_VERSION__: JSON.stringify(runtimeVersion),
+    __FORMGEN_RUNTIME_VERSION__: JSON.stringify(watch ? "dev" : info.version),
+    __FORMGEN_RUNTIME_BUILD__: JSON.stringify(watch ? "dev" : info.fingerprint),
   };
   esmOptions.define = { ...(esmOptions.define ?? {}), ...define };
   iifeRuntimeOptions.define = { ...(iifeRuntimeOptions.define ?? {}), ...define };

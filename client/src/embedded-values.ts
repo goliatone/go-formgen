@@ -27,8 +27,9 @@ export interface NormalizeOptions {
   unknownFields?: "issue" | "ignore" | "preserve";
   /** Empty strings: `default` turns optional non-string scalars into null; `preserve` keeps "". */
   emptyStrings?: "default" | "preserve";
-  /** Decode native enum tokens (default), or normalize already typed JSON values. */
-  enumValues?: "control" | "literal";
+  /** Auto preserves legacy declared literals; control decodes exactly one native
+   * token layer; literal preserves already typed JSON strings. */
+  enumValues?: "auto" | "control" | "literal";
 }
 
 export interface ValidateOptions {
@@ -384,7 +385,7 @@ export function normalizeValues(
   const opts: ResolvedNormalizeOptions = {
     unknownFields: options.unknownFields ?? "issue",
     emptyStrings: options.emptyStrings ?? "default",
-    enumValues: options.enumValues ?? "control",
+    enumValues: options.enumValues ?? "auto",
   };
   const issues: EmbeddedIssue[] = [];
   const values: Record<string, JSONValue> = {};
@@ -423,7 +424,7 @@ export function normalizeFieldValue(
   const value = coerceValue(field, raw, {
     unknownFields: options.unknownFields ?? "issue",
     emptyStrings: options.emptyStrings ?? "default",
-    enumValues: options.enumValues ?? "control",
+    enumValues: options.enumValues ?? "auto",
   }, path, issues);
   return { value, issues };
 }
@@ -436,7 +437,9 @@ function coerceValue(
   issues: EmbeddedIssue[]
 ): JSONValue {
   let value: unknown = input === undefined ? null : input;
-  if (typeof value === "string" && opts.enumValues === "control" && !declaredStringValue(field, value)) {
+  // Containers delegate decoding to their items, including scalar-wrapped arrays.
+  if (typeof value === "string" && field.type !== "array" && opts.enumValues !== "literal" &&
+    (opts.enumValues === "control" || !declaredStringValue(field, value))) {
     const decoded = decodeEnumValue(value);
     if (decoded.encoded) {
       value = decoded.value;
@@ -580,7 +583,10 @@ function coerceArray(
     items = [value];
   }
   const itemField = arrayItemField(field);
-  return items.map((item, position) => coerceValue(itemField, item, opts, `${path}[${position}]`, issues));
+  return items.map((item, position) => coerceValue(itemField, item,
+    opts.enumValues === "auto" && typeof item === "string" && declaredStringValue(field, item)
+      ? { ...opts, enumValues: "literal" } : opts,
+    `${path}[${position}]`, issues));
 }
 
 function coerceObject(
@@ -691,6 +697,9 @@ export function validateValues(
         position !== otherPosition && pathWithin(path, other) && (path !== other || otherPosition < position)
     );
     if (covered) {
+      return;
+    }
+    if (inactivePath(path, opts)) {
       return;
     }
     const segments = parseCanonicalPath(path)!;

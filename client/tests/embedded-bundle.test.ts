@@ -21,6 +21,78 @@ const model: EmbeddedModel = {
   ] },
 };
 
+describe("shipped row, enum and snapshot repairs (IR-2026-10-23-01)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  it("keeps unanswered rendered rows applicable through restore and reentry", () => {
+    document.body.innerHTML = '<form><input name="gate" type="checkbox" checked><div data-formgen-array-items data-formgen-array-name="rows"><div data-formgen-array-item data-formgen-array-path="rows[0]"><fieldset><input name="rows[0].answer" type="radio" value="yes"><input name="rows[0].answer" type="radio" value="no"></fieldset></div></div></form>';
+    const m: EmbeddedModel = { fields: [{ name: "gate", type: "boolean", required: false }, { name: "rows", type: "array", required: false,
+      items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } }],
+      conditions: { version: "formgen.conditions/v1", rules: [{ path: "rows[0].answer", applicableWhen: { op: "eq", path: "gate", value: true }, requiredWhen: { op: "eq", path: "gate", value: true } }] } };
+    const c = runtime.attachFormController(document.querySelector("form")!, { model: m });
+    const saved = c.snapshot();
+    expect(saved.values.rows).toEqual([{}]);
+    expect(c.validate().map(i => `${i.code}:${i.path}`)).toEqual(["required:rows[0].answer"]);
+    expect(document.querySelector("fieldset")!.hidden).toBe(false);
+    c.setValues({ rows: [{ answer: "yes" }] }, { notify: false });
+    c.restore(saved, { notify: false });
+    c.setValues({ gate: false }, { notify: false });
+    expect(c.validate()).toEqual([]);
+    c.setValues({ gate: true }, { notify: false });
+    expect(c.snapshot()).toEqual(saved);
+    expect(c.validate().map(i => i.path)).toEqual(["rows[0].answer"]);
+    c.destroy();
+  });
+  it("keeps colliding strings distinct through native input, hydration, reset and restore", () => {
+    const a = "__fg_enum_v1:literal", b = runtime.encodeEnumValue(a);
+    document.body.innerHTML = `<form><input name="codes[]" type="checkbox" value="${runtime.encodeEnumValue(a)}" checked><input name="codes[]" type="checkbox" value="${runtime.encodeEnumValue(b)}"></form>`;
+    const c = runtime.attachFormController(document.querySelector("form")!, { model: { fields: [{ name: "codes", type: "array", required: false,
+      items: { name: "code", type: "string", required: false, enum: [a, b] } }] } });
+    const saved = c.snapshot();
+    expect(saved.values.codes).toEqual([a]);
+    c.setValues({ codes: [b] }, { notify: false });
+    expect(Array.from(document.querySelectorAll("input")).map(i => i.checked)).toEqual([false, true]);
+    expect(c.snapshot().values.codes).toEqual([b]);
+    expect(c.snapshot().issues).toEqual([]);
+    c.reset({ notify: false });
+    expect(c.snapshot()).toEqual(saved);
+    expect(c.restore(saved, { notify: false })).toEqual([]);
+    expect(c.normalize().values.codes).toEqual([a]);
+    c.destroy();
+  });
+  it("hydrates scalar checkbox codes as one normalized selection", () => {
+    document.body.innerHTML = '<form><input name="codes[]" type="checkbox" value="true"><input name="codes[]" type="checkbox" value="other"></form>';
+    const c = runtime.attachFormController(document.querySelector("form")!, { model: { fields: [{ name: "codes", type: "array", required: false,
+      items: { name: "code", type: "string", required: false } }] } });
+    c.setValues({ codes: "true" }, { notify: false });
+    expect(Array.from(document.querySelectorAll("input")).map(i => i.checked)).toEqual([true, false]);
+    expect(c.snapshot().values.codes).toEqual(["true"]);
+    expect(c.snapshot().issues).toEqual([]);
+    c.destroy();
+  });
+  it("skips inactive scoped array enum constraints", () => {
+    const m: EmbeddedModel = { fields: [{ name: "codes", type: "array", required: false, enum: ["yes"], items: { name: "code", type: "string", required: true } }] };
+    for (const inactive of [["codes[0]"], ["codes"]]) {
+      expect(runtime.validateValues(m, { codes: ["no"] }, { paths: ["codes[0]"] }, { inactive })).toEqual([]);
+    }
+  });
+  it("rejects unknown snapshot states atomically in both restore modes", () => {
+    document.body.innerHTML = '<form><input name="answer" value="saved"><input name="other" value="kept"></form>';
+    const c = runtime.attachFormController(document.querySelector("form")!, { model: { fields: ["answer", "other"].map(name => ({ name, type: "string", required: false })) } });
+    const saved = c.snapshot();
+    let calls = 0;
+    c.onChange(() => calls++);
+    const malformed = structuredClone(saved);
+    (malformed.presence as Record<string, unknown>).answer = "unexpected";
+    malformed.values.other = "must not apply";
+    for (const mode of ["patch", "replace"] as const) {
+      expect(c.restore(malformed, { mode }).map(i => i.code)).toEqual(["invalidSnapshot"]);
+      expect(c.snapshot()).toEqual(saved);
+      expect(calls).toBe(0);
+    }
+    c.destroy();
+  });
+});
+
 function render() {
   document.body.innerHTML = `<form><div><input type="checkbox" name="enabled"></div>
     <fieldset id="fg-profile"><input name="profile.answer" required></fieldset>

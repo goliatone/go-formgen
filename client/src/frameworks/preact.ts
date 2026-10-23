@@ -1,3 +1,4 @@
+export { RUNTIME_VERSION, RUNTIME_BUILD, RUNTIME_INFO } from "../version";
 import { useEffect, useState } from "preact/hooks";
 import type { Option, ValidationResult } from "../config";
 import type { ResolverRegistry } from "../registry";

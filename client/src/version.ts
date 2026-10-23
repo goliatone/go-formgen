@@ -1,30 +1,16 @@
 declare const __FORMGEN_RUNTIME_VERSION__: string | undefined;
+declare const __FORMGEN_RUNTIME_BUILD__: string | undefined;
 
-export const RUNTIME_VERSION =
-  typeof __FORMGEN_RUNTIME_VERSION__ === "string" && __FORMGEN_RUNTIME_VERSION__.length > 0
-    ? __FORMGEN_RUNTIME_VERSION__
-    : "dev";
+export const RUNTIME_VERSION = typeof __FORMGEN_RUNTIME_VERSION__ === 'string' ? __FORMGEN_RUNTIME_VERSION__ : 'dev';
+export const RUNTIME_BUILD = typeof __FORMGEN_RUNTIME_BUILD__ === 'string' ? __FORMGEN_RUNTIME_BUILD__ : 'dev';
+export const RUNTIME_INFO = Object.freeze({ version: RUNTIME_VERSION, fingerprint: RUNTIME_BUILD });
 
-const ANNOUNCE_FLAG = "__formgenRuntimeVersionAnnounced__";
-
-function announceVersion(): void {
-  if (typeof globalThis === "undefined") {
-    return;
-  }
-  const globalScope = globalThis as Record<string, unknown>;
-  if (globalScope[ANNOUNCE_FLAG]) {
-    return;
-  }
-  globalScope[ANNOUNCE_FLAG] = true;
-
-  if (typeof console === "undefined") {
-    return;
-  }
-
-  const logger = typeof console.info === "function" ? console.info : console.log;
-  if (typeof logger === "function") {
-    logger(`[formgen-relationships] runtime version ${RUNTIME_VERSION}`);
-  }
+const key = '__formgenRuntimeIdentities__';
+const scope = globalThis as typeof globalThis & { [key]?: Set<string> };
+const identities = scope[key] ??= new Set<string>();
+const identity = `${RUNTIME_VERSION}+${RUNTIME_BUILD}`;
+if (!identities.has(identity)) {
+  if (identities.size) console.warn('[formgen] multiple runtime identities loaded', [...identities, identity]);
+  identities.add(identity);
+  console.info(`[formgen] runtime version ${RUNTIME_VERSION} build ${RUNTIME_BUILD.slice(0, 12)}`);
 }
-
-announceVersion();

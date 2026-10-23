@@ -1,15 +1,15 @@
 {
   "name": "@goliatone/formgen-runtime",
   "private": false,
-  "version": "0.0.19",
+  "version": "0.34.1",
   "type": "module",
   "scripts": {
-    "build": "npm run build:types && npm run build:theme && npm run build:bundle",
-    "build:bundle": "tsx scripts/build.ts",
+    "build": "npm run build:types && npm run build:theme && npm run build:bundle && node scripts/manifest.mjs",
+    "build:bundle": "node --import tsx scripts/build.ts",
     "build:grid": "node scripts/grid-layout.mjs",
     "build:theme": "node scripts/build-theme.mjs",
-    "build:stats": "tsx scripts/build.ts --analyze",
-    "build:types": "tsc --project tsconfig.build.json",
+    "build:stats": "node --import tsx scripts/build.ts --analyze",
+    "build:types": "node -e \"require('node:fs').rmSync('dist/types', {recursive:true,force:true})\" && tsc --project tsconfig.build.json",
     "watch": "tsx scripts/watch.ts",
     "watch:bundle": "tsx scripts/build.ts --watch",
     "watch:theme": "node scripts/build-theme.mjs --watch",
@@ -18,7 +18,8 @@
     "dev:vanilla": "vite dev --open",
     "dev:preact": "vite dev --open '/preact/'",
     "dev:theme": "tsx scripts/build-theme.ts --watch --no-minify",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:artifacts": "node scripts/manifest.mjs --check"
   },
   "module": "./dist/esm/index.js",
   "browser": "./dist/browser/formgen-relationships.min.js",
@@ -71,5 +72,11 @@
     "@tiptap/extension-underline": "^2.27.1",
     "@tiptap/starter-kit": "^2.27.1",
     "preline": "^3.2.3"
-  }
+  },
+  "packageManager": "npm@11.20.0",
+  "files": [
+    "dist",
+    "runtime-manifest.json",
+    "README.md"
+  ]
 }

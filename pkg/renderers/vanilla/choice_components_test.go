@@ -1,6 +1,8 @@
 package vanilla_test
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -282,5 +284,25 @@ func TestChoiceComponentsDoNotReplaceDefaultControls(t *testing.T) {
 	)
 	if !strings.Contains(html, `type="checkbox"`) || !strings.Contains(html, `<select`) || strings.Contains(html, `data-formgen-choice`) {
 		t.Fatalf("defaults must stay checkbox/select/repeater:\n%s", html)
+	}
+}
+
+func TestSyntheticAuthoringChoicesRenderWithoutDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../../testdata/embedded/authoring.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct{ Form model.FormModel }
+	if err = json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	html := renderChoiceForm(t, fixture.Form.Fields...)
+	for _, marker := range []string{`name="q_enabled"`, `data-formgen-choice="single"`, `data-formgen-choice="multiple"`, `name="q_scale"`, `readonly`, `value="` + submission.EncodeEnumValue(float64(0)) + `"`} {
+		if !strings.Contains(html, marker) {
+			t.Fatalf("missing %s", marker)
+		}
+	}
+	if strings.Contains(html, " checked") {
+		t.Fatal("synthetic choices must initially be unanswered")
 	}
 }

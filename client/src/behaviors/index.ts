@@ -1,3 +1,4 @@
+export { RUNTIME_VERSION, RUNTIME_BUILD, RUNTIME_INFO } from "../version";
 import { autoSlug } from "./auto-slug";
 import { autoResize } from "./auto-resize";
 import { initBehaviors as initBehaviorsCore, registerBehavior, resetBehaviorRegistry } from "./registry";

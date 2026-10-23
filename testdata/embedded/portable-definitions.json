@@ -1,0 +1,124 @@
+{
+  "version": "formgen.portable-definition-fixtures/v1",
+  "patterns": [
+    {
+      "pattern": "^[A-Z][A-Za-z0-9 _-]{0,12}$",
+      "accepted": true,
+      "pass": [
+        "A",
+        "A B",
+        "AB_9"
+      ],
+      "fail": [
+        "a",
+        "A\n",
+        "A\u000bB",
+        "A\ud83d\ude00"
+      ]
+    },
+    {
+      "pattern": "^A B$",
+      "accepted": true,
+      "pass": [
+        "A B"
+      ],
+      "fail": [
+        "A\u000bB",
+        "A\tB"
+      ]
+    },
+    {
+      "pattern": "[0-9]+",
+      "accepted": true,
+      "pass": [
+        "a123b"
+      ],
+      "fail": [
+        "abc",
+        "\uff11\uff12\uff13"
+      ]
+    },
+    {
+      "pattern": "^A\\sB$",
+      "accepted": false
+    },
+    {
+      "pattern": "\\d+",
+      "accepted": false
+    },
+    {
+      "pattern": ".*",
+      "accepted": false
+    },
+    {
+      "pattern": "[^a]",
+      "accepted": false
+    },
+    {
+      "pattern": "(a|b)",
+      "accepted": false
+    },
+    {
+      "pattern": "(?i)a",
+      "accepted": false
+    },
+    {
+      "pattern": "[z-a]",
+      "accepted": false
+    },
+    {
+      "pattern": "a{1000}",
+      "accepted": false
+    },
+    {
+      "pattern": "\u00e9",
+      "accepted": false
+    },
+    {
+      "pattern": "a{01}",
+      "accepted": false
+    },
+    {
+      "pattern": " A ",
+      "accepted": false
+    }
+  ],
+  "definitions": [
+    {
+      "name": "safe",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"integer\",\"required\":false,\"default\":9007199254740991}]}",
+      "accepted": true
+    },
+    {
+      "name": "unsafe default",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"integer\",\"required\":false,\"default\":9007199254740993}]}",
+      "accepted": false
+    },
+    {
+      "name": "unsafe enum",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"integer\",\"required\":false,\"enum\":[-9007199254740993]}]}",
+      "accepted": false
+    },
+    {
+      "name": "fractional integer before rounding",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"integer\",\"required\":false,\"default\":9007199254740990.9}]}",
+      "accepted": false,
+      "sourceOnly": true
+    },
+    {
+      "name": "unsafe bound",
+      "source": "{\"fields\":[{\"name\":\"n\",\"type\":\"integer\",\"required\":false,\"validations\":[{\"kind\":\"max\",\"params\":{\"value\":\"9007199254740993\"}}]}]}",
+      "accepted": false
+    },
+    {
+      "name": "string identifier",
+      "source": "{\"fields\":[{\"name\":\"id\",\"type\":\"string\",\"required\":false,\"default\":\"9007199254740993\"}]}",
+      "accepted": true
+    },
+    {
+      "name": "fractional integer array",
+      "source": "{\"fields\": [{\"name\": \"codes\", \"type\": \"array\", \"required\": false, \"items\": {\"name\": \"code\", \"type\": \"integer\", \"required\": false}, \"enum\": [1.5]}]}",
+      "accepted": false
+    }
+  ]
+}

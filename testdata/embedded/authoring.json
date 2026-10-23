@@ -1,0 +1,244 @@
+{
+  "version": "formgen.authoring-fixtures/v1",
+  "definitionRevision": "synthetic-authoring/1",
+  "questionIDs": {
+    "q_enabled": "q_enabled",
+    "q_clear": "q_clear",
+    "q_retain": "q_retain",
+    "q_choices": "q_choices",
+    "q_scale": "q_scale",
+    "q_readonly": "q_readonly",
+    "rows": "rows"
+  },
+  "rowIDs": {
+    "rows": [
+      "row-a",
+      "row-b"
+    ]
+  },
+  "form": {
+    "fields": [
+      {
+        "name": "q_enabled",
+        "type": "boolean",
+        "required": true,
+        "enum": [
+          false,
+          true
+        ],
+        "metadata": {
+          "component.name": "choice"
+        }
+      },
+      {
+        "name": "q_clear",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "q_retain",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "q_choices",
+        "type": "array",
+        "required": true,
+        "items": {
+          "name": "choice",
+          "type": "integer",
+          "required": false,
+          "enum": [
+            0,
+            2,
+            4
+          ]
+        },
+        "validations": [
+          {
+            "kind": "minItems",
+            "params": {
+              "value": "1"
+            }
+          },
+          {
+            "kind": "maxItems",
+            "params": {
+              "value": "2"
+            }
+          }
+        ],
+        "metadata": {
+          "component.name": "choice-multiple"
+        }
+      },
+      {
+        "name": "q_scale",
+        "type": "integer",
+        "required": true,
+        "enum": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "validations": [
+          {
+            "kind": "min",
+            "params": {
+              "value": "0"
+            }
+          },
+          {
+            "kind": "max",
+            "params": {
+              "value": "10"
+            }
+          }
+        ],
+        "metadata": {
+          "component.name": "scale"
+        }
+      },
+      {
+        "name": "q_readonly",
+        "type": "string",
+        "required": false,
+        "readonly": true,
+        "default": "reference"
+      },
+      {
+        "name": "rows",
+        "type": "array",
+        "required": false,
+        "items": {
+          "name": "row",
+          "type": "object",
+          "required": false,
+          "nested": [
+            {
+              "name": "q_note",
+              "type": "string",
+              "required": true
+            }
+          ]
+        }
+      }
+    ],
+    "conditions": {
+      "version": "formgen.conditions/v1",
+      "rules": [
+        {
+          "path": "q_clear",
+          "applicableWhen": {
+            "op": "eq",
+            "path": "q_enabled",
+            "value": true
+          },
+          "requiredWhen": {
+            "op": "eq",
+            "path": "q_enabled",
+            "value": true
+          },
+          "onInapplicable": "clear"
+        },
+        {
+          "path": "q_retain",
+          "applicableWhen": {
+            "op": "eq",
+            "path": "q_enabled",
+            "value": true
+          },
+          "onInapplicable": "retain"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "unanswered",
+      "values": {},
+      "issues": [
+        "required:q_enabled",
+        "required:q_choices",
+        "required:q_scale"
+      ]
+    },
+    {
+      "id": "false-zero",
+      "values": {
+        "q_enabled": false,
+        "q_choices": [
+          0
+        ],
+        "q_scale": 0
+      },
+      "issues": []
+    },
+    {
+      "id": "followup-required",
+      "values": {
+        "q_enabled": true,
+        "q_choices": [
+          0
+        ],
+        "q_scale": 0
+      },
+      "issues": [
+        "required:q_clear"
+      ]
+    },
+    {
+      "id": "precise-row",
+      "values": {
+        "q_enabled": false,
+        "q_choices": [
+          0
+        ],
+        "q_scale": 0,
+        "rows": [
+          {
+            "q_note": "first"
+          },
+          {}
+        ]
+      },
+      "issues": [
+        "required:rows[1].q_note"
+      ]
+    },
+    {
+      "id": "too-many",
+      "values": {
+        "q_enabled": false,
+        "q_choices": [
+          0,
+          2,
+          4
+        ],
+        "q_scale": 0
+      },
+      "issues": [
+        "maxItems:q_choices"
+      ]
+    },
+    {
+      "id": "empty-selection",
+      "values": {
+        "q_enabled": false,
+        "q_choices": [],
+        "q_scale": 0
+      },
+      "issues": [
+        "minItems:q_choices"
+      ]
+    }
+  ]
+}

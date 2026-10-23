@@ -1,6 +1,7 @@
 package submission_test
 
 import (
+	"encoding/json"
 	"net/url"
 	"testing"
 
@@ -10,6 +11,46 @@ import (
 	"github.com/goliatone/go-formgen/pkg/submission"
 	"github.com/goliatone/go-formgen/pkg/widgets"
 )
+
+func TestEnumInputSourceDisambiguatesDeclaredTransportTokens(t *testing.T) {
+	a := "__fg_enum_v1:literal"
+	b := submission.EncodeEnumControlValue(a)
+	item := model.Field{Type: model.FieldTypeString, Enum: []any{a, b}}
+	form := model.FormModel{Fields: []model.Field{
+		{Name: "code", Type: model.FieldTypeString, Enum: []any{a, b}},
+		{Name: "codes", Type: model.FieldTypeArray, Items: &item},
+		{Name: "parent", Type: model.FieldTypeArray, Enum: []any{a, b}, Items: &model.Field{Type: model.FieldTypeString}},
+	}}
+	for _, literal := range []string{a, b} {
+		t.Run(literal, func(t *testing.T) {
+			token := submission.EncodeEnumControlValue(literal)
+			want := submission.Values{"code": literal, "codes": []any{literal}, "parent": []any{literal}}
+			native := submission.ParseValues(form, url.Values{"code": {token}, "codes[]": {token}, "parent": {token}})
+			if diff := cmp.Diff(want, native.Values); diff != "" || len(native.Issues) != 0 {
+				t.Fatalf("native: %s issues=%+v", diff, native.Issues)
+			}
+			for _, mode := range []submission.EnumValueMode{submission.EnumAuto, submission.EnumLiteral} {
+				body, _ := json.Marshal(want)
+				parsed, err := submission.ParseJSON(form, body, submission.WithEnumValues(mode))
+				if diff := cmp.Diff(want, parsed.Values); err != nil || diff != "" || len(parsed.Issues) != 0 {
+					t.Fatalf("typed JSON mode=%v: %s err=%v issues=%+v", mode, diff, err, parsed.Issues)
+				}
+			}
+			// A scalar-wrapped array decodes once, including a token that itself
+			// decodes to another valid token. Parent and item enums both work.
+			encoded := submission.ParseMap(form, map[string]any{"code": token, "codes": token, "parent": token}, submission.WithEnumValues(submission.EnumControl))
+			if diff := cmp.Diff(want, encoded.Values); diff != "" || len(encoded.Issues) != 0 {
+				t.Fatalf("encoded map: %s issues=%+v", diff, encoded.Issues)
+			}
+		})
+	}
+	// Typed strings need not be enumerated to remain literals.
+	plain := model.FormModel{Fields: []model.Field{{Name: "code", Type: model.FieldTypeString}}}
+	got := submission.ParseMap(plain, map[string]any{"code": b}, submission.WithEnumValues(submission.EnumLiteral))
+	if got.Values["code"] != b {
+		t.Fatalf("literal source decoded a free-text string: %+v", got)
+	}
+}
 
 func TestEnumHelpersRoundTripTypedValues(t *testing.T) {
 	values := []any{"draft", int64(2), uint64(18446744073709551615), 3.5, true, "__fg_enum_v1:not-real"}

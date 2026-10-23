@@ -122,6 +122,13 @@ func newExampleServer(ctx context.Context) (*exampleServer, error) {
 // compileForm normalizes the embedded JSON Schema through the canonical adapter
 // and builds the complete form model, including the root condition set.
 func compileForm(ctx context.Context) (model.FormModel, error) {
+	diagnostics, err := model.DiagnosePortableDefinitionJSON(schemaJSON)
+	if err != nil {
+		return model.FormModel{}, err
+	}
+	if len(diagnostics) > 0 {
+		return model.FormModel{}, fmt.Errorf("portable definition: %s at %s", diagnostics[0].Code, diagnostics[0].Path)
+	}
 	document := jsonschema.MustNewDocument(jsonschema.SourceFromFS(schemaSourceName), schemaJSON)
 	adapter := jsonschema.NewAdapter(memoryLoader{document: document})
 	ir, err := adapter.Normalize(ctx, document, schema.NormalizeOptions{})
@@ -360,7 +367,7 @@ func (s *exampleServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "request body too large or unreadable", http.StatusBadRequest)
 		return
 	}
-	parsed, err := submission.ParseJSON(s.form, body)
+	parsed, err := submission.ParseJSON(s.form, body, submission.WithEnumValues(submission.EnumLiteral))
 	if err != nil {
 		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
 		return

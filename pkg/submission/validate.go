@@ -430,6 +430,9 @@ func ValidatePaths(form model.FormModel, values Values, paths []string, options 
 		if covered {
 			continue
 		}
+		if inactivePath(path, opts) {
+			continue
+		}
 		resolved, _ := fieldpath.Resolve(form, path)
 		value, exists := fieldpath.Get(map[string]any(values), path)
 		// Full array validation applies both the container's per-element enum

@@ -8,7 +8,27 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/goliatone/go-formgen/pkg/model"
+	"github.com/goliatone/go-formgen/pkg/submission"
 )
+
+func TestValidateEndpointPreservesTypedLiteralStrings(t *testing.T) {
+	server := &exampleServer{form: model.FormModel{Fields: []model.Field{{
+		Name: "answer", Type: model.FieldTypeString, Required: true,
+		Validations: []model.ValidationRule{{Kind: model.ValidationRulePattern, Params: map[string]string{"pattern": "^__fg_enum_v1:"}}},
+	}}}}
+	body, err := json.Marshal(map[string]any{"answer": submission.EncodeEnumValue(false)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	server.handleValidate(recorder, httptest.NewRequest(http.MethodPost, "/api/validate", strings.NewReader(string(body))))
+	var response validateResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil || recorder.Code != http.StatusOK || len(response.Issues) != 0 {
+		t.Fatalf("typed literal was decoded as transport: status=%d body=%s err=%v", recorder.Code, recorder.Body.String(), err)
+	}
+}
 
 func TestExamplePageRendersFormDescriptorAndExtension(t *testing.T) {
 	server, err := newExampleServer(context.Background())
