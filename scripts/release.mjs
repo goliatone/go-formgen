@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname, basename } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { checkPackage } from './check-package.mjs';
-import { validVersion, versionInfo, checkManifest, manifestPath, sha256, json } from '../client/scripts/artifacts.mjs';
+import { validVersion, versionInfo, checkManifest, manifestPath, sha256, json, copies } from '../client/scripts/artifacts.mjs';
 
 // Stream large committed assets/source maps; do not depend on exec's stdout buffer.
 export function gitBlobHash(root, object) {
@@ -35,7 +35,84 @@ export async function prepare(root, version, execute = run) {
   execute(resolve(root, 'client'), 'npm', ['ci']);
   execute(resolve(root, 'client'), 'npm', ['run', 'build']);
   await checkManifest(root);
-  console.log('Candidate prepared. Finalize release notes/changelog, review and commit the intended files, then run release:verify.');
+  console.log(`Prepared v${version}: synchronized versions and rebuilt artifacts.`);
+}
+
+export function releaseVersion(current, target = 'patch') {
+  if (validVersion(target)) return target;
+  if (!['major', 'minor', 'patch'].includes(target)) throw Error('Use release [patch|minor|major|VERSION|--resume] [message]');
+  if (!validVersion(current)) throw Error('Invalid current shared version');
+  const parts = current.split(/[+-]/)[0].split('.').map(BigInt);
+  const index = { major: 0, minor: 1, patch: 2 }[target];
+  // Finalizing a prerelease on the requested boundary need not skip that version.
+  const prerelease = current.split('+')[0].includes('-');
+  if (!prerelease || parts.slice(index + 1).some(part => part !== 0n)) parts[index] += 1n;
+  for (let i = index + 1; i < parts.length; i++) parts[i] = 0n;
+  return parts.join('.');
+}
+
+const manualReleaseFiles = ['.version', 'client/package.json', 'client/package-lock.json', manifestPath,
+  'CHANGELOG.md', ...Object.values(copies).flat()];
+
+function assertCandidate(root, commit, execute, branch) {
+  if (execute(root, 'git', ['rev-parse', 'HEAD'], true) !== commit ||
+      execute(root, 'git', ['status', '--porcelain', '--untracked-files=no'], true) ||
+      execute(root, 'git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], true) !== branch) throw Error('Candidate changed during release');
+}
+
+/** Maintainer-invoked convenience workflow; tests inject stages and use disposable Git remotes. */
+export async function manualRelease(root, target = 'patch', message, execute = run, prepareCandidate = prepare, verifyCandidate = verify) {
+  const resume = target === '--resume';
+  const { version: current } = await versionInfo(root);
+  const version = resume ? current : releaseVersion(current, target);
+  const tag = `v${version}`;
+  if (execute(root, 'git', ['status', '--porcelain', '--untracked-files=no'], true)) throw Error('Commit or restore tracked changes before manual release');
+  const branch = execute(root, 'git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], true);
+  if (!branch) throw Error('Manual release requires an attached branch');
+  execute(root, 'git', ['remote', 'get-url', 'origin'], true);
+  execute(root, 'git', ['fetch', 'origin', '--tags']);
+  if (execute(root, 'git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`], true)) throw Error(`Remote tag ${tag} already exists`);
+  const existingTag = execute(root, 'git', ['tag', '--list', tag], true);
+  if (existingTag && !resume) throw Error(`Tag ${tag} already exists; choose an unused version`);
+  let commit = execute(root, 'git', ['rev-parse', 'HEAD'], true);
+  if (existingTag && (execute(root, 'git', ['rev-parse', `${tag}^{commit}`], true) !== commit ||
+      execute(root, 'git', ['cat-file', '-t', `refs/tags/${tag}`], true) !== 'tag')) throw Error('Resume tag must be an annotated tag of the current candidate');
+
+  if (!resume) {
+    // Check changelog tooling before any version/build mutation.
+    execute(root, 'git', ['cliff', '--version'], true);
+    await prepareCandidate(root, version, execute);
+    if (execute(root, 'git', ['rev-parse', 'HEAD'], true) !== commit ||
+        execute(root, 'git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], true) !== branch) throw Error('Candidate changed during preparation');
+    execute(root, 'git', ['cliff', '--tag', tag, '--output', 'CHANGELOG.md']);
+    const changed = execute(root, 'git', ['diff', '--name-only', '-z', 'HEAD'], true).split('\0').filter(Boolean);
+    const unexpected = changed.filter(path => !manualReleaseFiles.includes(path));
+    if (unexpected.length) throw Error(`Unexpected tracked changes during preparation: ${unexpected.join(', ')}`);
+    execute(root, 'git', ['add', '--', ...manualReleaseFiles]);
+    execute(root, 'git', ['commit', '--only', '-m', `chore(release): ${tag}`, '--', ...manualReleaseFiles]);
+    const prepared = execute(root, 'git', ['rev-parse', 'HEAD'], true);
+    if (execute(root, 'git', ['rev-parse', `${prepared}^`], true) !== commit) throw Error('Candidate changed during preparation');
+    commit = prepared;
+  }
+
+  try {
+    assertCandidate(root, commit, execute, branch);
+    const manifestHash = sha256(await readFile(resolve(root, manifestPath)));
+    const evidence = await verifyCandidate(root, commit, execute);
+    validateEvidence(evidence, commit, manifestHash);
+    assertCandidate(root, commit, execute, branch);
+    if (sha256(await readFile(resolve(root, manifestPath))) !== manifestHash) throw Error('Candidate manifest changed during release');
+    if (!existingTag) execute(root, 'git', ['tag', '-a', tag, commit, '-m', message ?? `Release ${tag}`]);
+    const tagObject = execute(root, 'git', ['rev-parse', `refs/tags/${tag}`], true);
+    if (execute(root, 'git', ['rev-parse', `${tagObject}^{commit}`], true) !== commit) throw Error('Release tag target differs from the verified candidate');
+    assertCandidate(root, commit, execute, branch);
+    // Non-fast-forward branch updates fail; atomic push cannot publish only the tag.
+    execute(root, 'git', ['push', '--atomic', 'origin', `${commit}:refs/heads/${branch}`, `${tagObject}:refs/tags/${tag}`]);
+    console.log(`Released ${tag} at ${commit}; exact-candidate verification passed (${evidence.provider}).`);
+    return evidence;
+  } catch (error) {
+    throw Error(`${error.message}\nLocal candidate ${commit} is retained. Inspect origin and the candidate before retrying ./taskfile release --resume.`);
+  }
 }
 export async function identityCheck(root) {
   const manifest = await checkManifest(root);
@@ -180,11 +257,15 @@ export async function publish(root, runID, execute = run, verifyCandidate = veri
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 export async function main(root, command, args) {
+  if (command === 'manual') {
+    if (args.length > 2) throw Error('Use release [patch|minor|major|VERSION|--resume] [message]');
+    return manualRelease(root, args[0], args[1]);
+  }
   if (command === 'prepare') return prepare(root, args[0]);
   if (command === 'check') return identityCheck(root);
   if (command === 'verify') return verify(root, args[0]);
   if (command === 'publish') return publish(root, args[0]);
-  throw Error('Usage: release:prepare VERSION | release:check | release:verify [HEAD] | release:publish CI_RUN_ID');
+  throw Error('Usage: release [patch|minor|major|VERSION|--resume] [message] | release:prepare VERSION | release:check | release:verify [HEAD] | release:publish CI_RUN_ID');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main(resolve(dirname(fileURLToPath(import.meta.url)), '..'), process.argv[2], process.argv.slice(3)).catch(error => { console.error(error.message); process.exitCode = 1; });

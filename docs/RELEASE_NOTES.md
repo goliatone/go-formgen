@@ -21,8 +21,15 @@ and fingerprint; historical 0.0.19 alone cannot identify an artifact.
 
 The latest repairs require fresh exact-commit verification. Earlier exact-SHA
 CI evidence belongs to its recorded commit and does not verify these changes.
-Run exact-candidate verification against the final reviewed commit and retain
-fresh matching hosted evidence before publication or host pinning.
+Manual release runs exact-candidate verification locally before tagging/pushing.
+The staged CI-backed publication path and downstream CI-based host pinning require
+fresh matching hosted evidence for the final reviewed commit.
+
+Use `./taskfile release minor` (default `patch`; also `major` or explicit VERSION)
+for the manual version/build/changelog/commit/local-verification/atomic-push flow.
+It needs no GitHub Actions run ID. Failed verification/push can resume the clean
+local candidate with `./taskfile release --resume`; existing remote tags remain
+immutable. The separate prepare/verify/publish commands remain available.
 
 The exact source commit and fixture commit/hashes are emitted by
 `./taskfile release:verify` into `.tmp/release/evidence.json`, alongside the verified
@@ -31,7 +38,7 @@ hash in tracked output. The [CI workflow](../.github/workflows/release-verify.ym
 uploads matching evidence with the actual run URL as `release-evidence`.
 No hosted CI run link or native acceptance is claimed until that run exists.
 Download that run's evidence and compare source SHA, manifest hash, version and
-fingerprint before pinning; publication refuses mismatched/failed CI evidence.
+fingerprint before pinning; `release:publish CI_RUN_ID` refuses mismatched/failed CI evidence.
 Local verification is explicitly labeled `provider: local`.
 
 - Fix unanswered repeated-row membership, enum token/literal collisions, scalar

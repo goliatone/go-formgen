@@ -719,16 +719,14 @@ function version:check { test -s .version; }
 ##
 ## Arguments:
 ## @arg 1 {string} [level=patch]
-##        Accepted major, minor, patch
+##        Accepted major, minor, patch, explicit VERSION, or --resume
+##        Builds, updates changelog, commits, verifies locally and pushes branch/tag.
 function release:prepare { node scripts/release.mjs prepare "$@"; }
 function release:check { node scripts/release.mjs check "$@"; }
 function release:verify { node scripts/release.mjs verify "$@"; }
 function release:preflight { release:verify "$@"; }
 function release:publish { node scripts/release.mjs publish "$@"; }
-function release {
-    echo "Use release:prepare VERSION, commit the candidate, release:verify, then release:publish CI_RUN_ID." >&2
-    return 1
-}
+function release { node scripts/release.mjs manual "$@"; }
 
 ##########################################
 # Help and auxiliary functions
@@ -755,5 +753,5 @@ function help {
     grep -e '^##[[:space:]]' -e '^##$' "$prog" | sed -e 's/^##//' -e "s/_PROG_/$me/" 2>&1 | less
 }
 
-TIMEFORMAT="Task completed in %3lR"
+TIMEFORMAT="Task duration: %3lR"
 time "${@:-help}"

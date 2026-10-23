@@ -90,17 +90,37 @@ See the [host authoring and native checklist](../examples/embedded/README.md#hos
 Use Node from [`.node-version`](../.node-version) and npm 11.20.0, with locked
 build dependencies. Run from the repository root:
 
+For a manual release, use the existing single command:
+
 ```sh
-./taskfile release:prepare 0.34.1  # choose an unused version; installs and rebuilds
-# finalize release notes/changelog, review and commit only intended candidate files
-./taskfile release:verify         # archives HEAD, clean installs/builds/tests, compares artifacts
-./taskfile release:publish CI_RUN_ID  # separate authorized publication; requires matching successful CI
+./taskfile release minor         # patch (default), minor, major, or explicit VERSION
+./taskfile release 0.34.1        # release this unused candidate version without bumping
+```
+
+The command requires a clean tracked checkout on an attached branch and `origin`,
+plus `git-cliff` and the pinned Node/npm/Go toolchain. It fetches tags, synchronizes
+all versions, rebuilds artifacts, generates the changelog, commits only the release
+files, and runs full exact-commit verification locally. It then atomically pushes
+that branch commit and its annotated version tag. It never pulls/overwrites source,
+force-pushes, or pushes unrelated tags. A failed verification/push leaves the local
+candidate for review; retry `./taskfile release --resume` after resolving the cause.
+Build/changelog failures before the commit leave preparation changes to inspect;
+finish and commit the intended candidate before using `--resume`.
+
+A GitHub Actions run ID is not required for this maintainer-invoked manual path.
+For separately controlled preparation and CI-backed publication, use:
+
+```sh
+./taskfile release:prepare 0.34.1
+# finalize release notes/changelog, review and commit intended candidate files
+./taskfile release:verify
+./taskfile release:publish CI_RUN_ID  # requires successful matching hosted evidence
 ```
 
 Preparation synchronizes `.version`, package and both lock root versions without
-updating dependency selections. Independent version mutations and the old automatic
-release command are retired. `client:build` and `client:ci` propagate failures;
-`release:check` verifies current artifacts/exports/logs without claiming a clean commit.
+updating dependency selections. Independent version mutations remain retired.
+`client:build` and `client:ci` propagate failures; `release:check` verifies current
+artifacts/exports/logs without claiming a clean commit.
 Watch builds explicitly report `dev` and do not generate production release evidence.
 Fingerprint inputs include source, Tailwind scan inputs, build config, scripts,
 lockfile, pinned Node and verified build-tool versions; output hashes are separate to avoid self-hashing.
@@ -108,7 +128,7 @@ lockfile, pinned Node and verified build-tool versions; output hashes are separa
 Verification requires committed tracked changes and emits `.tmp/release/evidence.json`
 and a manifest bound to the exact source SHA and fixture hashes. The CI workflow
 uploads these as `release-evidence`, with its actual run URL; local verification
-is labeled local. Publication downloads successful matching CI evidence, reruns
+is labeled local. The staged `release:publish` command downloads matching CI evidence, reruns
 exact-candidate checks, then tags and pushes only the intended tag. It performs
 no source/changelog mutation and does not publish npm packages implicitly. Preserve
 existing tags. Native/platform acceptance and host production approval remain separate.

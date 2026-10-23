@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
-import { prepare, publish, verify, validateEvidence, run } from './release.mjs';
+import { prepare, publish, verify, validateEvidence, run, manualRelease, releaseVersion } from './release.mjs';
 import { versionInfo } from '../client/scripts/artifacts.mjs';
 
 test('production version and lock mismatch are fatal', async () => {
@@ -119,7 +119,7 @@ test('manifest detects stale inputs, outputs, missing files and embedded copy dr
  }finally{await rm(root,{recursive:true,force:true});}
 });
 
-test('Taskfile wrappers preserve npm failure and retire automatic release/version writes',async()=>{
+test('Taskfile wrappers preserve failures and forward manual release arguments',async()=>{
  const {chmod}=await import('node:fs/promises');const {spawnSync}=await import('node:child_process');
  const root=resolve(import.meta.dirname,'..');const dir=await mkdtemp(resolve(tmpdir(),'formgen-taskfile-'));
  try{
@@ -128,10 +128,14 @@ test('Taskfile wrappers preserve npm failure and retire automatic release/versio
    const r=spawnSync('bash',['taskfile',task],{cwd:root,env:{...process.env,PATH:dir+':'+process.env.PATH},encoding:'utf8'});
    assert.equal(r.status,42,r.stderr);
   }
-  for(const task of ['release','client:version:bump','version:set','version:bump']){
+  for(const task of ['client:version:bump','version:set','version:bump']){
    const r=spawnSync('bash',['taskfile',task,'patch'],{cwd:root,env:{...process.env,PATH:dir+':'+process.env.PATH},encoding:'utf8'});
    assert.notEqual(r.status,0);
   }
+  await writeFile(resolve(dir,'node'),'#!/bin/sh\nprintf "%s\\n" "$@"\nexit 42\n');await chmod(resolve(dir,'node'),0o755);
+  const manual=spawnSync('bash',['taskfile','release','minor','Manual release'],{cwd:root,env:{...process.env,PATH:dir+':'+process.env.PATH},encoding:'utf8'});
+  assert.equal(manual.status,42,manual.stderr);
+  assert.equal(manual.stdout,'scripts/release.mjs\nmanual\nminor\nManual release\n');
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 
@@ -320,4 +324,148 @@ test('packed inventory and retained output bytes must match before passing evide
   assert.equal(JSON.parse(await readFile(resolve(root,'.tmp/release/evidence.json'))).status,'passed');
   await verifyPackageContents(resolve(root,'.tmp/release/artifacts/client'),manifest);
  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('manual version selection preserves patch/minor/major and explicit versions', () => {
+ assert.equal(releaseVersion('0.34.1'),'0.34.2');
+ assert.equal(releaseVersion('0.34.1','minor'),'0.35.0');
+ assert.equal(releaseVersion('0.34.1','major'),'1.0.0');
+ assert.equal(releaseVersion('1.3.0-rc.1','minor'),'1.3.0');
+ assert.equal(releaseVersion('1.3.1-rc.1','patch'),'1.3.1');
+ assert.equal(releaseVersion('1.3.1-rc.1','minor'),'1.4.0');
+ assert.equal(releaseVersion('0.34.1','0.34.1'),'0.34.1');
+ assert.equal(releaseVersion('999999999999999999.2.3','major'),'1000000000000000000.0.0');
+ assert.throws(()=>releaseVersion('0.34.1','invalid'),/Use release/);
+});
+
+// Only these disposable repositories receive commits/tags/pushes. Production
+// preparation and exact verification are already exercised above; these stage
+// doubles exercise the orchestration and real Git publication transaction.
+async function manualFixture() {
+ const {copies,manifestPath,sha256}=await import('../client/scripts/artifacts.mjs');
+ const {writeFileSync}=await import('node:fs');
+ const parent=await mkdtemp(resolve(tmpdir(),'formgen-manual-'));
+ const root=resolve(parent,'source'),remote=resolve(parent,'origin.git');
+ await mkdir(resolve(root,'client'),{recursive:true});
+ await writeFile(resolve(root,'.version'),'1.2.3\n');
+ await writeFile(resolve(root,'client/package.json'),'{"version":"1.2.3"}');
+ await writeFile(resolve(root,'client/package-lock.json'),'{"version":"1.2.3","packages":{"":{"version":"1.2.3"}}}');
+ await writeFile(resolve(root,manifestPath),'{"version":"1.2.3"}');
+ for(const path of Object.values(copies).flat()){await mkdir(dirname(resolve(root,path)),{recursive:true});await writeFile(resolve(root,path),'original');}
+ await writeFile(resolve(root,'CHANGELOG.md'),'original changelog');
+ await writeFile(resolve(root,'README.md'),'original source');
+ run(root,'git',['init','-q','-b','main']);
+ run(root,'git',['config','user.name','Fixture']);run(root,'git',['config','user.email','fixture@example.test']);
+ run(root,'git',['add','.']);run(root,'git',['commit','-qm','initial']);
+ run(parent,'git',['init','-q','--bare',remote]);run(root,'git',['remote','add','origin',remote]);
+ run(root,'git',['push','-q','origin','main']);
+ const initial=run(root,'git',['rev-parse','HEAD'],true),calls=[];
+ const execute=(cwd,cmd,args,capture)=>{
+  calls.push([cmd,...args]);
+  if(cmd==='git'&&args[0]==='cliff'){
+   if(args.includes('--output'))writeFileSync(resolve(cwd,'CHANGELOG.md'),`Changelog for ${args[args.indexOf('--tag')+1]}`);
+   return 'git-cliff fixture';
+  }
+  return run(cwd,cmd,args,capture);
+ };
+ const preparing=async(cwd,version)=>{
+  await writeFile(resolve(cwd,'.version'),version+'\n');
+  await writeFile(resolve(cwd,'client/package.json'),JSON.stringify({version}));
+  await writeFile(resolve(cwd,'client/package-lock.json'),JSON.stringify({version,packages:{'':{version}}}));
+  await writeFile(resolve(cwd,manifestPath),JSON.stringify({version}));
+ };
+ const verifying=async(cwd,commit)=>{
+  calls.push(['verify',commit]);
+  assert.match(run(cwd,'git',['show',`${commit}:CHANGELOG.md`],true),/Changelog for v/);
+  return {format:'formgen.release-evidence/v1',sourceCommit:commit,manifestHash:sha256(await readFile(resolve(cwd,manifestPath))),status:'passed',provider:'local'};
+ };
+ const noPublication=()=>assert.equal(calls.some(c=>c[0]==='git'&&(c[1]==='push'||c[1]==='tag'&&c[2]==='-a')),false);
+ return {parent,root,remote,initial,calls,execute,preparing,verifying,noPublication};
+}
+
+test('manual minor release commits synchronized files and atomically pushes only its branch/tag',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const f=await manualFixture();
+ try{
+  await writeFile(resolve(f.root,'private.txt'),'unrelated');
+  run(f.root,'git',['tag','v0.9.0']);
+  const evidence=await manualRelease(f.root,'minor','My release',f.execute,f.preparing,f.verifying);
+  const head=run(f.root,'git',['rev-parse','HEAD'],true);
+  assert.equal((await versionInfo(f.root)).version,'1.3.0');assert.equal(evidence.sourceCommit,head);assert.equal(evidence.provider,'local');
+  assert.equal(run(f.remote,'git',['rev-parse','refs/heads/main'],true),head);
+  assert.equal(run(f.remote,'git',['rev-parse','v1.3.0^{commit}'],true),head);
+  assert.equal(run(f.remote,'git',['tag','--list'],true),'v1.3.0');
+  assert.equal(run(f.remote,'git',['for-each-ref','--format=%(contents:subject)','refs/tags/v1.3.0'],true),'My release');
+  assert.equal(run(f.root,'git',['ls-files','private.txt'],true),'');assert.equal(await readFile(resolve(f.root,'private.txt'),'utf8'),'unrelated');
+  assert.equal(run(f.root,'git',['status','--porcelain','--untracked-files=no'],true),'');
+  const pushed=f.calls.find(c=>c[0]==='git'&&c[1]==='push');
+  assert.deepEqual(pushed.slice(0,4),['git','push','--atomic','origin']);assert.equal(pushed.length,6);
+  assert.equal(f.calls.some(c=>c[0]==='gh'),false);
+ }finally{await rm(f.parent,{recursive:true,force:true});}
+});
+
+test('manual failures cannot tag or push before successful exact-candidate verification',async()=>{
+ for(const failure of ['dirty','prepare','changelog','unexpected','verify','evidence','drift']){
+  const f=await manualFixture();
+  try{
+   if(failure==='dirty')await writeFile(resolve(f.root,'README.md'),'dirty');
+   const preparing=async(...args)=>{if(failure==='prepare')throw Error('injected prepare');await f.preparing(...args);if(failure==='unexpected')await writeFile(resolve(f.root,'README.md'),'unexpected source mutation');};
+   const execute=(cwd,cmd,args,capture)=>{if(failure==='changelog'&&cmd==='git'&&args[0]==='cliff'&&args.includes('--output'))throw Error('injected changelog');return f.execute(cwd,cmd,args,capture);};
+   const verifying=async(...args)=>{
+    if(failure==='verify')throw Error('injected verify');
+    const evidence=await f.verifying(...args);
+    if(failure==='evidence')evidence.sourceCommit='wrong';
+    if(failure==='drift')run(f.root,'git',['commit','--allow-empty','-qm','concurrent commit']);
+    return evidence;
+   };
+   await assert.rejects(manualRelease(f.root,'minor',undefined,execute,preparing,verifying));f.noPublication();
+   assert.equal(run(f.remote,'git',['rev-parse','refs/heads/main'],true),f.initial);
+   assert.equal(run(f.remote,'git',['tag','--list'],true),'');
+  }finally{await rm(f.parent,{recursive:true,force:true});}
+ }
+});
+
+test('manual resume retries a failed atomic push without another bump or commit',async()=>{
+ const f=await manualFixture();
+ try{
+  const execute=(cwd,cmd,args,capture)=>{if(cmd==='git'&&args[0]==='push')throw Error('injected push');return f.execute(cwd,cmd,args,capture);};
+  await assert.rejects(manualRelease(f.root,'minor',undefined,execute,f.preparing,f.verifying),/release --resume/);
+  const head=run(f.root,'git',['rev-parse','HEAD'],true);
+  assert.equal(run(f.remote,'git',['rev-parse','refs/heads/main'],true),f.initial);
+  assert.equal(run(f.remote,'git',['tag','--list'],true),'');
+  await manualRelease(f.root,'--resume',undefined,f.execute,()=>{throw Error('must not prepare again');},f.verifying);
+  assert.equal(run(f.root,'git',['rev-parse','HEAD'],true),head);
+  assert.equal(run(f.remote,'git',['rev-parse','v1.3.0^{commit}'],true),head);
+ }finally{await rm(f.parent,{recursive:true,force:true});}
+});
+
+test('atomic manual push rejects a diverged remote branch without publishing its tag',async()=>{
+ const f=await manualFixture();
+ try{
+  const verifying=async(...args)=>{
+   const evidence=await f.verifying(...args),peer=resolve(f.parent,'peer');
+   run(f.parent,'git',['clone','-q','--branch','main',f.remote,peer]);
+   run(peer,'git',['-c','user.name=Peer','-c','user.email=peer@example.test','commit','--allow-empty','-qm','remote advancement']);
+   run(peer,'git',['push','-q','origin','main']);
+   return evidence;
+  };
+  await assert.rejects(manualRelease(f.root,'minor',undefined,f.execute,f.preparing,verifying),/release --resume/);
+  assert.equal(run(f.remote,'git',['tag','--list'],true),'');
+  assert.notEqual(run(f.remote,'git',['rev-parse','refs/heads/main'],true),run(f.root,'git',['rev-parse','HEAD'],true));
+ }finally{await rm(f.parent,{recursive:true,force:true});}
+});
+
+test('manual preflight preserves existing tags and rejects detached or invalid releases',async()=>{
+ for(const kind of ['detached','local-tag','remote-tag','invalid']){
+  const f=await manualFixture();
+  try{
+   if(kind==='detached')run(f.root,'git',['checkout','--detach','-q']);
+   if(kind==='local-tag'||kind==='remote-tag')run(f.root,'git',['tag','-a','v1.3.0','-m','existing']);
+   if(kind==='remote-tag')run(f.root,'git',['push','-q','origin','v1.3.0']);
+   await assert.rejects(manualRelease(f.root,kind==='invalid'?'typo':'minor',undefined,f.execute,()=>{throw Error('must not prepare');},f.verifying));
+   f.noPublication();assert.equal((await versionInfo(f.root)).version,'1.2.3');
+   assert.equal(run(f.root,'git',['rev-parse','HEAD'],true),f.initial);
+   if(kind.endsWith('tag'))assert.equal(run(f.root,'git',['rev-parse','v1.3.0^{commit}'],true),f.initial);
+  }finally{await rm(f.parent,{recursive:true,force:true});}
+ }
 });
