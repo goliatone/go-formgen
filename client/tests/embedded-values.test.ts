@@ -381,3 +381,31 @@ describe("embedded values: canonical paths", () => {
     expect(pathWithin("rows[10]", "rows[1]")).toBe(false);
   });
 });
+
+describe("opaque JSON data copying (IR-2026-10-22-06)", () => {
+  it("preserves own JSON members without prototype mutation or aliasing", () => {
+    const raw = JSON.parse('{"constructor":"builder","prototype":{"a":1},"__proto__":{"flag":true},"nested":[{"constructor":{"b":2}}]}');
+    const model: EmbeddedModel = { fields: [{ name: "config", type: "object", required: false }] };
+    const normalized = normalizeValues(model, { config: raw });
+    expect(normalized.issues).toEqual([]);
+    expect(JSON.stringify(normalized.values.config)).toBe(JSON.stringify(raw));
+    expect(Object.getPrototypeOf(normalized.values.config)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).flag).toBeUndefined();
+    raw.prototype.a = 9;
+    expect((normalized.values.config as Record<string, unknown>).prototype).toEqual({ a: 1 });
+    expect(parseCanonicalPath("config.constructor")).toBeNull();
+    expect(parseCanonicalPath("__proto__.flag")).toBeNull();
+  });
+  it("distinguishes typed enum literals from native tokens without heuristics", () => {
+    const token = encodeEnumValue(false);
+    const model: EmbeddedModel = { fields: [{ name: "code", type: "string", required: false }] };
+    expect(normalizeValues(model, { code: token }).values.code).toBe("false");
+    expect(normalizeValues(model, { code: token }, { enumValues: "literal" }).values.code).toBe(token);
+  });
+});
+
+it("recognizes declared reserved-prefix array strings before scalar wrapping", () => {
+  const literal = encodeEnumValue(false);
+  const model: EmbeddedModel = { fields: [{ name: "codes", type: "array", required: false, items: { name: "item", type: "string", required: false, enum: [literal] } }] };
+  expect(normalizeValues(model, { codes: literal })).toEqual({ values: { codes: [literal] }, issues: [] });
+});

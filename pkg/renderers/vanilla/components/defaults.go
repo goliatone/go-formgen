@@ -664,6 +664,8 @@ func writeArrayItemFrame(builder *strings.Builder, field model.Field, child stri
 	} else {
 		builder.WriteString(`false`)
 	}
+	builder.WriteString(`" data-formgen-array-path="`)
+	builder.WriteString(html.EscapeString(itemPath))
 	builder.WriteString(`">`)
 	if arrayUpdateIntentEnabled(field) && strings.TrimSpace(itemPath) != "" {
 		writeArrayRowIntentMarkers(builder, itemPath, existing, value, index)

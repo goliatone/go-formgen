@@ -250,3 +250,46 @@ func TestSharedIndexedConformance(t *testing.T) {
 		})
 	}
 }
+
+func TestConditionalStructuralRowExclusions(t *testing.T) {
+	item := model.Field{Type: model.FieldTypeObject, Required: true, Nested: []model.Field{{Name: "answer", Type: model.FieldTypeString, Required: true}}}
+	form := model.FormModel{Fields: []model.Field{{Name: "rows", Type: model.FieldTypeArray, Items: &item, Validations: []model.ValidationRule{{Kind: model.ValidationRuleMinItems, Params: map[string]string{"value": "2"}}}}, {Name: "gate", Type: model.FieldTypeBoolean}}, Conditions: &model.ConditionSet{Version: model.ConditionsVersion, Rules: []model.ConditionRule{{Path: "rows[0].answer", RequiredWhen: &model.Expression{Op: "present", Path: "gate"}}}}}
+	parsed := ParseMap(form, map[string]any{"gate": true, "rows": []any{nil, map[string]any{"answer": "saved"}}})
+	result := ValidateConditional(form, parsed, InactiveReject, WithInactivePaths("rows[0]"))
+	if len(result.Issues) != 1 || result.Issues[0].Code != CodeMinItems || result.Issues[0].Path != "rows" {
+		t.Fatalf("%+v", result)
+	}
+	if result.Applicable["rows[0]"] || result.Applicable["rows[0].answer"] || result.Required["rows[0].answer"] {
+		t.Fatalf("%+v", result)
+	}
+	if got := ValidatePaths(form, result.Values, []string{"rows[0].answer"}, WithInactivePaths("rows[0]")); len(got) > 0 {
+		t.Fatal(got)
+	}
+	if result.Values["rows"].([]any)[1].(map[string]any)["answer"] != "saved" {
+		t.Fatal("sibling index changed")
+	}
+}
+
+func TestStructuralExclusionDoesNotRetainDeletedAnswers(t *testing.T) {
+	item := model.Field{Type: model.FieldTypeObject, Required: true, Nested: []model.Field{{Name: "answer", Type: model.FieldTypeString, Required: true}}}
+	form := model.FormModel{Fields: []model.Field{{Name: "gate", Type: model.FieldTypeBoolean}, {Name: "rows", Type: model.FieldTypeArray, Items: &item}}, Conditions: &model.ConditionSet{Version: model.ConditionsVersion, Rules: []model.ConditionRule{{Path: "rows[0].answer", ApplicableWhen: &model.Expression{Op: "present", Path: "gate"}, OnInapplicable: "retain"}}}}
+	parsed := ParseMap(form, map[string]any{"gate": true, "rows": []any{map[string]any{"answer": "deleted"}, map[string]any{"answer": "kept"}}})
+	got := ValidateConditional(form, parsed, InactiveNormalize, WithInactivePaths("rows[0]"))
+	if len(got.Issues) > 0 || len(got.Retained) > 0 || got.Applicable["rows[0].answer"] || got.Values["rows"].([]any)[0] != nil {
+		t.Fatalf("%+v", got)
+	}
+	if parsed.Values["rows"].([]any)[0].(map[string]any)["answer"] != "deleted" {
+		t.Fatal("source mutated")
+	}
+}
+
+func TestRetainedAncestorExcludesDeletedDescendant(t *testing.T) {
+	item := model.Field{Type: model.FieldTypeObject, Nested: []model.Field{{Name: "answer", Type: model.FieldTypeString}}}
+	form := model.FormModel{Fields: []model.Field{{Name: "gate", Type: model.FieldTypeBoolean}, {Name: "profile", Type: model.FieldTypeObject, Nested: []model.Field{{Name: "rows", Type: model.FieldTypeArray, Items: &item}}}}, Conditions: &model.ConditionSet{Version: model.ConditionsVersion, Rules: []model.ConditionRule{{Path: "profile", ApplicableWhen: &model.Expression{Op: "eq", Path: "gate", Value: true}, OnInapplicable: "retain"}}}}
+	parsed := ParseMap(form, map[string]any{"gate": false, "profile": map[string]any{"rows": []any{map[string]any{"answer": "deleted"}, map[string]any{"answer": "kept"}}}})
+	got := ValidateConditional(form, parsed, InactiveNormalize, WithInactivePaths("profile.rows[0]"))
+	rows := got.Retained["profile"].(map[string]any)["rows"].([]any)
+	if len(got.Issues) > 0 || rows[0] != nil || rows[1].(map[string]any)["answer"] != "kept" {
+		t.Fatalf("%+v", got)
+	}
+}

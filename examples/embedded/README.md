@@ -72,6 +72,13 @@ page sends `effective().values` to the server, which evaluates the same
 definition through `submission.ValidateConditional`. The earlier host-side
 applicability adapter is gone.
 
+The rebuilt runtime also covers overlapping retain/clear policies, reserved-prefix
+string choices, native sanitization diagnostics, captured snapshot issues, and
+safe opaque JSON keys. Choice highlighting follows native checked/disabled state.
+For hosts adding repeaters, Add/Remove notifications do not require conditions;
+deleted rows need validated deletion context when composing server validation
+with `submission.WithInactivePaths` (see the client README).
+
 ## Metadata spelling used here
 
 - Field labels: `"x-formgen": { "label": "Enable feature" }`.
@@ -155,6 +162,10 @@ exactly one per user action.
 | 300 fields, 30 rules | 19 ms | 17 ms | 11 ms | 21 ms | 3 ms | 4 ms |
 
 Numeric budgets are a maintainer and host decision; these are observations.
+After IR-2026-10-22-05 fixes, the same harness measured 300 fields/30 rules at
+32 ms attach, 30 ms silent hydration, 19 ms edit, 31 ms toggle, 6 ms validation
+and 5 ms snapshot. It still owns three root listeners, emits zero callbacks
+for silent hydration and one per tested user event.
 
 ## Browser smoke (recorded)
 
@@ -208,6 +219,12 @@ every field spanning the full width, and probe attributes (`data-formgen-span`,
 `data-formgen-start`, `data-formgen-span-lg`) placing fields as the stylesheet
 contract describes. Not covered: WKWebView, VoiceOver or other screen readers,
 physical devices.
+
+A separate 2026-10-22 Headless Chromium 156 regression smoke loaded the rebuilt
+Go-embedded runtime and passed 11 checks covering the nine IR-2026-10-22-05
+findings plus native required reentry and disabled-fieldset legend semantics.
+The tagged example harness also passes. This regression smoke does not replace
+the full example interaction smoke above or establish native accessibility support.
 
 ## Versions
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fixture from "../../testdata/embedded/v1.json";
+import shapes from "../../testdata/embedded/definition-shapes.json";
 import { compileConditions, evaluateExpression, validateConditional } from "../src/embedded-conditions";
 import { normalizeValues } from "../src/embedded-values";
 import type { ConditionSet, EmbeddedField, EmbeddedModel, JSONValue } from "../src/embedded-contract";
@@ -272,4 +273,90 @@ describe("embedded conditions: evaluator semantics", () => {
     expect(result.projection).toBeNull();
     expect(result.issues.map((issue) => `${issue.code}:${issue.path}`)).toEqual(["condition:level", "minItems:colors"]);
   });
+});
+
+
+describe("condition collection shape", () => {
+  it.each([{}, "rules", 1, false])("rejects malformed explicit rules: %j", (rules) => {
+    const model = { ...baseModel, conditions: { version: "formgen.conditions/v1", rules } } as unknown as EmbeddedModel;
+    expect(compileConditions(model).program).toBeNull();
+    expect(compileConditions(model).diagnostics).toEqual([
+      { code: "conditionRules", path: "conditions.rules", message: "condition rules must be an array" },
+    ]);
+    expect(validateConditional(model, {}).issues.some((issue) => issue.code === "condition")).toBe(true);
+  });
+
+  it.each([null, undefined, []])("allows missing, null, or empty rules: %j", (rules) => {
+    const model = { ...baseModel, conditions: { version: "formgen.conditions/v1", rules } } as unknown as EmbeddedModel;
+    expect(compileConditions(model).diagnostics).toEqual([]);
+    expect(compileConditions(model).program!.rules).toEqual([]);
+  });
+});
+
+describe("embedded conditional scope boundaries", () => {
+  const model: EmbeddedModel = withRules({ fields: [
+    field({ name: "gate", type: "boolean" }),
+    field({ name: "profile", type: "object", nested: [field({ name: "answer", type: "string" }), field({ name: "next", type: "string", required: true })] }),
+    field({ name: "rows", type: "array", items: field({ name: "row", type: "object", nested: [field({ name: "answer", type: "string" })] }) }),
+  ] }, [
+    { path: "profile", requiredWhen: { op: "eq", path: "gate", value: true } },
+    { path: "rows", requiredWhen: { op: "eq", path: "gate", value: true } },
+  ]);
+
+  it("does not pull absent conditional ancestors into child scopes", () => {
+    const source = { gate: true };
+    expect(validateConditional(model, source, { scope: { paths: ["profile.answer", "rows[0].answer"] } }).issues).toEqual([]);
+    expect(validateConditional(model, source, { scope: { paths: [] } }).issues).toEqual([]);
+    expect(validateConditional(model, source, { scope: { paths: ["profile", "rows"] } }).issues.map((i) => `${i.code}:${i.path}`).sort()).toEqual(["required:profile", "required:rows"]);
+    expect(validateConditional(model, { gate: true, profile: {} }, { scope: { paths: ["profile.answer"] } }).issues).toEqual([]);
+  });
+
+  it("still reports selected required descendants of absent containers", () => {
+    const nested = withRules(model, [{ path: "profile.answer", requiredWhen: { op: "eq", path: "gate", value: true } }]);
+    expect(validateConditional(nested, { gate: true }, { scope: { paths: ["profile.answer"] } }).issues.map((i) => `${i.code}:${i.path}`)).toEqual(["required:profile.answer"]);
+    expect(validateConditional(nested, { gate: true }, { scope: { paths: ["profile"] } }).issues.map((i) => `${i.code}:${i.path}`)).toEqual(["required:profile.answer"]);
+  });
+
+  it("keeps inactive ancestor rejection relevant to selected children", () => {
+    const inactive = withRules(model, [{ path: "profile", applicableWhen: { op: "eq", path: "gate", value: true } }]);
+    expect(validateConditional(inactive, { gate: false, profile: { answer: "stale" } }, { scope: { paths: ["profile.answer"] } }).issues.map((i) => `${i.code}:${i.path}`)).toEqual(["inactiveInput:profile"]);
+  });
+});
+
+// The public Go builder consumes the same serialized definition shapes.
+describe("embedded condition definition shape parity", () => {
+  for (const testCase of shapes.cases) {
+    it(testCase.name, () => {
+      const model = { fields: [field({ name: "gate", type: "boolean" }), field({ name: "answer", type: "string" })], conditions: testCase.conditions } as unknown as EmbeddedModel;
+      const compiled = compileConditions(model);
+      expect(compiled.program === null).toBe(testCase.invalid);
+      expect(compiled.diagnostics.length > 0).toBe(testCase.invalid);
+      if (testCase.invalid) expect(JSON.stringify(compiled.diagnostics)).not.toContain("retain");
+    });
+  }
+});
+
+it("projects trusted deleted-row exclusions before rules without retaining their answers", () => {
+  const model: EmbeddedModel = { fields: [
+    { name: "gate", type: "boolean", required: false },
+    { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: true, nested: [{ name: "answer", type: "string", required: true }] } },
+  ], conditions: { version: "formgen.conditions/v1", rules: [
+    { path: "rows[0].answer", applicableWhen: { op: "present", path: "gate" }, onInapplicable: "retain" },
+  ] } };
+  const source = { gate: true, rows: [{ answer: "deleted" }, { answer: "kept" }] };
+  const result = validateConditional(model, source, { inactivePaths: ["rows[0]"], policy: "normalize" });
+  expect(result.issues).toEqual([]);
+  expect(result.projection?.values).toEqual({ gate: true, rows: [null, { answer: "kept" }] });
+  expect(result.projection?.applicable).toEqual({ "rows[0]": false, "rows[0].answer": false });
+  expect(result.projection?.retained).toEqual({});
+  expect(source.rows[0].answer).toBe("deleted");
+});
+
+it("keeps deleted descendants out of retained ancestor containers", () => {
+  const model: EmbeddedModel = { fields: [{ name: "gate", type: "boolean", required: false }, { name: "profile", type: "object", required: false, nested: [{ name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } }] }], conditions: { version: "formgen.conditions/v1", rules: [{ path: "profile", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: "retain" }] } };
+  const values = { gate: false, profile: { rows: [{ answer: "deleted" }, { answer: "kept" }] } };
+  const result = validateConditional(model, values, { policy: "normalize", inactivePaths: ["profile.rows[0]"] });
+  expect(result.projection?.retained).toEqual({ profile: { rows: [null, { answer: "kept" }] } });
+  expect(result.issues).toEqual([]);
+  expect(values.profile.rows[0].answer).toBe("deleted");
 });

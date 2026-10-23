@@ -91,6 +91,14 @@ func WithEmptyStrings(policy EmptyStringPolicy) Option {
 	}
 }
 
+// WithInactivePaths excludes trusted structural subtrees from validation and
+// conditional projection without compacting array coordinates. Derive paths
+// from validated host row intents; this option is not an authorization check.
+func WithInactivePaths(paths ...string) Option {
+	copy := append([]string(nil), paths...)
+	return func(opts *Options) { opts.inactive = append([]string(nil), copy...) }
+}
+
 // WithMultipartMaxMemory sets the max memory used when parsing multipart
 // requests.
 func WithMultipartMaxMemory(maxMemory int64) Option {

@@ -27,6 +27,8 @@ export interface NormalizeOptions {
   unknownFields?: "issue" | "ignore" | "preserve";
   /** Empty strings: `default` turns optional non-string scalars into null; `preserve` keeps "". */
   emptyStrings?: "default" | "preserve";
+  /** Decode native enum tokens (default), or normalize already typed JSON values. */
+  enumValues?: "control" | "literal";
 }
 
 export interface ValidateOptions {
@@ -382,6 +384,7 @@ export function normalizeValues(
   const opts: ResolvedNormalizeOptions = {
     unknownFields: options.unknownFields ?? "issue",
     emptyStrings: options.emptyStrings ?? "default",
+    enumValues: options.enumValues ?? "control",
   };
   const issues: EmbeddedIssue[] = [];
   const values: Record<string, JSONValue> = {};
@@ -409,6 +412,22 @@ export function normalizeValues(
   return { values, issues };
 }
 
+/** Normalize one resolved leaf before writing a potentially lossy native control. */
+export function normalizeFieldValue(
+  field: EmbeddedField,
+  raw: unknown,
+  path: string,
+  options: NormalizeOptions = {}
+): { value: JSONValue; issues: EmbeddedIssue[] } {
+  const issues: EmbeddedIssue[] = [];
+  const value = coerceValue(field, raw, {
+    unknownFields: options.unknownFields ?? "issue",
+    emptyStrings: options.emptyStrings ?? "default",
+    enumValues: options.enumValues ?? "control",
+  }, path, issues);
+  return { value, issues };
+}
+
 function coerceValue(
   field: EmbeddedField,
   input: unknown,
@@ -417,7 +436,7 @@ function coerceValue(
   issues: EmbeddedIssue[]
 ): JSONValue {
   let value: unknown = input === undefined ? null : input;
-  if (typeof value === "string") {
+  if (typeof value === "string" && opts.enumValues === "control" && !declaredStringValue(field, value)) {
     const decoded = decodeEnumValue(value);
     if (decoded.encoded) {
       value = decoded.value;
@@ -445,6 +464,12 @@ function coerceValue(
     default:
       return cloneJSON(value);
   }
+}
+
+function declaredStringValue(field: EmbeddedField, value: string): boolean {
+  return (field.enum ?? []).some((candidate) => candidate === value) ||
+    (field.options ?? []).some((option) => option.value === value) ||
+    (field.type === "array" && !!field.items && declaredStringValue(field.items, value));
 }
 
 function coerceString(value: unknown): JSONValue {
@@ -964,7 +989,7 @@ function enumValueEqual(candidate: unknown, value: unknown): boolean {
   return kindOf(candidate) === kindOf(value) && String(candidate) === String(value);
 }
 
-function jsonValueEqual(a: unknown, b: unknown): boolean {
+export function jsonValueEqual(a: unknown, b: unknown): boolean {
   if (typeof a === "number" && typeof b === "number") {
     return a === b;
   }
@@ -1075,10 +1100,9 @@ export function cloneJSON(value: unknown): JSONValue {
   if (isPlainObject(value)) {
     const out: Record<string, JSONValue> = {};
     for (const key of Object.keys(value)) {
-      if (UNSAFE_SEGMENTS.has(key)) {
-        continue;
-      }
-      out[key] = cloneJSON(value[key]);
+      // Opaque JSON members are data, including names that are forbidden in
+      // address paths. Define own properties so __proto__ cannot invoke a setter.
+      Object.defineProperty(out, key, { value: cloneJSON(value[key]), enumerable: true, configurable: true, writable: true });
     }
     return out;
   }

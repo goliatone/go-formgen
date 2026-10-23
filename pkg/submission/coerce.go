@@ -13,7 +13,7 @@ import (
 
 // CoerceValue normalizes one submitted value according to the supplied field.
 func CoerceValue(field model.Field, value any, opts Options, path string) (any, []Issue) {
-	if str, ok := value.(string); ok {
+	if str, ok := value.(string); ok && !declaredStringValue(field, str) {
 		if decoded, encoded := DecodeEnumValue(str); encoded {
 			value = decoded
 		}
@@ -45,6 +45,22 @@ func CoerceValue(field model.Field, value any, opts Options, path string) (any, 
 	default:
 		return value, nil
 	}
+}
+
+// A declared literal string can itself start with the codec prefix. Typed JSON
+// submissions already carry that value; native controls wrap it one extra time.
+func declaredStringValue(field model.Field, value string) bool {
+	for _, candidate := range field.Enum {
+		if text, ok := candidate.(string); ok && text == value {
+			return true
+		}
+	}
+	for _, option := range field.Options {
+		if text, ok := option.Value.(string); ok && text == value {
+			return true
+		}
+	}
+	return field.Type == model.FieldTypeArray && field.Items != nil && declaredStringValue(*field.Items, value)
 }
 
 func coerceString(value any) any {

@@ -255,7 +255,7 @@ func scaleOptionsFromBounds(field model.Field, config map[string]any) ([]choiceO
 	}
 	total := int(count.Int64())
 	out := make([]choiceOption, 0, total)
-	for index := 0; index < total; index++ {
+	for index := range total {
 		value := minValue + int64(index)*step
 		var typed any = value
 		if field.Type == model.FieldTypeNumber {

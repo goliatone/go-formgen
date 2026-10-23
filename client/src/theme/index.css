@@ -135,12 +135,12 @@
   justify-content: center;
 }
 
-.formgen-choice-option[data-selected="true"] {
+.formgen-choice-option:has(.formgen-choice-input:checked) {
   border-color: var(--primary-color, #2563eb);
   box-shadow: 0 0 0 1px var(--primary-color, #2563eb);
 }
 
-.formgen-choice-option[data-disabled="true"] {
+.formgen-choice-option:has(.formgen-choice-input:disabled) {
   cursor: not-allowed;
   opacity: 0.6;
 }

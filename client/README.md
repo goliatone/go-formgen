@@ -140,7 +140,14 @@ controller's subscribers, and `mode: "replace"` clears omitted enabled controls,
 treats `null` as an explicit clear, replaces arrays, hydrates rendered rows from
 arrays of objects, and throws before mutating when a payload row has no rendered
 row. Widgets, submission mirrors, dependent refreshes, and components keep
-synchronizing in every mode.
+synchronizing in every mode. With a model attached, absent/null/false presence
+changes also notify even when the native value stays unchanged. Explicit null
+containers clear their rendered leaves. Replacement checks structural membership
+before mutation, including empty objects, null slots and nested rows. With a model,
+conversion issues are captured before native inputs can sanitize invalid text.
+Snapshots and validation keep those issues until an observed edit, reset, or
+explicit hydration replaces the entry. A typed value the rendered control cannot
+encode stays in logical state with an `unrepresentable` issue.
 
 ### Model-aware values and scoped validation
 
@@ -170,6 +177,9 @@ Behavior notes:
   `type` issues for non-integral or unsafe (beyond 2^53) integers instead of
   rounding. Unknown keys report `unknownField` by default (`unknownFields:
   "ignore" | "preserve"`); repeater transport keys such as `_present` are dropped.
+  For pure normalization of already typed JSON, pass `enumValues: "literal"`;
+  the default `"control"` decodes native enum tokens. Declared string codes that
+  begin with the reserved codec prefix remain literal values in browser and Go.
 - Validation mirrors Go: `required` for missing or null values (`false`/`0`
   pass), `type`, `enum`, `min`/`max` (with `exclusive`), `minLength`/`maxLength`
   counted in Unicode code points, `pattern` (portable subset only; Go uses RE2),
@@ -217,6 +227,31 @@ bypass `effective().values` (`conditions: { policy: "normalize" }` only affects
 the shared evaluator's handling of such payloads). `controller.settle()`
 re-evaluates after DOM changes the runtime cannot observe. Evaluation order and
 diagnostics mirror the Go `conditions` package and the shared fixture.
+Condition AST nodes reject unknown properties and malformed operands, matching the
+public Go builder. Child-only validation never pulls in a required ancestor;
+inactive-input policy separately considers overlapping ancestor scopes.
+
+Overlapping clear/retain rules keep retained history independently of cleared
+controls. Reentry does not resurrect a cleared leaf. Repeater Add/Remove actions
+notify even without condition rules. Deleted rows are excluded from answers,
+counts, and requiredness; wizard-hidden rows remain applicable. Sibling indexes
+stay fixed. Deleting the last answer leaves an explicit empty array.
+
+For repeated-row submissions, the server needs the host-validated deletion
+context as well as the values. Compose it explicitly:
+
+```go
+// deletedRows comes from validated host row intents; do not trust a browser's
+// applicability map as authorization to omit required fields.
+result := submission.ValidateConditional(form, parsed, submission.InactiveReject,
+    submission.WithInactivePaths(deletedRows...))
+```
+
+The pure browser equivalent is `validateConditional(model, values,
+{ inactivePaths: deletedRows })`; `program.evaluate(values, deletedRows)` and Go
+`program.Evaluate(values, deletedRows...)` project the same structural exclusions.
+Inactive null holes do not count as answers; active explicit nulls keep their
+normal validation policy.
 
 ### Typed snapshots with explicit presence
 
@@ -231,7 +266,28 @@ integers, unknown controls, and detached rows. `controller.restore(snapshot,
 options)` hydrates present values, clears explicit nulls and absent paths
 (replace mode by default), returns retained values to their controls, restores
 presence, and reports unknown or unsafe snapshot paths instead of applying
-them. Raw `getValues()` is unchanged.
+them. Settled hydration, reset, and restore notifications run after presence and
+conditions are finalized, so callbacks can save `snapshot()` immediately.
+Retained maps use flat canonical keys, including nested/indexed paths; retained
+containers also restore their rendered leaves without allocating arrays for
+unvalidated indexes. Model-backed raw-object inputs/textarea values hydrate and
+restore as JSON. Disabled values use the same normalization and retain parse
+issues. Partially disabled radio/checkbox groups merge captured locked members
+with enabled edits; `locked` lists paths with any disabled member. Omitted replace
+preserves locked selections, while explicit hydration/reset can change them.
+Absent restore entries explicitly clear even locked members. Explicit null booleans stay null
+in snapshots, conditions, and model validation. Raw `getValues()`/`normalize()`
+keep their native transport defaults. Collection and locking honor disabled
+fieldsets, including nested fieldsets and each first-legend exception.
+Restoration preserves normalization issues alongside typed nulls, including
+locked invalid answers, before subscriber callbacks run. Opaque JSON objects
+preserve all own keys safely, including `constructor`, `prototype`, and
+`__proto__`; these data keys do not relax address-path restrictions.
+
+Choice card styling follows native `:checked` and `:disabled` state through
+`:has`, including hydration, reset, restore, and fieldset locks. Custom themes
+should use these native states; SSR `data-selected`/`data-disabled` are initial
+render hints.
 
 ### Component preflight
 

@@ -273,7 +273,7 @@ func TestUniqueItemsStaysLinearForLargeExponentLexemes(t *testing.T) {
 	form := model.FormModel{Fields: []model.Field{{Name: "answers", Type: model.FieldTypeArray, Items: &item, Validations: []model.ValidationRule{{Kind: model.ValidationRuleUniqueItems}}}}}
 	var body strings.Builder
 	body.WriteString(`{"answers":[`)
-	for i := 0; i < 400; i++ {
+	for i := range 400 {
 		if i > 0 {
 			body.WriteByte(',')
 		}
@@ -357,7 +357,7 @@ func TestTypedContainersInNestedObjectsParseLikeJSON(t *testing.T) {
 		t.Fatal(parsed.Issues)
 	}
 	rows := parsed.Values["rows"].([]any)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if tags, exists := rows[i].(map[string]any)["tags"]; !exists || tags != nil {
 			t.Fatalf("row %d: nil containers must parse as null: %#v", i, tags)
 		}
@@ -367,5 +367,28 @@ func TestTypedContainersInNestedObjectsParseLikeJSON(t *testing.T) {
 	}
 	if tags := rows[5].(map[string]any)["tags"]; !reflect.DeepEqual(tags, []any{int64(1), int64(2), int64(3)}) {
 		t.Fatalf("byte arrays encode as JSON arrays: %#v", tags)
+	}
+}
+
+func TestReservedPrefixLiteralChoiceRoundTrip(t *testing.T) {
+	literal := EncodeEnumValue(false)
+	form := model.FormModel{Fields: []model.Field{{Name: "code", Type: model.FieldTypeString, Enum: []any{literal, "false"}}, {Name: "codes", Type: model.FieldTypeArray, Items: &model.Field{Type: model.FieldTypeString, Enum: []any{literal, "false"}}}}}
+	for _, value := range []string{literal, EncodeEnumControlValue(literal)} {
+		parsed := ParseMap(form, map[string]any{"code": value, "codes": []any{value, "false"}})
+		if len(parsed.Issues) > 0 || parsed.Values["code"] != literal || parsed.Values["codes"].([]any)[0] != literal {
+			t.Fatalf("%+v", parsed)
+		}
+		if issues := Validate(form, parsed.Values); len(issues) > 0 {
+			t.Fatal(issues)
+		}
+	}
+}
+
+func TestReservedPrefixScalarArrayInput(t *testing.T) {
+	literal := EncodeEnumValue(false)
+	form := model.FormModel{Fields: []model.Field{{Name: "codes", Type: model.FieldTypeArray, Items: &model.Field{Type: model.FieldTypeString, Enum: []any{literal}}}}}
+	got := ParseMap(form, map[string]any{"codes": literal})
+	if len(got.Issues) > 0 || got.Values["codes"].([]any)[0] != literal {
+		t.Fatalf("%+v", got)
 	}
 }

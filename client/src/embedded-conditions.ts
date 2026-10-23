@@ -56,7 +56,7 @@ export interface CompiledRule {
 export interface ConditionProgram {
   readonly rules: readonly CompiledRule[];
   /** Project already normalized typed values. The input is never mutated. */
-  evaluate(values: Record<string, JSONValue> | null | undefined): ConditionProjection;
+  evaluate(values: Record<string, JSONValue> | null | undefined, inactivePaths?: readonly string[]): ConditionProjection;
 }
 
 export interface CompileResult {
@@ -78,6 +78,8 @@ export interface ValidateConditionalOptions {
   policy?: InactiveInputPolicy;
   /** Reuse a previous compilation of the same model. */
   compiled?: CompileResult;
+  /** Trusted structural exclusions (for example deleted rows), never authorization from answers. */
+  inactivePaths?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -87,15 +89,22 @@ export interface ValidateConditionalOptions {
 export function compileConditions(modelInput: EmbeddedModelInput): CompileResult {
   const model = resolveEmbeddedModel(modelInput);
   const conditions = model.conditions as { version?: unknown; rules?: unknown } | undefined;
-  if (!conditions) {
+  if (conditions == null) {
     return { program: new Program([]), diagnostics: [] };
   }
   const compiler = new Compiler(model);
+  if (!compiler.checkProperties(conditions, ["version", "rules"], "conditions")) {
+    return { program: null, diagnostics: compiler.diagnostics };
+  }
   if (conditions.version !== CONDITIONS_VERSION) {
     compiler.add("conditionVersion", "conditions.version", "unsupported condition contract version");
     return { program: null, diagnostics: compiler.diagnostics };
   }
-  const rules = Array.isArray(conditions.rules) ? (conditions.rules as RawRule[]) : [];
+  if (conditions.rules != null && !Array.isArray(conditions.rules)) {
+    compiler.add("conditionRules", "conditions.rules", "condition rules must be an array");
+    return { program: null, diagnostics: compiler.diagnostics };
+  }
+  const rules = (conditions.rules ?? []) as RawRule[];
   for (const rule of rules) {
     compiler.collectRule(rule);
   }
@@ -120,7 +129,21 @@ class Compiler {
     this.diagnostics.push({ code, path, message });
   }
 
+  /** Validate the serialized AST shape before semantic checks or copying. */
+  checkProperties(raw: unknown, allowed: string[], path: string): boolean {
+    if (!isPlainObject(raw)) {
+      this.add("conditionShape", path, "condition node must be an object");
+      return false;
+    }
+    for (const key of Object.keys(raw)) {
+      if (!allowed.includes(key)) this.add("conditionShape", path, "unexpected condition property");
+    }
+    return true;
+  }
+
   collectRule(raw: RawRule): void {
+    const before = this.diagnostics.length;
+    if (!this.checkProperties(raw, ["path", "applicableWhen", "requiredWhen", "onInapplicable"], "conditions.rules")) return;
     const path = typeof raw?.path === "string" ? raw.path : "";
     if (!parseCanonicalPath(path) || !lookupField(this.model, path)) {
       this.add("conditionPath", path, "condition target must be a known canonical field path");
@@ -129,7 +152,7 @@ class Compiler {
       this.add("conditionDuplicate", path, "only one condition rule is allowed per path");
     }
     const policy = raw?.onInapplicable;
-    if (policy !== undefined && policy !== "" && policy !== "clear" && policy !== "retain") {
+    if (policy != null && policy !== "" && policy !== "clear" && policy !== "retain") {
       this.add("conditionPolicy", path, "onInapplicable must be clear or retain");
     }
     if (raw?.applicableWhen == null && raw?.requiredWhen == null) {
@@ -139,6 +162,12 @@ class Compiler {
       if (expression != null) {
         this.checkExpression(expression, path, 0);
       }
+    }
+    if (this.diagnostics.length !== before) {
+      // Keep target identity for duplicate diagnostics, but never copy invalid
+      // or excessively deep trees (including cyclic non-JSON host objects).
+      this.rules.set(path, { path });
+      return;
     }
     const rule: ConditionRule = {
       path,
@@ -158,7 +187,16 @@ class Compiler {
       this.add("conditionExpression", target, "condition expression must be an object");
       return;
     }
+    this.checkProperties(expression, ["op", "path", "value", "args"], target);
     const raw = expression as RawExpression;
+    if (raw.args != null && !Array.isArray(raw.args)) {
+      this.add("conditionShape", target, "condition args must be an array");
+      return;
+    }
+    if (raw.path != null && typeof raw.path !== "string") {
+      this.add("conditionShape", target, "condition path must be a string");
+      return;
+    }
     switch (raw.op) {
       case "present":
       case "eq":
@@ -167,7 +205,7 @@ class Compiler {
       case "and":
       case "or": {
         const args = Array.isArray(raw.args) ? raw.args : [];
-        if (args.length === 0 || (raw.path !== undefined && raw.path !== "") || (raw.value !== undefined && raw.value !== null)) {
+        if (args.length === 0 || (raw.path != null && raw.path !== "") || (raw.value !== undefined && raw.value !== null)) {
           this.add("conditionExpression", target, "and/or require nonempty args and no path or value");
         }
         for (const arg of args) {
@@ -269,14 +307,23 @@ function isScalarLiteral(value: unknown): boolean {
 class Program implements ConditionProgram {
   constructor(readonly rules: readonly CompiledRule[]) {}
 
-  evaluate(values: Record<string, JSONValue> | null | undefined): ConditionProjection {
+  evaluate(values: Record<string, JSONValue> | null | undefined, inactivePaths: readonly string[] = []): ConditionProjection {
     const out: ConditionProjection = {
       values: isPlainObject(values) ? (cloneJSON(values) as Record<string, JSONValue>) : {},
       retained: {},
       applicable: {},
       required: {},
     };
-    const source: Record<string, unknown> = isPlainObject(values) ? values : {};
+    for (const path of inactivePaths) {
+      if (!parseCanonicalPath(path)) continue;
+      out.applicable[path] = false;
+      removeValueAt(out.values, path);
+    }
+    // Retaining a container must not bring a structurally deleted descendant
+    // back from the original input after exclusion.
+    const source: Record<string, unknown> = inactivePaths.length > 0
+      ? cloneJSON(out.values) as Record<string, JSONValue>
+      : isPlainObject(values) ? values : {};
     for (const entry of this.rules) {
       const rule = entry.rule;
       let active = indexesExist(out.values, rule.path);
@@ -291,7 +338,7 @@ class Program implements ConditionProgram {
       out.required[rule.path] =
         active && (entry.required || (!!rule.requiredWhen && evaluateExpression(rule.requiredWhen, out.values)));
       if (!active) {
-        if (rule.onInapplicable === "retain") {
+        if (rule.onInapplicable === "retain" && !inactivePaths.some((path) => pathWithin(rule.path, path))) {
           const found = getValueAt(source, rule.path);
           if (found.exists) {
             out.retained[rule.path] = cloneJSON(found.value);
@@ -376,13 +423,13 @@ export function validateConditional(
     return { issues, projection: null, diagnostics: compiled.diagnostics };
   }
 
-  const projection = compiled.program.evaluate(source);
+  const projection = compiled.program.evaluate(source, options.inactivePaths);
   const inactive = Object.keys(projection.applicable)
     .filter((path) => !projection.applicable[path])
     .sort();
   if (policy === "reject") {
     for (const path of inactive) {
-      if (!inScope(path, scope)) {
+      if (!scopeOverlaps(path, scope)) {
         continue;
       }
       if (suppliedInactive(source, path)) {
@@ -414,7 +461,7 @@ function missingConditionalIssues(
     .filter((path) => projection.required[path])
     .sort();
   for (const path of required) {
-    if (!inScope(path, scope)) {
+    if (scope?.paths !== undefined && !scope.paths.some((selected) => pathWithin(path, selected))) {
       continue;
     }
     if (getValueAt(projection.values, path).exists) {
@@ -428,7 +475,8 @@ function missingConditionalIssues(
   return out;
 }
 
-function inScope(path: string, scope: ValidationScope | undefined): boolean {
+// Inactive inputs overlap a selected subtree; required issues belong only to it.
+function scopeOverlaps(path: string, scope: ValidationScope | undefined): boolean {
   if (!scope || scope.paths === undefined) {
     return true;
   }

@@ -42,7 +42,8 @@ func ValidateConditional(form model.FormModel, parsed Result, policy InactiveInp
 		out.Issues = append(out.Issues, Validate(form, parsed.Values, options...)...)
 		return out
 	}
-	projection := program.Evaluate(map[string]any(parsed.Values))
+	cfg := applyOptions(options)
+	projection := program.Evaluate(map[string]any(parsed.Values), cfg.inactive...)
 	out.Values = Values(projection.Values)
 	out.Retained = projection.Retained
 	out.Applicable = projection.Applicable

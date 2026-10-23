@@ -76,4 +76,12 @@ describe("theme build", () => {
     const committed = await readFile(GRID_LAYOUT_FILE, "utf8");
     expect(committed).toBe(renderGridLayoutCSS());
   });
+
+  it("styles choices from live native state, independently of rendered default hints", async () => {
+    const css = await readFile(themeOutput, "utf8");
+    expect(css).toContain(".formgen-choice-option:has(.formgen-choice-input:checked)");
+    expect(css).toContain(".formgen-choice-option:has(.formgen-choice-input:disabled)");
+    expect(css).not.toContain('.formgen-choice-option[data-selected');
+    expect(css).not.toContain('.formgen-choice-option[data-disabled');
+  });
 });

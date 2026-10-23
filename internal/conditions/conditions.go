@@ -217,29 +217,31 @@ func cloneExpression(expr *model.Expression) *model.Expression {
 
 // Evaluate projects already normalized typed JSON values. Inactive gates are
 // removed before downstream rules read values; retained inputs never become effective.
-func (p *Program) Evaluate(values map[string]any) Projection {
+// inactivePaths supplies trusted structural exclusions such as deleted row
+// coordinates. They remain null holes, gate descendants and never enter retained
+// values. Hosts derive these from validated row intents, not authorization data.
+func (p *Program) Evaluate(values map[string]any, inactivePaths ...string) Projection {
 	out := Projection{Values: map[string]any{}, Retained: map[string]any{}, Applicable: map[string]bool{}, Required: map[string]bool{}}
 	if values != nil {
 		out.Values = fieldpath.Clone(values).(map[string]any)
+	}
+	applyInactivePaths(&out, inactivePaths)
+	retentionSource := values
+	if len(inactivePaths) > 0 {
+		// Retained ancestors cannot reintroduce excluded descendants.
+		retentionSource = fieldpath.Clone(out.Values).(map[string]any)
 	}
 	if p == nil {
 		return out
 	}
 	for _, entry := range p.rules {
 		rule := entry.rule
-		active := fieldpath.IndexesExist(out.Values, rule.Path)
-		for parent, parentActive := range out.Applicable {
-			if !parentActive && fieldpath.Within(rule.Path, parent) {
-				active = false
-				break
-			}
-		}
-		active = active && (rule.ApplicableWhen == nil || evaluate(*rule.ApplicableWhen, out.Values))
+		active := ruleApplicable(rule, out)
 		out.Applicable[rule.Path] = active
 		out.Required[rule.Path] = active && (entry.required || (rule.RequiredWhen != nil && evaluate(*rule.RequiredWhen, out.Values)))
 		if !active {
-			if rule.OnInapplicable == "retain" {
-				if value, ok := fieldpath.Get(values, rule.Path); ok {
+			if rule.OnInapplicable == "retain" && !withinAnyPath(rule.Path, inactivePaths) {
+				if value, ok := fieldpath.Get(retentionSource, rule.Path); ok {
 					out.Retained[rule.Path] = fieldpath.Clone(value)
 				}
 			}
@@ -247,6 +249,37 @@ func (p *Program) Evaluate(values map[string]any) Projection {
 		}
 	}
 	return out
+}
+
+func applyInactivePaths(out *Projection, paths []string) {
+	for _, path := range paths {
+		if _, err := fieldpath.Parse(path); err != nil {
+			continue
+		}
+		out.Applicable[path] = false
+		fieldpath.Remove(out.Values, path)
+	}
+}
+
+func withinAnyPath(path string, parents []string) bool {
+	for _, parent := range parents {
+		if fieldpath.Within(path, parent) {
+			return true
+		}
+	}
+	return false
+}
+
+func ruleApplicable(rule model.ConditionRule, out Projection) bool {
+	if !fieldpath.IndexesExist(out.Values, rule.Path) {
+		return false
+	}
+	for parent, active := range out.Applicable {
+		if !active && fieldpath.Within(rule.Path, parent) {
+			return false
+		}
+	}
+	return rule.ApplicableWhen == nil || evaluate(*rule.ApplicableWhen, out.Values)
 }
 func evaluate(e model.Expression, values map[string]any) bool {
 	switch e.Op {

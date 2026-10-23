@@ -5521,6 +5521,104 @@ describe("embedded typed snapshots", () => {
     controller.destroy();
   });
 
+  it("round trips nested and indexed retained leaves, including retained containers", () => {
+    const retainedModel: EmbeddedModel = {
+      fields: [
+        { name: "enabled", type: "boolean", required: false },
+        { name: "profile", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] },
+        { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } },
+      ],
+      conditions: { version: "formgen.conditions/v1", rules: [
+        { path: "profile.answer", applicableWhen: { op: "eq", path: "enabled", value: true }, onInapplicable: "retain" },
+        { path: "rows[0].answer", applicableWhen: { op: "eq", path: "enabled", value: true }, onInapplicable: "retain" },
+        { path: "rows[1]", applicableWhen: { op: "eq", path: "enabled", value: true }, onInapplicable: "retain" },
+      ] },
+    };
+    document.body.innerHTML = `<form><div><input type="checkbox" name="enabled"></div>
+      <div><input name="profile.answer"></div><div><input name="rows[0].answer"></div><div><input name="rows[1].answer"></div></form>`;
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model: retainedModel });
+    controller.setValues({ enabled: true, profile: { answer: "saved" }, rows: [{ answer: "first" }, { answer: "second" }] }, { notify: false });
+    controller.setValues({ enabled: false }, { notify: false });
+    const saved = controller.snapshot();
+    expect(saved.retained).toEqual({ "profile.answer": "saved", "rows[0].answer": "first", "rows[1]": { answer: "second" } });
+    controller.setValues({ enabled: true, profile: { answer: "edited" }, rows: [{ answer: "edited" }, { answer: "edited" }] }, { notify: false });
+    const seen: ReturnType<typeof controller.snapshot>[] = [];
+    controller.onChange(() => seen.push(controller.snapshot()));
+    controller.restore(saved);
+    expect(controller.snapshot()).toEqual(saved);
+    expect(seen).toEqual([saved]);
+    controller.setValues({ enabled: true }, { notify: false });
+    expect(controller.snapshot().values).toEqual({ enabled: true, profile: { answer: "saved" }, rows: [{ answer: "first" }, { answer: "second" }] });
+    controller.destroy();
+  });
+
+  it("keeps explicit boolean null coherent in snapshots, conditions, and validation", () => {
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model });
+    controller.setValues({ enabled: null }, { notify: false });
+    expect(controller.getValues().enabled).toBe(false);
+    expect(controller.normalize().values.enabled).toBe(false);
+    expect(controller.snapshot().presence.enabled).toBe("null");
+    expect(controller.snapshot().values.enabled).toBeNull();
+    expect(controller.effective().values.enabled).toBeNull();
+    expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toContain("required:enabled");
+    controller.setValues({ enabled: false }, { notify: false });
+    expect(controller.snapshot().values.enabled).toBe(false);
+    expect(controller.validate()).toEqual([]);
+    controller.destroy();
+  });
+
+  it("evaluates explicit null booleans before settling conditions and publishing", () => {
+    const conditional: EmbeddedModel = { ...model, conditions: {
+      version: "formgen.conditions/v1",
+      rules: [{ path: "note", applicableWhen: { op: "eq", path: "enabled", value: false } }],
+    } };
+    const form = renderSnapshotForm();
+    const controller = attachFormController(form, { model: conditional });
+    controller.setValues({ enabled: false, note: "answer" }, { notify: false });
+    const seen: ReturnType<typeof controller.snapshot>[] = [];
+    controller.onChange(() => seen.push(controller.snapshot()));
+    controller.setValues({ enabled: null }, {});
+    expect(controller.effective().applicable.note).toBe(false);
+    expect(controller.snapshot().values).toEqual({ enabled: null });
+    expect(controller.snapshot().presence.note).toBe("absent");
+    expect(seen).toEqual([controller.snapshot()]);
+    const enabled = form.querySelector<HTMLInputElement>('[name="enabled"]')!;
+    edit(enabled, () => (enabled.checked = true));
+    expect(controller.snapshot().values.enabled).toBe(true);
+    edit(enabled, () => (enabled.checked = false));
+    expect(controller.effective().applicable.note).toBe(true);
+    expect(controller.snapshot().values.enabled).toBe(false);
+    controller.destroy();
+  });
+
+  it("honors inherited disabled state, nested fieldsets, and the first legend exception", () => {
+    document.body.innerHTML = `<form><fieldset>
+      <legend><input name="note" value="legend"></legend>
+      <input name="level" value="4">
+      <fieldset disabled><legend><input name="colors[]" type="checkbox" value="blue" checked></legend></fieldset>
+      <legend><input name="enabled" type="checkbox" checked></legend>
+    </fieldset></form>`;
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model });
+    const fieldset = form.querySelector("fieldset")!;
+    fieldset.disabled = true;
+    form.querySelector<HTMLInputElement>('[name="note"]')!.value = "edited legend";
+    form.querySelector<HTMLInputElement>('[name="level"]')!.value = "9";
+    expect(controller.getValues()).toEqual({ note: "edited legend" });
+    const locked = controller.snapshot();
+    expect(locked.locked.sort()).toEqual(["colors", "enabled", "level"]);
+    expect(locked.values).toEqual({ note: "edited legend", level: 4, colors: ["blue"], enabled: true });
+    controller.setValues({ note: "replaced" }, { mode: "replace", notify: false });
+    expect(form.querySelector<HTMLInputElement>('[name="level"]')!.value).toBe("9");
+    expect(controller.snapshot().values.level).toBe(4);
+    expect(controller.focusIssue("level").focused).toBe(false);
+    fieldset.disabled = false;
+    expect(controller.getValues().level).toBe("9");
+    controller.destroy();
+  });
+
   it("requires a model and clears presence on destroy", () => {
     const form = renderSnapshotForm();
     const plain = attachFormController(form);
@@ -5530,4 +5628,501 @@ describe("embedded typed snapshots", () => {
     controller.destroy();
     expect(controller.snapshot()).toEqual({ version: "formgen.snapshot/v1", values: {}, presence: {}, retained: {}, issues: [], locked: [] });
   });
+});
+
+
+describe("condition boundary regressions", () => {
+  afterEach(() => { resetDom(); resetGlobalRegistry(); });
+
+  it("gates required descendants by inactive ancestors and restores each leaf's constraints", () => {
+    document.body.innerHTML = `<form><input type="checkbox" name="enabled">
+      <fieldset id="fg-profile">
+        <div data-component="input"><input name="profile.answer" required></div>
+        <div data-component="input"><input name="profile.optional"></div>
+        <div data-component="input"><input name="profile.conditional"></div>
+      </fieldset></form>`;
+    const form = document.querySelector("form")!;
+    const model: EmbeddedModel = {
+      fields: [
+        { name: "enabled", type: "boolean", required: false },
+        { name: "profile", type: "object", required: false, nested: [
+          { name: "answer", type: "string", required: true },
+          { name: "optional", type: "string", required: false },
+          { name: "conditional", type: "string", required: false },
+        ] },
+      ],
+      conditions: { version: "formgen.conditions/v1", rules: [
+        { path: "profile", applicableWhen: { op: "eq", path: "enabled", value: true } },
+        { path: "profile.conditional", requiredWhen: { op: "eq", path: "enabled", value: true } },
+      ] },
+    };
+    const controller = attachFormController(form, { model });
+    const answer = form.querySelector<HTMLInputElement>('[name="profile.answer"]')!;
+    const optional = form.querySelector<HTMLInputElement>('[name="profile.optional"]')!;
+    const conditional = form.querySelector<HTMLInputElement>('[name="profile.conditional"]')!;
+    expect(answer.required).toBe(false);
+    expect(conditional.required).toBe(false);
+    expect(form.checkValidity()).toBe(true);
+    expect(controller.validate()).toEqual([]);
+    controller.setValues({ enabled: true }, {});
+    expect(answer.required).toBe(true);
+    expect(optional.required).toBe(false);
+    expect(conditional.required).toBe(true);
+    expect(form.checkValidity()).toBe(false);
+    controller.setValues({ enabled: false }, {});
+    expect(answer.required).toBe(false);
+    expect(conditional.required).toBe(false);
+    expect(form.checkValidity()).toBe(true);
+    controller.destroy();
+  });
+});
+
+describe("embedded mutation boundary regressions", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+
+  it("notifies settled logical presence changes even when native values stay empty", () => {
+    document.body.innerHTML = '<form><input name="answer" type="checkbox"></form>';
+    const model: EmbeddedModel = { fields: [{ name: "answer", type: "boolean", required: true }] };
+    const controller = attachFormController(document.querySelector("form")!, { model });
+    const observed: Array<{ origin: string; paths: string[]; snapshot: ReturnType<typeof controller.snapshot> }> = [];
+    controller.onChange((_values, _event, meta) => observed.push({ ...meta, snapshot: controller.snapshot() }));
+    const absent = controller.snapshot();
+    controller.setValues({ answer: false }, {});
+    const answered = controller.snapshot();
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({ origin: "hydrate", paths: ["answer"], snapshot: answered });
+    controller.setValues({ answer: false }, {});
+    expect(observed).toHaveLength(1);
+    controller.setValues({ answer: null }, {});
+    expect(observed).toHaveLength(2);
+    expect(observed[1].snapshot.values.answer).toBeNull();
+    controller.reset({});
+    expect(observed).toHaveLength(3);
+    expect(observed[2]).toMatchObject({ origin: "reset", paths: ["answer"], snapshot: absent });
+    controller.restore(answered);
+    expect(observed).toHaveLength(4);
+    expect(observed[3].snapshot).toEqual(answered);
+    controller.restore(answered);
+    expect(observed).toHaveLength(4);
+    controller.restore(absent, { notify: false });
+    expect(observed).toHaveLength(4);
+    controller.destroy();
+  });
+
+  it.each([{}, null, [], "unrendered"])("rejects an unrendered structural row %j before mutation", (missingRow) => {
+    document.body.innerHTML = '<form><input name="note" value="saved"><div data-formgen-array-name="rows"><input name="rows[0].answer" value="first"></div></form>';
+    const controller = attachFormController(document.querySelector("form")!);
+    const change = vi.fn();
+    controller.onChange(change);
+    expect(() => controller.setValues({ note: "changed", rows: [{ answer: "one" }, missingRow] }, { mode: "replace" })).toThrow(/rows\[1\]/);
+    expect(controller.getValues()).toEqual({ note: "saved", rows: { 0: { answer: "first" } } });
+    expect(change).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
+  it("checks missing nested rows without treating a multi-select as a repeater", () => {
+    document.body.innerHTML = '<form><input name="rows[0].children[0].answer" value="saved"><select name="colors[]" multiple><option value="blue">Blue</option><option value="green">Green</option></select></form>';
+    const controller = attachFormController(document.querySelector("form")!);
+    expect(() => controller.setValues({ rows: [{ children: [{ answer: "one" }, {}] }] }, { mode: "replace" })).toThrow(/rows\[0\].children\[1\]/);
+    controller.setValues({ colors: ["blue", "green"] }, { mode: "replace", notify: false });
+    expect(controller.getValues().colors).toEqual(["blue", "green"]);
+    controller.destroy();
+  });
+
+  it("clears explicit container nulls down to leaf presence, including locked descendants", () => {
+    document.body.innerHTML = '<form><input name="profile.answer" value="saved"><fieldset disabled><input name="rows[0].answer" value="locked"></fieldset><input name="note" value="keep"></form>';
+    const model: EmbeddedModel = { fields: [
+      { name: "profile", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] },
+      { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } },
+      { name: "note", type: "string", required: false },
+    ] };
+    const controller = attachFormController(document.querySelector("form")!, { model });
+    controller.setValues({ profile: null, "rows[0]": null }, {});
+    const saved = controller.snapshot();
+    expect(saved.values).toEqual({ profile: { answer: null }, rows: [{ answer: null }], note: "keep" });
+    expect(saved.presence).toMatchObject({ "profile.answer": "null", "rows[0].answer": "null" });
+    expect(saved.issues).toEqual([]);
+    controller.destroy();
+  });
+});
+
+describe("embedded snapshot boundary regressions", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+
+  it.each([false, true])("round trips raw-object leaves through ordinary and retained snapshots (retain=%s)", (retain) => {
+    document.body.innerHTML = '<form><input type="checkbox" name="gate" checked><textarea name="config">{"answer":4,"tags":["a"]}</textarea><textarea name="rows[0].config">{"zero":0,"false":false}</textarea></form>';
+    const model: EmbeddedModel = { fields: [
+      { name: "gate", type: "boolean", required: true },
+      { name: "config", type: "object", required: true },
+      { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "config", type: "object", required: false }] } },
+    ], conditions: retain ? { version: "formgen.conditions/v1", rules: [
+      { path: "config", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: "retain" },
+      { path: "rows[0].config", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: "retain" },
+    ] } : undefined };
+    const controller = attachFormController(document.querySelector("form")!, { model });
+    if (retain) controller.setValues({ gate: false }, { notify: false });
+    const saved = controller.snapshot();
+    controller.setValues({ gate: true, config: '{"answer":5}', "rows[0].config": '{"zero":1}' }, { notify: false });
+    expect(controller.restore(saved, { notify: false })).toEqual([]);
+    expect(controller.snapshot()).toEqual(saved);
+    controller.setValues({ gate: true, config: { answer: 6 }, rows: [{ config: { nested: { enabled: false } } }] }, { notify: false });
+    expect(controller.snapshot().values).toEqual({ gate: true, config: { answer: 6 }, rows: [{ config: { nested: { enabled: false } } }] });
+    controller.destroy();
+  });
+
+  it("normalizes explicit locked payloads and preserves normalization issues", () => {
+    const no = encodeEnumValue(false);
+    document.body.innerHTML = `<form><fieldset disabled><input name="level" value="3"><input type="radio" name="answer" value="${no}"><textarea name="config">{}</textarea></fieldset></form>`;
+    const model: EmbeddedModel = { fields: [
+      { name: "level", type: "integer", required: true }, { name: "answer", type: "boolean", required: true }, { name: "config", type: "object", required: false },
+    ] };
+    const controller = attachFormController(document.querySelector("form")!, { model });
+    controller.setValues({ level: "4", answer: no, config: { answer: false } }, { notify: false });
+    expect(controller.snapshot().values).toEqual({ level: 4, answer: false, config: { answer: false } });
+    expect(controller.validate()).toEqual([]);
+    controller.setValues({ level: "9007199254740993" }, { notify: false });
+    const saved = controller.snapshot();
+    expect(saved.values.level).toBeNull();
+    expect(saved.issues.some((issue) => issue.path === "level" && issue.code === "type")).toBe(true);
+    controller.destroy();
+  });
+
+  it("merges locked checkbox members with enabled edits without reading locked DOM mutations", () => {
+    document.body.innerHTML = '<form><input type="checkbox" name="colors[]" value="red" checked><input type="checkbox" name="colors[]" value="blue" checked></form>';
+    const model: EmbeddedModel = { fields: [{ name: "colors", type: "array", required: true, items: { name: "color", type: "string", required: false } }] };
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model });
+    const [red, blue] = Array.from(form.querySelectorAll("input"));
+    expect(controller.snapshot().values.colors).toEqual(["red", "blue"]);
+    red.disabled = true;
+    red.checked = false;
+    red.value = "tampered";
+    expect(controller.snapshot().values.colors).toEqual(["red", "blue"]);
+    expect(controller.snapshot().locked).toEqual(["colors"]);
+    blue.checked = false;
+    blue.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(controller.snapshot().values.colors).toEqual(["red"]);
+    expect(controller.effective().values.colors).toEqual(["red"]);
+    expect(controller.validate()).toEqual([]);
+    // A deliberate hydration can replace disabled answers; omitted replacement cannot.
+    controller.setValues({}, { mode: "replace", notify: false });
+    expect(controller.snapshot().values.colors).toEqual(["red"]);
+    controller.setValues({ colors: [] }, { notify: false });
+    expect(controller.snapshot().values.colors).toEqual([]);
+    controller.destroy();
+  });
+
+  it("seeds disabled selected options in partial groups and permits a new enabled radio selection", () => {
+    document.body.innerHTML = '<form><input type="checkbox" name="colors[]" value="red" checked disabled><input type="checkbox" name="colors[]" value="blue"><input type="radio" name="answer" value="old" checked disabled><input type="radio" name="answer" value="new"></form>';
+    const model: EmbeddedModel = { fields: [{ name: "colors", type: "array", required: false, items: { name: "color", type: "string", required: false } }, { name: "answer", type: "string", required: true }] };
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model });
+    expect(controller.snapshot().values).toEqual({ colors: ["red"], answer: "old" });
+    const next = form.querySelector<HTMLInputElement>('[value="new"]')!;
+    next.checked = true;
+    next.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(controller.snapshot().values.answer).toBe("new");
+    controller.destroy();
+  });
+
+  it("validates retained paths before resolving values and supports valid retained containers", () => {
+    document.body.innerHTML = '<form><input name="answer" value="saved"><input name="rows[0].answer" value="row"></form>';
+    const model: EmbeddedModel = { fields: [{ name: "answer", type: "string", required: false }, { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } }] };
+    const controller = attachFormController(document.querySelector("form")!, { model });
+    const saved = controller.snapshot();
+    saved.retained = JSON.parse('{"ghost[100000].answer":"bad","__proto__.polluted":"bad","rows[100000].answer":"bad","rows[0]":{"answer":"retained"}}');
+    delete saved.values.rows;
+    // Invalid indexes must never be materialized, even temporarily.
+    const push = Array.prototype.push;
+    let nullPushes = 0;
+    Array.prototype.push = function(...args: unknown[]) {
+      if (args.length === 1 && args[0] === null) nullPushes += 1;
+      return push.apply(this, args);
+    };
+    let issues: ReturnType<typeof controller.restore>;
+    try { issues = controller.restore(saved, { notify: false }); } finally { Array.prototype.push = push; }
+    expect(issues!.map((issue) => `${issue.code}:${issue.path}`)).toEqual(["unknownField:ghost[100000].answer", "invalidPath:__proto__.polluted", "unknownField:rows[100000].answer"]);
+    expect(nullPushes).toBeLessThan(10);
+    expect(controller.snapshot().values).toEqual({ answer: "saved", rows: [{ answer: "retained" }] });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    controller.destroy();
+  });
+});
+
+// Locked rendered defaults must participate before the first reactive clear.
+it("settles conditions from locked defaults before clearing dependent answers", () => {
+  document.body.innerHTML = '<form><input type="radio" name="gate" value="true" checked disabled><div><input name="answer" value="saved"></div></form>';
+  const model: EmbeddedModel = { fields: [{ name: "gate", type: "boolean", required: true }, { name: "answer", type: "string", required: true }], conditions: { version: "formgen.conditions/v1", rules: [{ path: "answer", applicableWhen: { op: "eq", path: "gate", value: true } }] } };
+  const controller = attachFormController(document.querySelector("form")!, { model });
+  expect(controller.snapshot().values).toEqual({ gate: true, answer: "saved" });
+  expect(controller.effective().applicable.answer).toBe(true);
+  controller.destroy();
+  document.body.innerHTML = "";
+});
+
+it("restores presence through normalized hydration, including absent partially locked groups", () => {
+  document.body.innerHTML = '<form><fieldset disabled><input name="level" value="3"></fieldset><input name="colors[]" type="checkbox" value="red"><input name="colors[]" type="checkbox" value="blue"></form>';
+  const model: EmbeddedModel = { fields: [{ name: "level", type: "integer", required: false }, { name: "colors", type: "array", required: false, items: { name: "color", type: "string", required: false } }] };
+  const form = document.querySelector("form")!;
+  const controller = attachFormController(form, { model });
+  const saved = controller.snapshot();
+  saved.values.level = "4"; // Supported normalization remains identical to setValues.
+  controller.setValues({ colors: ["red"] }, { notify: false });
+  form.querySelector<HTMLInputElement>('[value="red"]')!.disabled = true;
+  controller.restore(saved, { notify: false });
+  expect(controller.snapshot().values).toEqual({ level: 4 });
+  expect(controller.effective().values).toEqual({ level: 4 });
+  expect(controller.snapshot().presence.colors).toBe("absent");
+  controller.destroy();
+  document.body.innerHTML = "";
+});
+
+describe("integrated retained-policy boundaries (IR-2026-10-22-06)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  for (const parentPolicy of ["clear", "retain"] as const) {
+    it(`preserves retained answers with a ${parentPolicy} parent across settlement and restore`, () => {
+      const childPolicy = parentPolicy === "clear" ? "retain" : "clear";
+      const model: EmbeddedModel = { fields: [
+        { name: "gate", type: "boolean", required: false },
+        { name: "profile", type: "object", required: false, nested: [
+          { name: "answer", type: "string", required: false },
+          { name: "other", type: "integer", required: false },
+        ] },
+      ], conditions: { version: "formgen.conditions/v1", rules: [
+        { path: "profile", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: parentPolicy },
+        { path: "profile.answer", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: childPolicy },
+      ] } };
+      document.body.innerHTML = '<form><div><input name="gate" type="checkbox" checked></div><fieldset id="fg-profile"><div><input name="profile.answer" value="saved"></div><div><input name="profile.other" value="4"></div></fieldset></form>';
+      const controller = attachFormController(document.querySelector("form")!, { model });
+      controller.setValues({ gate: false }, { notify: false });
+      const retained = parentPolicy === "retain" ? { profile: { answer: "saved", other: 4 } } : { "profile.answer": "saved" };
+      const saved = controller.snapshot();
+      expect(saved.retained).toEqual(retained);
+      expect(controller.effective().retained).toEqual(retained);
+      expect(controller.settle().retained).toEqual(retained);
+      expect(controller.snapshot()).toEqual(saved);
+      controller.setValues({ gate: true, profile: { answer: "edited", other: 9 } }, { notify: false });
+      expect(controller.restore(saved, { notify: false })).toEqual([]);
+      expect(controller.snapshot()).toEqual(saved);
+      controller.setValues({ gate: true }, { notify: false });
+      expect((controller.snapshot().values.profile as Record<string, unknown>)?.answer).toBeUndefined();
+      controller.setValues({ gate: true, profile: { answer: "new", other: 6 } }, { notify: false });
+      controller.setValues({ gate: false }, { notify: false });
+      controller.setValues({ "profile.answer": "replacement" }, { notify: false });
+      expect(controller.snapshot().retained).toEqual(parentPolicy === "retain"
+        ? { profile: { answer: "replacement", other: 6 } } : { "profile.answer": "replacement" });
+      controller.reset({ notify: false });
+      expect(controller.snapshot().retained).toEqual({});
+      controller.destroy();
+    });
+  }
+});
+
+describe("repeater logical structure and notifications (IR-2026-10-22-06)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  const row = (index: number, existing: boolean) => `<div data-formgen-array-item data-formgen-array-path="rows[${index}]" data-formgen-array-existing="${existing}"><div><input name="rows[${index}].answer" value="saved"></div>${existing ? `<input name="rows[${index}]._delete" type="hidden" value="false">` : ""}<button type="button" data-formgen-array-action="remove">Remove</button></div>`;
+  const markup = (existing: boolean) => `<form><div><input name="gate" type="checkbox" checked></div><div><div data-formgen-array-items data-formgen-array-name="rows" data-formgen-array-next-index="2" data-formgen-array-prototype-path="rows[2]">${row(0, existing)}${row(1, false)}<template data-formgen-array-prototype>${row(2, false)}</template></div><button type="button" data-formgen-array-action="add">Add</button></div></form>`;
+  for (const conditional of [false, true]) {
+    it(`excludes deleted rows from requiredness/counts and notifies with conditions=${conditional}`, () => {
+      const model: EmbeddedModel = { fields: [
+        { name: "gate", type: "boolean", required: false },
+        { name: "rows", type: "array", required: false, validations: [{ kind: "minItems", params: { value: "2" } }], items: {
+          name: "row", type: "object", required: true, nested: [{ name: "answer", type: "string", required: true }],
+        } },
+      ], ...(conditional ? { conditions: { version: "formgen.conditions/v1" as const, rules: [
+        { path: "rows[0].answer", requiredWhen: { op: "present" as const, path: "gate" } },
+      ] } } : {}) };
+      document.body.innerHTML = markup(true);
+      const form = document.querySelector("form")!;
+      initArrayRepeaters(form);
+      const controller = attachFormController(form, { model });
+      const seen: Array<{ values: ReturnType<typeof controller.snapshot>["values"]; paths: string[] }> = [];
+      controller.onChange((_values, _event, meta) => seen.push({ values: controller.snapshot().values, paths: meta!.paths }));
+      expect(controller.validate()).toEqual([]);
+      form.querySelector<HTMLButtonElement>('[data-formgen-array-action="remove"]')!.click();
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toEqual({ values: { gate: true, rows: [null, { answer: "saved" }] }, paths: ["rows"] });
+      expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["minItems:rows"]);
+      expect(controller.validate({ paths: ["rows[0].answer"] })).toEqual([]);
+      expect(controller.effective().applicable["rows[0]"]).toBe(false);
+      expect(controller.snapshot().presence).not.toHaveProperty("rows[0].answer");
+      // Adding a new row leaves the deleted coordinate and its sibling stable.
+      form.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!.click();
+      expect(seen).toHaveLength(2);
+      expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["required:rows[2].answer"]);
+      controller.destroy();
+      form.querySelector<HTMLButtonElement>('[data-formgen-array-action="add"]')!.click();
+      expect(seen).toHaveLength(2);
+    });
+  }
+  it("keeps physically removed coordinates inactive without treating wizard-hidden rows as deleted", () => {
+    document.body.innerHTML = markup(false);
+    const form = document.querySelector("form")!;
+    initArrayRepeaters(form);
+    const model: EmbeddedModel = { fields: [{ name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: true, nested: [{ name: "answer", type: "string", required: true }] } }, { name: "gate", type: "boolean", required: false }] };
+    const controller = attachFormController(form, { model });
+    form.querySelector<HTMLElement>('[data-formgen-array-path="rows[1]"]')!.hidden = true;
+    expect(controller.snapshot().values.rows).toEqual([{ answer: "saved" }, { answer: "saved" }]);
+    form.querySelector<HTMLButtonElement>('[data-formgen-array-action="remove"]')!.click();
+    expect(controller.effective().values.rows).toEqual([null, { answer: "saved" }]);
+    expect(controller.validate()).toEqual([]);
+    expect(controller.snapshot().values.rows).toEqual([null, { answer: "saved" }]);
+    expect(controller.validate()).toEqual([]);
+    controller.destroy();
+  });
+});
+
+describe("hydration preserves typed inputs before native encoding (IR-2026-10-22-06)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  for (const tag of ["radio", "checkbox", "select"] as const) {
+    it(`restores reserved-prefix strings through ${tag} without confusing string and boolean false`, () => {
+      const literal = encodeEnumValue(false); // A valid codec token used as a literal string code.
+      const wrapped = encodeEnumValue(literal);
+      const isArray = tag === "checkbox";
+      const fields: EmbeddedModel["fields"] = [{ name: "code", type: isArray ? "array" : "string", required: false, ...(isArray
+        ? { items: { name: "item", type: "string" as const, required: false, enum: [literal, "other", "false"] } }
+        : { enum: [literal, "other", "false"] }) }];
+      const markup = tag === "select" ? `<select name="code"><option value="${wrapped}" selected>Code</option><option value="other">Other</option><option value="false">False string</option></select>`
+        : `<label><input type="${tag}" name="code${isArray ? "[]" : ""}" value="${wrapped}" checked></label><label><input type="${tag}" name="code${isArray ? "[]" : ""}" value="other"></label><label><input type="${tag}" name="code${isArray ? "[]" : ""}" value="false"></label>`;
+      document.body.innerHTML = `<form>${markup}</form>`;
+      const form = document.querySelector("form")!;
+      const controller = attachFormController(form, { model: { fields } });
+      const saved = controller.snapshot();
+      expect(saved.values.code).toEqual(isArray ? [literal] : literal);
+      controller.setValues({ code: isArray ? ["other"] : "other" }, { notify: false });
+      expect(controller.restore(saved, { notify: false })).toEqual([]);
+      expect(controller.snapshot()).toEqual(saved);
+      expect(controller.validate()).toEqual([]);
+      controller.setValues({ code: isArray ? [literal] : literal }, { notify: false });
+      expect(controller.snapshot()).toEqual(saved);
+      controller.setValues({ code: isArray ? ["false"] : "false" }, { notify: false });
+      expect(controller.snapshot().values.code).toEqual(isArray ? ["false"] : "false");
+      controller.destroy();
+    });
+  }
+  for (const disabled of [false, true]) {
+    it(`keeps lossy numeric payload diagnostics with disabled=${disabled} until an observed correction`, () => {
+      document.body.innerHTML = `<form><fieldset ${disabled ? "disabled" : ""}><input name="n" type="number" value="3"></fieldset></form>`;
+      const form = document.querySelector("form")!;
+      const controller = attachFormController(form, { model: { fields: [{ name: "n", type: "integer", required: false }] } });
+      const seen: ReturnType<typeof controller.snapshot>[] = [];
+      controller.onChange(() => seen.push(controller.snapshot()));
+      controller.setValues({ n: "bad" }, {});
+      expect(seen).toHaveLength(1);
+      expect(seen[0].values).toEqual({ n: null });
+      expect(seen[0].issues.map((issue) => `${issue.code}:${issue.path}`)).toEqual(["type:n"]);
+      expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["type:n"]);
+      controller.setValues({ n: "bad" }, {});
+      expect(seen).toHaveLength(1);
+      controller.setValues({ n: 0 }, { notify: false });
+      expect(controller.snapshot().values).toEqual({ n: 0 });
+      expect(controller.validate()).toEqual([]);
+      controller.setValues({ n: "bad" }, { notify: false });
+      controller.reset({ notify: false });
+      expect(controller.snapshot().values).toEqual({ n: 3 });
+      expect(controller.validate()).toEqual([]);
+      controller.destroy();
+    });
+  }
+  it("diagnoses unmatched choices while preserving the intended logical value", () => {
+    document.body.innerHTML = '<form><input name="color" type="radio" value="red" checked><input name="color" type="radio" value="blue"></form>';
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model: { fields: [{ name: "color", type: "string", required: false, enum: ["red", "blue"] }] } });
+    controller.setValues({ color: "green" }, { notify: false });
+    expect(controller.snapshot().values).toEqual({ color: "green" });
+    expect(controller.snapshot().issues.map((issue) => issue.code)).toEqual(["unrepresentable"]);
+    expect(controller.validate().map((issue) => issue.code)).toEqual(["unrepresentable", "enum"]);
+    const red = form.querySelector<HTMLInputElement>('[value="red"]')!;
+    red.checked = true; red.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(controller.snapshot().values).toEqual({ color: "red" });
+    expect(controller.validate()).toEqual([]);
+    controller.destroy();
+  });
+});
+
+it("round trips opaque JSON members through hydration, retention, locking and restore", () => {
+  const raw = JSON.parse('{"constructor":"builder","prototype":{"a":1},"__proto__":{"flag":true},"nested":[{"constructor":{"b":2}}]}');
+  document.body.innerHTML = '<form><div><input name="gate" type="checkbox" checked></div><div><textarea name="config"></textarea></div></form>';
+  const model: EmbeddedModel = { fields: [{ name: "gate", type: "boolean", required: false }, { name: "config", type: "object", required: false }], conditions: { version: "formgen.conditions/v1", rules: [{ path: "config", applicableWhen: { op: "eq", path: "gate", value: true }, onInapplicable: "retain" }] } };
+  const form = document.querySelector("form")!;
+  const controller = attachFormController(form, { model });
+  controller.setValues({ config: raw }, { notify: false });
+  expect(JSON.stringify(controller.snapshot().values.config)).toBe(JSON.stringify(raw));
+  controller.setValues({ gate: false }, { notify: false });
+  const saved = controller.snapshot();
+  expect(JSON.stringify(saved.retained.config)).toBe(JSON.stringify(raw));
+  form.querySelector("textarea")!.disabled = true;
+  controller.setValues({ config: { edited: true } }, { notify: false });
+  expect(controller.restore(saved, { notify: false })).toEqual([]);
+  expect(JSON.stringify(controller.snapshot().retained.config)).toBe(JSON.stringify(raw));
+  expect(controller.validate()).toEqual([]);
+  expect(({} as Record<string, unknown>).flag).toBeUndefined();
+  controller.destroy(); document.body.innerHTML = "";
+});
+
+describe("snapshot normalization issue fidelity (IR-2026-10-22-06)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  for (const disabled of [false, true]) {
+    it(`restores invalid typed state and issues before callbacks with disabled=${disabled}`, () => {
+      document.body.innerHTML = `<form><fieldset ${disabled ? "disabled" : ""}><input name="n" value="bad"></fieldset><input name="other" value="kept"></form>`;
+      const form = document.querySelector("form")!;
+      const controller = attachFormController(form, { model: { fields: [{ name: "n", type: "integer", required: false }, { name: "other", type: "string", required: false }] } });
+      const saved = controller.snapshot();
+      expect(saved.issues.map((issue) => issue.code)).toEqual(["type"]);
+      controller.setValues({ n: 5 }, { notify: false });
+      const seen: ReturnType<typeof controller.snapshot>[] = [];
+      controller.onChange(() => seen.push(controller.snapshot()));
+      expect(controller.restore(saved)).toEqual([]);
+      expect(controller.snapshot()).toEqual(saved);
+      expect(seen).toEqual([saved]);
+      expect(controller.validate().map((issue) => `${issue.code}:${issue.path}`)).toEqual(["type:n"]);
+      expect(controller.validate({ paths: ["other"] })).toEqual([]);
+      controller.restore(saved);
+      expect(seen).toHaveLength(1);
+      controller.setValues({ n: 0 }, { notify: false });
+      expect(controller.validate()).toEqual([]);
+      expect(controller.snapshot().issues).toEqual([]);
+      controller.destroy();
+    });
+  }
+});
+
+describe("native choice presentation state (IR-2026-10-22-06)", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+  it("follows checked/disabled state across native edits, hydration, reset and restore", () => {
+    document.body.innerHTML = '<form><fieldset data-formgen-choice="single"><label class="formgen-choice-option" data-selected="true"><input class="formgen-choice-input" type="radio" name="code" value="a" checked></label><label class="formgen-choice-option"><input class="formgen-choice-input" type="radio" name="code" value="b"></label></fieldset></form>';
+    const form = document.querySelector("form")!;
+    const controller = attachFormController(form, { model: { fields: [{ name: "code", type: "string", required: false, enum: ["a", "b"] }] } });
+    const selected = () => Array.from(form.querySelectorAll<HTMLLabelElement>('.formgen-choice-option:has(.formgen-choice-input:checked)')).map((label) => label.querySelector("input")!.value);
+    const disabled = () => form.querySelectorAll('.formgen-choice-option:has(.formgen-choice-input:disabled)').length;
+    const saved = controller.snapshot();
+    expect(selected()).toEqual(["a"]);
+    form.querySelector<HTMLInputElement>('[value="b"]')!.click();
+    expect(selected()).toEqual(["b"]);
+    controller.setValues({ code: "a" }, { notify: false });
+    expect(selected()).toEqual(["a"]);
+    controller.setValues({ code: "b" }, { notify: false });
+    expect(selected()).toEqual(["b"]);
+    controller.reset({ notify: false });
+    expect(selected()).toEqual(["a"]);
+    controller.setValues({ code: "b" }, { notify: false });
+    controller.restore(saved, { notify: false });
+    expect(selected()).toEqual(["a"]);
+    form.querySelector("fieldset")!.disabled = true;
+    expect(disabled()).toBe(2);
+    form.querySelector("fieldset")!.disabled = false;
+    expect(disabled()).toBe(0);
+    controller.destroy();
+  });
+});
+
+it("normalizes model-backed option-like array hydration and omits repeater transport from typed state", () => {
+  document.body.innerHTML = '<form><select name="colors[]" multiple><option value="red">Red</option><option value="blue">Blue</option></select><input name="rows__present" type="hidden" value="true"><input name="rows__complete" type="hidden" value="true"><input name="rows__clear" type="hidden" value="false"><div data-formgen-array-items data-formgen-array-name="rows"><div data-formgen-array-item><input name="rows[0]._row_key" type="hidden" value="key"><input name="rows[0].answer" value="saved"></div></div></form>';
+  const m: EmbeddedModel = { fields: [{ name: "colors", type: "array", required: false, items: { name: "color", type: "string", required: false } }, { name: "rows", type: "array", required: false, items: { name: "row", type: "object", required: false, nested: [{ name: "answer", type: "string", required: false }] } }] };
+  const c = attachFormController(document.querySelector("form")!, { model: m });
+  c.setValues({ colors: [{ value: "red", label: "Red" }, { id: "blue" }] }, { notify: false });
+  expect(c.snapshot().values).toEqual({ colors: ["red", "blue"], rows: [{ answer: "saved" }] });
+  expect(c.snapshot().issues).toEqual([]);
+  expect(Object.keys(c.snapshot().presence).sort()).toEqual(["colors", "rows[0].answer"]);
+  c.destroy(); document.body.innerHTML = "";
 });

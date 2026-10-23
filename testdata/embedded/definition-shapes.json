@@ -1,0 +1,241 @@
+{
+  "version": "formgen.condition-shapes/v1",
+  "cases": [
+    {
+      "name": "leaf-args-object",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": {}
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "leaf-args-string",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": "bad"
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "leaf-args-number",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": 4
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "leaf-args-boolean",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": false
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "leaf-args-null",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": null
+            }
+          }
+        ]
+      },
+      "invalid": false
+    },
+    {
+      "name": "leaf-args-empty",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "args": []
+            }
+          }
+        ]
+      },
+      "invalid": false
+    },
+    {
+      "name": "unknown-set-property",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate"
+            }
+          }
+        ],
+        "extra": true
+      },
+      "invalid": true
+    },
+    {
+      "name": "unknown-rule-property",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate"
+            },
+            "onInapplicble": "retain"
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "unknown-expression-property",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate",
+              "extra": true
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "unknown-nested-property",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "and",
+              "args": [
+                {
+                  "op": "present",
+                  "path": "gate",
+                  "extra": true
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "invalid": true
+    },
+    {
+      "name": "null-policy",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "present",
+              "path": "gate"
+            },
+            "onInapplicable": null
+          }
+        ]
+      },
+      "invalid": false
+    },
+    {
+      "name": "nullable-empty-operands",
+      "conditions": {
+        "version": "formgen.conditions/v1",
+        "rules": [
+          {
+            "path": "answer",
+            "applicableWhen": {
+              "op": "and",
+              "path": null,
+              "value": null,
+              "args": [
+                {
+                  "op": "present",
+                  "path": "gate",
+                  "args": null
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "invalid": false
+    },
+    {
+      "name": "set-false",
+      "conditions": false,
+      "invalid": true
+    },
+    {
+      "name": "set-zero",
+      "conditions": 0,
+      "invalid": true
+    },
+    {
+      "name": "set-empty-string",
+      "conditions": "",
+      "invalid": true
+    },
+    {
+      "name": "set-array",
+      "conditions": [],
+      "invalid": true
+    }
+  ]
+}

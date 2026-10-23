@@ -24,8 +24,8 @@ func Parse(path string) ([]Segment, error) {
 		return nil, fmt.Errorf("invalid canonical field path")
 	}
 	var out []Segment
-	for _, part := range strings.Split(path, ".") {
-		name := strings.SplitN(part, "[", 2)[0]
+	for part := range strings.SplitSeq(path, ".") {
+		name, _, _ := strings.Cut(part, "[")
 		if name == "__proto__" || name == "prototype" || name == "constructor" {
 			return nil, fmt.Errorf("unsafe field path")
 		}

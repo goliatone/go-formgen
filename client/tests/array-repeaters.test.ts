@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { addArrayItem, initRelationships, resetGlobalRegistry } from "../src/index";
+import { addArrayItem, initArrayRepeaters, initRelationships, resetGlobalRegistry } from "../src/index";
 
 async function flush(): Promise<void> {
   await Promise.resolve();
@@ -251,4 +251,25 @@ describe("array repeaters", () => {
     expect(document.getElementById("section-0")).toBeNull();
     expect(document.querySelector<HTMLInputElement>("[name='sections[0].links[0]._delete']")?.value).toBeUndefined();
   });
+});
+
+it("publishes one removal from a nested soft-deleted row", () => {
+  document.body.innerHTML = `<div><div data-formgen-array-items data-formgen-array-name="outer">
+    <div data-formgen-array-item data-formgen-array-existing="true"><input name="outer[0].label" value="parent">
+      <div><div data-formgen-array-items data-formgen-array-name="outer[0].inner">
+        <div data-formgen-array-item data-formgen-array-existing="true"><input name="outer[0].inner[0].answer" value="saved"><input name="outer[0].inner[0]._delete" type="hidden" value="false"><button type="button" data-formgen-array-action="remove">Remove inner</button></div>
+        <template data-formgen-array-prototype><input name="outer[0].inner[1].answer"></template>
+      </div><button type="button" data-formgen-array-action="add">Add inner</button></div>
+    </div><template data-formgen-array-prototype><input name="outer[1].label"></template>
+  </div><button type="button" data-formgen-array-action="add">Add outer</button></div>`;
+  initArrayRepeaters(document.body);
+  const changes: string[] = [];
+  const record = (event: Event) => changes.push((event as CustomEvent<{path:string}>).detail.path);
+  document.body.addEventListener("formgen:array:change", record);
+  document.querySelector<HTMLButtonElement>('[data-formgen-array-action="remove"]')!.click();
+  expect(changes).toEqual(["outer[0].inner[0]"]);
+  expect(document.querySelector<HTMLElement>('[data-formgen-array-name="outer"] > [data-formgen-array-item]')!.hidden).toBe(false);
+  expect(document.querySelector<HTMLElement>('[data-formgen-array-name="outer[0].inner"] > [data-formgen-array-item]')!.hidden).toBe(true);
+  document.body.removeEventListener("formgen:array:change", record);
+  resetGlobalRegistry(); document.body.innerHTML = "";
 });

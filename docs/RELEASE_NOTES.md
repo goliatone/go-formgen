@@ -24,7 +24,7 @@ The embedded-form primitives (hydration options, model-aware values and validati
 
 Preserved behavior:
 
-- `setValues(values)` and `reset()` without options keep patch semantics and the legacy per-event `onChange` notifications; `getValues()` stays raw DOM strings; `hydrateFormValues`/`Formgen.hydrate` are unchanged.
+- `setValues(values)` and `reset()` without options keep patch semantics and the legacy per-event `onChange` notifications; `getValues()` keeps its raw transport contract.
 - Default controls are unchanged: booleans render checkboxes, enums render selects, arrays of objects render repeaters. The choice components are reached only through `component.name`.
 - Unregistered explicit components still fail at render time; `Preflight` is an additional, optional check.
 - Definitions without `x-formgen.conditions` compile and validate exactly as before; the JSON descriptor gains a `conditions` key only when rules exist.
@@ -33,6 +33,18 @@ Preserved behavior:
 Additive contracts: `HydrationOptions`, `ChangeMetadata` (third callback argument with `origin`, `paths`, and `applicable`), `EmbeddedModel`/`EmbeddedField` (optional `label`), `EmbeddedIssue`, `ConditionSet`/`Expression` (`formgen.conditions/v1`), `ConditionProjection`, `DefinitionDiagnostic`, `TypedSnapshot`/`PresenceState` (`formgen.snapshot/v1`), the model rule `uniqueItems`, and the shared fixture `testdata/embedded/v1.json`.
 
 Corrections that change observable output (document in host release notes):
+
+- Overlapping clear/retain rules preserve independent retained history; reentry never resurrects a cleared leaf. Reserved-prefix string choices round-trip through hydration and snapshots in browser and Go parsing.
+- Model-backed hydration captures conversion issues before native sanitization; unrepresentable values remain logical answers with diagnostics. Restore preserves captured normalization issues, including locked invalid nulls, until an observed replacement.
+- Repeater Add/Remove actions notify with or without conditions. Deleted rows are excluded structurally without shifting sibling indexes; the last removal leaves an explicit empty array for cardinality validation. Hosts pass validated deletion context to Go with `submission.WithInactivePaths`; browser pure projection accepts `inactivePaths`.
+- Raw JSON copying safely preserves all own data keys. Choice-card styling follows native checked/disabled state; custom themes should use those states instead of SSR initial hints.
+- `NormalizeOptions.enumValues: "literal"` normalizes typed JSON; the default `"control"` continues decoding native option tokens. Declared literal string enum/option codes take precedence over decoding.
+
+- Settled model-backed hydration/reset/restore notifications include logical presence changes (absent/null/false), even when native controls stay empty; true no-ops and `notify:false` remain silent.
+- Explicit null containers clear rendered descendants, and replace validates missing empty/null/nested rows before mutation. Model-backed raw-object leaves hydrate/restore as JSON without losing answers.
+- Locked values normalize through the shared model pipeline and retain parse issues. Partial radio/checkbox locks preserve captured disabled selections while enabled members remain editable. Restoring absent entries explicitly clears their controls, including locked members and patch restores.
+- Retained restoration validates canonical/model/rendered paths before resolving leaf values; unknown indexes never allocate temporary arrays and unsafe/unknown retained keys return issues.
+- Conditional child scopes no longer validate required ancestors. Browser condition definitions reject malformed args and unknown AST properties consistently with the public Go builder; nullable optional operands retain Go compatibility.
 
 - Hydration no longer rewrites existing `<option>` labels with raw values, and hydrating a file input with a non-empty value no longer throws.
 - Go `minLength`/`maxLength` count Unicode code points instead of UTF-8 bytes, and a missing required array reports `required` instead of `type`.
@@ -62,6 +74,9 @@ Release checklist for the maintainer (not performed here): bump the runtime pack
 ## Typed Snapshots With Explicit Presence (next release)
 
 - `controller.snapshot()` and `controller.restore(snapshot, options)` add an opt-in model-backed presence layer: `present`/`null`/`absent` per leaf path, effective values with retained inactive values apart, locked-control values, independent copies, and explicit issues for unsafe integers, unknown controls, detached rows, and unknown or unsafe snapshot paths.
+- Settled hydration/reset/restore callbacks observe finalized presence and condition state. Retained nested/indexed answers and retained containers restore without data loss; explicit boolean nulls stay null in snapshots and validation. Disabled fieldsets follow native legend exceptions for collection and locking.
+- Inactive containers suspend descendant native required constraints and restore each leaf's constraints on reentry. Malformed explicit condition-rule collections return browser diagnostics, matching Go rejection; omitted/null collections remain valid.
+
 - `TypedSnapshot` and `PresenceState` join the embedded contract; raw `getValues()` and legacy hydration are unchanged.
 
 ## Renderer Preflight and Metadata Precedence (next release)

@@ -10,14 +10,16 @@ export interface ArrayChangeDetail {
   /** Canonical array name from `data-formgen-array-name`, when rendered. */
   name: string;
   container: HTMLElement;
+  /** Precise coordinate, including a physically removed row. */
+  path?: string;
 }
 
-function dispatchArrayChange(container: HTMLElement, kind: ArrayChangeDetail["kind"]): void {
+function dispatchArrayChange(container: HTMLElement, kind: ArrayChangeDetail["kind"], path?: string): void {
   try {
     container.dispatchEvent(
       new CustomEvent<ArrayChangeDetail>(ARRAY_CHANGE_EVENT, {
         bubbles: true,
-        detail: { kind, name: container.dataset.formgenArrayName ?? "", container },
+        detail: { kind, name: container.dataset.formgenArrayName ?? "", container, path },
       })
     );
   } catch (_err) {
@@ -118,7 +120,7 @@ export function addArrayItem(items: HTMLElement): HTMLElement[] {
   );
   items.insertBefore(fragment, template);
   items.dataset.formgenArrayNextIndex = String(nextIndex + 1);
-  dispatchArrayChange(items, "add");
+  dispatchArrayChange(items, "add", targetPath);
   return added;
 }
 
@@ -163,6 +165,9 @@ function handleRemove(event: Event): void {
   if (!button) {
     return;
   }
+  // Nested repeaters each own a listener. Only the nearest one owns this
+  // removal; a soft-deleted row remains in the DOM while the click bubbles.
+  if (event.currentTarget !== button.closest(`[${ARRAY_ITEMS_ATTR}]`)) return;
   event.preventDefault();
   removeArrayItem(button);
 }
@@ -173,18 +178,34 @@ function removeArrayItem(button: HTMLButtonElement): void {
     return;
   }
   const container = item.closest<HTMLElement>(`[${ARRAY_ITEMS_ATTR}]`);
+  const path = arrayItemPath(item);
   if (isExistingArrayItem(item) && markArrayItemDeleted(item)) {
+    item.setAttribute("data-formgen-array-deleted", "true");
     item.hidden = true;
     item.setAttribute("aria-hidden", "true");
     if (container) {
-      dispatchArrayChange(container, "remove");
+      dispatchArrayChange(container, "remove", path);
     }
     return;
   }
   item.remove();
   if (container) {
-    dispatchArrayChange(container, "remove");
+    dispatchArrayChange(container, "remove", path);
   }
+}
+
+/** Row identity survives deletion; older markup falls back to its control names. */
+export function arrayItemPath(item: HTMLElement): string | undefined {
+  if (item.dataset.formgenArrayPath) return item.dataset.formgenArrayPath;
+  const array = item.closest<HTMLElement>(`[${ARRAY_ITEMS_ATTR}]`)?.dataset.formgenArrayName;
+  if (!array) return undefined;
+  for (const control of Array.from(item.querySelectorAll<HTMLElement>("[name], [data-field-path]"))) {
+    const name = control.getAttribute("name") || control.getAttribute("data-field-path") || "";
+    if (!name.startsWith(`${array}[`)) continue;
+    const end = name.indexOf("]", array.length);
+    if (end >= 0) return name.slice(0, end + 1);
+  }
+  return undefined;
 }
 
 function isExistingArrayItem(item: HTMLElement): boolean {
