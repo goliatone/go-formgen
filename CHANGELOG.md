@@ -1,17 +1,23 @@
 # Changelog
 
-## 0.34.1 candidate (2026-10-23)
+# [0.35.0](https://github.com/goliatone/go-formgen/compare/v0.34.0...v0.35.0) - (2026-10-23)
 
-- Repair rendered-row membership, enum transport identity, scalar choice hydration, scoped exclusions and atomic snapshot restoration.
-- Coordinate Go/runtime versions and build identity; verify exact candidate artifacts and CI evidence before publication.
-- Add portable definition preflight, compatibility policy, guarded snapshot persistence and synthetic repeated-field authoring recipes.
-- Pin publication to verified commit/tag objects; validate final packed and retained bytes, preserve hidden build inputs, and reject fixture mutation during verification.
-- Preserve resolver IDs through native transport, widgets and snapshots; check keyword-named schema fields, exact decimal bounds and dense snapshot row mappings.
-- Invalidate stale resolver work across refresh, hydration and teardown; isolate submission mirrors, prevent duplicate values and honor native disabled states.
-- Keep schema/OpenAPI example payloads opaque during portable preflight.
-- Reject non-finite server numbers, preserve exact JSON integer values and use field-aware native transport to protect literal text in mixed forms.
-- Add shared browser FormData/Go parsing fixtures and lifecycle regressions.
-- Candidate only; v0.34.0 remains unchanged. Native/application acceptance remains downstream.
+## <!-- 1 -->🐛 Bug Fixes
+
+- Release regresion ([6be70de](https://github.com/goliatone/go-formgen/commit/6be70de6b6b23f49f84b37338d61d4141c5acdc6))  - (goliatone)
+- Harden embedded form lifecycle and submission contracts ([8be804e](https://github.com/goliatone/go-formgen/commit/8be804e19af598db720d1f1633f042178d58a52d))  - (goliatone)
+- Close release verification and embedded identity gaps ([94f32b1](https://github.com/goliatone/go-formgen/commit/94f32b186dadbe5aecff1ae7b22ce7ed0734a5fe))  - (goliatone)
+- Stream large committed artifacts during verification ([0bda88a](https://github.com/goliatone/go-formgen/commit/0bda88abb2a364dde93e0cf82b47939d85381ba7))  - (goliatone)
+- Exclude workspace caches from runtime fingerprints ([7ffb4c8](https://github.com/goliatone/go-formgen/commit/7ffb4c803b6fea923a8569632edde508d6e2be90))  - (goliatone)
+- Coordinate runtime releases and harden embedded integration ([c8f5db9](https://github.com/goliatone/go-formgen/commit/c8f5db991c31789b8a8f284e08f43b5127a69f4a))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.34.0 ([b0feac5](https://github.com/goliatone/go-formgen/commit/b0feac5562cf7c4a48f8f4a9146a32d7525b899a))  - (goliatone)
+
+## <!-- 30 -->📝 Other
+
+- PR [#2](https://github.com/goliatone/go-formgen/pull/2): harden embedded form lifecycle and submission contracts ([256bc0d](https://github.com/goliatone/go-formgen/commit/256bc0da7c6820c47e5f6fb1a4ee086204a03aac))  - (goliatone)
 
 # [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)
 
