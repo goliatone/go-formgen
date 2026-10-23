@@ -1,11 +1,22 @@
 #!/usr/bin/env node
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFile, writeFile, mkdir, mkdtemp, rm, copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { validVersion, versionInfo, checkManifest, manifestPath, sha256, json } from '../client/scripts/artifacts.mjs';
 
+// Stream large committed assets/source maps; do not depend on exec's stdout buffer.
+export function gitBlobHash(root, object) {
+  return new Promise((resolveHash,reject)=>{
+    const hash=createHash('sha256');
+    const child=spawn('git',['show',object],{cwd:root,stdio:['ignore','pipe','pipe']});
+    let error='';child.stdout.on('data',bytes=>hash.update(bytes));
+    child.stderr.on('data',bytes=>{if(error.length<4096)error+=bytes.toString()});
+    child.on('error',reject);child.on('close',code=>code===0?resolveHash(hash.digest('hex')):reject(Error(`git show failed: ${error}`)));
+  });
+}
 export function run(root, command, args, capture = false) {
   const result = spawnSync(command, args, { cwd: root, stdio: capture ? 'pipe' : 'inherit', encoding: 'utf8', env: { ...process.env, GOWORK: 'off', GOFLAGS: '-mod=readonly' } });
   if (result.error || result.status !== 0) throw Error(`${command} ${args.join(' ')} failed (${result.status}): ${result.error?.message ?? result.stderr ?? ''}`);
@@ -74,8 +85,8 @@ export async function verify(root, ref = 'HEAD', execute = run) {
     // Compare all committed embedded copies to regenerated ones, not just the manifest.
     for (const [path, hash] of Object.entries(manifest.artifacts)) {
       if (!path.startsWith('client/dist/')) {
-        // git output is binary-safe via execFileSync rather than the trimmed runner.
-        if (sha256(execFileSync('git', ['show', `${commit}:${path}`], { cwd: root })) !== hash) throw Error(`Committed asset is stale: ${path}`);
+        // Hash binary Git output as a stream, including large source maps.
+        if (await gitBlobHash(root, `${commit}:${path}`) !== hash) throw Error(`Committed asset is stale: ${path}`);
       }
     }
     execute(client, 'npm', ['test', '--', '--threads=false']);

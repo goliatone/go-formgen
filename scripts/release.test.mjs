@@ -134,3 +134,15 @@ test('Taskfile wrappers preserve npm failure and retire automatic release/versio
   }
  }finally{await rm(dir,{recursive:true,force:true});}
 });
+
+test('committed artifact hashing streams source maps larger than exec buffers',async()=>{
+ const {execFileSync}=await import('node:child_process');
+ const {gitBlobHash}=await import('./release.mjs');const {sha256}=await import('../client/scripts/artifacts.mjs');
+ const root=await mkdtemp(resolve(tmpdir(),'formgen-blob-'));
+ try{
+  execFileSync('git',['init','-q',root]);
+  const data=Buffer.alloc(2*1024*1024,65);
+  const object=execFileSync('git',['hash-object','-w','--stdin'],{cwd:root,input:data,encoding:'utf8'}).trim();
+  assert.equal(await gitBlobHash(root,object),sha256(data));
+ }finally{await rm(root,{recursive:true,force:true});}
+});
