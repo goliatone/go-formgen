@@ -1,5 +1,23 @@
 # Changelog
 
+# [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Normalization, shared state, and row exclusion ([134926d](https://github.com/goliatone/go-formgen/commit/134926dbf56fa22adee1a76eed190eb73be4b19e))  - (goliatone)
+
+## <!-- 13 -->📦 Bumps
+
+- Bump version: v0.34.0 ([534dd51](https://github.com/goliatone/go-formgen/commit/534dd51fa87c9817171be2e6ca7ca0653f90f65a))  - (goliatone)
+
+## <!-- 16 -->➕ Add
+
+- Form submision and error handling ([0337ba5](https://github.com/goliatone/go-formgen/commit/0337ba508b56b1cc555eb114049d08be1b724ee4))  - (goliatone)
+
+## <!-- 3 -->📚 Documentation
+
+- Update changelog for v0.33.2 ([2c5b841](https://github.com/goliatone/go-formgen/commit/2c5b84192c0fbe74cfd538216952f1c9f95a815f))  - (goliatone)
+
 # [0.33.2](https://github.com/goliatone/go-formgen/compare/v0.33.1...v0.33.2) - (2026-08-13)
 
 ## <!-- 1 -->🐛 Bug Fixes
