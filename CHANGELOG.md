@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.35.1](https://github.com/goliatone/go-formgen/compare/v0.35.0...v0.35.1) - (2026-10-24)
+
+## <!-- 1 -->🐛 Bug Fixes
+
+- Fix tests ([abb5f9e](https://github.com/goliatone/go-formgen/commit/abb5f9e3c193950167312264257bfd3e140e83a6))  - (goliatone)
+- Update npm deps ([e6fb50b](https://github.com/goliatone/go-formgen/commit/e6fb50b3db3a2a1af68a68df89f326fd0fc6775c))  - (goliatone)
+
 # [0.35.0](https://github.com/goliatone/go-formgen/compare/v0.34.0...v0.35.0) - (2026-10-23)
 
 ## <!-- 1 -->🐛 Bug Fixes
@@ -18,6 +25,10 @@
 ## <!-- 30 -->📝 Other
 
 - PR [#2](https://github.com/goliatone/go-formgen/pull/2): harden embedded form lifecycle and submission contracts ([256bc0d](https://github.com/goliatone/go-formgen/commit/256bc0da7c6820c47e5f6fb1a4ee086204a03aac))  - (goliatone)
+
+## <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- **release:** V0.35.0 ([f3ad6a6](https://github.com/goliatone/go-formgen/commit/f3ad6a69ddccb02b94dd8dba0fad23598cfde817))  - (goliatone)
 
 # [0.34.0](https://github.com/goliatone/go-formgen/compare/v0.33.2...v0.34.0) - (2026-10-23)
 
