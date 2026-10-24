@@ -36,17 +36,20 @@ export async function versionInfo(root) {
   if ([pkg.version, lock.version, lock.packages?.['']?.version].some(v => v !== version)) throw Error('Shared/package/lock versions differ; run release:prepare VERSION');
   return { version, pkg, lock };
 }
+export async function buildInputs(root) {
+  // Tailwind scans tests, examples and Go templates too: include its real inputs.
+  // Conservatively include every client source/config asset, including hidden
+  // modules and loader inputs with arbitrary extensions. Exclusions are explicit.
+  return ['.version', '.node-version', ...(await files(root, 'client')).filter(p => p !== manifestPath && !p.endsWith('/.DS_Store')),
+    ...(await files(root, 'pkg')).filter(p => /\.(go|tmpl|html|json|ya?ml)$/.test(p)),
+    ...(await files(root, 'examples')).filter(p => /\.(go|tmpl|html)$/.test(p)),
+    ...(await files(root, 'scripts')).filter(p => /\.(mjs|go)$/.test(p))].sort();
+}
 export async function buildInfo(root) {
   const { version } = await versionInfo(root);
   const node = (await readFile(resolve(root, '.node-version'), 'utf8')).trim();
   if (process.versions.node !== node) throw Error(`Production builds require Node ${node}; got ${process.versions.node}`);
-  // Tailwind scans tests, examples and Go templates too: include its real inputs.
-  // Conservatively include every client source/config asset, including hidden
-  // modules and loader inputs with arbitrary extensions. Exclusions are explicit.
-  const inputs = ['.version', '.node-version', ...(await files(root, 'client')).filter(p => p !== manifestPath && !p.endsWith('/.DS_Store')),
-    ...(await files(root, 'pkg')).filter(p => /\.(go|tmpl|html|json|ya?ml)$/.test(p)),
-    ...(await files(root, 'examples')).filter(p => /\.(go|tmpl|html)$/.test(p)),
-    ...(await files(root, 'scripts')).filter(p => /\.(mjs|go)$/.test(p))].sort();
+  const inputs = await buildInputs(root);
   const hash = createHash('sha256');
   for (const path of inputs) hash.update(path + '\0').update(await readFile(resolve(root, path))).update('\0');
   return { version, fingerprint: hash.digest('hex'), node };

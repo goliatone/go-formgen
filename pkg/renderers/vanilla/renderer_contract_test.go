@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -245,13 +246,28 @@ func TestRenderer_RenderWithDefaultStyles(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 
+	stylesheet, err := fs.ReadFile(vanilla.AssetsFS(), vanilla.StylesheetName)
+	if err != nil {
+		t.Fatalf("read embedded stylesheet: %v", err)
+	}
+	styles := regexp.MustCompile(`(?s)<style data-formgen-default-style>(.*?)</style>`).FindAllSubmatch(output, -1)
+	if len(styles) != 1 {
+		t.Fatalf("expected one bundled stylesheet, got %d", len(styles))
+	}
+	if diff := testsupport.CompareGolden(strings.TrimSpace(string(stylesheet)), strings.TrimSpace(string(styles[0][1]))); diff != "" {
+		t.Fatalf("inline stylesheet differs from embedded asset (-want +got):\n%s", diff)
+	}
+	// Check CSS delivery exactly while keeping generated minifier output out of
+	// the markup fixture. CSS behavior is covered by the client theme contracts.
+	markup := bytes.Replace(output, styles[0][1], []byte("\n/* embedded stylesheet */\n"), 1)
+
 	goldenPath := filepath.Join("testdata", "form_output_with_styles.golden.html")
-	if testsupport.WriteMaybeGolden(t, goldenPath, output) {
+	if testsupport.WriteMaybeGolden(t, goldenPath, markup) {
 		return
 	}
 
 	want := testsupport.MustReadGolden(t, goldenPath)
-	if diff := testsupport.CompareGolden(string(want), string(output)); diff != "" {
+	if diff := testsupport.CompareGolden(string(want), string(markup)); diff != "" {
 		t.Fatalf("styled output mismatch (-want +got):\n%s", diff)
 	}
 }

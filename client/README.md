@@ -708,6 +708,12 @@ npm test
 npm test -- --watch
 ```
 
+`npm test` builds the package consumer fixture from current sources in a temporary
+directory, then packs and installs it offline. It reuses the checked local
+dependencies and leaves the checkout's release manifest and generated assets
+unchanged. Source edits do not require a production rebuild to refresh this
+consumer fixture.
+
 ## Development Notes
 
 - **Tailwind + Go templates**: The theme build now scans the Go source tree (`../pkg/**/*.{go,tmpl,html}` and `../examples/**/*.{go,html,tmpl}` inside `tailwind.config.js`) so utility classes declared inside Go strings are preserved. Whenever you introduce markup in Go, make sure the file path still matches those globs; if you move code elsewhere, update the config before rebuilding.
