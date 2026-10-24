@@ -2,10 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, readdir, readlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { verifyBundledDependencies, dependencyInventoryPath } from './package-dependencies.mjs';
+import { assertInstalledDependencies } from './check-dependencies.mjs';
 
 export const validVersion = version => /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?$/.test(version ?? '');
 export const manifestPath = 'client/runtime-manifest.json';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
+  ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
+export const packageMetadataHash = pkg => sha256(JSON.stringify(canonical(pkg)));
 export const json = async path => JSON.parse(await readFile(path, 'utf8'));
 export async function files(root, dir) {
   const out = [];
@@ -46,17 +51,22 @@ export async function buildInfo(root) {
   for (const path of inputs) hash.update(path + '\0').update(await readFile(resolve(root, path))).update('\0');
   return { version, fingerprint: hash.digest('hex'), node };
 }
-// Explicit copy inventory: the separate Preact application bundle is not a runtime copy.
+// Explicit copy inventory: include the Preact hook, but not the separate renderer application.
 export const copies = {
   'client/dist/browser/formgen-relationships.min.js': ['pkg/runtime/assets/formgen-relationships.min.js', 'pkg/renderers/vanilla/assets/formgen-relationships.min.js'],
   'client/dist/browser/formgen-relationships.min.js.map': ['pkg/runtime/assets/formgen-relationships.min.js.map', 'pkg/renderers/vanilla/assets/formgen-relationships.min.js.map'],
   'client/dist/browser/formgen-behaviors.min.js': ['pkg/runtime/assets/formgen-behaviors.min.js'],
   'client/dist/browser/formgen-behaviors.min.js.map': ['pkg/runtime/assets/formgen-behaviors.min.js.map'],
+  'client/dist/browser/frameworks/preact.min.js': ['pkg/runtime/assets/frameworks/preact.min.js'],
+  'client/dist/browser/frameworks/preact.min.js.map': ['pkg/runtime/assets/frameworks/preact.min.js.map'],
   'client/dist/themes/formgen.css': ['pkg/renderers/vanilla/assets/formgen-vanilla.css', 'pkg/renderers/preact/assets/formgen-preact.min.css'],
 };
 export async function artifactManifest(root) {
   const info = await buildInfo(root);
+  const pkg = await json(resolve(root, 'client/package.json'));
+  if (pkg.bundleDependencies?.length) await verifyBundledDependencies(resolve(root, 'client'));
   const outputs = [];
+  if (pkg.bundleDependencies?.length) outputs.push(`client/${dependencyInventoryPath}`);
   for (const dir of ['client/dist/esm', 'client/dist/browser', 'client/dist/types', 'client/dist/themes']) {
     // files() deliberately excludes nested dist directories, not these explicit roots.
     outputs.push(...await files(root, dir));
@@ -68,7 +78,7 @@ export async function artifactManifest(root) {
     if (!artifacts[source] || targets.some(p => artifacts[p] !== artifacts[source])) throw Error(`Stale embedded copy of ${source}`);
   }
   if (!outputs.some(p => p.endsWith('index.d.ts')) || !artifacts['client/dist/esm/index.js']) throw Error('Missing package entry points');
-  return { format: 'formgen.artifacts/v1', ...info, artifacts };
+  return { format: 'formgen.artifacts/v1', ...info, packageMetadataHash: packageMetadataHash(pkg), artifacts };
 }
 export async function writeManifest(root) {
   const manifest = await artifactManifest(root);
@@ -84,6 +94,7 @@ export async function checkManifest(root) {
 
 export async function assertBuildTools(root) {
   const {pkg,lock}=await versionInfo(root);
+  await assertInstalledDependencies(resolve(root, 'client'));
   const npm=execFileSync('npm',['--version'],{encoding:'utf8'}).trim();
   if(pkg.packageManager!==`npm@${npm}`)throw Error(`Production builds require ${pkg.packageManager}; got npm@${npm}`);
   for(const name of ['esbuild','typescript','tsx','postcss','tailwindcss','autoprefixer','cssnano']) {

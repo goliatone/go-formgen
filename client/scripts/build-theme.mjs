@@ -13,7 +13,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const inputFile = resolve(projectRoot, "src", "theme", "index.css");
 const tailwindConfig = resolve(projectRoot, "tailwind.config.js");
-const outputDir = resolve(projectRoot, "dist", "themes");
+const outputOverride = process.argv.slice(2).find(arg => arg.startsWith("--output-dir="));
+if (outputOverride === "--output-dir=") throw new Error("--output-dir requires a directory");
+const outputDir = outputOverride
+  ? resolve(outputOverride.slice("--output-dir=".length))
+  : resolve(projectRoot, "dist", "themes");
 const outputFile = resolve(outputDir, "formgen.css");
 const vanillaStyles = resolve(projectRoot, "..", "pkg", "renderers", "vanilla", "assets", "formgen-vanilla.css");
 const preactStyles = resolve(projectRoot, "..", "pkg", "renderers", "preact", "assets", "formgen-preact.min.css");
@@ -52,12 +56,13 @@ async function buildTheme() {
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputFile, result.css, "utf8");
-  await writeFile(vanillaStyles, result.css, "utf8");
-  await writeFile(preactStyles, result.css, "utf8");
-
   console.log(`[formgen:theme] wrote ${outputFile.replace(`${projectRoot}/`, "")}`);
-  console.log("[formgen:theme] copied to vanilla renderer assets");
-  console.log("[formgen:theme] copied to preact renderer assets");
+  if (!outputOverride) {
+    await writeFile(vanillaStyles, result.css, "utf8");
+    await writeFile(preactStyles, result.css, "utf8");
+    console.log("[formgen:theme] copied to vanilla renderer assets");
+    console.log("[formgen:theme] copied to preact renderer assets");
+  }
 }
 
 async function run() {

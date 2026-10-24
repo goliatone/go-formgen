@@ -850,6 +850,10 @@ hydrateFormValues(document, {
 
 ### Preact
 
+Install Preact 10.29.8 or a compatible newer 10.x release in the host. It is an
+optional peer: vanilla consumers do not need it. The ESM adapter imports the
+host's `preact/hooks` so hooks and rendering share one Preact instance.
+
 ```typescript
 import { useRelationshipOptions } from '@goliatone/formgen-runtime/frameworks/preact';
 
@@ -869,6 +873,21 @@ function PublisherSelect({ field }) {
   );
 }
 ```
+
+For script tags, serve local copies of the same Preact release's
+`dist/preact.umd.js` and `hooks/dist/hooks.umd.js`, then
+`dist/browser/frameworks/preact.min.js`. The host scripts expose `preact` and
+`preactHooks`; use `FormgenRelationshipsPreact.useRelationshipOptions` inside a
+component rendered by that host's `preact.render`. The Go-embedded adapter uses
+the same contract. Missing host hooks produce an error when the hook is used.
+
+The npm tarball includes its reviewed production dependency tree, including
+the types used by the public editor API. `dist/dependencies.json` hashes that
+tree; package verification checks the archive and an offline consumer install.
+Build-only styling tools are development dependencies. Repository npm overrides
+apply to local builds; consumers receive the bundled production tree instead of
+relying on those overrides. Hosts remain responsible for their own dependencies
+and Preact upgrades.
 
 ### Rich Options (Icons, Avatars, Descriptions)
 

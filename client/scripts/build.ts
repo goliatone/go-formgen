@@ -1,5 +1,5 @@
 // @ts-ignore Node ESM build helper; runtime-only, not a published declaration.
-import { buildInfo, assertBuildTools } from "./artifacts.mjs";
+import { buildInfo, assertBuildTools, copies } from "./artifacts.mjs";
 import { build, context, analyzeMetafile, BuildOptions } from "esbuild";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
@@ -27,34 +27,13 @@ const iifeOutDir = resolve(projectRoot, buildOutput.iife);
 const themesOutDir = resolve(projectRoot, "dist", "themes");
 const viteOutDir = resolve(projectRoot, "dist", "vite");
 
-const runtimeAssetCopies = [
-  {
-    source: resolve(iifeOutDir, "formgen-relationships.min.js"),
-    targets: [
-      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-relationships.min.js"),
-      resolve(repoRoot, "pkg", "renderers", "vanilla", "assets", "formgen-relationships.min.js"),
-    ],
-  },
-  {
-    source: resolve(iifeOutDir, "formgen-relationships.min.js.map"),
-    targets: [
-      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-relationships.min.js.map"),
-      resolve(repoRoot, "pkg", "renderers", "vanilla", "assets", "formgen-relationships.min.js.map"),
-    ],
-  },
-  {
-    source: resolve(iifeOutDir, "formgen-behaviors.min.js"),
-    targets: [
-      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-behaviors.min.js"),
-    ],
-  },
-  {
-    source: resolve(iifeOutDir, "formgen-behaviors.min.js.map"),
-    targets: [
-      resolve(repoRoot, "pkg", "runtime", "assets", "formgen-behaviors.min.js.map"),
-    ],
-  },
-];
+// Use the manifest's copy inventory so build synchronization and verification agree.
+const runtimeAssetCopies = Object.entries(copies)
+  .filter(([source]) => source.startsWith("client/dist/browser/"))
+  .map(([source, targets]) => ({
+    source: resolve(repoRoot, source),
+    targets: targets.map((target) => resolve(repoRoot, target)),
+  }));
 
 const esmOptions: BuildOptions = {
   absWorkingDir: projectRoot,
@@ -62,6 +41,8 @@ const esmOptions: BuildOptions = {
   outbase: "src",
   outdir: esmOutDir,
   bundle: true,
+  // Hooks must share the consumer renderer's Preact instance.
+  external: ["preact", "preact/*"],
   splitting: true,
   format: "esm",
   sourcemap: true,
@@ -93,6 +74,24 @@ const iifePreactOptions: BuildOptions = {
   entryPoints: [runtimeEntryPoints.preact],
   outfile: resolve(iifeOutDir, "frameworks/preact.min.js"),
   bundle: true,
+  plugins: [{
+    name: "host-preact-hooks",
+    setup(builder) {
+      builder.onResolve({ filter: /^preact\/hooks$/ }, () => ({ path: "preact/hooks", namespace: "host-preact" }));
+      builder.onLoad({ filter: /.*/, namespace: "host-preact" }, () => ({
+        contents: `function hostHooks() {
+          const hooks = globalThis.preactHooks;
+          if (!hooks || !hooks.useState || !hooks.useEffect) {
+            throw new Error("Load the host Preact and preact/hooks UMD scripts before using the Formgen Preact adapter");
+          }
+          return hooks;
+        }
+        export function useState(...args) { return hostHooks().useState(...args); }
+        export function useEffect(...args) { return hostHooks().useEffect(...args); }`,
+        loader: "js",
+      }));
+    },
+  }],
   format: "iife",
   sourcemap: true,
   minify: true,

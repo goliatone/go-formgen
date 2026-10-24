@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import {
   GRID_LAYOUT_FILE,
   GRID_MAX_TRACKS,
@@ -11,17 +12,24 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
-const themeOutput = resolve(projectRoot, "dist", "themes", "formgen.css");
+let outputDir: string;
+let themeOutput: string;
 
-beforeAll(() => {
+beforeAll(async () => {
+  outputDir = await mkdtemp(resolve(tmpdir(), "formgen-theme-test-"));
+  themeOutput = resolve(outputDir, "formgen.css");
   const nodeBin = resolve(process.execPath);
-  const result = spawnSync(nodeBin, ["scripts/build-theme.mjs"], {
+  const result = spawnSync(nodeBin, ["scripts/build-theme.mjs", `--output-dir=${outputDir}`], {
     cwd: projectRoot,
     stdio: "inherit",
   });
   if (result.status !== 0) {
     throw new Error("Theme build failed");
   }
+});
+
+afterAll(async () => {
+  if (outputDir) await rm(outputDir, { recursive: true, force: true });
 });
 
 describe("theme build", () => {

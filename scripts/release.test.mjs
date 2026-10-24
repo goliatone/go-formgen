@@ -261,10 +261,10 @@ async function releaseFixture() {
   await writeFile(target,`export const RUNTIME_VERSION=${JSON.stringify(info.version)};export const RUNTIME_BUILD=${JSON.stringify(info.fingerprint)};`);
  }
  for(const [source,targets] of Object.entries(copies)) {
-  const code=source.endsWith('.js')?`var ${source.includes('behaviors')?'FormgenBehaviors':'FormgenRelationships'}={RUNTIME_VERSION:'${info.version}',RUNTIME_BUILD:'${info.fingerprint}'};console.info('version ${info.version} build ${info.fingerprint.slice(0,12)}');`:'output';
+  const global=source.includes('/frameworks/preact.')?'FormgenRelationshipsPreact':source.includes('behaviors')?'FormgenBehaviors':'FormgenRelationships';
+  const code=source.endsWith('.js')?`var ${global}={RUNTIME_VERSION:'${info.version}',RUNTIME_BUILD:'${info.fingerprint}'};console.info('version ${info.version} build ${info.fingerprint.slice(0,12)}');`:'output';
   for(const path of [source,...targets]){await mkdir(dirname(resolve(root,path)),{recursive:true});await writeFile(resolve(root,path),code);}
  }
- await writeFile(resolve(root,'client/dist/browser/frameworks/preact.min.js'),`var FormgenRelationshipsPreact={RUNTIME_VERSION:'${info.version}',RUNTIME_BUILD:'${info.fingerprint}'};console.info('version ${info.version} build ${info.fingerprint.slice(0,12)}');`);
  for(const name of ['v1','definition-shapes','portable-definitions','authoring'])await writeFile(resolve(root,`testdata/embedded/${name}.json`),'{}');
  await writeManifest(root);
  run(root,'git',['init','-q']);run(root,'git',['add','.']);run(root,'git',['-c','user.name=Fixture','-c','user.email=fixture@example.test','commit','-qm','candidate']);
@@ -315,6 +315,15 @@ test('packed inventory and retained output bytes must match before passing evide
   await assert.rejects(verifyPackageContents(resolve(root,'client'),manifest),/Packed artifacts differ/);await rm(extra);
   const pack=JSON.parse(run(resolve(root,'client'),'npm',['pack','--json','--pack-destination',root],true))[0];
   const tarball=resolve(root,pack.filename);await checkPackage(tarball,manifest.version,manifest.fingerprint,bytes);
+  const unpacked=resolve(root,'unpacked');await mkdir(unpacked);
+  run(root,'tar',['-xf',tarball,'-C',unpacked]);
+  const metadataPath=resolve(unpacked,'package/package.json');
+  const metadata=JSON.parse(await readFile(metadataPath,'utf8'));
+  metadata.dependencies={unexpected:'1.0.0'};
+  await writeFile(metadataPath,JSON.stringify(metadata));
+  const changedMetadata=resolve(root,'changed-metadata.tgz');
+  run(root,'tar',['-czf',changedMetadata,'-C',unpacked,'package']);
+  await assert.rejects(checkPackage(changedMetadata,manifest.version,manifest.fingerprint,bytes),/Packed package metadata differs/);
   await assert.rejects(checkPackage(tarball,manifest.version,manifest.fingerprint,bytes+' '),/Packed manifest differs/);
   await appendFile(output,'\n// changed after packaging\n');
   await assert.rejects(retainEvidence(root,root,tarball,bytes,{status:'passed'}),/Retained artifact differs/);
@@ -324,6 +333,25 @@ test('packed inventory and retained output bytes must match before passing evide
   assert.equal(JSON.parse(await readFile(resolve(root,'.tmp/release/evidence.json'))).status,'passed');
   await verifyPackageContents(resolve(root,'.tmp/release/artifacts/client'),manifest);
  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('bundled dependency inventory rejects changed, missing and extra published files', async () => {
+ const {verifyBundledDependencies}=await import('../client/scripts/package-dependencies.mjs');
+ const {sha256}=await import('../client/scripts/artifacts.mjs');
+ const root=await mkdtemp(resolve(tmpdir(),'formgen-dependency-inventory-'));
+ try {
+  const path='node_modules/example/index.js', file=resolve(root,path);
+  await mkdir(dirname(file),{recursive:true});await mkdir(resolve(root,'dist'));
+  await writeFile(file,'reviewed bytes');
+  await writeFile(resolve(root,'dist/dependencies.json'),JSON.stringify({format:'formgen.dependencies/v1',files:{[path]:sha256('reviewed bytes')}}));
+  await verifyBundledDependencies(root,true);
+  await writeFile(file,'changed bytes');
+  await assert.rejects(verifyBundledDependencies(root,true),/Bundled dependencies differ/);
+  await rm(file);
+  await assert.rejects(verifyBundledDependencies(root,true),/Bundled dependencies differ/);
+  await writeFile(file,'reviewed bytes');await writeFile(resolve(root,'node_modules/example/extra.js'),'extra');
+  await assert.rejects(verifyBundledDependencies(root,true),/Bundled dependencies differ/);
+ } finally {await rm(root,{recursive:true,force:true});}
 });
 
 test('manual version selection preserves patch/minor/major and explicit versions', () => {

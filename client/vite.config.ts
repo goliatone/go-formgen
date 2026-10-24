@@ -36,6 +36,7 @@ export default defineConfig({
         entryName === "runtime" ? "index.js" : `frameworks/${entryName}.js`,
     },
     rollupOptions: {
+      external: (id) => id === "preact" || id.startsWith("preact/"),
       treeshake: true,
     },
   },

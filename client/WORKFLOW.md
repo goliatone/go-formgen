@@ -261,6 +261,48 @@ npm run build
 
 ### Scenario: Update dependencies
 
+Security maintenance uses exact reviewed versions for Preact/PostCSS and
+major-scoped `overrides` for vulnerable transitive packages. Keep those pins
+until parent dependencies require reviewed patched versions. Do not replace
+them with a broad `npm audit fix --force`; changing the resolved graph requires
+another advisory, artifact and compatibility review.
+
+Overrides apply only to this repository's npm root. Production dependencies
+are included through `bundleDependencies`; `dist/dependencies.json` records
+their exact published file hashes. Keep that inventory and the runtime manifest
+with each build. Styling-only dependencies stay in `devDependencies`. Preact is
+an optional host peer and must remain external in ESM builds; the browser
+adapter uses the host's `preactHooks` global. See README for script setup.
+
+Package verification installs the actual tarball offline with scripts disabled,
+checks dependency bytes, and mounts, updates and remounts both Preact adapters
+with a separate consumer renderer. Run a production build before the suite so
+this test sees the intended outputs. No additional package downloads occur in
+the consumer check; it repacks the already reviewed local Preact peer.
+
+Install new candidates in a disposable container with scripts disabled, without
+host credentials or the Docker socket. After downloads and artifact review,
+disable container networking before running package code, tests and builds.
+Run `npm test -- --threads=false` and `npm run build`, then verify
+`npm run verify:artifacts`. Review the generated Go assets and manifest together
+with the package/lock changes. The dependency security tests exercise JSON VNode
+rejection and prevent external source-map content from leaking into CSS maps.
+
+After package/lock changes, synchronize each checkout with
+`npm ci --ignore-scripts`; copying generated assets does not update its installed
+dependencies. `npm test` and `npm run build` check installed package versions
+against the lock before loading tools. A stale or incomplete install fails with
+the exact mismatches and reinstall command. Build before testing packed outputs.
+Run plain `npm test` to cover the default parallel runner as well. Theme tests
+build into a private temporary output directory and leave packaged/Go assets
+untouched, so they can run beside package verification.
+Package verification discards npm 11's hidden `node_modules/.package-lock.json`
+cache before deriving the bundled file list: that cache omits dependency file
+rules and can otherwise change archive contents between fresh and warm installs.
+The tracked package-lock.json remains authoritative and is preserved.
+Normal `npm pack` runs the same manifest check before packing; maintenance
+commands that use `--ignore-scripts` must verify the candidate explicitly first.
+
 ```bash
 # 1. Update package.json
 

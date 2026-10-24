@@ -103,6 +103,15 @@ function render() {
 describe("embedded browser artifact regressions", () => {
   afterEach(() => { document.body.innerHTML = ""; });
 
+  it("keeps the Go-embedded Preact hook and source map identical to the package outputs", () => {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+    for (const file of ["preact.min.js", "preact.min.js.map"]) {
+      const embedded = readFileSync(resolve(root, "pkg/runtime/assets/frameworks", file));
+      const packaged = readFileSync(resolve(root, "client/dist/browser/frameworks", file));
+      expect(embedded.equals(packaged), file).toBe(true);
+    }
+  });
+
   it("ships identical runtime and renderer bundles and source maps", () => {
     const asset = (folder: string, file: string) => readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), `../../pkg/${folder}/assets/${file}`), "utf8"
